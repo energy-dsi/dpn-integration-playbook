@@ -47,26 +47,15 @@ The deployment process consists of:
 
 The following flow diagram explains the installation process steps.
 
-<p align="center">
-  <img src="../../04-dpn-architecture/images/dpn_installation.png"
-       alt="DPN Installation Process Flow"
-       width="400">
-  <br>
-  <em>Fig 1: DPN Installation Process Flow</em>
-</p>
+![DPN Components](/Docs/04-dpn-architecture/images/dpn_installation.png)
+
 ---
 
 ## DPN Data Pipelines Architecture Overview
 
 The following diagram illustrates the high-level architecture blocks of the **DPN Data Exchange platform** between a Data Producer and Data Consumer using file integration pathway and Federator gateway.
 
-<p align="center">
-  <img src="../../04-dpn-architecture/images/dpn_architecture.png"
-       alt="DPN Architecture Block"
-       width="1200" height="200">
-  <br>
-  <em>Fig 2: DPN Architecture Blocks</em>
-</p>
+![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_architecture.png)
 
 The architecture consists of following logical componenets:
 
@@ -543,13 +532,7 @@ Once a succesful deployment happens, the DPN Kubernetes cluster should show an e
 - process type - file
 ```
 
-<p align="center">
-  <img src="../../04-dpn-architecture/images/reference_implementation.png"
-       alt="DPN reference implementation"
-       width="1200" height="400">
-  <br>
-  <em>Fig 3: DPN Reference Implementation</em>
-</p>
+![DPN Reference Implementation](/Docs/04-dpn-architecture/images/reference_implementation.png)
 
 ```bash
 kubectl get pods -n <namespace>
