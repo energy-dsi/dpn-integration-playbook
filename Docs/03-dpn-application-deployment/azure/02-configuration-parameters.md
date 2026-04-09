@@ -46,15 +46,9 @@
 
 # Overview
 
-Data Preparation Node (DPN) consists of following components in the DSI package. 
+Data Preparation Node (DPN) consists of following components in the DSI package
 
-<p align="center">
-  <img src="../../04-dpn-architecture/images/dpn_components.png"
-       alt="DPN Components"
-       width="600" height="400">
-  <br>
-  <em>Fig 1: DPN Component Blocks</em>
-</p>
+![DPN Components](/Docs/04-dpn-architecture/images/dpn_components.png)
 
 - DPN Data Pipelines - Responsible for producing and consuming data products
 - DPN Security Services - Secrets storage and certificate regenaration for DSM communication
@@ -248,13 +242,7 @@ As of now the same certificate file is expected to be kept in all the keystores 
 
 DPN connectivity requirements for ports and protocols. This also covers the agent pool requirements for building the DPN code. 
 
-<p align="center">
-  <img src="../../04-dpn-architecture/images/DPN_ports_and_protocols.png"
-       alt="DPN Ports and Protocols"
-       width="600" height="600">
-  <br>
-  <em>Fig 2: DPN Ports & Protocols</em>
-</p>  
+![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/DPN_ports_and_protocols.png)
 
 The following Firewall rules should be applied from the Organizations before installing DPN.
 
