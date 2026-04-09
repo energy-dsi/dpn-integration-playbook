@@ -26,14 +26,7 @@
 
 This document describes the rollback and recovery procedures for **DPN deployments** in the event of a failed installation or unsuccessful deployment.
 
-<p align="center">
-  <img src="../../04-dpn-architecture/images/dpn_rollback.png"
-       alt="DPN Installation Rollback"
-       width="400">
-  <br>
-  <em>Fig 1: DPN Installation Rollback Flow</em>
-</p>
-
+![DPN Rollback Flow](/Docs/04-dpn-architecture/images/dpn_rollback.png)
 
 The rollback procedures apply to deployments performed using:
 
