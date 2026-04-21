@@ -358,6 +358,33 @@ Backend state storage: Standard_RAGRS
 Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organization policy)
 ```
 
+### Step 5.2 Deploy Azure File Share
+
+If developer storage components are defined in your stack, verify the Azure Files share is created and accessible via private endpoint.
+
+Validation:
+
+```bash
+# List file shares in the developer storage account
+az storage share list \
+  --account-name "<application-storage-account-name>" \
+  --account-key "<storage-key>" \
+  --output table
+
+# Verify private endpoint connectivity
+az network private-endpoint list \
+  --resource-group "<application-storage-resource-group>" \
+  --query "[?contains(name, 'file-pe')].name" -o table
+
+# Test file share access (requires storage account key or SAS token)
+az storage file list \
+  --share-name "<file-share-name>" \
+  --account-name "<application-storage-account-name>" \
+  --account-key "<storage-key>"
+```
+
+Expected output: File share exists and is accessible through private endpoint.
+
 ---
 
 ## Phase 6: Validation and Testing
