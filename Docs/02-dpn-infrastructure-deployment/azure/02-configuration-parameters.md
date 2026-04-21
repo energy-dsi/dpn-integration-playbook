@@ -151,7 +151,7 @@ acr_georeplications               = {}
 acr_enable_diagnostic_settings    = true
 ```
 
-## 7. AKS Parameters
+## 5. AKS Parameters
 
 Use the following parameters to configure the AKS cluster and node pools.
 
