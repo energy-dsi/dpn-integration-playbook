@@ -261,6 +261,12 @@ storage_create_blob_endpoint            = true
 storage_create_queue_endpoint           = false
 storage_create_table_endpoint           = false
 enable_diagnostic_settings              = true
+storage_file_share_name                 = "fsdpn<env><region>01"
+storage_file_share_quota_gb             = 1
+storage_create_file_endpoint            = true
+team_spn_object_id                      = "<dev-team-spn-object-id>"
+private_dns_zone_resource_group         = "rg-pdns-prd-<region>-01"
+connectivity_subscription_id            = "<connectivity-subscription-id>"
 ```
 
 ### 6.2 State Storage Account (Terraform Backend)

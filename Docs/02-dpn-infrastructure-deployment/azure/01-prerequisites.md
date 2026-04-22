@@ -234,6 +234,36 @@ pool:
 
 For detailed setup instructions, refer to the [Microsoft documentation for Linux agent setup](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/linux-agent).
 
+## 11. Azure File Share Details
+
+This deployment uses Azure Files for application storage, with the file share secured through a private endpoint.
+
+### What is created
+
+- Azure Files share inside the application storage account
+- Azure Files private endpoint for secure access from the VNet
+- Storage account private DNS and network access configuration through the deployment
+
+### Key configuration values
+
+The following variables are used in the deployment:
+
+- `application_storage_file_share_name` – Azure Files share name
+- `application_file_share_quota_gb` – quota size for the share in GiB
+- `application_storage_create_file_endpoint` – set to `true` to create the Azure Files private endpoint
+
+### Deployment behavior
+
+- The Azure Files share is only created when `application_storage_file_share_name` is defined.
+- The private endpoint is created only when `application_storage_create_file_endpoint` is enabled.
+- The file share private endpoint uses the `file` subresource.
+
+### Why this matters
+
+- Ensures developer storage is provided as a managed Azure Files share
+- Keeps the file share traffic private inside the VNet
+- Supports secure access to developer storage without exposing the share over the public internet
+
 ---
 
 Continue with [02-configuration-parameters.md](02-configuration-parameters.md)
