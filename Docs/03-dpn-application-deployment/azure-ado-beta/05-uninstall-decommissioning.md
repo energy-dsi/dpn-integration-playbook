@@ -24,7 +24,7 @@
 
 This document describes the procedure for **completely uninstalling the DPN platform** from an organization’s environment.
 
-![DPN Un-Installation Flow](/Docs/04-dpn-architecture/images/dpn_uninstallation.png)
+![DPN Un-Installation Flow](/Docs/04-dpn-architecture/images/TBD.png)
 
 The uninstallation process removes the following components:
 
