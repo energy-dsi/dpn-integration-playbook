@@ -86,7 +86,7 @@ The **Continuous Integration (CI)** pipeline performs the following activities:
 3. Tag the generated container images.
 4. Push the images to a container registry.
 
-DSI recommends using **Azure Container Registry (ACR)** for storing container images due to its seamless integration with Azure services and built-in security capabilities.
+DSI recommends using **Azure Container Registry (ACR)** for storing container images in Azure due to its seamless integration with Azure services and built-in security capabilities.
 
 However, organizations may use alternative container registries if permitted by their internal network and security policies.
 
@@ -122,19 +122,19 @@ These endpoints are publicly accessible to simplify integration and testing. Org
 
 | Environment | Component | URL |
 |-------------|-----------|-----|
-| Dev | Keycloak | https://auth-mtls.dsm01.dsidev.neso.energy |
+| Dev | Authentication | https://auth-mtls.dsm01.dsidev.neso.energy |
 | Dev | Management Node | https://management.dsm01.dsidev.neso.energy |
 | Dev | DSI DPN Producer | https://producer.dpn01.dsidev.neso.energy |
 | Dev | DSI DPN Consumer | https://consumer.dpn01.dsidev.neso.energy |
-| Integration Test | Keycloak | https://auth-mtls.dsm01.dsitest.neso.energy |
+| Integration Test | Authentication | https://auth-mtls.dsm01.dsitest.neso.energy |
 | Integration Test | Management Node | https://management.dsm01.dsitest.neso.energy |
 | Integration Test | DSI DPN Producer | https://producer.dpn01.dsitest.neso.energy |
 | Integration Test | DSI DPN Consumer | https://consumer.dpn01.dsitest.neso.energy |
-| Pre-Production | Keycloak | https://auth-mtls.dsm01.dsipre.neso.energy |
+| Pre-Production | Authentication | https://auth-mtls.dsm01.dsipre.neso.energy |
 | Pre-Production | Management Node | https://management.dsm01.dsipre.neso.energy |
 | Pre-Production | DSI DPN Producer | https://producer.dpn01.dsipre.neso.energy |
 | Pre-Production | DSI DPN Consumer | https://consumer.dpn01.dsipre.neso.energy |
-| Production | Keycloak | https://auth-mtls.dsm01.dsi.neso.energy |
+| Production | Authentication | https://auth-mtls.dsm01.dsi.neso.energy |
 | Production | Management Node | https://management.dsm01.dsi.neso.energy |
 | Production | DSI DPN Producer | https://producer.dpn01.dsi.neso.energy |
 | Production | DSI DPN Consumer | https://consumer.dpn01.dsi.neso.energy |
@@ -253,16 +253,22 @@ The following Firewall rules should be applied from the Organizations before ins
 | DPN Kubernetes Subnet IP range | DPN Kubernetes VNET name | DPN Kubernetes Subnet name | auth-mtls.dsm01.dsi(xxx).neso.energy | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes Subnet IP range | DPN Kubernetes VNET name | DPN Kubernetes Subnet name | management.dsm01.dsi(xxx).neso.energy | N/A | N/A | TLS | 443 | Outbound |
 |  DPN Kubernetes Subnet IP range | DPN Kubernetes VNET name | DPN Kubernetes Subnet name | Organization specific URL to connect from DPN | N/A | N/A | TLS | 50051 | Bi-directional |
-|  DPN Kubernetes Subnet IP range | DPN Kubernetes VNET name | DPN Kubernetes Subnet name | Organization specific URL to connect from DPN | N/A | N/A | TLS | 50052 | Bi-directional |
 
 **Note** The Organization specific URL defines the target Organization with which Data sharing to happen. These would require the FW opening from both Organization's perspective. The dsi(xxx) refers to dsidev, dsitest, dsipre and dsi (production) environments.
+
+DSI DPN uses HTTP/2 traffic over GRPC in port 50051. The HTTP/2 traffic would require a TCP passthrough to the Layer 4 Load balancer service instead of any Layer 7 load balancing.
 
 ---
 
 # Component-Specific Configuration
 
 ## DPN Federator Gateway
+Purpose and introduction
+<Anik>
+
 ### Helm Configuration
+<Anik>
+
 
 The dpn-federator-gateway repository is provided with a helm chart values file for customizing the deployment as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment.The values.yaml file is located in the following section as mentioned below.
 
@@ -291,16 +297,21 @@ DSI proposes only selective changes in the values file unless required by Organi
 The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD). 
 
 ### Secrets Configuration
-
+<Anik>
 In progress
 
 ## DPN Data Pipelines
+Purpose and introduction
+<Tamanna>
+
 ### Helm Configuration
+<Tamanna>
 
 In progress. 
 {schema type}
 
 ### Secrets Configuration
+<Tamanna>
 
 In progress
 
@@ -340,35 +351,58 @@ The three different connection strings are provided considering the flexibility 
 - **mapperConnectionString** - Producer and consumer write files using this connection in adaptor and extractor and also reads file in next mapper processes.
 - **targetConnectionString** - Producer and consumer mappers write files to destination using this connection string
 
-
 The value must contain a **valid Azure Storage account level SAS token** with container read, write and list permission.The duration should follow Organization security guideline.
 
 Example: https://<storage-account>.blob.core.windows.net/?<sas-token>
 
 ---
 
-
 ## DPN Security Services
+<Anuran>
+
 ### Certificate Manager
+Purpose and introduction
+<Anuran>
+
 #### Helm Configuration
+<Anuran>
 In progress
+
 #### Secrets Configuration
+<Anuran>
 In progress
 
 
 ### HashiCorp Vault
+Purpose and introduction
+<Anuran>
+
+#### Certificate Load Steps in Vault
+<Anuran>
+
 #### Helm Configuration
+<Anuran>
 In progress
+
 #### Secrets Configuration
+<Anuran>
 In progress
 
 ---
 
 ## DPN Storage Services
-### Certificate P12 Storage
+Purpose and introduction
+<Anuran>
+
+### Certificate P12 Storage as File Share
+<Anuran>
+
 #### Helm Configuration
+<Anuran>
 In progress
+
 #### Secrets Configuration
+<Anuran>
 In progress
 
 
@@ -377,6 +411,8 @@ In progress
 [Go to Storage Configuration for DPN Data Pipeline](02-configuration-parameters.md#storage-configuration)
 
 ### Redis Cache Service
+Purpose and introduction
+<Anuran>
 In progress
 
 ## DPN Streaming Service (Kafka)
@@ -388,10 +424,10 @@ The DPN data pipeline process files by pushing a streaming message on predefined
 |------|-------------|----------------------------|-----------------|
 | adaptor | NA | dpn-producer-{dataproducttype}-raw | kafka-src:9092 |
 | producer-mapper |  dpn-producer-{dataproducttype}-raw | dpn-producer-{dataproducttype}-target | kafka-src:9092 |
-| extractor | NA | dpn-consumer-extr | kafka-target:9092 |
-| consumer-mapper | dpn-consumer-extr | dpn-consumer-{schema type}-{org name}-target| kafka-target:9092 |
+| extractor | NA | dpn-consumer-trfm | kafka-target:9092 |
+| consumer-mapper | dpn-consumer-trfm | dpn-consumer-target| kafka-target:9092 |
 
-where **dataproducttype** examples like eq-sample-1 and **schema type** is in the blueprints EQ, EQBD, DL or SSH.
+where **dataproducttype** examples like eq-sample-1.
 ```
 These topics must be pre-created from the kafka-ui as mentiond above and before execution of the dpn-data-pipeline CI and CD tasks.
 
