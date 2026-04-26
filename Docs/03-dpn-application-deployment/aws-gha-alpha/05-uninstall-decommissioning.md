@@ -57,6 +57,8 @@ The following components are removed during this procedure.
 | Kafka UI | Kafka management interface |
 | Redis | Stores Kafka offsets |
 | Data Pipeline Containers | Data transformation pipelines |
+| DPN Federator Certificate Manager | Certificate Manager containers  |
+| DPN Vault Service | Hashicorp Vault Service |
 
 ---
 
