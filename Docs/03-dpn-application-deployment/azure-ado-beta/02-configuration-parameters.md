@@ -51,10 +51,14 @@ Data Preparation Node (DPN) consists of following components in the DSI package
 ![DPN Components](/Docs/04-dpn-architecture/images/dpn_components.png)
 
 - DPN Data Pipelines - Responsible for producing and consuming data products
-- DPN Security Services - Secrets storage and certificate regenaration for DSM communication
-- DPN Data Store Service - Storage contains Storage accounts or S3 buckets to store the files produced by DPN data pipelines, certificate P12 files and Redis caching data
-- Streaming Service - DPN uses Kafka as streaming service for managing events and topics during data transmission
-- Federator Gateway - Responsible for DSM and DPN authentication, data transfer between DPNs 
+- DPN Security Service 
+  - Vault Service - Certificate regenaration for DSM communication and store
+  - Digital Certificate Manager - Manages reclying of certificate at a predefined interval from DSI Management node
+  - Shared File Service - SMB based Shared file storage between Federator Certificate Manager and Federator Gateway for storing certificate P12 files
+- DPN Data Store Service 
+  - Storage contains Storage accounts or S3 buckets to store the files produced by DPN data pipelines, certificate P12 files and Redis caching data
+  - Streaming Service - DPN uses Kafka as streaming service for managing events and topics during data transmission
+- DPN Federator Gateway - Responsible for DSM and DPN authentication, data transfer between DPNs 
 
 DPN components are deployed using **Azure DevOps (ADO) pipelines**, as defined in the DPN repositories provided by DSI.  
 These pipelines are organized into two stages:
@@ -242,7 +246,7 @@ As of now the same certificate file is expected to be kept in all the keystores 
 
 DPN connectivity requirements for ports and protocols. This also covers the agent pool requirements for building the DPN code. 
 
-![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/DPN_ports_and_protocols.png)
+![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/dpn_ports_and_protocols.png)
 
 The following Firewall rules should be applied from the Organizations before installing DPN.
 
@@ -373,7 +377,7 @@ In progress
 In progress
 
 
-### HashiCorp Vault
+### HashiCorp Vault Configuration
 Purpose and introduction
 <Anuran>
 
@@ -390,7 +394,7 @@ In progress
 
 ---
 
-## DPN Storage Services
+## DPN P12 Shared Storage Service
 Purpose and introduction
 <Anuran>
 
@@ -404,7 +408,6 @@ In progress
 #### Secrets Configuration
 <Anuran>
 In progress
-
 
 ### Data Pipeline Storage
 
