@@ -371,9 +371,28 @@ DSI proposes only selective changes in the values file unless required by Organi
 | orgName | `<Organisation name>` | `abc` |
 | schemaType | `<Schema Type>` | `eq/eqbd/dl/ssh` |
 
+####Producer configuration - dl(adaptor,schema_mapper), eq(adaptor,schema_mapper), eqbd(adaptor,schema_mapper) and ssh(adaptor,schema_mapper)
+| Parameters | Purpose |Example
+|------------|---------|---------|
+| namespace | `<Name of the kubernetes namespace>` | `ns-abc-01` |
+| cloudProviderType | `<Defines the code to run on azure, aws or gcp >` |`azure` |
+| acrName | `<Azure Container Registry name>` | `acrabcdevuks01` |
+| imageName | `<Image name in container>` | `imgabcdev01` |
+| productType | `<productType name can only consisits of alpha numeric chars and hypen '-'. No other special chars>` | `natural-gas` |
+| bootstrapServer | `<Kafka bootstrap server:port>` | `kafka-target:9092` |
+| srcContainerName | `<productType-stage>` | `natural-gas-stage` |
+| srcConnectionSecret | `<Src Storage Connection Secret Name >` | `consumer-file-dp-secret` |
+| mapperTopicName | `abc-producer-<productType>-raw` | `abc-producer-natural-gas-raw` |
+| mapperContainerName | `<productType>-raw` | `natural-gas-raw` |
+| mapperConnectionSecret | `<Mapper Storage Connection Secret Name>` | `consumer-mapper-file-dp-secret` |
+| targetTopicName | `<dpn-producer-<productType>-target>` | `dpn-producer-natural-gas-target` |
+| targetContainerName | `<productType>-target` | `natural-gas-target` |
+| targetConnectionSecret | `<Target Storage Connection Secret Name>` | `consumer-target-dp-secret` |
+| orgName | `<Organisation name>` | `abc` |
+| schemaType | `<Schema Type>` | `eq/eqbd/dl/ssh` |
 
 The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD).
-{schema type}
+
 
 ### Secrets Configuration
 <Tamanna>
