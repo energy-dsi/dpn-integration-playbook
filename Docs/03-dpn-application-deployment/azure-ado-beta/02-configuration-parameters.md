@@ -305,8 +305,9 @@ The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD).
 In progress
 
 ## DPN Data Pipelines
-Purpose and introduction
-<Tamanna>
+
+####Introduction and Purpose
+The DPN Data Pipeline ensures secure and governed data exchange by validating and transforming datasets before and after transmission. It applies schema assurance, security labelling, and controlled processing across producer and consumer stages. This ensures all shared data conforms to required schemas, security classifications, and governance standards, enabling reliable and compliant data sharing.
 
 ### Helm Configuration
 <Tamanna>
