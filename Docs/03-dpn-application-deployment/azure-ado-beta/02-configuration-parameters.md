@@ -359,7 +359,7 @@ Root-Repository
 
 DSI proposes only selective changes in the values file unless required by Organizations but provides the provision to customize other parameters if required.
 
-####Consumer configuration
+####Consumer configuration - extractor & schema_mapper
 | Parameters | Purpose |Example
 |------------|---------|---------|
 | namespace | `<Name of the kubernetes namespace>` | `ns-abc-01` |
@@ -370,6 +370,7 @@ DSI proposes only selective changes in the values file unless required by Organi
 | storageConnectionSecret | `<Src Storage Connection Secret Name >` | `consumer-file-dp-secret` |
 | orgName | `<Organisation name>` | `abc` |
 | schemaType | `<Schema Type>` | `eq/eqbd/dl/ssh` |
+
 
 The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD).
 {schema type}
