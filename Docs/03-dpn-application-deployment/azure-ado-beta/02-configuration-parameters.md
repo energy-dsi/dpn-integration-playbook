@@ -365,12 +365,34 @@ Example: https://<storage-account>.blob.core.windows.net/?<sas-token>
 <Anuran>
 
 ### Certificate Manager
-Purpose and introduction
-<Anuran>
+
+The Federator Certificate Manager is a non-interactive Spring Boot service that automates X.509 certificate lifecycle management for federator components within the **DSI DPN**. It operates as a headless daemon — no HTTP endpoints are exposed — running two scheduled jobs that handle certificate renewal and filesystem synchronisation.
+
+The service integrates with **HashiCorp Vault** (KV v2) for secret persistence, an external **Management Node** API for PKI operations (intermediate CA retrieval and CSR signing), and an **OAuth2 Identity Provider** for token-based authentication. All external HTTP communication is secured via mutual TLS (mTLS).
 
 #### Helm Configuration
-<Anuran>
-In progress
+
+##### Charts
+
+templates/configmap.yml
+
+| Variables         | Values Path             |
+|-------------------|-------------------------|
+| VAULT_URI         | Values.vault.uri        |
+| VAULT_PKI_MOUNT   | Values.vault.pkiMount   |
+| VAULT_SECRET_PATH | Values.vault.secretPath |
+
+
+Values.yml
+
+| Path             | Value                                                                       |
+|------------------|-----------------------------------------------------------------------------|
+| vault.uri        | https://<Your_Vault_Deployment>.<Your_DPN_Namespace>.svc.cluster.local:8200 |
+| vault.pkiMount   | pki-client                                                                  |
+| vault.secretPath | pki-client/node-net/client                                                  |
+
+
+
 
 #### Secrets Configuration
 <Anuran>
