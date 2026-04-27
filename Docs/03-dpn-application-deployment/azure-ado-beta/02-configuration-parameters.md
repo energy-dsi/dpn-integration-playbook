@@ -364,20 +364,60 @@ Example: https://<storage-account>.blob.core.windows.net/?<sas-token>
 ## DPN Security Services
 <Anuran>
 
-### Certificate Manager
-Purpose and introduction
-<Anuran>
+### Federator Certificate Manager
+
+The Federator Certificate Manager is a non-interactive Spring Boot service that automates X.509 certificate lifecycle management for federator components within the **DSI DPN**. It operates as a headless daemon — no HTTP endpoints are exposed — running two scheduled jobs that handle certificate renewal and filesystem synchronisation.
+
+The service integrates with **HashiCorp Vault** (KV v2) for secret persistence, an external **Management Node** API for PKI operations (intermediate CA retrieval and CSR signing), and an **OAuth2 Identity Provider** for token-based authentication. All external HTTP communication is secured via mutual TLS (mTLS).
 
 #### Helm Configuration
-<Anuran>
-In progress
+
+The dpn-federator-certificate-manager repository is provided with a helm chart values file for customizing the deployment as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment.The values.yaml file is located in the following section as mentioned below.
+
+```text
+Root-Repository
+  └── charts
+    └── values.yaml
+```
+
+**Note** - The helm values.yaml file can be replicated to perform multiple environment or multiple dpn deployment. e.g. dpn01-values.yaml or dpn02-values.yaml. Organization need to specifi the values.yaml file name in the pipeline configuration as mentioned in Azure DevOPS Configuration above.
+
+DSI proposes only selective changes in the values file unless required by Organizations but provides the provision to customize other parameters if required.
+
+| Parameters                    | Purpose                                                                                            | Example value                                                                                                            |
+|-------------------------------|----------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------|
+| image.repository              | `<complete url of the image registry>`                                                             | acrdpndevuks01.azurecr.io/dpn-federator-certificate-manager                                                              |
+| namespace                     | `<name of the kubernetes namespace>`                                                               | ns-dpn-01                                                                                                                |
+| managementNode.baseUrl        | `<complete url of the DSI DSM Management node >`                                                   | https://management.dsm01.dsidev.neso.energy                                                                              |
+| oauth2.clientId               | `<Client ID received from DSM to establish DPN connection>`                                        | ZTF_CLIENT                                                                                                               |
+| oauth2.tokenUri               | `<IDP Token URL received from DSM to establish DPN connection>`                                    | https://auth-mtls.dsm01.dsidev.neso.energy/realms/management-node/protocol/openid-connect/token                          |
+| replicaCount                  | `<The count of replica in each container>`                                                         | 1                                                                                                                        |
+| vault.uri                     | `<Complete URL of the DPN Vault>`                                                                  | http://vault.ns-dpn-01.svc.cluster.local:8200                                                                            |
+| vault.pkiMount                | `<Mount Point in the Vault where Client certificates, keys and CA Chain will be stored`            | pki-client                                                                                                               |
+| vault.secretPath              | `<Complete Path in the Vault where Client certificates, keys and CA Chain will be stored>`         | pki-client/node-net/client                                                                                               |
+| vault.authentication          | `<Mode of Authentication with Vault - default using root token>`                                   | TOKEN                                                                                                                    |
+| mtls.keystorePath             | `<KeyStore file name with absolute path>`                                                          | /tls/keystore.p12                                                                                                        |
+| mtls.truststorePath           | `<TrusStore file name with absolute path>`                                                         | /tls/truststore.p12                                                                                                      |
+| mtls.keystoreType             | `<Keystore Type>`                                                                                  | PKCS12                                                                                                                   |
+| certDest.path                 | `<Absolute Path of Keystore/Trusstore files>`                                                      | /tls                                                                                                                     |
+| cert.renewalRateMs            | `<Frequency in milisecs at which Certificate renewal is attempted - default 1 hr.>`                | 3600000                                                                                                                  |
+| cert.syncRateMs               | `<Frequency in milisecs at which filesystem sync is attempetd - default 1 minute>`                 | 60000                                                                                                                    |
+| cert.renewalThresholdPercent  | `<Percent of days left from expiry by which the certificate needs to be renewed - default 10>`     | 10                                                                                                                       |
+| cert.keySize                  | `<Key file size to use when creating new key pairs>`                                               | 2048                                                                                                                     |
+| cert.intermediateMinValidDays | `<Minimum validity in days with which Intermediate CAs generated - default 14 days>`               | 14                                                                                                                       |
+| fileShare.storageAccount      | `<Azure Storage Account which will be used by the common storage for the DPN certificates>`        | stdevdpndevuks01                                                                                                         |
+| fileShare.shareName           | `<Azure File Share name which will be used by the common storage for the DPN certificates>`        | fsdevdpn01uks01                                                                                                          |
+| fileShare.secretName          | `<Azure File Share secret name which will be used by the common storage for the DPN certificates>` | azure-fileshare-secret                                                                                                   |
+| fileShare.namespace           | `<Kubernetes namspace for the Fileshare>`                                                          | ns-dpn-01                                                                                                                |    
+| fileShare.pvName              | `<Persistent Volume name for the File Share>`                                                      | pv-dpn-certs-fileshare                                                                                                   |
+| fileShare.pvcName             | `<Persistent Volume Claim name for the File Shar>`                                                 | pvc-dpn-certs-fileshare                                                                                                  |
+
 
 #### Secrets Configuration
 <Anuran>
-In progress
+The dpn-federator-certificate-manager repository is provided with a helm chart values file for customizing the deployment as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment.The values.yaml file is located in the following section as mentioned below.
 
-
-### HashiCorp Vault Configuration
+### HashiCorp Vault
 Purpose and introduction
 <Anuran>
 
