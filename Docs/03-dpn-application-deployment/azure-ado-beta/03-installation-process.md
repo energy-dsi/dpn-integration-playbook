@@ -203,7 +203,6 @@ The installation steps are outlined below for each of the components separately.
 Provide UI Screenshots as required.
 
 ### PART 2 — DPN Data Pipeline Installation with File based Integration Pathway (CI/CD)
-<Tamanna/Shrini> - <Provide a step by step configuration and helm chart/values yaml, Describe data product CI/CD and consumer side configurations required in CI/CD as per the diagram below.>
 
 ![DPN Data Pipeline DevOPS Architecture](/Docs/04-dpn-architecture/images/dpn_data_pipeline_devops.png)
 
@@ -213,6 +212,29 @@ DPN Data Pipeline is a series of data validation through the adaptor and mappers
 
 #### Step 1 — Configure Storage and Containers
 
+##### For Pipeline Configuration:
+For the pipelines to run, the following parameters need to be updated in the **config.json** file under azure pipelines folder. Refer the config.json file as below. 
+
+```text
+Root-Repository/
+└──.pipelines/ 
+     └──azure-pipelines/
+          └── config/
+                └── config.json
+```
+
+| Parameter | Description | Example Value |
+|-----------|-------------|---------------|
+| AZURE_SUBSCRIPTION | Azure subscription ID where the infrastructure is deployed | `<A valid Azure subscription ID>` |
+| SERVICE_CONNECTION | Service connection name for deployment | `<A valid Azure subscription ID>` |
+| RESOURCE_GROUP | Azure resource group containing the AKS cluster | `<A valid resource group name e.g. rg-prd-uks-dpn-01>` |
+| AKS_CLUSTER | Name of the Azure Kubernetes Service cluster | `<AKS cluster name e.g. aks-prd-uks-dpn-01>` |
+| NAMESPACE | Name of the Kubernetes cluster namespace for container deployment | `<A valid namespace name e.g.ns-dpn-01>` |
+| KEY_VAULT_NAME | Azure Key Vault used to store secrets and certificates | `<A valid Azure Key Vault name e.g. akv-prd-uks-dpn-01>` |
+| BASE_REGISTRY | Base registry path used by deployment images | `<image-registry-url>` |
+| cloudProviderType | Defines the code to run on azure, aws or gcp | `<A valid cloud provider values. e.g Azure>` |
+  
+##### For Helm Chart Configuration:
 [Go to Helm Chart Configuration for DPN Data Pipeline](02-configuration-parameters.md#helm-chart-configuration)
 
 #### Data Pipeline Repository Structure
@@ -310,6 +332,36 @@ Execute the CI pipelines and verify by checking the image registry updated with 
 az acr repository list --name <acr-name>
 ```
 
+##### Directions to Run the CI Pipeline
+The CI pipeline is designed to support both Producer and Consumer configurations. While triggering the pipeline, parameters must be selected carefully, as the required inputs vary depending on the selected configuration type.
+
+###### Common Parameters (Required for Both Producer and Consumer)
+
+- Pipeline Version: Select the appropriate branch or tag (for example, devops).
+- Environment: Choose the target environment (e.g., dev).
+- DPN Cluster: Select the DPN instance (dpn01 or dpn02).
+- Service Connection: Select the Azure service connection corresponding to the chosen environment.
+
+###### Consumer Configuration
+When Config Type = <b>consumer</b> is selected:
+
+- Process Type: Not required (selection is ignored by the pipeline).
+- Schema Type: Not required.
+The pipeline proceeds with consumer-specific configuration and deployment only.
+
+###### Producer Configuration
+When Config Type = <b>producer</b> is selected:
+
+- Process Type: Mandatory. Currently supported value: file. (This may be extended in future MVC versions.)
+- Schema Type: Mandatory. Currently supported values: eq, dl, eqbd, ssh. (This list is extensible in future releases.)
+- Product Type: Mandatory and must be provided to correctly parameterize the producer pipeline.
+
+Failure to provide Process Type and Schema Type when running the pipeline in producer mode will result in an invalid or incomplete execution.
+
+**Notes**
+- The same CI pipeline is used for both producer and consumer, with behavior controlled entirely by parameter selection.
+- Schema Type and Process Type are validated only when producer is selected.
+- Future enhancements may introduce additional schema types and process types without changing the overall pipeline structure.
 ---
 
 #### Step 5 — Configure Data Pipeline CD Pipeline

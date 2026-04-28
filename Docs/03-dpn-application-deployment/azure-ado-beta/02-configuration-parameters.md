@@ -305,19 +305,112 @@ The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD).
 In progress
 
 ## DPN Data Pipelines
-Purpose and introduction
-<Tamanna>
+
+####Introduction and Purpose
+The DPN Data Pipeline ensures secure and governed data exchange by validating and transforming datasets before and after transmission. It applies schema assurance, security labelling, and controlled processing across producer and consumer stages. This ensures all shared data conforms to required schemas, security classifications, and governance standards, enabling reliable and compliant data sharing.
 
 ### Helm Configuration
-<Tamanna>
+The Helm configuration for the DPN deployment is segregated between Producer and Consumer domains. On the producer side, Helm values are defined for each schema type to configure the Adaptor, Schema Mapper, ensuring source‑specific validation, governance, and transmission rules. On the consumer side, separate Helm values files—also organized by schema type—configure Extractor and Schema Mapper to validate and deliver data according to target requirements. This separation ensures that each pipeline stage operates with file‑type‑specific schemas and policies while maintaining clear isolation between producer and consumer configurations.
 
-In progress. 
-{schema type}
+```text
+Root-Repository
+  └── blueprints
+    └── consumer
+      └── file
+        └── extractor
+          └── charts
+            └── values.yaml
+        └── schema_mapper
+          └── charts
+            └── values.yaml
+    └── producer
+      └── file
+        └── dl
+          └── adaptor
+            └── charts
+              └── values.yaml
+          └── schema_mapper
+            └── charts
+              └── values.yaml
+        └── eq
+          └── adaptor
+            └── charts
+              └── values.yaml
+          └── schema_mapper
+            └── charts
+              └── values.yaml
+        └── eqbd
+          └── adaptor
+            └── charts
+              └── values.yaml
+          └── schema_mapper
+            └── charts
+              └── values.yaml
+        └── ssh
+          └── adaptor
+            └── charts
+              └── values.yaml
+          └── schema_mapper
+            └── charts
+              └── values.yaml      
+```
+
+**Note** - The helm values.yaml file can be replicated to perform multiple environment or multiple dpn deployment. e.g. dpn01-values.yaml or dpn02-values.yaml. Organization need to specifi the values.yaml file name in the pipeline configuration as mentioned in Azure DevOPS Configuration above.
+
+DSI proposes only selective changes in the values file unless required by Organizations but provides the provision to customize other parameters if required.
+
+####Consumer configuration - extractor & schema_mapper
+| Parameters | Purpose |Example
+|------------|---------|---------|
+| namespace | `<Name of the kubernetes namespace>` | `ns-abc-01` |
+| cloudProviderType | `<Defines the code to run on azure, aws or gcp >` |`azure` |
+| acrName | `<Azure Container Registry name>` | `acrabcdevuks01` |
+| imageName | `<Image name in container>` | `imgabcdev01` |
+| bootstrapServer | `<Kafka bootstrap server:port>` | `kafka-target:9092` |
+| storageConnectionSecret | `<Src Storage Connection Secret Name >` | `consumer-file-dp-secret` |
+| orgName | `<Organisation name>` | `abc` |
+| schemaType | `<Schema Type>` | `eq/eqbd/dl/ssh` |
+
+####Producer configuration - dl(adaptor,schema_mapper), eq(adaptor,schema_mapper), eqbd(adaptor,schema_mapper) and ssh(adaptor,schema_mapper)
+| Parameters | Purpose |Example
+|------------|---------|---------|
+| namespace | `<Name of the kubernetes namespace>` | `ns-abc-01` |
+| cloudProviderType | `<Defines the code to run on azure, aws or gcp >` |`azure` |
+| acrName | `<Azure Container Registry name>` | `acrabcdevuks01` |
+| imageName | `<Image name in container>` | `imgabcdev01` |
+| productType | `<productType name can only consisits of alpha numeric chars and hypen '-'. No other special chars>` | `natural-gas` |
+| bootstrapServer | `<Kafka bootstrap server:port>` | `kafka-target:9092` |
+| srcContainerName | `<productType-stage>` | `natural-gas-stage` |
+| srcConnectionSecret | `<Src Storage Connection Secret Name >` | `consumer-file-dp-secret` |
+| mapperTopicName | `abc-producer-<productType>-raw` | `abc-producer-natural-gas-raw` |
+| mapperContainerName | `<productType>-raw` | `natural-gas-raw` |
+| mapperConnectionSecret | `<Mapper Storage Connection Secret Name>` | `consumer-mapper-file-dp-secret` |
+| targetTopicName | `<dpn-producer-<productType>-target>` | `dpn-producer-natural-gas-target` |
+| targetContainerName | `<productType>-target` | `natural-gas-target` |
+| targetConnectionSecret | `<Target Storage Connection Secret Name>` | `consumer-target-dp-secret` |
+| orgName | `<Organisation name>` | `abc` |
+| schemaType | `<Schema Type>` | `eq/eqbd/dl/ssh` |
+
+The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD).
+
 
 ### Secrets Configuration
-<Tamanna>
+The secret variables required by this DPN package includes:
 
-In progress
+| Variable | Description |
+|----------|-------------|
+| storageConnectionSecret | this secret contains the blob storage connection strings for Src, Mapper, and Target. |
+
+**Note:** <br>Separate secret for Producer and Consumer
+- Secret name for consumer: consumer-<processType>-dp-secret
+- Secret name for producer: producer-<processType>-dp-secret
+- <processType> is file for MVP. In future it can be file, rest, topic etc
+ 
+- kubectl command to create secret for producer-
+ kubectl create secret generic producer-file-dp-secret --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string> | base64)" --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string> | base64)" --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string> | base64)" -n <your namespace>
+
+- kubectl command to create secret for consumer-
+ kubectl create secret generic consumer-file-dp-secret --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string> | base64)" --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string> | base64)" --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string> | base64)" -n <your namespace>
 
 ### Storage Configuration
 
@@ -358,6 +451,8 @@ The three different connection strings are provided considering the flexibility 
 The value must contain a **valid Azure Storage account level SAS token** with container read, write and list permission.The duration should follow Organization security guideline.
 
 Example: https://<storage-account>.blob.core.windows.net/?<sas-token>
+
+**Note:** <br>AWS iz not yet implemented.
 
 ---
 
