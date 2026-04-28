@@ -395,9 +395,22 @@ The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD).
 
 
 ### Secrets Configuration
-<Tamanna>
+The secret variables required by this DPN package includes:
 
-In progress
+| Variable | Description |
+|----------|-------------|
+| storageConnectionSecret | this secret contains the blob storage connection strings for Src, Mapper, and Target. |
+
+**Note:** <br>Separate secret for Producer and Consumer
+- Secret name for consumer: consumer-<processType>-dp-secret
+- Secret name for producer: producer-<processType>-dp-secret
+- <processType> is file for MVP. In future it can be file, rest, topic etc
+ 
+- kubectl command to create secret for producer-
+ kubectl create secret generic producer-file-dp-secret --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string> | base64)" --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string> | base64)" --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string> | base64)" -n <your namespace>
+
+- kubectl command to create secret for consumer-
+ kubectl create secret generic consumer-file-dp-secret --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string> | base64)" --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string> | base64)" --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string> | base64)" -n <your namespace>
 
 ### Storage Configuration
 
