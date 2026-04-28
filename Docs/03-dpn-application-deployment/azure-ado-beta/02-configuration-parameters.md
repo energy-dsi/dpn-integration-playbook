@@ -267,11 +267,27 @@ DSI DPN uses HTTP/2 traffic over GRPC in port 50051. The HTTP/2 traffic would re
 # Component-Specific Configuration
 
 ## DPN Federator Gateway
-Purpose and introduction
-<Anik>
+
+The DPN Federator Gateway is the component that handles all secure communication between your DPN node and other DPN nodes or the DSI DSM platform. Think of it as the "secure postman" of the system — it makes sure data is sent and received safely, only to and from trusted parties.
+
+The gateway does not work alone. It depends on a set of supporting services that are all deployed together in the same single Helm release into the same Kubernetes cluster. Here is what gets deployed and how they relate to each other:
+
+| Component | Purpose |
+|----------|-------------|
+| Zookeeper Source | Coordination service for the Source Kafka cluster. Must be running before Kafka Source starts. |
+| Zookeeper Target | Coordination service for the Target Kafka cluster. Must be running before Kafka Target starts. |
+| Kafka Source| Message queue where your DPN's outgoing data is staged. The Federator Server reads from here to send data out. |
+| Kafka Target | Message queue where incoming data from other DPNs is delivered. The Federator Client writes received data here. |
+| Kafka UI | A simple web dashboard to monitor and inspect messages in both Kafka clusters. Useful during testing. |
+| Kafka Topic Creator | A one-time setup job that creates the required Kafka topics on first deployment. |
+| Kafka Topic Populator| A one-time setup job that loads initial test data into Kafka topics for development and testing. |
+| Redis | A fast in-memory store used by both the Federator Server and Client for caching and keeping track of data offsets. |
+| Federator Server| The "receiver" — listens on port 50051 for incoming data connections from other DPN nodes and reads from Kafka Source. |
+| Federator Client | The "sender" — connects outward to a remote Federator Server and writes received data into Kafka Target.|
+
+All of the above are deployed together in one single pipeline run using one Helm release (dpn-platform). 
 
 ### Helm Configuration
-<Anik>
 
 
 The dpn-federator-gateway repository is provided with a helm chart values file for customizing the deployment as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment.The values.yaml file is located in the following section as mentioned below.
@@ -279,30 +295,91 @@ The dpn-federator-gateway repository is provided with a helm chart values file f
 ```text
 Root-Repository
   └── charts
-    └── values.yaml
+    └── dpn-platform/
+            ├── values.yaml               ← default settings for all components (do not edit directly)
+            └── values-dev-dpn01.yaml     ← your environment overrides for all components
 ```
 
 **Note** - The helm values.yaml file can be replicated to perform multiple environment or multiple dpn deployment. e.g. dpn01-values.yaml or dpn02-values.yaml. Organization need to specifi the values.yaml file name in the pipeline configuration as mentioned in Azure DevOPS Configuration above.
+**Note** — You only run the deployment pipeline once. It picks up values-dev-dpn01.yaml on top of the base values.yaml and deploys all components together in a single Helm release named dpn-platform.
+**Note**DSI proposes only selective changes in the values file unless required by Organizations but provides the provision to customize other parameters if required.
+Open values-dev-dpn01.yaml and update the following parameters:
 
-DSI proposes only selective changes in the values file unless required by Organizations but provides the provision to customize other parameters if required.
 
-| Parameters | Purpose |
-|-------------|------------------|
-| repository | `<complete url of the image registry>` |
-| namespace | `<name of the kubernetes namespace>` |
-| management-node | `<complete url of the DSI DSM Management node >` |
-| clientId | `<Client ID received from DSM to establish DPN connection>` |
-| replica | `<The count of replica in each container>` |
-| STORAGE_ACCOUNT_URL | `<The source storage account to read the file>` |
-| SOURCE_CONTAINER_NAME | `<The source container name to read the file from>` |
-| TARGET_CONTAINER_NAME | `<The target container name to read the file from>` |
-| BLOB_NAME | `<The name of the file to process from Storage account>` |
+
+| Parameter | Purpose | Example Value |
+|-----------|-------------|---------------|
+| redis.image.repository | Container registry address where the Redis image is stored | `<redis>` |
+| redis.image.tag | Redis image tag | `<7.2>` |
+| zookeeper.image.repository | Container registry address where the Zookeeper image is stored | `<confluentinc/cp-zookeeper>` |
+| zookeeper.image.tag  | Zookeeper image tag | `<7.5.3>` |
+| zookeeper.image.repository | Container registry address where the Zookeeper image is stored | `<confluentinc/cp-zookeeper>` |
+| zookeeper.image.tag  | Zookeeper image tag | `<7.5.3>` |
+| kafka.image.repository | Container registry address where the kafka image is stored | `<confluentinc/cp-kafka:7.5.3>` |
+| kafka.image.tag  | kafka image tag | `<7.5.3>` |
+| kafka.image.repository | Container registry address for the Kafka UI image | `<confluentinc/cp-kafka:7.5.3>` |
+| kafka.image.tag  | kafka image tag | `<7.5.3>` |
+| kafkaUI.image.repository| Container registry address where the kafka UI image is stored | `<kafbat/kafka-ui>` |
+| kafka.image.tag  | kafka image tag | `<7.5.3>` |
+| federatorServer.image.repository| Container registry address where the server image is stored | private image`<acr-dpn-dev.azurecr.io/dpn-federator-server>` |
+| federatorServer.image.tag  | federatorServer image tag | `Tag is depend upon what is latest image version` |
+| federatorServer.service.loadBalancerIP | Fixed internal IP assigned to the Server — this is what the Client uses to connect. You can only get by first time deployment happening and Then taking the IP assigned by Kubernetes svc external | `10.xxx.xxx.14` |
+| federatorServer.config.management_node_base_url | DSI DSM Management Node web address for your environment | `<Please refer DSI DSM Endpoint Configuration section above>` |
+| federatorServer.idp.clientId | Client ID given by DSI to identify this DPN node | `<dpn-client-01>` |
+| federatorServer.idp.jwksUrl | DSI login system address used to verify identity tokens | `<Please refer DSI DSM Endpoint Configuration section above>` |
+| federatorServer.idp.tokenUrl | DSI login system address used to request access tokens | `<Please refer DSI DSM Endpoint Configuration section above>` |
+| federatorClient.image.repository| Container registry address where the client image is stored | private image`<acr-dpn-dev.azurecr.io/dpn-federator-server>` |
+| federatorClient.image.tag  | federatorClient image tag | `Tag is depend upon what is latest image version` |
+| federatorClient.service.loadBalancerIP | Fixed internal IP assigned to the Client — this is what the Client uses to connect. You can only get by first time deployment happening and Then taking the IP assigned by Kubernetes svc external | `10.xxx.xxx.14` |
+| federatorClient.config.management_node_base_url | DSI DSM Management Node web address for your environment | `<Please refer DSI DSM Endpoint Configuration section above>` |
+| federatorClient.idp.clientId | Client ID given by DSI to identify this DPN node | `<dpn-client-01>` |
+| federatorClient.idp.jwksUrl | DSI login system address used to verify identity tokens | `<Please refer DSI DSM Endpoint Configuration section above>` |
+| federatorClient.idp.tokenUrl | DSI login system address used to request access tokens | `<Please refer DSI DSM Endpoint Configuration section above>` |
+
+
+Shared Key Vault parameters (used by both Federator Server and Client)
+
+| Parameter | Purpose | Example Value |
+|-----------|-------------|---------------|
+| keyvault.name  | Azure Key Vault name where all secrets are stored | `kv-dpn-dev-xxx-xx` |
+| keyvault.clientID | Managed Identity client ID that allows the cluster to read from Key Vault | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
+| keyvault.tenantId | Your organisation's Azure Active Directory ID | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
+
 
 The SOURCE_TOPIC, TARGET_TOPIC for dpn-data-pipeline at each stage is (TBD). 
 
+
 ### Secrets Configuration
-<Anik>
-In progress
+Secrets must never be written into the values file or the code repository. They are stored securely in Azure Key Vault and pulled in automatically when the pods start up.
+Since everything is deployed in the same cluster using the same release, all secrets go into one Key Vault. Make sure all the following secrets exist before running the pipeline.
+The secret templates are here for reference:
+
+```text
+dpn-federator-gateway/
+└── charts/
+      └── dpn-platform/
+            └── templates/
+                  ├── federator-server-secretproviderclass.yaml
+                  └── federator-client-secretproviderclass.yaml
+
+```
+Federator Server Secrets (provision in: DPN azure keyvault)
+
+| Parameter | Purpose | Example Value |
+|-----------|-------------|---------------|
+| CLIENT-P12-PASSWORD | Password that unlocks the server's certificate file. Used to prove the server's identity to any client connecting to it. | `keystore.Password` |
+| CLIENT-TRUSTSTORE-PASSWORD | Password for the server's trust list file. Used to verify the identity of clients connecting to it. | `truststore.Password` |
+| IDP-CLIENT-SECRET | Secret provided by DSI that lets the server log into the DSI identity system and authorise data exchange. | `xxxxxxxxXXXXX` |
+
+
+Federator Client Secrets (provision in: DPN azure keyvault)
+
+| Parameter | Purpose | Example Value |
+|-----------|-------------|---------------|
+| CLIENT-P12-PASSWORD | Password that unlocks the client's certificate file. Used to prove the client's identity when connecting to the Federator Server. | `keystore.Password` |
+| CLIENT-TRUSTSTORE-PASSWORD | Password for the client's trust list file. Used to verify it is connecting to the correct server. | `truststore.Password` |
+| IDP-CLIENT-SECRET | The same secret as the server above — shared between both. Only needs to be created once in Key Vault. | `xxxxxxxxXXXXX` |
+
 
 ## DPN Data Pipelines
 
