@@ -341,7 +341,7 @@ Shared Key Vault parameters (used by both Federator Server and Client)
 
 | Parameter | Purpose | Example Value |
 |-----------|-------------|---------------|
-| keyvault.name | Azure Key Vault name where all secrets are stored | `kv-dpn-dev-xxx-xx` |
+| keyvault.name  | Azure Key Vault name where all secrets are stored | `kv-dpn-dev-xxx-xx` |
 | keyvault.clientID | Managed Identity client ID that allows the cluster to read from Key Vault | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | keyvault.tenantId | Your organisation's Azure Active Directory ID | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 
