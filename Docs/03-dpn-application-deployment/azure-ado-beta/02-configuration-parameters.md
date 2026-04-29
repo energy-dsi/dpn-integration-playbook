@@ -512,7 +512,7 @@ DSI proposes only selective changes in the values file unless required by Organi
 
 #### Secrets Configuration
 
-The dpn-federator-certificate-manager repository is provided with a helm chart secrets and secretproviderclass file for retrieving and bundling the secrets from Azure Key vault, as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment. The secret.yaml and secretproviderclass.yaml file are located in the following section as mentioned below.
+The dpn-federator-certificate-manager repository is provided with a helm chart secrets and secretproviderclass files for retrieving and bundling the secrets from Azure Key vault, as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment. The secret.yaml and secretproviderclass.yaml file are located in the following section as mentioned below.
 
 ```text
 Root-Repository
@@ -610,19 +610,65 @@ kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pk
 ---
 
 ## DPN P12 Shared Storage Service
-Purpose and introduction
-<Anuran>
+
+The Keystore and Truststore P12 files, which are used by the Federator components to establish connection with external DSI systems, are stored in a common storage (Azure file Share) so that they can be accessed by all the Federator components within the DPN.
 
 ### Certificate P12 Storage as File Share
-<Anuran>
+
+The Federator Certificate Manager, Federator Gateway Server and Client - all three components require the Certificate P12 files and there passwords to be accessible from a common mount point **eg: /tls** in the common file share.
+
+```text
+/
+└── tls
+    └── keystore.p12
+    └── truststore.p12
+    └── keystore.password
+    └── truststore.password
+```
 
 #### Helm Configuration
-<Anuran>
-In progress
+
+The dpn-federator-certificate-manager repository is provided with a helm chart values file and pv-pvc file for customizing the File Share deployment as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment.The values.yaml file is located in the following section as mentioned below.
+
+```text
+Root-Repository
+  └── charts
+        └── certificate-manager
+                └── values.yaml
+                └── templates
+                      └── pv-pvc.yaml
+```
+
+
+| Parameters           | Purpose                                                                                                                   | Example value                            |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------------------|
+| fileShare.shareName  | `<Azure File Share name which will be used by the common storage for the DPN certificates>`                               | fs<env_name>dpn01<region_abbreviation>01 |
+| fileShare.secretName | `<Secret Bundle name for the Azure File Share secrets which will be used by the common storage for the DPN certificates>` | azure-fileshare-secret                   |
+| fileShare.namespace  | `<Kubernetes namspace for the Fileshare>`                                                                                 | ns-dpn-01                                |    
+| fileShare.pvName     | `<Persistent Volume name for the File Share>`                                                                             | pv-dpn-certs-fileshare                   |
+| fileShare.pvcName    | `<Persistent Volume Claim name for the File Share>`                                                                       | pvc-dpn-certs-fileshare                  |
+| fileShare.size       | `<Size to allocate for the File Share>`                                                                                   | 1G                                       |
+
+
 
 #### Secrets Configuration
-<Anuran>
-In progress
+
+The dpn-federator-certificate-manager repository is provided with a helm chart secrets and secretproviderclass files for retrieving and bundling the secrets from Azure Key vault, as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment. The secret.yaml and secretproviderclass.yaml file are located in the following section as mentioned below.
+
+```text
+Root-Repository
+  └── charts
+        └── certificate-manager
+              └── templates
+                    └── secret.yaml
+                    └── secretproviderclass.yaml
+```
+
+| Secret Parameters                                 | Purpose                                                                                                             | Example value                             |
+|---------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
+| azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME | `<Storage Account Name of the Azure File Share which will be used by the common storage for the DPN certificates>`  | fs<env_name>dpn01<region_abbreviation>01  |
+| azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY  | `<Storage Account Name of the Azure File Share which will be used by the common storage for the DPN certificates>`  |                                           |
+
 
 ### Data Pipeline Storage
 
