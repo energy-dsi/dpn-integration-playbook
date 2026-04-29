@@ -157,17 +157,26 @@ Ensure the following prerequisites are completed before deployment:
 ---
 
 ### 3. Certificate Preparation & CSR Generation
-<Anuran - Please check with Ramya as she is preparing a document>
+
+- Generate an RSA Private Key for the Organization DPN.
+```text
+openssl genrsa -out dpn-dev-01.key 2048
+```
+
+- Generate the CSR for the Organization with above Key file and Submit the CSR to DSI DSM through the UI.
+```text
+openssl req -new -key dpn-dev-01.key -out dpn-dev-01.csr -subj "/CN=dpn-dev-01/O=DPN Dev Server/C=UK"
+```
 
 Organizations receive a **signed certificate from DSI DSM** based on their submitted CSR.
 
 #### Certificate Files from DSI
-Organizations to receive a certificate package post upload of CSR files. The package would contain the .crt and the ca_chain files from DSI.The following is an example list of files to be provided to DPNs during DPN connection.
+Organizations to receive a certificate package post upload of CSR files. The package would contain the certificate.crt and the ca_chain.crt files from DSI.The following is an example list of files to be provided to DPNs during DPN connection.
 
-| File | Description |
-|-----|-------------|
-| orgcert.crt | Certificate signed by DSI DSM |
-| ca_chain.crt | Intermediate certificate chain provided by DSI DSM |
+| File            | Description |
+|-----------------|-------------|
+| certificate.crt | Certificate signed by DSI DSM |
+| ca_chain.crt    | Intermediate certificate chain provided by DSI DSM |
 
 ---
 
@@ -201,6 +210,126 @@ The installation steps are outlined below for each of the components separately.
 <Anuran> - Mention details steps with appropriate heading , helm chart/values and specific configurations
 
 Provide UI Screenshots as required.
+
+#### System Context Diagram
+
+The system context shows how the Certificate Manager interacts with external actors and systems.
+
+```mermaid
+C4Context
+    title System Context — Federator Certificate Manager
+
+    Person(ops, "DPN Platform Engineer", "Configures and monitors the certificate manager")
+
+    System(certMgr, "Federator Certificate Manager", "Automates X.509 certificate lifecycle for federator components")
+
+    Container(FederatorGWServer, "Federator Gateway Server", "Uses X.509 certificates for communication")
+
+    Container(FederatorGWClient, "Federator Gateway Client", "Uses X.509 certificates for communication")
+
+    SystemDb(vault, "HashiCorp Vault", "KV v2 secrets engine for persisting keys, certificates, and passwords")
+    System_Ext(mngNode, "Management Node", "PKI API — provides intermediate CA and signs CSRs")
+    System_Ext(idp, "OAuth2 Identity Provider", "Issues JWT tokens via client credentials grant (e.g., Keycloak)")
+    System(fs, "Filesystem (File Share)", "Destination for PKCS#12 keystores consumed by federator services")
+
+    Rel(ops, certMgr, "Deploys and configures", "application.yml / env vars")
+    Rel(certMgr, vault, "Reads/writes secrets", "Vault HTTP API (KV v2)")
+    Rel(certMgr, mngNode, "Requests intermediate CA, submits CSRs", "HTTPS + mTLS + Bearer token")
+    Rel(certMgr, idp, "Acquires access tokens", "HTTPS + mTLS, client_credentials grant")
+    Rel(certMgr, fs, "Writes keystore.p12, truststore.p12, password files", "Local I/O")
+    Rel(fs, FederatorGWServer, "Reads keystore.p12, truststore.p12", "Local I/O")
+    Rel(fs, FederatorGWClient, "Reads keystore.p12, truststore.p12", "Local I/O")
+    Rel(FederatorGWServer, idp, "Acquires access tokens", "HTTPS + mTLS, client_credentials grant")
+    Rel(FederatorGWClient, idp, "Acquires access tokens", "HTTPS + mTLS, client_credentials grant")
+    Rel(certMgr, mngNode, "Requests intermediate CA, submits CSRs", "HTTPS + mTLS + Bearer token")
+
+    UpdateRelStyle(ops, certMgr, $offsetY="-40")
+    UpdateRelStyle(certMgr, vault, $offsetX="-80")
+    UpdateRelStyle(certMgr, mngNode, $offsetX="40")
+```
+
+##### Narrative
+
+| System                      | Protocol               | Authentication                 | Purpose                                                                |
+|-----------------------------|------------------------|--------------------------------|------------------------------------------------------------------------|
+| **HashiCorp Vault**         | HTTP/HTTPS (Vault API) | Vault token                    | Persist and retrieve key pairs, certificates, CA chains, and passwords |
+| **Management Node**         | HTTPS with mTLS        | OAuth2 Bearer token            | Fetch intermediate CA certificate; sign certificate signing requests   |
+| **OAuth2 IdP**              | HTTPS with mTLS        | Client credentials (client_id) | Obtain JWT access tokens for Management Node API calls                 |
+| **Filesystem (File Share)** | Local I/O              | OS-level permissions           | Write PKCS#12 keystores and password files for federator consumption   |
+
+Certificate Lifecycle Manager deployment includes the following components and shown as individual containers when deployed.
+
+| Component           | Purpose                                                                                         |
+|---------------------|-------------------------------------------------------------------------------------------------|
+| Certificate Manager | Core component responsible for Federator Certificate's lifecycle management                     |
+| Vault               | Securely stores Certificates (Intermediate and Leaf), CA Chain, Key pair and keystore passwords |
+| File Share          | Common storage used by federator components for accessing the Keystore.p12, Trustore.p12 files  |
+
+---
+
+#### Step 1 — Configure Storage and Containers
+
+##### For CI-CD Pipeline Configuration:
+
+For the pipelines to run, 
+- the following parameters need to be updated in the **<env>-dpn01.json** file under azure pipelines folder. Refer the file as below.
+
+```text
+Root-Repository/
+└──.pipelines/ 
+     └──azure-pipelines/
+          └── config/
+                └── <env>-dpn01.json
+```
+
+| Parameter              | Description                                                       | Example Value                                            |
+|------------------------|-------------------------------------------------------------------|----------------------------------------------------------|
+| AZURE_SUBSCRIPTION_ID  | Azure subscription ID where the infrastructure is deployed        | `<A valid Azure subscription ID>`                        |
+| ENV_NAME               | Environment for the particular configuration json                 | `<A valid environment indicator e.g. dev>`               |
+| RESOURCE_GROUP         | Azure resource group containing the AKS cluster                   | `<A valid resource group name e.g. rg-prd-uks-dpn-01>`   |
+| AKS_CLUSTER            | Name of the Azure Kubernetes Service cluster                      | `<AKS cluster name e.g. aks-prd-uks-dpn-01>`             |
+| NAMESPACE              | Name of the Kubernetes cluster namespace for container deployment | `<A valid namespace name e.g.ns-dpn-01>`                 |
+| KEY_VAULT_NAME         | Azure Key Vault used to store secrets and certificates            | `<A valid Azure Key Vault name e.g. akv-prd-uks-dpn-01>` |
+| CONTAINER_REGISTRY_URL | Base registry URL used by deployment images                       | `<image-registry-url e.g. acrdpndevuks01.azurecr.io>`    |
+| CONTAINER_REGISTRY     | Base registry used by deployment images                           | `<image-registry e.g acrdpndevuks01>`                    |
+
+- the following parameters need to be updated in the **<env>-vault.yaml** file under azure pipelines folder. Refer the file as below.
+
+```text
+Root-Repository/
+└──.pipelines/ 
+     └──azure-pipelines/
+          └── config/
+                └── <env>-vault.yaml
+```
+
+| Parameter                  | Description                                                       | Example Value |
+|----------------------------|-------------------------------------------------------------------|---------------|
+| server.dev.enabled         | Whether Vault server is running in dev mode                       | `<false>`     |
+| server.ha.enabled          | Whether High availability is enabled in the Vault server          | `<false>`     |
+| server.dataStorage.enabled | Whether Persistent storage to be allocated for the files in Vault | `<true>`      |
+| server.dataStorage.size    | Size of the Persistent storage to be allocated                    | `<10Gi>`      |
+
+##### For Helm Chart Configuration:
+[Go to Helm Chart Configuration for DPN Security Services](02-configuration-parameters.md#helm-configuration-2)
+
+##### File Share Storage:
+Before running CD pipelines, make sure the File share storage is provisioned with proper configuration [Helm Chart Configuration for DPN P12 Shared Storage Service](02-configuration-parameters.md#secrets-configuration-4)
+
+#### Step 2 — Configure Data Pipeline CI Pipeline
+
+Prepare a new Azure DevOPS Pipeline by reading the CI pipeline yaml file from the below location under ci-pipelines.
+
+```
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── ci-pipelines/
+            └── certificate-manager-ci.yaml
+```
+
+
+
 
 ### PART 2 — DPN Data Pipeline Installation with File based Integration Pathway (CI/CD)
 
@@ -246,7 +375,7 @@ The repository structure follows /blueprint/producer/{integration pathway} and /
 ```
 Root-Repository/
 └── .docs/
-└── .pipelines
+    └── .pipelines
 └── packages/
 └── producer/ {DPN Needs to add this folder manaually. The existing repo will onle provide blueprint}
     ├── file/

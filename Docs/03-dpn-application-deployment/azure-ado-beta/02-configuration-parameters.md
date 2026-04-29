@@ -584,7 +584,7 @@ DSI proposes only selective changes in the values file unless required by Organi
 | fileShare.secretName          | `<Secret Bundle name for the Azure File Share secrets which will be used by the common storage for the DPN certificates>` | azure-fileshare-secret                                                                          |
 | fileShare.namespace           | `<Kubernetes namspace for the Fileshare>`                                                                                 | ns-dpn-01                                                                                       |    
 | fileShare.pvName              | `<Persistent Volume name for the File Share>`                                                                             | pv-dpn-certs-fileshare                                                                          |
-| fileShare.pvcName             | `<Persistent Volume Claim name for the File Shar>`                                                                        | pvc-dpn-certs-fileshare                                                                         |
+| fileShare.pvcName             | `<Persistent Volume Claim name for the File Share>`                                                                       | pvc-dpn-certs-fileshare                                                                         |
 
 
 #### Secrets Configuration
@@ -724,7 +724,7 @@ Root-Repository
 | fileShare.namespace  | `<Kubernetes namspace for the Fileshare>`                                                                                 | ns-dpn-01                                |    
 | fileShare.pvName     | `<Persistent Volume name for the File Share>`                                                                             | pv-dpn-certs-fileshare                   |
 | fileShare.pvcName    | `<Persistent Volume Claim name for the File Share>`                                                                       | pvc-dpn-certs-fileshare                  |
-| fileShare.size       | `<Size to allocate for the File Share>`                                                                                   | 1G                                       |
+| fileShare.size       | `<Size to allocate for the File Share>`                                                                                   | 1Gi                                      |
 
 
 
