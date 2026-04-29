@@ -207,9 +207,6 @@ The DPN is presently comprises of following components.
 The installation steps are outlined below for each of the components separately. 
 
 ### PART 1 - DPN Certificate Life Cycle Manager Installation (CI/CD)
-<Anuran> - Mention details steps with appropriate heading , helm chart/values and specific configurations
-
-Provide UI Screenshots as required.
 
 #### System Context Diagram
 
@@ -313,10 +310,63 @@ Root-Repository/
 ##### For Helm Chart Configuration:
 [Go to Helm Chart Configuration for DPN Security Services](02-configuration-parameters.md#helm-configuration-2)
 
-##### File Share Storage:
-Before running CD pipelines, make sure the File share storage is provisioned with proper configuration [Helm Chart Configuration for DPN P12 Shared Storage Service](02-configuration-parameters.md#secrets-configuration-4)
+**Note:**  Before running pipelines, make sure the File share storage is provisioned as per [Helm Chart Configuration for DPN P12 Shared Storage Service](02-configuration-parameters.md#secrets-configuration-4)
 
-#### Step 2 — Configure Data Pipeline CI Pipeline
+#### Step 2 - Certificate Lifecycle flows
+
+The Certificate manager maintains lifecycle of the tls certificates by running mainly 2 major flows or Jobs run at scheduled intervals specified by below Helm chart Values params.
+
+| Flow                | Schedule Parameter | Default value |
+|---------------------|--------------------|---------------|
+| Certificate Sync    | cert.syncRateMs    | 1 minute      |
+| Certificate Renewal | cert.renewalRateMs | 1 hour        |
+
+The **Certificate Sync** flow is depicted in the sequence diagram below.
+
+```mermaid
+
+sequenceDiagram
+    participant Certificate Sync Service
+    participant Sync as Sync Job
+    participant Vault
+    participant FS as File System
+
+    Certificate Sync Service->>Sync: Run Sync Job (every 1 min)
+
+    Sync->>Vault: Load certs and keys
+    alt Keystore outdated
+        Sync->>FS: Generate keystore.p12
+    end
+
+    alt Truststore outdated
+        Sync->>FS: Generate truststore.p12
+    end
+
+    Sync->>FS: Write password files
+```
+
+The sequence diagram of **Certificate Renewal** flow is as below.
+
+```mermaid
+sequenceDiagram
+participant Certificate Renewal Service
+participant Renewal Job
+participant Vault
+participant CA as Management Node
+
+    Certificate Renewal Service->>Renewal Job: Scheduled run
+    Renewal Job->>Vault: Read CA & certs
+
+    alt Missing or expiring
+        Renewal Job->>CA: Fetch / Sign certs
+        CA-->>Renewal Job: Certificates
+        Renewal Job->>Vault: Store secrets
+    else Valid
+        Renewal Job-->>Certificate Renewal Service: No changes
+    end
+```
+
+#### Step 3 — Configure Certificate Manager CI Pipeline
 
 Prepare a new Azure DevOPS Pipeline by reading the CI pipeline yaml file from the below location under ci-pipelines.
 
@@ -327,7 +377,129 @@ Root-Repository/
         └── ci-pipelines/
             └── certificate-manager-ci.yaml
 ```
+##### CI Pipeline Parameters
 
+CI pipeline accepts the following runtime parameters. These are selected when manually triggering a pipeline run.
+
+| Parameter           | Default          | Allowed Values                                                              | Description                                                          |
+|---------------------|------------------|-----------------------------------------------------------------------------|----------------------------------------------------------------------|
+| `serviceConnection` | `sc-dpn-dev-001` | `sc-dpn-dev-001`, `sc-dpn-sit-001`, `sc-dpn-preprod-001`, `sc-dpn-prod-001` | Azure service connection for the target environment                  |
+| `environment`       | `dev`            | `dev`, `devtest`, `sit`, `preprod`, `prod`                                  | Target deployment environment                                        |
+| `cluster`           | `dpn01`          | `dpn01`, `dpn02`                                                            | Target DPN cluster                                                   |
+| `enablePIT`         | `false`          | `true`, `false`                                                             | Enables PIT mutation testing (slow — leave `false` for routine runs) |
+
+*** Note*** This above mentioned parameters need to be configured as per existing infrastructure provisioned and configuration of cluster.
+
+The pipeline runs three sequential stages:
+
+| Stage                        | What Happens                                                                                                                                                                                            |
+|------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Stage 1 — CheckMarx Scan** | Runs an Infrastructure-as-Code (IaC) security scan on pipeline YAML and Helm chart files using CheckMarx One.                                                                                           |
+| **Stage 2 — Unit Tests**     | Sets up Java 21, injects Maven credentials, logs into DockerHub, runs all unit tests (`mvn clean verify`), publishes test results, code coverage (JaCoCo), and performs SonarQube static code analysis. |
+| **Stage 3 — Build & Push**   | Builds Docker images for the Federator Certificate Manager (`docker/Dockerfile`), pushes it to ACR, signs it using Cosign, and scans it with JFrog Xray.                                                |
+
+
+#### Step 4 — Execute Certificate Manager CI Pipelines
+
+Execute the CI pipeline and verify by checking the image registry updated with the image tag.
+
+List all repositories in the registry:
+
+```bash
+az acr repository list --name <acr-name>
+```
+
+Verify the image tag for a specific image:
+
+```bash
+az acr repository show-tags --name <acr-name> --repository <image-name>
+```
+
+Replace `<acr-name>` with the registry name (e.g. `acrdpndevuks01`) and `<image-name>` with the image being checked (e.g. `dpn-federator-certificate-manager`).
+
+> **Note:** The Build ID generated by a successful `certificate-manager-ci.yaml` run is used as the `imageTag` parameter when executing the CD pipeline in Step 6.
+
+---
+
+#### Step 5 — Configure Federator CD Pipeline
+
+Prepare new Azure DevOPS Pipeline by reading the CD pipeline yaml files from the below location under cd-pipelines.
+
+```
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── certificate-manager-cd.yaml
+            └── vault-cd.yaml
+```
+##### CD Pipeline Parameters
+
+| Parameter           | Default          | Allowed Values                                                         | Description                                         |
+|---------------------|------------------|------------------------------------------------------------------------|-----------------------------------------------------|
+| `ServiceConnection` | `sc-dpn-dev-001` | `sc-dpn-dev-001`, `sc-dpn-dev-002`, `sc-dpn-sit-001`, `sc-dpn-sit-002` | Azure service connection for the target environment |
+| `environment`       | `dev`            | `dev`, `devtest`, `sit`, `preprod`, `prod`                             | Target deployment environment                       |
+| `dpncluster`        | _(required)_     | `dpn01`, `dpn02`                                                       | Target DPN cluster                                  |
+| `imageTag`          | _(required)_     | Build ID from `certificate-manager-ci.yaml` run                        | Docker image tag to deploy (e.g. `1042`)            |
+
+
+#### Step 6 — Execute Federator CD Pipeline
+
+With all images built (Steps 3–4), the CD pipeline configured (Step 5), execute the CD pipeline to deploy both Certificate Manager and Hashicorp Vault to the AKS cluster.
+
+##### Directions to Run the CD Pipeline
+
+1. Go to **Pipelines** in your Azure DevOps project.
+2. Click on the `certificate-manager-cd` pipeline.
+3. Click **Run Pipeline**.
+4. Fill in the parameters:
+    - **ServiceConnection**: select the correct service connection for the target environment.
+    - **environment**: e.g. `dev`
+    - **dpncluster**: e.g. `dpn01`
+    - **imageTag**: the Build ID from the successful `certificate-manager-ci.yaml` run (e.g. `1042`). This can be found in the pipeline run history.
+5. Click **Run** and monitor the pipeline log.
+
+If the pipeline completes successfully, the following message will appear at the end of the deployment stage:
+
+```
+Certificate Manager deployed successfully
+```
+
+#### Step 7 — Post Deployment Verification
+
+Once the CD pipeline completes, verify the deployment using the following commands. Replace `<namespace>` with the target namespace (e.g. `ns-dpn-01`).
+
+Check that both certificate-manager and vault pods are in a `Running` state:
+
+```bash
+kubectl get pods -n <namespace>
+```
+
+Check that vault service is exposed:
+
+```bash
+kubectl get svc -n <namespace>
+```
+
+Check both deployments are healthy (READY should match DESIRED, e.g. `1/1`):
+
+```bash
+kubectl get deployments -n <namespace>
+```
+
+View logs for a specific pod and verify that they are clean:
+
+```bash
+kubectl logs <pod-name> -n <namespace>
+```
+
+Check the common Keystore and Trustore P12 file location (eg: /tls) using following commands and verify these files are created along with their password files (as specified here [Certificate P12 Storage as File Share](02-configuration-parameters.md#certificate-p12-storage-as-file-share)).
+```bash
+kubectl -n <namespace> exec <pod-name> -- ls /tls
+```
+
+
+---
 
 
 
@@ -967,20 +1139,27 @@ Check that:
 ---
 ##### Certificate Renewaljob Failing
 
-<Anuran>
-
+At the first time when the CD Pipeline is run and the pods are started for the 1st time, in the log verification Step here [Certificate Manager post deployment verification](#step-7--post-deployment-verification) there could be errors related to vault access in the log due to vault configuration not done at this stage.
+Make sure to restart both vault and certificate manager pods after configuring the vault as mentioned here [Hashicorp Vault configuration](02-configuration-parameters.md#vault-configuration) 
+Step to restart below
+```bash
+kubectl -n <namespace> delete po/<pod_id>
 ```
-<Anuran to provide>
-```
+**Note: In case the renewal job is failing suddenly after the pods are restarted significant amount of stopage time which exceeds the renewal frequency (cert.renewalRateMs), then the organization DPN admin need to raise a request with a new CSR to the DSM to get a new certificate bundle to be loaded in the DPN vault using steps mentioned here [Certificate load steps in vault](02-configuration-parameters.md#certificate-load-steps-in-vault)**
 
 ---
+
 ##### Certificate Sync job Failing
 
-<Anuran>
-
+If the Sync job is failing with below error
+```text
+INFO  u.g.d.n.f.c.m.s.KeyStoreSyncServiceImpl [] - Synchronizing keystores to filesystem...
+ERROR u.g.d.n.f.c.m.job.CertificateSyncJob [] - Error during certificate synchronization job execution: Failed to create keystore
+uk.gov.dbt.ndtp.federator.certificate.manager.exception.KeyStoreCreationException: Failed to create keystore
+        at uk.gov.dbt.ndtp.federator.certificate.manager.service.pki.KeyStoreService.createKeyStore(KeyStoreService.java:62)
+Caused by: java.security.KeyStoreException: Certificate chain is not valid        
 ```
-<Anuran to provide>
-```
+please check if the ca-chain, intermediate-ca, certificate and keypair files stored in vault are in sync i.e all are linked to the same CSR and root CA. If not please raise a new certificates bundle request using a new CSR.
 
 ---
 ##### Federator Connection Failing
@@ -995,10 +1174,9 @@ Check that:
 ---
 ##### Invalid Client Credential
 
-<Anuran - Please mention about incorrect client secret >
-
+Sometimes due to mismatch in IDP client secret (OAUTH2-CLIENT-SECRET) possibly due to periodic rotation carried out at DSM side leading to the secret invali at DPN end, the error "Invalid client credetial" can arise.
 ```
-<Anuran to provide>
+Recommended fix: Get the updated client secret for the Client Id from DSM by raising request for it. 
 ```
 
 ---

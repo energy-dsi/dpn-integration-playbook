@@ -23,20 +23,22 @@
     - [Secrets Configuration](#secrets-configuration-1)  
   - [DPN Data Pipelines](#dpn-data-pipelines)  
     - [Helm Configuration](#helm-configuration-1)  
-    - [Secrets Configuration](#secrets-configuration-2)  
+    - [Secrets Configuration](#secrets-configuration-1)  
     - [Storage Configuration](#storage-configuration)  
       - [Storage Connection String Secret](#storage-connection-string-secret)  
   - [DPN Security Services](#dpn-security-services)  
     - [Certificate Manager](#certificate-manager)  
       - [Helm Configuration](#helm-configuration-2)  
-      - [Secrets Configuration](#secrets-configuration-3)  
+      - [Secrets Configuration](#secrets-configuration-2)  
     - [HashiCorp Vault](#hashicorp-vault)  
       - [Helm Configuration](#helm-configuration-3)  
-      - [Secrets Configuration](#secrets-configuration-4)  
+      - [Secrets Configuration](#secrets-configuration-3)
+      - [Vault Configuration](#vault-configuration)
+      - [Certificate Load Steps in Vault](#certificate-load-steps-in-vault)
   - [DPN Storage Services](#dpn-storage-services)  
-    - [Certificate P12 Storage](#certificate-p12-storage)  
+    - [Certificate P12 Storage](#Certificate-P12-Storage-as-File-Share)  
       - [Helm Configuration](#helm-configuration-4)  
-      - [Secrets Configuration](#secrets-configuration-5)  
+      - [Secrets Configuration](#secrets-configuration-4)  
     - [Data Pipeline Storage](#data-pipeline-storage)  
     - [Redis Cache Service](#redis-cache-service)  
   - [DPN Streaming Service (Kafka)](#dpn-streaming-service-kafka)
@@ -752,9 +754,12 @@ Root-Repository
 [Go to Storage Configuration for DPN Data Pipeline](02-configuration-parameters.md#storage-configuration)
 
 ### Redis Cache Service
-Purpose and introduction
-<Anuran>
-In progress
+
+Redis Cache service is use in the DPN by the Federator server and client to store:
+- Cached authentication token received from the IDP/Keycloak so that it doesn't need to call it everytime.
+- Kafka topic indexes to track the index of messages for a particular product. 
+
+The service is deployed as docker container in the DPN AKS environment. Details about the image and other deployment configuration is given here [Federator Gatway Helm Configuration](#helm-configuration).
 
 ## DPN Streaming Service (Kafka)
 
