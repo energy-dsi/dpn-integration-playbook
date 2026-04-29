@@ -447,10 +447,37 @@ Federator deployment includes the following components and shown as individual c
 | Vault Service    | Secret Store |
 
 ---
+#### Pipeline Variable Groups
+
+Before running any pipeline, ensure the following **Azure DevOps Variable Groups** are created and populated. Variable groups store credentials and shared configuration values that are referenced by all Federator pipelines.
+
+##### Variable Group: `dockerhub-creds`
+
+| Variable Name | Description |
+|---------------|-------------|
+| `DOCKERHUB_USERNAME` | DockerHub username used to pull base images during CI builds |
+| `DOCKERHUB_PASSWORD` | DockerHub password or access token |
+
+##### Variable Group: `federator-ci`
+
+| Variable Name | Description |
+|---------------|-------------|
+| `GITHUB_MAVEN_USERNAME` | GitHub username with access to the GitHub Maven Package Registry |
+| `GITHUB_MAVEN_TOKEN` | GitHub Personal Access Token (PAT) with `read:packages` scope |
+---
 
 #### Step 1 — Configure Maven Settings
 
-Ensure the following credential are set in the pipeline variable to pull from Maven Central.
+The Federator is a Java application built using Maven. Some of its dependencies are hosted in the **GitHub Maven Package Registry**, which requires authentication. This step ensures the CI pipeline can authenticate with GitHub when downloading those dependencies.
+
+The following credentials must be set in the `federator-ci` pipeline variable group:
+
+```
+GITHUB_MAVEN_USERNAME=<GitHub username>
+GITHUB_MAVEN_TOKEN=<GitHub PAT token>
+```
+
+The CI pipeline automatically injects these values into a `settings.xml` file at runtime, located at:
 
 ```
 Root-Repository/
@@ -458,18 +485,34 @@ Root-Repository/
     └── settings.xml
 ```
 
-Add credentials.
+The relevant section of the generated `settings.xml` is shown below for reference. **Do not commit credentials directly into this file.**
 
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${env.GITHUB_ACTOR}</username>
+      <password>${env.GH_PACKAGES_PAT}</password>
+    </server>
+  </servers>
+</settings>
 ```
-GITHUB_MAVEN_USERNAME=<GitHub username>
-GITHUB_MAVEN_TOKEN=<GitHub PAT token>
-```
+> **Note:** The `GITHUB_MAVEN_TOKEN` must have the `read:packages` scope. Using a token without this scope will cause the Maven build to fail with an authentication error.
 
 ---
 
 #### Step 2 — Setup Keystore and Truststore locations
 
+The Federator Server and Client communicate over **mutual TLS (mTLS)** using gRPC. Both sides must present valid certificates to establish a secure connection. The following certificate files, generated during the certificate preparation step (see [Section 3 — Certificate Preparation]
+
+| File | Purpose |
+|------|---------|
+| `keystore.jks` | Contains the component's private key and certificate. Used to prove the component's own identity during TLS handshake. |
+| `truststore.jks` | Contains trusted Certificate Authority (CA) certificates. Used to verify the identity of the remote party. |
+
 Place the following files in a secure location (TBD) that is created above in the certificate generation step.
+
 
 ```
 keystore.jks
@@ -494,20 +537,81 @@ Root-Repository/
             ├── DPN-Redis-Common-CI.yaml
             └── DPN-Zookeeper-Common-CI.yaml
 ```
+##### How to Create Each Pipeline in Azure DevOps
+
+1. Go to **Pipelines** in your Azure DevOps project and click **New Pipeline**.
+2. Select the source repository (e.g. Azure Repos Git or GitHub).
+3. Choose the `dpn-federator` repository.
+4. Select **Existing Azure Pipelines YAML file**.
+5. Point to the relevant YAML file path from the list above.
+6. Click **Save** (do not run yet — parameters must be provided at runtime).
+7. Repeat for all six YAML files.
+
+##### CI Pipeline Parameters
+
+Each CI pipeline accepts the following runtime parameters. These are selected when manually triggering a pipeline run.
+
+| Parameter | Default | Allowed Values | Description |
+|-----------|---------|----------------|-------------|
+| `serviceConnection` | `sc-dpn-dev-001` |  `sc-dpn-dev-001`, `sc-dpn-sit-001`, `sc-dpn-preprod-001`, `sc-dpn-prod-001` | Azure service connection for the target environment |
+| `environment` | `dev` | `dev`, `devtest`, `sit`, `preprod`, `prod` | Target deployment environment |
+| `cluster` | `dpn01` | `dpn01`, `dpn02` | Target DPN cluster |
+| `enablePIT` | `false` | `true`, `false` | Enables PIT mutation testing (slow — leave `false` for routine runs) |
+
+*** Note*** This above mentioned parameters need to be configured as per existing infrastructure provisioned and configuration of cluster.
+
+##### What the Main Federator CI Pipeline Does (`federator-ci.yaml`)
+
+The main pipeline runs three sequential stages:
+
+| Stage | What Happens |
+|-------|-------------|
+| **Stage 1 — CheckMarx Scan** | Runs an Infrastructure-as-Code (IaC) security scan on pipeline YAML and Helm chart files using CheckMarx One. |
+| **Stage 2 — Unit Tests** | Sets up Java 21, injects Maven credentials, logs into DockerHub, runs all unit tests (`mvn clean verify`), publishes test results, code coverage (JaCoCo), and performs SonarQube static code analysis. |
+| **Stage 3 — Build & Push** | Builds Docker images for the Federator Server (`Dockerfile.server`) and Federator Client (`Dockerfile.client`), pushes both to ACR, signs them using Cosign, and scans them with JFrog Xray. |
+
+##### What the Other CI Pipelines Do
+
+The remaining five pipelines follow a simpler build-and-push pattern (no unit tests or code analysis). Each uses a fixed image version tag.
+
+| Pipeline | Image Name | Image Tag |
+|----------|-----------|-----------|
+| `kafka-common-ci.yaml` | `dpn-kafka` | `7.5.3` |
+| `zookeeper-common-ci.yaml` | `dpn-zookeeper` | `7.5.3` |
+| `redis-common-ci.yaml` | `dpn-redis` | `7.2` |
+| `kafka-topic-creator-ci.yaml` | `kafka-topic-creator` | `v2` |
+| `kafka-topic-populator-ci.yaml` | `kafka-topic-populator` | `v2` |
 
 ---
 
 #### Step 4 — Execute Federator CI Pipelines
 
+Run the CI pipelines in the following recommended order. The infrastructure pipelines have no interdependencies but this order is recommended for clarity.
+
+1. `zookeeper-common-ci.yaml`
+2. `kafka-common-ci.yaml`
+3. `redis-common-ci.yaml`
+4. `kafka-topic-creator-ci.yaml`
+5. `kafka-topic-populator-ci.yaml`
+6. `federator-ci.yaml` (run last)
+
 Execute the CI pipelines and verify by checking the image registry updated with the image tag.
+
+List all repositories in the registry:
 
 ```bash
 az acr repository list --name <acr-name>
 ```
 
+Verify the image tag for a specific image:
+
 ```bash
 az acr repository show-tags --name <acr-name> --repository <image-name>
 ```
+
+Replace `<acr-name>` with the registry name (e.g. `acrdpndevuks01`) and `<image-name>` with the image being checked (e.g. `dpn-federator-client`).
+
+> **Note:** The Build ID generated by a successful `federator-ci.yaml` run is used as the `imageTag` parameter when executing the CD pipeline in Step 7.
 
 ---
 
@@ -522,6 +626,63 @@ Root-Repository/
         └── cd-pipelines/
             └── azure-dpn-cd.yaml
 ```
+##### CD Pipeline Parameters
+
+| Parameter | Default | Allowed Values | Description |
+|-----------|---------|----------------|-------------|
+| `ServiceConnection` | `sc-dpn-dev-001` | `sc-dpn-dev-001`, `sc-dpn-dev-002`, `sc-dpn-sit-001`, `sc-dpn-sit-002` | Azure service connection for the target environment |
+| `environment` | `dev` | `dev`, `devtest`, `sit`, `preprod`, `prod` | Target deployment environment |
+| `dpncluster` | _(required)_ | `dpn01`, `dpn02` | Target DPN cluster |
+| `imageTag` | _(required)_ | Build ID from `federator-ci.yaml` run | Docker image tag to deploy (e.g. `1042`) |
+
+##### Environment Configuration Files
+
+The CD pipeline reads its environment-specific values from a JSON configuration file in the repository. The file used depends on the `environment` and `dpncluster` parameters selected at runtime.
+
+```
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── config/
+            ├── dev-dpn01.json
+            ├── dev-dpn02.json
+            ├── devtest-dpn01.json
+            └── devtest-dpn02.json
+```
+
+Each configuration file contains the following values:
+
+| Key | Example Value | Description |
+|-----|---------------|-------------|
+| `ENV_NAME` | `dev` | Environment label |
+| `CONTAINER_REGISTRY` | `acrdpndev` | Short name of the Azure Container Registry |
+| `CONTAINER_REGISTRY_URL` | `acrdpndev.azurecr.io` | Full URL used to pull images |
+| `BASE_REGISTRY` | `acrdpndev.azurecr.io` | Base registry used during image builds |
+| `AZURE_SUBSCRIPTION_ID` | `bbbdbd83-...` | Azure Subscription ID of the target environment |
+| `RESOURCE_GROUP` | `rg-aks-dpn-dev-01` | Resource Group containing the AKS cluster |
+| `AKS_CLUSTER` | `aks-dpn-dev-01` | Name of the AKS cluster to deploy to |
+| `NAMESPACE` | `ns-dpn-01` | Kubernetes namespace where components are deployed |
+| `KEY_VAULT_NAME` | `kv-dpn-dev-01` | Key Vault from which secrets are retrieved at deployment time |
+---
+
+> **Note:** To deploy to a new environment, create a new JSON config file following the same structure as the examples above, and ensure the corresponding Azure service connection is configured in Azure DevOps.
+---
+##### What the CD Pipeline Does
+
+The CD pipeline executes the following steps automatically:
+
+1. Loads the environment configuration JSON file based on the selected parameters.
+2. Authenticates with Azure using the selected Service Connection.
+3. Retrieves AKS credentials for the target cluster.
+4. Fetches the following secrets from Azure Key Vault:
+   - `IDP-CLIENT-SECRET`
+   - `IDP-TRUSTSTORE-PASSWORD`
+   - `IDP-KEYSTORE-PASSWORD`
+5. Runs `helm lint` to validate the Helm chart before deploying.
+6. Runs a Helm dry-run to verify the deployment configuration without making changes.
+7. Runs `helm upgrade --install` to deploy or upgrade all Federator components in the target namespace.
+8. Verifies each core deployment has successfully rolled out using `kubectl rollout status`.
+9. Prints a summary of all running pods and services in the namespace.
 
 ---
 
@@ -533,25 +694,51 @@ In progress
 
 #### Step 7 — Execute Federator CD Pipeline
 
-Execute the CD pipeline and verify the containers are deployed on the Azure Kubernetes platform.
+With all images built (Steps 3–4), the CD pipeline configured (Step 5), and Vault secrets in place (Step 6), execute the CD pipeline to deploy all Federator components to the AKS cluster.
+
+##### Directions to Run the CD Pipeline
+
+1. Go to **Pipelines** in your Azure DevOps project.
+2. Click on the `azure-dpn-cd` pipeline.
+3. Click **Run Pipeline**.
+4. Fill in the parameters:
+   - **ServiceConnection**: select the correct service connection for the target environment.
+   - **environment**: e.g. `dev`
+   - **dpncluster**: e.g. `dpn01`
+   - **imageTag**: the Build ID from the successful `federator-ci.yaml` run (e.g. `1042`). This can be found in the pipeline run history.
+5. Click **Run** and monitor the pipeline log.
+
+If the pipeline completes successfully, the following message will appear at the end of the deployment stage:
+
+```
+DPN DEPLOYMENT COMPLETE
+```
 
 ---
 
 #### Post Deployment Verification
 
+Once the CD pipeline completes, verify the deployment using the following commands. Replace `<namespace>` with the target namespace (e.g. `ns-dpn-01`).
+
+Check that all pods are in a `Running` state:
+
 ```bash
 kubectl get pods -n <namespace>
 ```
+
+Check that all services are exposed:
 
 ```bash
 kubectl get svc -n <namespace>
 ```
 
+Check that all deployments are healthy (READY should match DESIRED, e.g. `1/1`):
+
 ```bash
 kubectl get deployments -n <namespace>
 ```
 
-View logs.
+View logs for a specific pod:
 
 ```bash
 kubectl logs <pod-name> -n <namespace>
@@ -560,7 +747,7 @@ kubectl logs <pod-name> -n <namespace>
 ---
 
 #### Kafka UI Verification
-To verify Kafka topics, DPN deployment is provided with a User Interface.To access this UI, the Windows Azure Virtual Machine mentioned in the prerequisites will be required as it is only accessible inside the Azure Network and not outside.
+To verify Kafka topics, DPN deployment is provided with a User Interface. To access this UI, the Windows Azure Virtual Machine mentioned in the prerequisites will be required as it is only accessible inside the Azure Network and not outside.
 
 ```
 http://kafka-ui:8085
@@ -568,10 +755,12 @@ http://kafka-ui:8085
 
 This interface allows the following capabilities:
 
-- viewing Kafka clusters deployed in DPN
-- inspecting topics in the clusters
-- publishing test messages to verify
-- verifying data transmission between organizations
+- Viewing Kafka clusters deployed in DPN
+- Inspecting topics in the clusters
+- Publishing test messages to verify
+- Verifying data transmission between organizations
+
+After publishing a test message on the source Kafka cluster topic, check the corresponding topic on the destination Kafka cluster. If the Federator is working correctly, the message should appear within seconds.
 
 ---
 
@@ -581,37 +770,44 @@ This interface allows the following capabilities:
 
 Possible causes:
 
-- Incorrect GitHub PAT token
-- Maven repository authentication failure
-- Docker login failure
+- Incorrect GitHub PAT token or missing `read:packages` scope
+- Maven repository authentication failure — verify `GITHUB_MAVEN_USERNAME` and `GITHUB_MAVEN_TOKEN` in the `federator-ci` variable group
+- Docker login failure — verify `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` in the `dockerhub-creds` variable group
+- ACR login failure — verify the service principal used by the Service Connection has the `AcrPush` role on the Container Registry
 
 Verify pipeline logs and ensure credentials are correct.
+
 
 ---
 
 ##### Container Image Not Found
 
-Check whether CI pipeline pushed images.
+Check whether the CI pipeline pushed images to the registry.
 
 ```bash
 az acr repository list --name <acr-name>
 ```
 
+If the expected repository is not listed, re-run the relevant CI pipeline and ensure it completes without errors before proceeding to the CD pipeline.
+
 ---
 
 ##### Pods Not Starting
 
-Check pod events.
+Check pod events to identify scheduling or image pull issues.
 
 ```bash
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
+Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect ACR credentials.
+
+
 ---
 
 ##### Container CrashLoopBackOff
 
-Check logs.
+A `CrashLoopBackOff` status means the container starts, crashes, and Kubernetes repeatedly attempts to restart it. Check the logs to identify the root cause.
 
 ```bash
 kubectl logs <pod-name> -n <namespace>
@@ -619,9 +815,10 @@ kubectl logs <pod-name> -n <namespace>
 
 Common causes:
 
-- invalid environment variables
-- missing secrets or incorrect SAS Token for Blob storage
-- Kafka topic is not pre populated
+- Invalid or missing environment variables — check the Helm values file for typos or missing entries
+- Missing secrets or incorrect SAS Token for Blob storage — verify all required secrets exist in Azure Key Vault with the correct names and values
+- Kafka topic is not pre-populated — run the Kafka Topic Creator job or manually create topics via the Kafka UI
+
 
 ---
 
@@ -633,6 +830,11 @@ Verify Kafka topics using Kafka UI.
 http://kafka-ui:8085
 ```
 
+Check that:
+
+- The topic exists in both the source and destination Kafka clusters
+- The topic name in the Federator configuration matches exactly (topic names are case-sensitive)
+- There are no consumer group errors shown in the Kafka UI for the Federator consumer group
 ---
 ##### Certificate Renewaljob Failing
 
@@ -657,7 +859,8 @@ http://kafka-ui:8085
 <Anik - Please update title with the error message, I forgot the message>
 
 ```
-<Anik to provide>
+<u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - No cached token in Redis for default management node, fetching from IDP
+15:15:34.346 [main] DEBUG u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - attempting to fetch token for management node>
 ```
 
 ---
