@@ -68,7 +68,8 @@ DPN repositories required:
 
 - [DPN-Infra](https://github.com/energy-dsi/dpn-infra-deployment)  
 - [DPN-Federator](https://github.com/energy-dsi/dpn-federator)  
-- [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)  
+- [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
+- [DPN-Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 
 ### Optional Tools
 

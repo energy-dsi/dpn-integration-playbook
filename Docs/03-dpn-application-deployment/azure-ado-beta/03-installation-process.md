@@ -37,8 +37,9 @@ This document provides step-by-step instructions for installing and deploying **
 
 The deployment uses the following repositories:
 
-- https://github.com/energy-dsi/dpn-deployment
-- https://github.com/energy-dsi/dsi-data-pipelines
+- https://github.com/energy-dsi/dpn-federator.git
+- https://github.com/energy-dsi/dpn-federator-certificate-manager.git
+- https://github.com/energy-dsi/dpn-data-pipelines.git
 
 The deployment process consists of:
 
@@ -115,7 +116,6 @@ The following steps
 Clone the official repositories from GitHub.
 
 ```bash
-git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-federator.git
 git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-data-pipelines.git
@@ -205,6 +205,66 @@ The DPN is presently comprises of following components.
 * DPN Data Store
 
 The installation steps are outlined below for each of the components separately. 
+
+#### Vault Configuration
+
+Once the HashiCorp Vault pod is running on port **8200** in the Kubernetes environment, issue the following commands from your local machine to initialise the Vault. The examples below assume the pod instance ID is `vault-x` and the namespace is `ns-dpn-01`.
+
+**Step1**: Verify Hashicorp Vault container is in running state
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- vault status -format=json
+```
+
+**Step2**: Initialise the Vault and generate unseal keys and root token
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- vault operator init -key-shares=1 -key-threshold=1 -format=json
+```
+
+> **Note:** A single key share is used here for convenience. In production, use multiple key shares (e.g. `-key-shares=5 -key-threshold=3`) to distribute unseal keys across different operators via [Shamir's secret sharing](https://developer.hashicorp.com/vault/docs/concepts/seal).
+
+**Step3**: Unseal the Vault using the `<unseal_key>` received in the step above
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- vault operator unseal <unseal_key>
+```
+
+**Step4**: Enable the Vault KV v2 engine using the `<RootToken>` received in the initialisation step
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault secrets enable -path=pki-client kv-v2
+```
+
+---
+
+#### Certificate Load Steps in Vault
+
+The following commands load the key pair and certificate bundle received from DSI DSM into the Vault. The examples assume the pod instance ID is `vault-x`, the root token is `<RootToken>`, and the namespace is `ns-dpn-01`. The signing key is named `dpn-dev-01.key`, and the bundle contains `ca-chain.pem` and `certificate.pem`.
+
+Load the key pair to Vault:
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/keypair \
+  privateKey="$(cat dpn-dev-01.key)" \
+  publicKey="$(openssl rsa -in dpn-dev-01.key -pubout 2>/dev/null)"
+```
+
+Load the CA chain to Vault:
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/ca-chain \
+  chain="$(cat ca-chain.pem)"
+```
+
+Load the certificate to Vault:
+
+```bash
+kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/certificate \
+  certificate="$(cat certificate.pem)"
+```
+
+---
 
 ### PART 1 - DPN Certificate Life Cycle Manager Installation (CI/CD)
 
