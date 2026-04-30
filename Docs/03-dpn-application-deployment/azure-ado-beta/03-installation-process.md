@@ -421,7 +421,7 @@ Replace `<acr-name>` with the registry name (e.g. `acrdpndevuks01`) and `<image-
 
 ---
 
-#### Step 5 — Configure Federator CD Pipeline
+#### Step 5 — Configure Certificate Manager CD Pipeline
 
 Prepare new Azure DevOPS Pipeline by reading the CD pipeline yaml files from the below location under cd-pipelines.
 
@@ -443,7 +443,7 @@ Root-Repository/
 | `imageTag`          | _(required)_     | Build ID from `certificate-manager-ci.yaml` run                        | Docker image tag to deploy (e.g. `1042`)            |
 
 
-#### Step 6 — Execute Federator CD Pipeline
+#### Step 6 — Execute Certificate Manager CD Pipeline
 
 With all images built (Steps 3–4), the CD pipeline configured (Step 5), execute the CD pipeline to deploy both Certificate Manager and Hashicorp Vault to the AKS cluster.
 
