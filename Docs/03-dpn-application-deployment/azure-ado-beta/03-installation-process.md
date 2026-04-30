@@ -37,8 +37,9 @@ This document provides step-by-step instructions for installing and deploying **
 
 The deployment uses the following repositories:
 
-- https://github.com/energy-dsi/dpn-deployment
-- https://github.com/energy-dsi/dsi-data-pipelines
+- https://github.com/energy-dsi/dpn-federator.git
+- https://github.com/energy-dsi/dpn-federator-certificate-manager.git
+- https://github.com/energy-dsi/dpn-data-pipelines.git
 
 The deployment process consists of:
 
@@ -115,7 +116,6 @@ The following steps
 Clone the official repositories from GitHub.
 
 ```bash
-git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-federator.git
 git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-data-pipelines.git
