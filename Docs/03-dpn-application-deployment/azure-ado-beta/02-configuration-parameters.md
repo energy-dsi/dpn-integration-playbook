@@ -620,7 +620,35 @@ Root-Repository
 
 > **Note:** The `values.yaml` file can be replicated for multiple environments or DPN deployments (e.g. `dpn01-values.yaml`, `dpn02-values.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](#azure-environment-configuration) section above.
 
-DSI proposes only selective changes to the values file unless required by the organisation, but provides the provision to customise other parameters if needed.
+DSI proposes only selective changes in the values file unless required by Organizations but provides the provision to customize other parameters if required.
+
+| Parameters                    | Purpose                                                                                                                   | Example value                                                                                   |
+|-------------------------------|---------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
+| image.repository              | `<complete url of the image registry>`                                                                                    | acrdpndevuks01.azurecr.io/dpn-federator-certificate-manager                                     |
+| namespace                     | `<name of the kubernetes namespace>`                                                                                      | ns-dpn-01                                                                                       |
+| managementNode.baseUrl        | `<complete url of the DSI DSM Management node >`                                                                          | https://management.dsm01.dsidev.neso.energy                                                     |
+| oauth2.clientId               | `<Client ID received from DSM to establish DPN connection>`                                                               | ZTF_CLIENT                                                                                      |
+| oauth2.tokenUri               | `<IDP Token URL received from DSM to establish DPN connection>`                                                           | https://auth-mtls.dsm01.dsidev.neso.energy/realms/management-node/protocol/openid-connect/token |
+| replicaCount                  | `<The count of replica in each container>`                                                                                | 1                                                                                               |
+| vault.uri                     | `<Complete URL of the DPN Vault>`                                                                                         | http://vault.ns-dpn-01.svc.cluster.local:8200                                                   |
+| vault.pkiMount                | `<Mount Point in the Vault where Client certificates, keys and CA Chain will be stored`                                   | pki-client                                                                                      |
+| vault.secretPath              | `<Complete Path in the Vault where Client certificates, keys and CA Chain will be stored>`                                | pki-client/node-net/client                                                                      |
+| vault.authentication          | `<Mode of Authentication with Vault - default using root token>`                                                          | TOKEN                                                                                           |
+| mtls.keystorePath             | `<KeyStore file name with absolute path>`                                                                                 | /tls/keystore.p12                                                                               |
+| mtls.truststorePath           | `<TrusStore file name with absolute path>`                                                                                | /tls/truststore.p12                                                                             |
+| mtls.keystoreType             | `<Keystore Type>`                                                                                                         | PKCS12                                                                                          |
+| certDest.path                 | `<Absolute Path of Keystore/Trusstore files>`                                                                             | /tls                                                                                            |
+| cert.renewalRateMs            | `<Frequency in milisecs at which Certificate renewal is attempted - default 1 hr.>`                                       | 3600000                                                                                         |
+| cert.syncRateMs               | `<Frequency in milisecs at which filesystem sync is attempetd - default 1 minute>`                                        | 60000                                                                                           |
+| cert.renewalThresholdPercent  | `<Percent of days left from expiry by which the certificate needs to be renewed - default 10>`                            | 10                                                                                              |
+| cert.keySize                  | `<Key file size to use when creating new key pairs>`                                                                      | 2048                                                                                            |
+| cert.intermediateMinValidDays | `<Minimum validity in days with which Intermediate CAs generated - default 14 days>`                                      | 14                                                                                              |
+| existingSecret.name           | `<Secret Bundle name for the Federator Certificate Manager secrets>`                                                      | certificate-manager-secrets                                                                     |
+| fileShare.shareName           | `<Azure File Share name which will be used by the common storage for the DPN certificates>`                               | fs<env_name>dpn01<region_abbreviation>01                                                        |
+| fileShare.secretName          | `<Secret Bundle name for the Azure File Share secrets which will be used by the common storage for the DPN certificates>` | azure-fileshare-secret                                                                          |
+| fileShare.namespace           | `<Kubernetes namspace for the Fileshare>`                                                                                 | ns-dpn-01                                                                                       |    
+| fileShare.pvName              | `<Persistent Volume name for the File Share>`                                                                             | pv-dpn-certs-fileshare                                                                          |
+| fileShare.pvcName             | `<Persistent Volume Claim name for the File Share>`                                                                       | pvc-dpn-certs-fileshare                                                                         |
 
 | Parameter | Purpose | Example Value |
 |-----------|---------|---------------|
@@ -652,7 +680,7 @@ DSI proposes only selective changes to the values file unless required by the or
 
 #### Secrets Configuration
 
-The `dpn-federator-certificate-manager` repository includes a Helm chart secrets and `secretproviderclass` file for retrieving and bundling secrets from Azure Key Vault, per organisation requirements. The `secret.yaml` and `secretproviderclass.yaml` files are located as follows:
+The dpn-federator-certificate-manager repository is provided with a helm chart secrets and secretproviderclass files for retrieving and bundling the secrets from Azure Key vault, as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment. The secret.yaml and secretproviderclass.yaml file are located in the following section as mentioned below.
 
 ```text
 Root-Repository
@@ -765,21 +793,64 @@ kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pk
 
 ## DPN P12 Shared Storage Service
 
-> **Note:** This section is currently under development and will be completed in a forthcoming revision.
+The Keystore and Truststore P12 files, which are used by the Federator components to establish connection with external DSI systems, are stored in a common storage (Azure file Share) so that they can be accessed by all the Federator components within the DPN.
 
 ### Certificate P12 Storage as File Share
 
-> **Note:** This section is currently under development and will be completed in a forthcoming revision.
+The Federator Certificate Manager, Federator Gateway Server and Client - all three components require the Certificate P12 files and there passwords to be accessible from a common mount point **eg: /tls** in the common file share.
+
+```text
+/
+└── tls
+    └── keystore.p12
+    └── truststore.p12
+    └── keystore.password
+    └── truststore.password
+```
 
 #### Helm Configuration
 
-> **Note:** In progress.
+The dpn-federator-certificate-manager repository is provided with a helm chart values file and pv-pvc file for customizing the File Share deployment as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment.The values.yaml file is located in the following section as mentioned below.
+
+```text
+Root-Repository
+  └── charts
+        └── certificate-manager
+                └── values.yaml
+                └── templates
+                      └── pv-pvc.yaml
+```
+
+
+| Parameters           | Purpose                                                                                                                   | Example value                            |
+|----------------------|---------------------------------------------------------------------------------------------------------------------------|------------------------------------------|
+| fileShare.shareName  | `<Azure File Share name which will be used by the common storage for the DPN certificates>`                               | fs<env_name>dpn01<region_abbreviation>01 |
+| fileShare.secretName | `<Secret Bundle name for the Azure File Share secrets which will be used by the common storage for the DPN certificates>` | azure-fileshare-secret                   |
+| fileShare.namespace  | `<Kubernetes namspace for the Fileshare>`                                                                                 | ns-dpn-01                                |    
+| fileShare.pvName     | `<Persistent Volume name for the File Share>`                                                                             | pv-dpn-certs-fileshare                   |
+| fileShare.pvcName    | `<Persistent Volume Claim name for the File Share>`                                                                       | pvc-dpn-certs-fileshare                  |
+| fileShare.size       | `<Size to allocate for the File Share>`                                                                                   | 1Gi                                      |
+
+
 
 #### Secrets Configuration
 
-> **Note:** In progress.
+The dpn-federator-certificate-manager repository is provided with a helm chart secrets and secretproviderclass files for retrieving and bundling the secrets from Azure Key vault, as per Organization requirement. The Helm chart uses **environment-specific values files** to configure the DPN deployment. The secret.yaml and secretproviderclass.yaml file are located in the following section as mentioned below.
 
----
+```text
+Root-Repository
+  └── charts
+        └── certificate-manager
+              └── templates
+                    └── secret.yaml
+                    └── secretproviderclass.yaml
+```
+
+| Secret Parameters                                 | Purpose                                                                                                             | Example value                             |
+|---------------------------------------------------|---------------------------------------------------------------------------------------------------------------------|-------------------------------------------|
+| azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME | `<Storage Account Name of the Azure File Share which will be used by the common storage for the DPN certificates>`  | fs<env_name>dpn01<region_abbreviation>01  |
+| azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY  | `<Storage Account Name of the Azure File Share which will be used by the common storage for the DPN certificates>`  |                                           |
+
 
 ### Data Pipeline Storage
 
@@ -789,9 +860,11 @@ kubectl -n ns-dpn-01 exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pk
 
 ### Redis Cache Service
 
-> **Note:** This section is currently under development and will be completed in a forthcoming revision.
+Redis Cache service is use in the DPN by the Federator server and client to store:
+- Cached authentication token received from the IDP/Keycloak so that it doesn't need to call it everytime.
+- Kafka topic indexes to track the index of messages for a particular product. 
 
----
+The service is deployed as docker container in the DPN AKS environment. Details about the image and other deployment configuration is given here [Federator Gatway Helm Configuration](#helm-configuration).
 
 ## DPN Streaming Service (Kafka)
 
