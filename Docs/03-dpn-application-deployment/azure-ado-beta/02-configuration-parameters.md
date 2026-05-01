@@ -437,9 +437,19 @@ The Helm configuration for the DPN deployment is segregated between the Producer
 
 This separation ensures that each pipeline stage operates with file-type-specific schemas and policies while maintaining clear isolation between producer and consumer configurations.
 
+
 #### Data Pipeline Blueprints
 
-DSI provides different schema-type blueprints from which organisations prepare their data products. The `values.yaml` files within the blueprints directory must **not** be modified directly. The blueprints folder is organised by integration pathway (e.g. `file`, `topic`, `api`) and by schema type within each pathway.
+DSI provided following schema types belonging to energy industry. Organizations are supposed to verify and augment any new schema type following the DSM data template definition and bring their own adaptor and mapper components accordingly. 
+
+| Schema | Description |
+|------|-------------|
+| DL | Diagram Layout |
+| EQ | Equipment |
+| EQBD | Equipment Boundary |
+| SSH | Steady State Hypothesis |
+
+DSI provides the above schema-type blueprints from which organisations prepare their data products. The `values.yaml` files within the blueprints directory must **not** be modified directly. The blueprints folder is organised by integration pathway (e.g. `file`, `topic`, `api`) and by schema type within each pathway.
 
 ```text
 Root-Repository
@@ -817,7 +827,7 @@ dpn-federator-gateway/
 |-----------|---------|---------------|
 | IDP-KEYSTORE-PASSWORD | Password for the IDP keystore certificate file, used to prove the client's identity when connecting to the IDP service | `changeit` |
 | IDP-TRUSTSTORE-PASSWORD | Password for the IDP truststore, used to verify connection to the correct IDP server | `changeit` |
-| IDP-CLIENT-SECRET | Secret used to authenticate the Federator Client to the DSI authentication service; provided as part of the DSI package | `xxxxxxxxXXXXX` |
+| IDP-CLIENT-SECRET | Secret used to authenticate the Federator Client to the DSI authentication service; provided as part of the DSI package | `xxxxxxxx` |
 
 ---
 
