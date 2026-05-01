@@ -57,10 +57,6 @@ The deployment process consists of:
 - **Continuous Integration (CI)** — builds container images
 - **Continuous Deployment (CD)** — deploys images into **Azure Kubernetes Service (AKS)**
 
-The following flow diagram explains the installation process steps.
-
-![DPN Components](/Docs/04-dpn-architecture/images/TBD.png)
-
 ---
 
 ## DPN Containerized Deployment Architecture
