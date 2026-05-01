@@ -37,7 +37,12 @@ This documentation focuses on the deployment and operation of DPN nodes using th
 
 The documentation assumes that the DPN node will be deployed within an **Azure cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
 
-**Deployment on AWS and GCP Cloud upcoming.**
+**Deployment on AWS - Alpha Stage**
+This document provides reference Github Actions pipelines for application deployment on AWS platform. However, infrastructure deployment is not covered in this version.Organizations using AWS still require to develop infrastructure pipelines on their own.
+
+**Deployment on GCP - Upcoming**
+This is not covered in this document yet
+
 
 ---
 
