@@ -65,7 +65,7 @@ Multicloud deployment support with Azure, AWS and GCP but to be extended for oth
 - **Helm charts** for Kubernetes deployments
 
 ### AWS Deployment: 
-TBD and upcoming
+The present DSI playbook provides a guidance on using Github Actions based pipelines for AWS deployment. However, infrastructure and detailed application deployment steps are in alpha testing phase. Orgnizations may use this as prescriptive guidance to deploy DPN in AWS. 
 
 ### GCP Deployment: 
 TBD and upcoming
