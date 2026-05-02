@@ -709,14 +709,15 @@ Replace `<acr-name>` with the registry name (e.g. `acrdpndevuks01`) and `<image-
 
 Create a new Azure DevOps Pipeline from the CD pipeline YAML file located at the following path. The CD pipeline deploys the complete Federator package, comprising the following components:
 
-1. `zookeeper-src`
-2. `zookeeper-target`
-3. `kafka-src`
-4. `kafka-target`
-5. `kafka-ui`
-6. `redis`
-7. `federator-server`
-8. `federator-client`
+1. `dpn-zookeeper-src`
+2. `dpn-zookeeper-target`
+3. `dpn-kafka-src`
+4. `dpn-kafka-target`
+5. `dpn-kafka-ui`
+6. `dpn-redis`
+7. `dpn-federator-server`
+8. `dpn-federator-client`
+
 
 ```
 Root-Repository/
