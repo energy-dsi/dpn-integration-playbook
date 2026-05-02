@@ -685,10 +685,10 @@ The DPN data pipeline processes files by pushing streaming messages onto predefi
 
 | Process | Source Topic Name | Target Topic Name | Bootstrap Server |
 |---------|-------------------|-------------------|------------------|
-| adaptor | N/A | `dpn-producer-{product_type}-raw` | `kafka-src:9092` |
-| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `kafka-src:9092` |
-| extractor | N/A | `dpn-consumer-trfm` | `kafka-target:9092` |
-| consumer-mapper | `dpn-consumer-trfm` | `dpn-consumer-target` | `kafka-target:9092` |
+| adaptor | N/A | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
+| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src:9092` |
+| extractor | N/A | `dpn-consumer-trfm` | `dpn-kafka-target:9092` |
+| consumer-mapper | `dpn-consumer-trfm` | `dpn-consumer-target` | `dpn-kafka-target:9092` |
 
 where **`product_type`** is a value such as `eq-sample-1` as described in previous sections.
 

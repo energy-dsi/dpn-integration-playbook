@@ -341,14 +341,14 @@ helm list -n <namespace>
 
 No pods with names matching the patterns below should remain:
 
-- `federator-server-*`
-- `federator-client-*`
-- `kafka-src-*`
-- `kafka-dest-*`
-- `zookeeper-src-*`
-- `zookeeper-dest-*`
-- `kafka-ui-*`
-- `redis-*`
+- `dpn-federator-server-*`
+- `dpn-federator-client-*`
+- `dpn-kafka-src-*`
+- `dpn-kafka-target-*`
+- `dpn-zookeeper-src-*`
+- `dpn-zookeeper-dest-*`
+- `dpn-kafka-ui-*`
+- `dpn-redis-*`
 
 ---
 
