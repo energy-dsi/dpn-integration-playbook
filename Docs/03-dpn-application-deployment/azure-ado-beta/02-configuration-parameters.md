@@ -286,21 +286,40 @@ Root-Repository
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| image.repository | Complete URL of the image registry | `<DSI public image repository>/hashicorp/vault` |
-| image.tag | Image version tag | `1.16` |
-| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
-| replicaCount | Number of replicas for the container | `3` |
-| vault.storagePath | Path inside the persistent storage volume | `/vault/file` |
+| Parameter                       | Purpose                                   | Example Value                                   |
+|---------------------------------|-------------------------------------------|-------------------------------------------------|
+| image.repository                | Complete URL of the image registry        | `<DSI public image repository>/hashicorp/vault` |
+| image.tag                       | Image version tag                         | `1.16`                                          |
+| namespace                       | Name of the Kubernetes namespace          | `ns-dpn-01`                                     |
+| replicaCount                    | Number of replicas for the container      | `3`                                             |
+| vault.storagePath               | Path inside the persistent storage volume | `/vault/file`                                   |
+| seal.azureKeyVault.tenantId     | Unseal Key KeyVault's Tenant Id           | `xxxxx-yyyy`                                    |
+| seal.azureKeyVault.clientId     | Unseal Key KeyVault's Client Id           | `xxxxx-yyyy`                                    |                                                 |
+| seal.azureKeyVault.keyVaultName | Unseal Key KeyVault's Name                | `kv-dpn-dev-uks-xx`                             |
+| seal.azureKeyVault.keyName      | Unseal Key KeyVault's Key name            | `vault-unseal-key`                              |
+| keyvault.tenantId               | TLS Cert KeyVault's Tenant Id             | `xxxxx-yyyy`                                    |
+| keyvault.clientID               | TLS Cert KeyVault's Client Id             | `xxxxx-yyyy`                                    |
+| keyvault.name                   | TLS Cert KeyVault's Name                  | `kv-dpn-dev-uks-xx`                             |
 
 #### Secrets Configuration
 
-HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2. The following Kubernetes secret must be created to provide the TLS certificate material:
+The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault. The relevant files are located as follows:
 
-| Secret | Purpose |
-|--------|---------|
-| `tlsSecretName` | Kubernetes secret containing the TLS certificate and key used to secure Vault's HTTPS listener |
+```text
+Root-Repository
+  └── charts
+        └── vault
+              └── templates
+                    ├── secret.yaml
+                    └── secretproviderclass.yaml
+```
+
+HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2. The following AKV secrets must be created under `<keyvault.name>` to provide the TLS certificate material:
+
+| Secret           | Purpose                                                                                |
+|------------------|----------------------------------------------------------------------------------------|
+| `VAULT-TLS-CERT` | Kubernetes secret containing the TLS certificate used to secure Vault's HTTPS listener |
+| `VAULT-TLS-KEY`  | Kubernetes secret containing the TLS key used to secure Vault's HTTPS listener         |
 
 ---
 
@@ -357,10 +376,10 @@ Root-Repository
                     └── secretproviderclass.yaml
 ```
 
-| Secret Parameter | Purpose | Example Value |
-|------------------|---------|---------------|
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME` | Storage account name for the Azure File Share used for common DPN certificate storage | `fsprddpn01uks01` |
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY` | Storage account key for the Azure File Share used for common DPN certificate storage | `stprddpn01uks01` |
+| Secret Parameter | Purpose | Example Value             |
+|------------------|---------|---------------------------|
+| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME` | Storage account name for the Azure File Share used for common DPN certificate storage | `st<env>>dpn01<region>01` |
+| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY` | Storage account key for the Azure File Share used for common DPN certificate storage | `XXXXXXXXXXXXXXXX`        |
 
 ---
 
@@ -386,19 +405,20 @@ Root-Repository
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| image.repository | Complete URL of the image in the registry | `<DSI public image repository>/dpn-federator-certificate-manager` |
-| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
-| managementNode.baseUrl | Complete URL of the DSI DSM Management Node | `https://management.dsm01.dsiXXX.neso.energy` |
-| oauth2.clientId | Client ID received from DSM to establish the DPN connection | `9c4f2e8a-6b21-4d73-9a5e-1f6b8c7a4d92` |
-| oauth2.tokenUri | IDP token URL received from DSM to establish the DPN connection | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
-| replicaCount | Number of replicas for the container | `1` |
-| vault.uri | Complete URL of the DPN Vault | `https://vault.<namespace>.svc.cluster.local:8200` |
-| existingSecret.name | Secret bundle name for the Federator Certificate Manager secrets | `certificate-manager-secrets` |
-| fileShare.shareName | File Share name for common DPN certificate storage | `fs<env>dpn01<region>01` |
-| fileShare.secretName | Secret bundle name for the Azure File Share credentials | `azure-fileshare-secret` |
-| fileShare.namespace | Kubernetes namespace for the File Share | `ns-dpn-01` |
+| Parameter              | Purpose                                                                      | Example Value                                                                                     |
+|------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
+| image.repository       | Complete URL of the image in the registry                                    | `<DSI public image repository>/dpn-federator-certificate-manager`                                 |
+| namespace              | Name of the Kubernetes namespace                                             | `ns-dpn-01`                                                                                       |
+| managementNode.baseUrl | Complete URL of the DSI DSM Management Node                                  | `https://management.dsm01.dsiXXX.neso.energy`                                                     |
+| oauth2.clientId        | Client ID received from DSM to establish the DPN connection                  | `9c4f2e8a-6b21-4d73-9a5e-1f6b8c7a4d92`                                                            |
+| oauth2.tokenUri        | IDP token URL received from DSM to establish the DPN connection              | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
+| replicaCount           | Number of replicas for the container                                         | `1`                                                                                               |
+| vault.uri              | Complete URL of the DPN Vault                                                | `https://vault.<namespace>.svc.cluster.local:8200`                                                |
+| vault.truststorePath   | Absolute Path of the folder under which vault truststore.jks will be mounted | `/vault`                                                                                           |
+| existingSecret.name    | Secret bundle name for the Federator Certificate Manager secrets             | `certificate-manager-secrets`                                                                     |
+| fileShare.shareName    | File Share name for common DPN certificate storage                           | `fs<env>dpn01<region>01`                                                                          |
+| fileShare.secretName   | Secret bundle name for the Azure File Share credentials                      | `azure-fileshare-secret`                                                                          |
+| fileShare.namespace    | Kubernetes namespace for the File Share                                      | `ns-dpn-01`                                                                                       |
 
 #### Secrets Configuration
 
@@ -413,12 +433,19 @@ Root-Repository
                     └── secretproviderclass.yaml
 ```
 
-| Secret Parameter | Purpose | Example Value |
-|------------------|---------|---------------|
-| `certificate-manager-secrets.VAULT-TOKEN` | Root token of the DPN HashiCorp Vault | `hsv.xxxxxxxxxxx` |
-| `certificate-manager-secrets.OAUTH2-CLIENT-SECRET` | OAuth2 client secret for the DPN's client ID received from DSI DSM | `xxxxxxxxxxx` |
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME` | Storage account name for the Azure File Share used for common DPN certificate storage | `fs<env>dpn01<region>01` |
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY` | Storage account key for the Azure File Share used for common DPN certificate storage | `xxxxxxxxxxx` |
+| Secret Parameter                                        | Purpose                                                                               | Example Value            |
+|---------------------------------------------------------|---------------------------------------------------------------------------------------|--------------------------|
+| `certificate-manager-secrets.VAULT-TOKEN`               | Root token of the DPN HashiCorp Vault                                                 | `hsv.xxxxxxxxxxx`        |
+| `certificate-manager-secrets.OAUTH2-CLIENT-SECRET`      | OAuth2 client secret for the DPN's client ID received from DSI DSM                    | `xxxxxxxxxxx`            |
+| `certificate-manager-secrets.VAULT-TRUSTSTORE-PASSWORD` | DPN Hashicorp Vault Truststore password                                               | `changeit`               |
+| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME`     | Storage account name for the Azure File Share used for common DPN certificate storage | `fs<env>dpn01<region>01` |
+| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY`      | Storage account key for the Azure File Share used for common DPN certificate storage  | `xxxxxxxxxxx`            |
+
+Below Kubernetes secret must be created to load the Vault `truststore.jks` file under `<vault.truststorePath>`.
+
+| Secret Parameter       | Purpose                                                     | Example Value |
+|------------------------|-------------------------------------------------------------|---------------|
+| `VAULT-TRUSTSTORE-JKS` | Secret container for DPN Vault's Truststore.jks binary file | ` `           |
 
 ---
 

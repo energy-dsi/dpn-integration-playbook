@@ -425,6 +425,7 @@ Check the common keystore and truststore P12 file location (e.g. `/tls`) using t
 ```bash
 kubectl -n <namespace> exec <pod-name> -- ls /tls
 ```
+** Note: The passwords in the .password files generated in above location by the certificate manager needs to be updated in the secret configuration in Federator gateway [here](02-configuration-parameters.md#secrets-configuration-secrets-configuration-federator-gateway) **
 
 ---
 
@@ -905,6 +906,12 @@ kubectl -n <namespace> delete po/<pod_id>
 ```
 
 > **Note:** If the renewal job fails after the pods have been stopped for a period exceeding the renewal frequency (`cert.renewalRateMs`), the organisation's DPN administrator must raise a request with a new CSR to the DSM to obtain a new certificate bundle. Load the new bundle into the DPN Vault using the steps described in [Certificate Load Steps in Vault](02-configuration-parameters.md#certificate-load-steps-in-vault).
+
+---
+
+### Emergency certificate rotation process
+
+In case we need to rotate/renew the certificate adhoc forcefully using new certificate bundle received from DSI DSM, we need to perform the cleanup and rollback process listed [here](04-rollback-procedures.md#vault-certificate-bundle-rollback) using the new certificate bundle. 
 
 ---
 
