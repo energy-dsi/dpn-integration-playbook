@@ -5,28 +5,39 @@
 # Table of Contents
 
 - [Overview](#overview)
-- [Architecture Overview](#architecture-overview)
+- [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
 - [Installation Prerequisites](#installation-prerequisites)
-- [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
-- [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
-- [3. Certificate Preparation](#3-certificate-preparation)
-- [4. Pipeline Repository Structure](#4-pipeline-repository-structure)
-- [Part 1 — DPN Federator Gateway Installation](#part-1--dpn-federator-gateway-installation)
-- [Step 1 — Configure Maven Settings](#step-1--configure-maven-settings)
-- [Step 2 — Setup Keystore and Truststore](#step-2--setup-keystore-and-truststore)
-- [Step 3 — Configure Federator CI Pipelines](#step-3--configure-federator-ci-pipelines)
-- [Step 4 — Execute Federator CI Pipelines](#step-4--execute-federator-ci-pipelines)
-- [Step 5 — Configure Federator CD Pipeline](#step-5--configure-federator-cd-pipeline)
-- [Step 6 — Execute Federator CD Pipeline](#step-6--execute-federator-cd-pipeline)
-- [Post Deployment Verification](#post-deployment-verification)
-- [Part 2 — DPN Data Pipeline Integration](#part-2--dpn-data-pipeline-integration)
-- [Step 1 — Configure Storage Access](#step-1--configure-storage-access)
-- [Step 2 — Configure Kafka Topics](#step-2--configure-kafka-topics)
-- [Step 3 — Configure Data Pipeline CI Pipeline](#step-3--configure-data-pipeline-ci-pipeline)
-- [Step 4 — Execute Data Pipeline CI Pipeline](#step-4--execute-data-pipeline-ci-pipeline)
-- [Step 5 — Configure Data Pipeline CD Pipeline](#step-5--configure-data-pipeline-cd-pipeline)
-- [Step 6 — Execute Data Pipeline CD Pipeline](#step-6--execute-data-pipeline-cd-pipeline)
-- [Post Deployment Verification](#deployment-verification)
+  - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
+  - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
+  - [3. Certificate Preparation and CSR Generation](#3-certificate-preparation-and-csr-generation)
+  - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
+- [Installation Steps](#installation-steps)
+  - [Part 1 — Hashicorp Vault Deployment](#part-1--hashicorp-vault-deployment)
+    - [Hashicorp Vault Configuration](#hashicorp-vault-configuration)
+    - [Certificate Load Steps in Vault](#certificate-load-steps-in-vault)
+  - [Part 2 — DPN Certificate Life Cycle Manager Installation](#part-2--dpn-certificate-life-cycle-manager-installation)
+    - [Step 1 — Prepare Federator Certificate Manager CI Pipeline](#step-1--prepare-federator-certificate-manager-ci-pipeline)
+    - [Step 2 — Execute Federator Certificate Manager CI Pipeline](#step-2--execute-federator-certificate-manager-ci-pipeline)
+    - [Step 3 — Verify Federator Certificate Manager CI Pipeline](#step-3--verify-federator-certificate-manager-ci-pipeline)
+    - [Step 4 — Prepare Federator Certificate Manager CD Pipeline](#step-4--prepare-federator-certificate-manager-cd-pipeline)
+    - [Step 5 — Execute Federator Certificate Manager CD Pipeline](#step-5--execute-federator-certificate-manager-cd-pipeline)
+    - [Step 6 — Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline)
+  - [Part 3 — DPN Data Pipeline Installation](#part-3--dpn-data-pipeline-installation)
+    - [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline)
+    - [Step 2 — Execute Data Pipeline CI Pipeline](#step-2--execute-data-pipeline-ci-pipeline)
+    - [Step 3 — Validate Data Pipeline CI Pipeline](#step-3--validate-data-pipeline-ci-pipeline)
+    - [Step 4 — Configure Data Pipeline CD Pipeline](#step-4--configure-data-pipeline-cd-pipeline)
+    - [Step 5 — Execute Data Pipeline CD Pipeline](#step-5--execute-data-pipeline-cd-pipeline)
+    - [Step 6 — Verify Data Pipeline CD Pipeline](#step-6--verify-data-pipeline-cd-pipeline)
+  - [Part 4 — DPN Federator Gateway Installation](#part-4--dpn-federator-gateway-installation)
+    - [Pipeline Variable Groups](#pipeline-variable-groups)
+    - [Step 1 — Configure Maven Settings](#step-1--configure-maven-settings)
+    - [Step 2 — Configure Federator CI Pipeline](#step-2--configure-federator-ci-pipeline)
+    - [Step 3 — Execute Federator CI Pipeline](#step-3--execute-federator-ci-pipeline)
+    - [Step 4 — Configure Federator CD Pipeline](#step-4--configure-federator-cd-pipeline)
+    - [Step 5 — Execute Federator CD Pipeline](#step-5--execute-federator-cd-pipeline)
+    - [Post Deployment Verification](#post-deployment-verification)
+    - [Kafka UI Verification](#kafka-ui-verification)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -37,85 +48,80 @@ This document provides step-by-step instructions for installing and deploying **
 
 The deployment uses the following repositories:
 
-- https://github.com/energy-dsi/dpn-deployment
-- https://github.com/energy-dsi/dsi-data-pipelines
+- https://github.com/energy-dsi/dpn-federator.git
+- https://github.com/energy-dsi/dpn-federator-certificate-manager.git
+- https://github.com/energy-dsi/dpn-data-pipelines.git
 
 The deployment process consists of:
 
-- **Continuous Integration (CI)** – builds container images
-- **Continuous Deployment (CD)** – deploys images into **Azure Kubernetes Service (AKS)**
-
-The following flow diagram explains the installation process steps.
-
-![DPN Components](/Docs/04-dpn-architecture/images/TBD.png)
+- **Continuous Integration (CI)** — builds container images
+- **Continuous Deployment (CD)** — deploys images into **Azure Kubernetes Service (AKS)**
 
 ---
 
-## DPN Data Pipelines Architecture Overview
+## DPN Containerized Deployment Architecture
 
-The following diagram illustrates the high-level architecture blocks of the **DPN Data Exchange platform** between a Data Producer and Data Consumer using file integration pathway and Federator gateway.
+The following diagram illustrates the reference DPN deployment architecture for the **DPN Data Exchange platform**. It consists of the following containerised components:
 
-![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_architecture.png)
-
-The architecture consists of following logical componenets:
+![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_deployment_architecture.png)
 
 **DPN Federator Gateway**
-This component is responsible for file transmission over GRPC Connection, communication with DSM Keycloak and management node services.
+This component is responsible for file transmission over a gRPC connection, communication with the DSM Keycloak service, and management node services.
 
-**DPN Federtor Gaeteway Server Mode**
+**DPN Federator Gateway — Server Mode**
 - Receives Federator Client requests
-- Authenticate with DSM service
-- Receives Producer and consumer configuration from management node
-- Connects to the kafka topic based on the client request on data product
-- Initiates GRPC based file streaming service with Federator client
+- Authenticates with the DSM service
+- Receives producer and consumer configuration from the management node
+- Connects to the Kafka topic based on the client request for a data product
+- Initiates a gRPC-based file streaming service with the Federator Client
 
-**DPN Federator Gateway Client Mode**
-- Initiates Federator server request based on a scheduled job
-- Authenticate with DSM service
-- Receives Producer and consumer configuration from management node
-- Initiates GRPC based file streaming service with Federator server
-- Places the file in storage container
+**DPN Federator Gateway — Client Mode**
+- Initiates a Federator Server request based on a scheduled job
+- Authenticates with the DSM service
+- Receives producer and consumer configuration from the management node
+- Initiates a gRPC-based file streaming service with the Federator Server
+- Places the file in the storage container
 
 **DPN Certificate Manager**
-This Component is responsible for issuing bootstrap certificates to initiate connection with managment node. This component renews the certificates with management node and stores in a P12 storage. Federator server and client uses the location to point the certificate files for initiating mutual TLS with DSM and other DPNs.
+This component is responsible for issuing bootstrap certificates to initiate a connection with the management node. It renews certificates with the management node and stores them in P12 storage. The Federator Server and Client use this location to reference the certificate files for initiating mutual TLS with DSM and other DPNs.
 
-**DPN P12 Shared Storage**
-This is a file share component which is shared betweeen Federator Certificate Manager and Federator Gateway to use the same keystore and truststore P12 certificate generated by DPN vault after the Vault is configured with the crt, ca chain, private and public key files.
+**DPN Shared Storage**
+This is a file share component shared between the Federator Certificate Manager and the Federator Gateway, enabling use of the same keystore and truststore P12 certificate generated by DPN Vault after the Vault is configured with the certificate, CA chain, and private and public key files.
 
 **DPN Data Pipeline Producer**
-- File extracted from organization source storage location automatically on a schedule basis
+- Files are extracted from the organisation's source storage location automatically on a scheduled basis
 - Processed by adaptor and mapper components
-- Published to Kafka topics with final file location
+- Published to Kafka topics with the final file location
 - Published to the target storage location
 
 **DPN Data Pipeline Consumer**
-- Federator Client receives file in a consumer specific storage account or bucket
-- Checksum and hashes validation are performed on the received file(s)
-- File is taken for processing by the extractor service and placed into another target container
-- Mapper components perform schema validation based on the schema type mentioned in the file name.
-- Processed file is stored in the consumer target storage container or bucket
-- A Kafka based streaming message is sent to a destination kafka topic to mark end of the data pipleline process
+- Federator Client receives the file in a consumer-specific storage account or bucket
+- Checksum and hash validation are performed on the received file(s)
+- The file is processed by the extractor service and placed into another target container
+- Mapper components perform schema validation based on the schema type specified in the file name
+- The processed file is stored in the consumer target storage container or bucket
+- A Kafka-based streaming message is sent to a destination Kafka topic to mark the end of the data pipeline process
 
-**DPN Streaming Service - Kafka**
-This component is responsible for event emission and storing locations of the data product files produced by Data Pipeline producer. Also it helps in signaling events occured between adaptor, mapper and extractor processes. The Kafka service also provides an UI to monitor the topics and messages inside it. This is packaged along with Federator component.
+**DPN Streaming Service — Kafka**
+This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor, mapper, and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
 
 **DPN Caching Service**
-This component uses redis caching to store the kafka offsets for various topics, caching of tokens as necessary for federator server and clients. This is also bundled with Federator gateway package
+This component uses Redis caching to store Kafka offsets for various topics and to cache tokens as necessary for the Federator Server and Clients. It is also bundled with the Federator Gateway package.
 
-**DPN Vault Servie**
-This component uses Hashicorp Vault set up for storing of secrets used by the individual components. This is also packaged with Federator Gatway package.
+**DPN Vault Service**
+This component uses HashiCorp Vault for storing secrets used by the individual DPN components. It is also packaged with the Federator Gateway package.
 
 ---
+
 ## Installation Prerequisites
 
-The following steps 
+The following prerequisites must be completed before beginning the installation process.
 
 ### 1. Clone and Prepare Source Repositories
 
 Clone the official repositories from GitHub.
 
 ```bash
-git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-federator.git
 git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-data-pipelines.git
@@ -133,7 +139,7 @@ or
 git checkout release/<version>
 ```
 
-Push the code to the organization's Azure DevOps repository.
+Push the code to the organisation's Azure DevOps repository.
 
 ```bash
 git remote add ado https://dev.azure.com/<org>/<project>/_git/<repository>
@@ -156,24 +162,72 @@ Ensure the following prerequisites are completed before deployment:
 
 ---
 
-### 3. Certificate Preparation & CSR Generation
-<Anuran - Please check with Ramya as she is preparing a document>
+### 3. Certificate Preparation and CSR Generation
 
-Organizations receive a **signed certificate from DSI DSM** based on their submitted CSR.
+Organisations must provide their own Certificate Signing Request (CSR) file to DSI and have it signed by the DSI Certificate Authority before DPN usage. The following CSR generation process uses OpenSSL commands. Organisations may alternatively use their own standard CSR generation process.
 
-#### Certificate Files from DSI
-Organizations to receive a certificate package post upload of CSR files. The package would contain the .crt and the ca_chain files from DSI.The following is an example list of files to be provided to DPNs during DPN connection.
+The CSR file must contain at minimum the following Subject Alternative Names (SANs):
 
-| File | Description |
-|-----|-------------|
-| orgcert.crt | Certificate signed by DSI DSM |
-| ca_chain.crt | Intermediate certificate chain provided by DSI DSM |
+- A producer endpoint for serving data products — e.g. `producer.xyz.com`
+- A consumer endpoint for consuming data products — e.g. `consumer.xyz.com`
+
+### Step-by-Step Certificate Generation
+
+For development purposes, follow these steps to generate certificates for mTLS. All passwords used are `changeit`. When generating these certficates, for the `Country Name`, you can use the value of 'UK'. All remaining certificate fields can be left to their default values.
+
+move to the docker folder
+```bash
+cd docker
+```
+
+Create a config file `<orgname.cnf>` to include required SANs. 
+
+```text
+[req]
+default_bits       = 2048
+prompt             = no
+distinguished_name = dn
+req_extensions     = req_ext
+
+[dn]
+CN = <organisation specific CN>
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = producer.xyz.com
+DNS.2 = consumer.xyz.com
+```
+
+Generate an RSA private key for the organisation's DPN:
+
+```text
+openssl genrsa -out <orgname>.key 2048
+```
+
+Generate the CSR for the organisation using the key file above, then submit the CSR to DSI DSM through the UI:
+
+```text
+openssl req -new -key <orgname>.key -out <orgname>.csr -config <orgname>.cnf
+```
+
+Organisations receive a **signed certificate from DSI DSM** based on their submitted CSR.
+
+#### Certificate Files Received in DPN Package from DSI
+
+Organisations receive a certificate package after uploading their CSR file to DSI. The package contains the `certificate.crt` and `ca_chain.crt` files from DSI. The following table lists the files provided to DPNs during DPN connection setup.
+
+| File            | Description |
+|-----------------|-------------|
+| `<orgname>.crt` | Certificate signed by DSI DSM |
+| `ca_chain.crt`  | Intermediate certificate chain provided by DSI DSM |
 
 ---
 
 ### 4. Identify Pipeline Repository Structure
 
-Each DPN code repositories are provided with necessary CI and CD pipelines in the following folder structure as reference. 
+Each DPN code repository includes the necessary CI and CD pipelines in the following folder structure for reference.
 
 ```
 Root-Repository/
@@ -187,132 +241,205 @@ Root-Repository/
 
 ## Installation Steps
 
-The DPN is presently comprises of following components. 
+The DPN currently comprises the following components:
 
-* DPN Vault and P12 File Share
-* DPN Federator Certificate Manager
-* DPN Federator Gateway
-* DPN Data Pipeline
-* DPN Data Store
+- DPN Vault and Shared File Service
+- DPN Federator Certificate Manager
+- DPN Federator Gateway
+- DPN Data Pipeline
+- DPN Data Store
 
-The installation steps are outlined below for each of the components separately. 
-
-### PART 1 - DPN Certificate Life Cycle Manager Installation (CI/CD)
-<Anuran> - Mention details steps with appropriate heading , helm chart/values and specific configurations
-
-Provide UI Screenshots as required.
-
-### PART 2 — DPN Data Pipeline Installation with File based Integration Pathway (CI/CD)
-
-![DPN Data Pipeline DevOPS Architecture](/Docs/04-dpn-architecture/images/dpn_data_pipeline_devops.png)
-
-DPN Data Pipeline is a series of data validation through the adaptor and mappers process as outlined in the architecture overview above. 
+The installation steps for each component are outlined separately below.
 
 ---
 
-#### Step 1 — Configure Storage and Containers
+### Part 1 — Hashicorp Vault Deployment
 
-##### For Pipeline Configuration:
-For the pipelines to run, the following parameters need to be updated in the **config.json** file under azure pipelines folder. Refer the config.json file as below. 
+**Anik To Complete this block**
 
-```text
+#### Hashicorp Vault Configuration
+
+Once the HashiCorp Vault pod is running on port **8200** in the Kubernetes environment, issue the following commands to initialise the Vault. The examples below assume the pod instance ID is `vault-x` and the namespace is `<namespace>`.
+
+##### Step 1 — Verify the HashiCorp Vault Container is Running
+
+```bash
+kubectl -n <namespace> exec vault-x -- vault status -format=json
+```
+
+##### Step 2 — Initialise the Vault and Generate Unseal Keys and Root Token
+
+```bash
+kubectl -n <namespace> exec vault-x -- vault operator init -key-shares=1 -key-threshold=1 -format=json
+```
+
+> **Note:** A single key share is used here for convenience. In production, use multiple key shares (e.g. `-key-shares=5 -key-threshold=3`) to distribute unseal keys across different operators via [Shamir's secret sharing](https://developer.hashicorp.com/vault/docs/concepts/seal).
+
+##### Step 3 — Unseal the Vault
+
+Use the `<unseal_key>` received in the step above:
+
+```bash
+kubectl -n <namespace> exec vault-x -- vault operator unseal <unseal_key>
+```
+
+##### Step 4 — Enable the Vault KV v2 Engine
+
+Use the `<RootToken>` received during the initialisation step:
+
+```bash
+kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault secrets enable -path=pki-client kv-v2
+```
+
+---
+
+#### Certificate Load Steps in Vault
+
+The following commands load the key pair and certificate bundle received from DSI DSM into the Vault. The examples assume the pod instance ID is `vault-x`, the Vault root token is `<RootToken>`, and the namespace is `<org-namespace>`. The signing key is `<orgname>.key`, and the bundle contains `ca-chain.crt` and `certificate.crt`.
+
+##### Step 1 — Load the Key Pair to Vault
+
+```bash
+kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/keypair \
+  privateKey="$(cat <orgname>.key)" \
+  publicKey="$(openssl rsa -in <orgname>.key -pubout 2>/dev/null)"
+```
+
+##### Step 2 — Load the CA Chain to Vault
+
+```bash
+kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/ca-chain \
+  chain="$(cat ca-chain.crt)"
+```
+
+##### Step 3 — Load the Certificate to Vault
+
+```bash
+kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/certificate \
+  certificate="$(cat certificate.crt)"
+```
+
+---
+
+### Part 2 — DPN Certificate Life Cycle Manager Installation
+
+The Certificate Life Cycle Manager has the following dependencies that must be fulfilled before deployment:
+
+- HashiCorp Vault service for certificate synchronisation and renewal
+- Shared file service provisioned for storing the keystore and truststore files
+- Configuration prerequisites met
+
+#### Step 1 — Prepare Federator Certificate Manager CI Pipeline
+
+Create a new Azure DevOps Pipeline from the `certificate-manager-ci.yaml` file located at the following path in the `dpn-federator-certificate-manager` repository:
+
+```
 Root-Repository/
-└──.pipelines/ 
-     └──azure-pipelines/
-          └── config/
-                └── config.json
+└── .pipelines/
+    └── azure-pipelines/
+        └── ci-pipelines/
+            └── certificate-manager-ci.yaml
 ```
 
-| Parameter | Description | Example Value |
-|-----------|-------------|---------------|
-| AZURE_SUBSCRIPTION | Azure subscription ID where the infrastructure is deployed | `<A valid Azure subscription ID>` |
-| SERVICE_CONNECTION | Service connection name for deployment | `<A valid Azure subscription ID>` |
-| RESOURCE_GROUP | Azure resource group containing the AKS cluster | `<A valid resource group name e.g. rg-prd-uks-dpn-01>` |
-| AKS_CLUSTER | Name of the Azure Kubernetes Service cluster | `<AKS cluster name e.g. aks-prd-uks-dpn-01>` |
-| NAMESPACE | Name of the Kubernetes cluster namespace for container deployment | `<A valid namespace name e.g.ns-dpn-01>` |
-| KEY_VAULT_NAME | Azure Key Vault used to store secrets and certificates | `<A valid Azure Key Vault name e.g. akv-prd-uks-dpn-01>` |
-| BASE_REGISTRY | Base registry path used by deployment images | `<image-registry-url>` |
-| cloudProviderType | Defines the code to run on azure, aws or gcp | `<A valid cloud provider values. e.g Azure>` |
-  
-##### For Helm Chart Configuration:
-[Go to Helm Chart Configuration for DPN Data Pipeline](02-configuration-parameters.md#helm-chart-configuration)
+#### Step 2 — Execute Federator Certificate Manager CI Pipeline
 
-#### Data Pipeline Repository Structure
+The CI pipeline requires the following runtime parameters. These are selected when manually triggering a pipeline run:
 
-The DPN-data-pipeline has following structure which defines a list of blueprints for both producer and consumers.DSI has provided reference blueprints of types below.DPN organization should refer the blueprint templates or they can bring their own blueprint templates. 
+- **serviceConnection** — Required for deployment on the Azure Private platform
+- **environment** — The deployment environment
 
-The repository structure follows /blueprint/producer/{integration pathway} and /blueprint/consumer/{integration pathway}. 
+> **Note:** The parameters above must be configured according to the existing provisioned infrastructure configuration.
+
+#### Step 3 — Verify Federator Certificate Manager CI Pipeline
+
+Execute the CI pipeline and verify that the image registry has been updated with the correct image tag. Use the following commands against the Azure Container Registry platform.
+
+List all repositories in the registry:
+
+```bash
+az acr repository list --name <acr-name>
+```
+
+Verify the image tag for a specific image:
+
+```bash
+az acr repository show-tags --name <acr-name> --repository <image-name>
+```
+
+Replace `<acr-name>` with the registry name and `<image-name>` with the image being checked (e.g. `dpn-federator-certificate-manager`).
+
+> **Note:** The Build ID generated by a successful `certificate-manager-ci.yaml` run is used as the `imageTag` parameter when executing the CD pipeline in the next step.
+
+---
+
+#### Step 4 — Prepare Federator Certificate Manager CD Pipeline
+
+Create a new Azure DevOps Pipeline from the `certificate-manager-cd.yaml` file located at the following path:
 
 ```
 Root-Repository/
-└── .docs/
-└── .pipelines
-└── packages/
-└── producer/ {DPN Needs to add this folder manaually. The existing repo will onle provide blueprint}
-    ├── file/
-    │   ├── eq-prod-1/  {eq-prod-1 is a reference from EQ blueprint type and should be placed exactly here}
-    │   │   ├── adaptor/
-    │   │   ├── schema-mapper/    
-    │   ├── dl-dp-3/  {dl-dp-3 is a reference from dl blueprint type and should be placed exactly here}
-    │   │   ├── adaptor/
-    │   │   ├── schema-mapper/ 
-└── cosnumer/ {DPN Needs to add this folder manaually. The existing repo will onle provide blueprint}
-    ├── file/
-    │   ├── eqbd-con-1/  {eqbd-con-1 is a reference from EQBD blueprint type and should be placed exactly here}
-    │   │   ├── extractor/
-    │   │   ├── schema-mapper/    
-    │   ├── ssh-dp-2/  {ssh-dp-2 is a reference from ssh blueprint type and should be placed exactly here}
-    │   │   ├── adaptor/
-    │   │   ├── schema-mapper/ 
-└── consumer/
-└── blueprints/
-    ├── producer/
-    │   ├── file/
-    |   │   ├── eq/
-    │   │   │   ├── adaptor/
-    │   │   │   ├── schema-mapper/    
-    │   │   ├── eqbd/
-    │   │   └── dl/
-    │   │   └── ssh/
-    ├── consumer/
-    │   ├── file/
-    |   │   ├── eq/
-    │   │   │   ├── extractor/
-    │   │   │   ├── schema-mapper/    
-    │   │   ├── eqbd/
-    │   │   └── dl/
-    │   │   └── ssh/
-└── smoke-test/
-└── tests/
-README.md
-
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── certificate-manager-cd.yaml
 ```
-**Note the following**
 
-- There is a 1:1 relation ship between the data product type folder name under producer and consumer in the pipeline. The name of the folder should be exactly the same as productType when running the CI and CD pipelines. 
-- The repository will not contain producer and consumer folders in it. DPNs are required to create this exact structure while preparing for a data product. 
-- DPNs should copy a product type from blueprint i.e. lets say /blueprint/producer/file/eq folder and copy to /producer/file/eq with all it's contents.
-- DPNs may rename the eq to anything meaningful for the data product of type eq. However, the same name should be provided as productType during CI and CD pipeline execution.
-- The same step should be repeated while building the consumer. A new folder should be created as /consumer under the root repository and point the integration pathway and data product type under it. 
+#### Step 5 — Execute Federator Certificate Manager CD Pipeline
+
+The CD pipeline requires the following runtime parameters. These are selected when manually triggering a pipeline run:
+
+- **serviceConnection** — Required for deployment on the Azure Private platform
+- **environment** — The deployment environment
+- **imageTag** — The image tag generated from the CI pipeline after verification
+
+#### Step 6 — Verify Federator Certificate Manager CD Pipeline
+
+Once the CD pipeline completes, verify the deployment using the following commands. Replace `<namespace>` with the target namespace.
+
+Check that both the certificate manager and Vault pods are in a `Running` state:
+
+```bash
+kubectl get pods -n <namespace>
+```
+
+Check that the Vault service is exposed:
+
+```bash
+kubectl get svc -n <namespace>
+```
+
+Check that all deployments are healthy (`READY` should match `DESIRED`, e.g. `1/1`):
+
+```bash
+kubectl get deployments -n <namespace>
+```
+
+View logs for a specific pod and verify that they are clean:
+
+```bash
+kubectl logs <pod-name> -n <namespace>
+```
+
+Check the common keystore and truststore P12 file location (e.g. `/tls`) using the following command, and verify that these files are present along with their password files (as specified in [Certificate P12 Storage as File Share](02-configuration-parameters.md#certificate-p12-storage-as-file-share)):
+
+```bash
+kubectl -n <namespace> exec <pod-name> -- ls /tls
+```
+** Note: The passwords in the .password files generated in above location by the certificate manager needs to be updated in the secret configuration in Federator gateway [here](02-configuration-parameters.md#secrets-configuration-secrets-configuration-federator-gateway) **
+
 ---
 
-#### Supported Energy Data Schemas
+### Part 3 — DPN Data Pipeline Installation
 
-DSI provided adaptors with following schema types belonging to energy industry. Organizations are supposed to verify and augment any new schema type following the DSM data template definition and bring their own adaptor and mapper components accordingly. 
+![DPN Data Pipeline DevOps Architecture](/Docs/04-dpn-architecture/images/dpn_data_pipeline_devops.png)
 
-
-| Schema | Description |
-|------|-------------|
-| DL | Diagram Layout |
-| EQ | Equipment |
-| EQBD | Equipment Boundary |
-| SSH | Steady State Hypothesis |
+The DPN Data Pipeline is a series of data validation stages processed through the adaptor and mapper components as outlined in the architecture overview above.
 
 ---
 
-#### Step 3 — Configure Data Pipeline CI Pipeline
+#### Step 1 — Configure Data Pipeline CI Pipeline
 
-Prepare a new Azure DevOPS Pipeline by reading the CI pipeline yaml file from the below location under ci-pipelines.
+Create a new Azure DevOps Pipeline from the CI pipeline YAML file located at the following path:
 
 ```
 Root-Repository/
@@ -324,49 +451,64 @@ Root-Repository/
 
 ---
 
-#### Step 4 — Execute Data Pipeline CI Pipeline
+#### Step 2 — Execute Data Pipeline CI Pipeline
 
-Execute the CI pipelines and verify by checking the image registry updated with the image tag.
+The CI pipeline is designed to support both Producer and Consumer configurations. When triggering the pipeline, parameters must be selected carefully, as the required inputs vary depending on the selected configuration type.
+
+##### Common Parameters (Required for Both Producer and Consumer)
+
+- **Pipeline Version** — Select the appropriate branch or tag (e.g. `devops`)
+- **Environment** — Choose the target environment (e.g. `dev`)
+- **Service Connection** — Select the Azure service connection corresponding to the chosen environment
+
+##### Consumer Configuration
+
+When **Config Type = `consumer`** is selected:
+
+- **Process Type** — Not required (selection is ignored by the pipeline)
+- **Schema Type** — Not required
+
+The pipeline proceeds with consumer-specific configuration and deployment only.
+
+##### Producer Configuration
+
+When **Config Type = `producer`** is selected:
+
+- **Process Type** — Mandatory. Currently supported value: `file`. (This may be extended in future releases.)
+- **Schema Type** — Mandatory. Currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
+- **Product Type** — Mandatory. Must be provided to correctly parameterise the producer pipeline.
+
+Failure to provide Process Type and Schema Type when running the pipeline in producer mode will result in an invalid or incomplete execution.
+
+> **Notes:**
+> - The same CI pipeline is used for both producer and consumer, with behaviour controlled entirely by parameter selection.
+> - Schema Type and Process Type are validated only when `producer` is selected.
+> - Future enhancements may introduce additional schema types and process types without changing the overall pipeline structure.
+
+---
+
+#### Step 3 — Validate Data Pipeline CI Pipeline
+
+Verify that the image registry has been updated with images in the following naming format:
+
+```
+<configType>-<processType>-adaptor-<schemaType>:<buildId-productType>
+<configType>-<processType>-mapper-<schemaType>:<buildId-productType>
+<configType>-<processType>-extractor:<buildId>
+<configType>-<processType>-mapper:<buildId>
+```
+
+List all repositories in the registry to confirm:
 
 ```bash
 az acr repository list --name <acr-name>
 ```
 
-##### Directions to Run the CI Pipeline
-The CI pipeline is designed to support both Producer and Consumer configurations. While triggering the pipeline, parameters must be selected carefully, as the required inputs vary depending on the selected configuration type.
-
-###### Common Parameters (Required for Both Producer and Consumer)
-
-- Pipeline Version: Select the appropriate branch or tag (for example, devops).
-- Environment: Choose the target environment (e.g., dev).
-- DPN Cluster: Select the DPN instance (dpn01 or dpn02).
-- Service Connection: Select the Azure service connection corresponding to the chosen environment.
-
-###### Consumer Configuration
-When Config Type = <b>consumer</b> is selected:
-
-- Process Type: Not required (selection is ignored by the pipeline).
-- Schema Type: Not required.
-The pipeline proceeds with consumer-specific configuration and deployment only.
-
-###### Producer Configuration
-When Config Type = <b>producer</b> is selected:
-
-- Process Type: Mandatory. Currently supported value: file. (This may be extended in future MVC versions.)
-- Schema Type: Mandatory. Currently supported values: eq, dl, eqbd, ssh. (This list is extensible in future releases.)
-- Product Type: Mandatory and must be provided to correctly parameterize the producer pipeline.
-
-Failure to provide Process Type and Schema Type when running the pipeline in producer mode will result in an invalid or incomplete execution.
-
-**Notes**
-- The same CI pipeline is used for both producer and consumer, with behavior controlled entirely by parameter selection.
-- Schema Type and Process Type are validated only when producer is selected.
-- Future enhancements may introduce additional schema types and process types without changing the overall pipeline structure.
 ---
 
-#### Step 5 — Configure Data Pipeline CD Pipeline
+#### Step 4 — Configure Data Pipeline CD Pipeline
 
-Prepare new Azure DevOPS Pipelines by reading the CD pipeline yaml files from the below location under cd-pipelines.
+Create a new Azure DevOps Pipeline from the CD pipeline YAML file located at the following path:
 
 ```
 Root-Repository/
@@ -374,43 +516,48 @@ Root-Repository/
     └── azure-pipelines/
         └── cd-pipelines/
             └── dsi-data-pipelines-cd.yaml
- 
 ```
 
-**Note** Organizations need to decide which data template will they require to process. The pipelines are made generic to process specific type (producer or consumer), integration pathway (file, topic, api), cloud provider type (azure, aws,gcp) and based on consumer ID.
+> **Note:** Organisations must determine which data templates they require for processing. The pipelines are designed to be generic, processing a specific type (producer or consumer), integration pathway (file, topic, API), cloud provider type (Azure, AWS, GCP), and consumer ID.
 
+---
+
+#### Step 5 — Execute Data Pipeline CD Pipeline
+
+Execute the CD pipeline and verify that the containers are deployed on the Azure Kubernetes platform. There should be the following two containers running per data product file produced, for each template type (`DL`, `EQ`, `EQBD`, or `SSH`) at each integration pathway level on the producer side:
+
+```
+producer-{integration type}-adaptor-{data product type}-xxxxxxxx
+producer-{integration type}-mapper-{data product type}-yyyyyyyy
+```
+
+Similarly, the following containers will be deployed on the consumer side for each data product consumer ID subscribed to a specific data product type:
+
+```
+consumer-{integration type}-extractor-{data product type}-{consumer ID}-xxxxxxxx
+consumer-{integration type}-mapper-{data product type}-{consumer ID}-xxxxxxxx
+```
+
+Example container names post-deployment:
+
+```
+producer-file-adaptor-eqbd-xxxxxxxx
+producer-file-mapper-eqbd-xxxxxxxx
+consumer-file-extractor-xxxxxxxx
+consumer-file-mapper-xxxxxxxx
+```
 
 ---
 
-#### Step 6 — Execute Data Pipeline CD Pipeline
+#### Step 6 — Verify Data Pipeline CD Pipeline
 
-Execute the CD pipelines and verify the containers are deployed on the Azure Kubernetes platform. There should be following 2 containers running per data product file produced of template DL, EQ , EQBD or SSH at each integration pathway level in producer side. The convention to be as followed.
-  
-  a) producer-{integration type}-adaptor-{dataproducttype}-xxxxxxxx <br>
-  b) producer-{integration type}-mapper-{dataproducttype}-yyyyyyyy
-
-Similarly the following containers will be deployed in consumer side at each data product consumer ID subscribed for a spcific data product type 
-
-  a) consumer-{integration type}-extractor-{dataproducttype}-{consumer ID}-xxxxxxxx <br>
-  b) consumer-{integration type}-mapper-{dataproducttype}-{consumer ID}-xxxxxxxx
-
-Example container post deployment:
-
-- producer-file-adaptor-eqbd-xxxxxxxx
-- producer-file-mapper-eqbd-xxxxxxxx
-- consumer-file-extractor-xxxxxxxx
-- consumer-file-mapper-xxxxxxxx
-
----
-#### Step 7 - Deployment Verification
-
-Once a succesful deployment happens, the DPN Kubernetes cluster should show an example of list of containers like below. This example is taken only selective eq and dl producer sample data product in producer side and an Organization receiving the two data products using the schema type and org name.
+Once a successful deployment has completed, the DPN Kubernetes cluster should show an output similar to the example below. This example uses selective `eq` and `dl` producer sample data products on the producer side, and an organisation receiving two data products using the schema type and organisation name.
 
 ```text
-- product type - eq-sample-1, dl-sample-1
-- schema type - eq and dl
-- cloud type - azure
-- process type - file
+- Product type  : eq-sample-1, dl-sample-1
+- Schema type   : eq and dl
+- Cloud type    : azure
+- Process type  : file
 ```
 
 ![DPN Reference Implementation](/Docs/04-dpn-architecture/images/dpn_reference_implementation.png)
@@ -419,7 +566,7 @@ Once a succesful deployment happens, the DPN Kubernetes cluster should show an e
 kubectl get pods -n <namespace>
 ```
 
-Verify clean logs inside the container
+Verify clean logs inside the container:
 
 ```bash
 kubectl logs <pod-name> -n <namespace>
@@ -427,30 +574,56 @@ kubectl logs <pod-name> -n <namespace>
 
 ---
 
-### PART 3 — DPN Federator Gateway Installation (CI/CD)
-<Anik>
+### Part 4 — DPN Federator Gateway Installation
 
-Federator deployment includes the following components and shown as individual containers when deployed.
+The Federator deployment includes the following components, each appearing as an individual container when deployed.
 
-| Component | Purpose |
-|----------|---------|
-| Zookeeper Src | Coordination service for Kafka producer cluster |
-| Zookeeper Dest | Coordination service for Kafka consumer cluster |
-| Kafka Src | Source Kafka cluster |
-| Kafka Dest | Target Kafka cluster |
-| Kafka UI | Kafka monitoring interface |
-| Redis | Stores Kafka offsets |
-| Kafka Topic Creator | Optional topic creation job |
-| Kafka Topic Populator | Optional sample data loader |
-| Federator Server | Sends data via gRPC |
-| Federator Client | Receives data and writes to Kafka |
-| Vault Service    | Secret Store |
+| Component       | Purpose |
+|-----------------|---------|
+| Zookeeper Src   | Coordination service for the Kafka producer cluster |
+| Zookeeper Dest  | Coordination service for the Kafka consumer cluster |
+| Kafka Src       | Source Kafka cluster |
+| Kafka Dest      | Target Kafka cluster |
+| Kafka UI        | Kafka monitoring interface |
+| Redis           | Stores Kafka offsets |
+| Federator Server| Sends data via gRPC |
+| Federator Client| Receives data and writes to Kafka |
+| Vault Service   | Secret store |
+
+---
+
+#### Pipeline Variable Groups
+
+Before running any pipeline, ensure the following **Azure DevOps Variable Groups** are created and populated as secrets. Variable groups store credentials and shared configuration values referenced by all Federator pipelines. Organisations may adopt any other pipeline environment variable strategy to pass these confidential parameters at runtime.
+
+##### Variable Group: `dockerhub-creds`
+
+| Variable Name       | Description |
+|---------------------|-------------|
+| `DOCKERHUB_USERNAME` | DockerHub username used to pull base images during CI builds |
+| `DOCKERHUB_PASSWORD` | DockerHub password or access token |
+
+##### Variable Group: `federator-ci`
+
+| Variable Name          | Description |
+|------------------------|-------------|
+| `GITHUB_MAVEN_USERNAME` | GitHub username with access to the GitHub Maven Package Registry |
+| `GITHUB_MAVEN_TOKEN`    | GitHub Personal Access Token (PAT) with `read:packages` scope |
 
 ---
 
 #### Step 1 — Configure Maven Settings
 
-Ensure the following credential are set in the pipeline variable to pull from Maven Central.
+The Federator is a Java application built using Maven. Some of its dependencies are hosted in the **GitHub Maven Package Registry**, which requires authentication. This step ensures the CI pipeline can authenticate with GitHub when downloading those dependencies.
+
+The following credentials must be set in the `federator-ci` pipeline variable group:
+
+```
+GITHUB_MAVEN_USERNAME=<GitHub username>
+GITHUB_MAVEN_TOKEN=<GitHub PAT token>
+```
+
+The CI pipeline automatically injects these values into a `settings.xml` file at runtime, located at:
 
 ```
 Root-Repository/
@@ -458,62 +631,94 @@ Root-Repository/
     └── settings.xml
 ```
 
-Add credentials.
+The relevant section of the generated `settings.xml` is shown below for reference. **Do not commit credentials directly into this file.**
 
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github</id>
+      <username>${env.GITHUB_ACTOR}</username>
+      <password>${env.GH_PACKAGES_PAT}</password>
+    </server>
+  </servers>
+</settings>
 ```
-GITHUB_MAVEN_USERNAME=<GitHub username>
-GITHUB_MAVEN_TOKEN=<GitHub PAT token>
-```
+
+> **Note:** The `GITHUB_MAVEN_TOKEN` must have the `read:packages` scope. Using a token without this scope will cause the Maven build to fail with an authentication error.
 
 ---
 
-#### Step 2 — Setup Keystore and Truststore locations
+#### Step 2 — Configure Federator CI Pipeline
 
-Place the following files in a secure location (TBD) that is created above in the certificate generation step.
-
-```
-keystore.jks
-truststore.jks
-```
-
----
-
-#### Step 3 — Configure Federator CI Pipelines
-
-The following CI pipelines are present in the dpn-federator repository. Prepare new Azure DevOPS Pipelines by reading the CI pipeline yaml files from the below location under ci-pipelines.
+The following CI pipeline is present in the `dpn-federator` repository. Create a new Azure DevOps Pipeline from the YAML file at the following location:
 
 ```
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── ci-pipelines/
-            ├── DPN-Federator-CI.yaml
-            ├── DPN-Kafka-Common-CI.yaml
-            ├── DPN-Kafka-Topic-Creator-CI.yaml
-            ├── DPN-Kafka-Topic-Populator-CI.yaml
-            ├── DPN-Redis-Common-CI.yaml
-            └── DPN-Zookeeper-Common-CI.yaml
+            └── DPN-Federator-CI.yaml
 ```
+
+##### How to Create the Pipeline in Azure DevOps
+
+1. Go to **Pipelines** in your Azure DevOps project and click **New Pipeline**.
+2. Select the source repository (e.g. Azure Repos Git or GitHub).
+3. Choose the `dpn-federator` repository.
+4. Select **Existing Azure Pipelines YAML file**.
+5. Point to the relevant YAML file path from the list above.
+6. Click **Save** (do not run yet — parameters must be provided at runtime).
+
+##### CI Pipeline Parameters
+
+The CI pipeline accepts the following runtime parameters, which are selected when manually triggering a pipeline run:
+
+- **Pipeline Version** — Select the appropriate branch or tag (e.g. `main`)
+- **Environment** — Choose the target environment (e.g. `dev`, `test`)
+- **Service Connection** — Select the Azure service connection corresponding to the chosen environment
+
+> **Note:** The parameters above must be configured according to the existing provisioned infrastructure and cluster configuration.
 
 ---
 
-#### Step 4 — Execute Federator CI Pipelines
+#### Step 3 — Execute Federator CI Pipeline
 
-Execute the CI pipelines and verify by checking the image registry updated with the image tag.
+Run the `federator-ci.yaml` pipeline.
+
+Once the pipeline has executed, verify that the image registry has been updated with the correct image tag.
+
+List all repositories in the registry:
 
 ```bash
 az acr repository list --name <acr-name>
 ```
 
+Verify the image tag for a specific image:
+
 ```bash
 az acr repository show-tags --name <acr-name> --repository <image-name>
 ```
 
+Replace `<acr-name>` with the registry name (e.g. `acrdpndevuks01`) and `<image-name>` with the image being checked (e.g. `dpn-federator-client`).
+
+> **Note:** The Build ID generated by a successful `federator-ci.yaml` run is used as the `imageTag` parameter when executing the CD pipeline in Step 5.
+
 ---
 
-#### Step 5 — Configure Federator CD Pipeline
+#### Step 4 — Configure Federator CD Pipeline
 
-Prepare new Azure DevOPS Pipeline by reading the CD pipeline yaml file from the below location under cd-pipelines. 
+Create a new Azure DevOps Pipeline from the CD pipeline YAML file located at the following path. The CD pipeline deploys the complete Federator package, comprising the following components:
+
+1. `dpn-zookeeper-src`
+2. `dpn-zookeeper-target`
+3. `dpn-kafka-src`
+4. `dpn-kafka-target`
+5. `dpn-kafka-ui`
+6. `dpn-redis`
+7. `dpn-federator-server`
+8. `dpn-federator-client`
+
 
 ```
 Root-Repository/
@@ -523,35 +728,74 @@ Root-Repository/
             └── azure-dpn-cd.yaml
 ```
 
+##### CD Pipeline Parameters
+
+The following parameters must be provided during CD pipeline execution:
+
+- **Pipeline Version** — Select the appropriate branch or tag (e.g. `main`)
+- **Environment** — Choose the target environment (e.g. `dev`, `test`)
+- **Service Connection** — Select the Azure service connection corresponding to the chosen environment
+- **Image Tag** — The image tag created by the Federator CI pipeline
+
+##### Environment Configuration Files
+
+The CD pipeline reads its environment-specific values from a JSON configuration file in the repository. The file used depends on the `environment` and `dpncluster` parameters selected at runtime. To deploy to a new environment, create a new JSON configuration file following the same structure as the examples below, and ensure the corresponding service connection is configured in Azure DevOps.
+
+```
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── config/
+            ├── dev-dpn01.json
+            ├── test-dpn01.json
+            ├── preprod-dpn01.json
+            └── prd-dpn02.json
+```
+
 ---
 
-#### Step 6 — Configure Vault
----
-In progress
----
+#### Step 5 — Execute Federator CD Pipeline
 
+1. Go to **Pipelines** in your Azure DevOps project.
+2. Click on the `azure-dpn-cd` pipeline.
+3. Click **Run Pipeline**.
+4. Fill in the parameters:
+   - **ServiceConnection** — select the correct service connection for the target environment
+   - **environment** — e.g. `dev`
+   - **imageTag** — the Build ID from the successful `federator-ci.yaml` run (e.g. `1042`), found in the pipeline run history
+5. Click **Run** and monitor the pipeline log.
 
-#### Step 7 — Execute Federator CD Pipeline
+If the pipeline completes successfully, the following message will appear at the end of the deployment stage:
 
-Execute the CD pipeline and verify the containers are deployed on the Azure Kubernetes platform.
+```
+DPN DEPLOYMENT COMPLETE
+```
 
 ---
 
 #### Post Deployment Verification
 
+Once the CD pipeline completes, verify the deployment using the following commands. Replace `<namespace>` with the target namespace.
+
+Check that all pods are in a `Running` state:
+
 ```bash
 kubectl get pods -n <namespace>
 ```
+
+Check that all services are exposed:
 
 ```bash
 kubectl get svc -n <namespace>
 ```
 
+Check that all deployments are healthy (`READY` should match `DESIRED`, e.g. `1/1`):
+
 ```bash
 kubectl get deployments -n <namespace>
 ```
 
-View logs.
+View logs for a specific pod:
 
 ```bash
 kubectl logs <pod-name> -n <namespace>
@@ -560,58 +804,66 @@ kubectl logs <pod-name> -n <namespace>
 ---
 
 #### Kafka UI Verification
-To verify Kafka topics, DPN deployment is provided with a User Interface.To access this UI, the Windows Azure Virtual Machine mentioned in the prerequisites will be required as it is only accessible inside the Azure Network and not outside.
+
+To verify Kafka topics, a User Interface is provided with the DPN deployment. To access this UI, the Windows Azure Virtual Machine specified in the prerequisites is required, as the interface is only accessible within the Azure network.
 
 ```
 http://kafka-ui:8085
 ```
 
-This interface allows the following capabilities:
+This interface provides the following capabilities:
 
-- viewing Kafka clusters deployed in DPN
-- inspecting topics in the clusters
-- publishing test messages to verify
-- verifying data transmission between organizations
+- Viewing Kafka clusters deployed in DPN
+- Inspecting topics in the clusters
+- Publishing test messages to verify connectivity
+- Verifying data transmission between organisations
+
+After publishing a test message to the source Kafka cluster topic, check the corresponding topic on the destination Kafka cluster. If the Federator is working correctly, the message should appear within seconds.
 
 ---
 
-#### Troubleshooting
+## Troubleshooting
 
-##### CI Pipeline Failure
+### CI Pipeline Failure
 
 Possible causes:
 
-- Incorrect GitHub PAT token
-- Maven repository authentication failure
-- Docker login failure
+- Incorrect GitHub PAT token or missing `read:packages` scope
+- Maven repository authentication failure — verify `GITHUB_MAVEN_USERNAME` and `GITHUB_MAVEN_TOKEN` in the `federator-ci` variable group
+- Docker login failure — verify `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` in the `dockerhub-creds` variable group
+- ACR login failure — verify that the service principal used by the Service Connection has the `AcrPush` role on the Container Registry
 
-Verify pipeline logs and ensure credentials are correct.
+Verify pipeline logs and ensure all credentials are correct.
 
 ---
 
-##### Container Image Not Found
+### Container Image Not Found
 
-Check whether CI pipeline pushed images.
+Check whether the CI pipeline pushed images to the registry:
 
 ```bash
 az acr repository list --name <acr-name>
 ```
 
+If the expected repository is not listed, re-run the relevant CI pipeline and ensure it completes without errors before proceeding to the CD pipeline.
+
 ---
 
-##### Pods Not Starting
+### Pods Not Starting
 
-Check pod events.
+Check pod events to identify scheduling or image pull issues:
 
 ```bash
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
+Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect ACR credentials.
+
 ---
 
-##### Container CrashLoopBackOff
+### Container CrashLoopBackOff
 
-Check logs.
+A `CrashLoopBackOff` status means the container starts, crashes, and Kubernetes repeatedly attempts to restart it. Check the logs to identify the root cause:
 
 ```bash
 kubectl logs <pod-name> -n <namespace>
@@ -619,61 +871,91 @@ kubectl logs <pod-name> -n <namespace>
 
 Common causes:
 
-- invalid environment variables
-- missing secrets or incorrect SAS Token for Blob storage
-- Kafka topic is not pre populated
+- Invalid or missing environment variables — check the Helm values file for typographical errors or missing entries
+- Missing secrets or incorrect SAS Token for Blob storage — verify all required secrets exist in Azure Key Vault with the correct names and values
+- Kafka topic is not pre-populated — run the Kafka Topic Creator job or manually create topics via the Kafka UI
 
 ---
 
-##### Kafka Topic Issues
+### Kafka Topic Issues
 
-Verify Kafka topics using Kafka UI.
+Verify Kafka topics using the Kafka UI:
 
 ```
 http://kafka-ui:8085
 ```
 
----
-##### Certificate Renewaljob Failing
+Check that:
 
-<Anuran>
-
-```
-<Anuran to provide>
-```
+- The topic exists in both the source and destination Kafka clusters
+- The topic name in the Federator configuration matches exactly (topic names are case-sensitive)
+- There are no consumer group errors shown in the Kafka UI for the Federator consumer group
 
 ---
-##### Certificate Sync job Failing
 
-<Anuran>
+### Certificate Renewal Job Failing
+
+When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
+
+Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](02-configuration-parameters.md#vault-configuration).
+
+To restart a pod:
+
+```bash
+kubectl -n <namespace> delete po/<pod_id>
+```
+
+> **Note:** If the renewal job fails after the pods have been stopped for a period exceeding the renewal frequency (`cert.renewalRateMs`), the organisation's DPN administrator must raise a request with a new CSR to the DSM to obtain a new certificate bundle. Load the new bundle into the DPN Vault using the steps described in [Certificate Load Steps in Vault](02-configuration-parameters.md#certificate-load-steps-in-vault).
+
+---
+
+### Emergency certificate rotation process
+
+In case we need to rotate/renew the certificate adhoc forcefully using new certificate bundle received from DSI DSM, we need to perform the cleanup and rollback process listed [here](04-rollback-procedures.md#vault-certificate-bundle-rollback) using the new certificate bundle. 
+
+---
+
+### Certificate Sync Job Failing
+
+If the sync job fails with the following error:
+
+```text
+INFO  u.g.d.n.f.c.m.s.KeyStoreSyncServiceImpl [] - Synchronizing keystores to filesystem...
+ERROR u.g.d.n.f.c.m.job.CertificateSyncJob [] - Error during certificate synchronization job execution: Failed to create keystore
+uk.gov.dbt.ndtp.federator.certificate.manager.exception.KeyStoreCreationException: Failed to create keystore
+        at uk.gov.dbt.ndtp.federator.certificate.manager.service.pki.KeyStoreService.createKeyStore(KeyStoreService.java:62)
+Caused by: java.security.KeyStoreException: Certificate chain is not valid
+```
+
+Verify that the CA chain, intermediate CA, certificate, and key pair files stored in the Vault are in sync — that is, all are linked to the same CSR and root CA. If they are not, raise a new certificate bundle request using a new CSR.
+
+---
+
+### Federator Connection Failing
+
+If the following log entries are observed and the connection does not proceed:
 
 ```
-<Anuran to provide>
+u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - No cached token in Redis for default management node, fetching from IDP
+15:15:34.346 [main] DEBUG u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - attempting to fetch token for management node
+```
+
+Verify that the mutual TLS certificates are correctly loaded in Vault and that the Vault and certificate manager pods are in a healthy running state. Check that keystore and truststore files are present at the expected shared storage path (e.g. `/tls`).
+
+---
+
+### Invalid Client Credential
+
+An "Invalid client credential" error can arise due to a mismatch in the IDP client secret (`OAUTH2-CLIENT-SECRET`), which may occur following a periodic rotation carried out at the DSM side that renders the secret invalid at the DPN end.
+
+```
+Recommended fix: Obtain the updated client secret for the Client ID from DSM by raising a request with the DSM team.
 ```
 
 ---
-##### Federator Connection Failing
 
-<Anik - Please update title with the error message, I forgot the message>
-
-```
-<Anik to provide>
-```
-
----
-##### Invalid Client Credential
-
-<Anuran - Please mention about incorrect client secret >
-
-```
-<Anuran to provide>
-```
-
----
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|----------|
-| 15-Mar-2026 | DSI Assurance   | Draft  | V0.1.0 |
-
----
+|-------------|------------------|--------|-------------------------------------|
+| 15-May-2026 | DSI Assurance    | Draft  | V0.1.0 |

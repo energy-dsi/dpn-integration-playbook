@@ -15,7 +15,7 @@
 - [Part 6 — Remove Container Images](#part-6--remove-container-images)
 - [Part 7 — Remove Kafka Topics](#part-7--remove-kafka-topics)
 - [Part 8 — Remove Secrets and Certificates](#part-8--remove-secrets-and-certificates)
-- [Part 9 — Remove Azure DevOps Pipelines](#part-9--remove-azure-devops-pipelines)
+- [Part 9 — Remove Aws DevOps Pipelines](#part-9--remove-aws-devops-pipelines)
 - [Final Verification](#final-verification)
 
 ---
@@ -36,7 +36,7 @@ The uninstallation process removes the following components:
 - Kubernetes resources
 - Helm releases
 - Container images
-- Azure DevOps pipelines
+- Aws DevOps pipelines
 
 The goal of the procedure is to ensure that **all components of the DPN node are safely removed** without leaving orphaned infrastructure resources.
 
@@ -76,7 +76,7 @@ Before starting the uninstallation process, confirm the following.
 
 # Part 1 — Stop Data Processing Pipelines
 
-Disable all **Azure DevOps pipelines** related to the DPN deployment.
+Disable all **Aws DevOps pipelines** related to the DPN deployment.
 
 Pipelines to stop include:
 
@@ -90,12 +90,12 @@ These pipelines are located in:
 ```
 Root-Repository/
 └── .pipelines/
-    └── azure-pipelines/
+    └── aws-pipelines/
         ├── ci-Pipelines/
         └── cd-Pipelines/
 ```
 
-Disable pipeline triggers in Azure DevOps to prevent further deployments.
+Disable pipeline triggers in Aws DevOps to prevent further deployments.
 
 ---
 
@@ -192,7 +192,7 @@ kubectl delete namespace <namespace>
 
 # Part 6 — Remove Container Images
 
-Remove container images from Azure Container Registry if no longer required.
+Remove container images from Amazon Elastic Container Registry (Amazon ECR) if no longer required.
 
 List repositories.
 
@@ -256,9 +256,9 @@ Remove certificates from secure storage if no longer required.
 
 ---
 
-# Part 9 — Remove Azure DevOps Pipelines
+# Part 9 — Remove Aws DevOps Pipelines
 
-Delete Azure DevOps pipelines associated with DPN.
+Delete Aws DevOps pipelines associated with DPN.
 
 These include:
 
@@ -272,10 +272,11 @@ Pipeline definitions are located in:
 ```
 Root-Repository/
 └── .pipelines/
-    └── azure-pipelines/
+    └── aws-pipelines/
+        ├── ci-Pipelines/
+        └── cd-Pipelines/
 ```
-
-Pipelines can be removed through the **Azure DevOps pipeline management interface**.
+Pipelines can be removed through the **Aws DevOps pipeline management interface**.
 
 ---
 

@@ -67,8 +67,9 @@ The following softwares must be available in the agent pool before installing DP
 DPN repositories required:
 
 - [DPN-Infra](https://github.com/energy-dsi/dpn-infra-deployment)  
-- [DPN-Federator](https://github.com/energy-dsi/dpn-federator)  
-- [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)  
+- [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
+- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator)  
+- [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 
 ### Optional Tools
 
@@ -165,15 +166,17 @@ DSI-provided code is scanned using the following tools (not limited to):
 
 The following networking requirements must be satisfied before installing DPN nodes.
 
-The DPN node communicates with DSI data sharing mechanism (DSM) through defined **endpoints and ports** (refer to the Interface Documentation), including:
+The DPN node communicates with DSI data sharing mechanism (DSM) and other Organization DPNs through defined **endpoints and ports** (refer to the Interface Documentation), including:
 
 - Management Node  
-- Keycloak  
+- Authentication End point
+- Cross DPN connection as producer or consumer
 
 Ensure the following:
 
 - Organization **egress firewall rules allow outbound communication** to these endpoints  
 - **DNS resolution** can successfully resolve the required domains
+- Organization **ingress firewall rules allow the incoming connection** to the DPN producer endpoint for other Organizations
 
 ---
 ## Certificate Prerequisites
@@ -211,4 +214,4 @@ The prerequisites described in this document assume the following:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| 15-Mar-2026 | DSI Assurance   | Draft  | V0.1.0 |
+| 15-May-2026 | DSI Assurance   | Draft  | V0.1.0 |
