@@ -293,8 +293,28 @@ kubectl -n <namespace> exec vault-x -- vault status -format=json
 ```bash
 kubectl -n <namespace> exec vault-x -- vault operator unseal <unseal_key>
 ```
+3. Cleanup the vault contents, by logging into its UI and deleting the below files one by one. Confirm acceptance of delete when prompted.
 
-3. Reload the correct key pair:
+- pki-client/node-net/client/keypair
+- pki-client/node-net/client/certificate
+- pki-client/node-net/client/ca-chain
+- pki-client/node-net/client/keystore.password
+- pki-client/node-net/client/truststore.password
+
+4. Cleanup the below files from the file share (common storage),
+
+- /tls/keystore.p12
+- /tls/truststore.p12
+- /tls/keystore.password
+- /tls/truststore.password
+
+by executing below command on the certificate manager pod:
+
+```bash
+kubectl -n <namespace> exec certificate-manager-x -- rm /tls/*
+```
+
+5. Reload the correct key pair:
 
 ```bash
 kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/keypair \
@@ -302,27 +322,27 @@ kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put 
   publicKey="$(openssl rsa -in <orgname>.key -pubout 2>/dev/null)"
 ```
 
-4. Reload the correct CA chain:
+6. Reload the correct CA chain:
 
 ```bash
 kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/ca-chain \
   chain="$(cat ca-chain.crt)"
 ```
 
-5. Reload the correct signed certificate:
+7. Reload the correct signed certificate:
 
 ```bash
 kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/certificate \
   certificate="$(cat certificate.crt)"
 ```
 
-6. Restart the certificate manager pod to trigger a fresh synchronisation:
+8. Restart the certificate manager pod to trigger a fresh synchronisation:
 
 ```bash
 kubectl -n <namespace> delete po/<pod-id>
 ```
 
-7. Monitor the logs and confirm the sync job completes without errors:
+9. Monitor the logs and confirm the sync job completes without errors:
 
 ```bash
 kubectl logs <certificate-manager-pod> -n <namespace>
