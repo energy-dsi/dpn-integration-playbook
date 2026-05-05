@@ -90,7 +90,7 @@ The **Continuous Deployment (CD)** pipeline deploys the container images to the 
 During deployment, the pipeline performs the following steps:
 
 1. Authenticate with Aws using the configured service connection.
-2. Retrieve credentials for the target AKS cluster.
+2. Retrieve credentials for the target EKS cluster.
 3. Validate Helm charts using `helm lint`.
 4. Perform a Helm **dry-run** validation.
 5. Deploy the DPN platform using Helm.
@@ -183,10 +183,10 @@ Root-Repository/
 |-----------|-------------|---------------|
 | AWS_SUBSCRIPTION | Aws subscription ID where the infrastructure is deployed | `<valid Aws subscription ID>` |
 | SERVICE_CONNECTION | Aws DevOps service connection name for deployment | `<valid Aws service connection name>` |
-| RESOURCE_GROUP | Aws resource group containing the AKS cluster | `rg-prd-uks-dpn-01` |
+| RESOURCE_GROUP | Aws resource group containing the EKS cluster | `rg-prd-uks-dpn-01` |
 | EKS_CLUSTER | Name of the Elastic Kubernetes Service cluster | `eks-prd-uks-dpn-01` |
 | NAMESPACE | Kubernetes namespace for container deployment | `ns-dpn-01` |
-| SECRET_MANAGER_NAME | AWS Secrets Manager used to store secrets and certificates | `akv-prd-uks-dpn-01` |
+| SECRET_MANAGER_NAME | AWS Secrets Manager used to store secrets and certificates | `asm-prd-uks-dpn-01` |
 | BASE_REGISTRY | Base registry path used by deployment images | `<image-registry-url>` |
 | ENV_NAME | Deployment environment abbreviation | `dev` / `sit` / `ppd` / `prd` |
 | VALUES_FILE | Helm values file name for use in the pipeline | `values-prd-dpn01.yaml` |
