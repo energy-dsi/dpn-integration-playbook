@@ -255,7 +255,82 @@ The installation steps for each component are outlined separately below.
 
 ### Part 1 — Hashicorp Vault Deployment
 
-**Anik To Complete this block**
+The HashiCorp Vault deployment has the following dependencies that must be fulfilled before deployment:
+
+- AKS cluster provisioned and accessible
+- Azure Key Vault provisioned with the required TLS certificate secrets (`VAULT-TLS-CERT`, `VAULT-TLS-KEY`)
+- Azure Key Vault configured with the Vault unseal key (`vault-unseal-key`)
+- Workload identity / managed identity configured with access to Azure Key Vault
+- Configuration prerequisites met as described in the [Prerequisites](01-prerequisites.md) and [Configuration](02-configuration-parameters.md#hashicorp-vault-configuration) documents
+
+#### Step 1 — Prepare HashiCorp Vault CD Pipeline
+
+Create a new Azure DevOps Pipeline from the `vault-https-cd.yaml` file located at the following path in the `dpn-federator-certificate-manager` repository:
+
+```
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── vault-https-cd.yaml
+```
+
+The CD pipeline deploys HashiCorp Vault to AKS using the Helm chart located at:
+
+```
+Root-Repository/
+└── charts/
+    └── vault-https/
+        ├── values.yaml                <- Reference file; do not edit directly
+        └── values-<env>-dpn01.yaml   <- Environment-specific overrides
+```
+
+Ensure the environment-specific values file is populated as described in the [HashiCorp Vault Configuration](02-configuration-parameters.md#hashicorp-vault-configuration) section before executing the CD pipeline.
+
+#### Step 2 — Execute HashiCorp Vault CD Pipeline
+
+The CD pipeline requires the following runtime parameters. These are selected when manually triggering a pipeline run:
+
+- **serviceConnection** — Required for deployment on the Azure Private platform
+- **environment** — The deployment environment (e.g. `dev`, `test`, `preprod`, `prd`)
+
+#### Step 3 — Verify HashiCorp Vault CD Pipeline
+
+Once the CD pipeline completes, verify the deployment using the following commands. Replace `<namespace>` with the target namespace.
+
+Check that the Vault pod is in a `Running` state:
+
+```bash
+kubectl get pods -n <namespace>
+```
+
+Check that the Vault service is exposed on port `8200`:
+
+```bash
+kubectl get svc -n <namespace>
+```
+
+Check that the deployment is healthy (`READY` should match `DESIRED`, e.g. `1/1`):
+
+```bash
+kubectl get deployments -n <namespace>
+```
+
+Verify the Vault status:
+
+```bash
+kubectl -n <namespace> exec vault-0 -- vault status -format=json
+```
+
+View logs and confirm there are no startup errors:
+
+```bash
+kubectl logs vault-0 -n <namespace>
+```
+
+> **Note:** At this stage the Vault will be in a **sealed** state. Proceed to the [HashiCorp Vault Configuration](#hashicorp-vault-configuration) section below to initialise and unseal the Vault and load the certificate bundle before proceeding to Part 2.
+
+---
 
 #### Hashicorp Vault Configuration
 

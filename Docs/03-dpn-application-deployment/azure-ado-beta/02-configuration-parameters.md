@@ -169,14 +169,17 @@ pool:
 
 ### Azure Environment Configuration
 
-For the pipelines to run, the following parameters must be updated in the environment-specific **`<env>-dpn01.json`** file located under the Azure Pipelines folder. Environment qualifiers include: `dev`, `sit`, `uat`, `preprod`, `prod`, etc.
+For the pipelines to run, the following parameters must be updated in the environment-specific JSON configuration file located under the Azure Pipelines folder.
 
 ```text
 Root-Repository/
 └── .pipelines/
-     └── azure-pipelines/
-          └── config/
-                └── <env>-dpn01.json
+    └── azure-pipelines/
+        └── config/
+            ├── dev-dpn01.json
+            ├── test-dpn01.json
+            ├── preprod-dpn01.json
+            └── prd-dpn02.json
 ```
 
 | Parameter | Description | Example Value |
@@ -277,7 +280,7 @@ The `dpn-federator-certificate-manager` repository includes a Helm chart values 
 ```text
 Root-Repository
   └── charts
-        └── vault
+        └── vault-https
               ├── values.yaml             <- Reference file; do not edit directly
               └── values-<env>-dpn01.yaml <- Environment-specific overrides
 ```
@@ -308,7 +311,7 @@ The `dpn-federator-certificate-manager` repository includes Helm chart secret an
 ```text
 Root-Repository
   └── charts
-        └── vault
+        └── vault-https
               └── templates
                     ├── secret.yaml
                     └── secretproviderclass.yaml
