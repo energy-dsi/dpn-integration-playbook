@@ -550,8 +550,8 @@ The pipeline proceeds with consumer-specific configuration and deployment only.
 When **Config Type = `producer`** is selected:
 
 - **Process Type** — Mandatory. Currently supported value: `file`. (This may be extended in future releases.)
-- **Schema Type** — Mandatory. Currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
-- **Product Type** — Mandatory. Must be provided to correctly parameterise the producer pipeline.
+- **Schema Type** — Mandatory. Remove 'Default' before providing currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
+- **Product Type** — Mandatory. Remove 'Default' before providing supoorted values. Must be provided to correctly parameterise the producer pipeline.
 
 Failure to provide Process Type and Schema Type when running the pipeline in producer mode will result in an invalid or incomplete execution.
 
