@@ -78,7 +78,7 @@ The following tools are optional but recommended for deployment and operations:
 - Azure CLI – latest version  
 - Kubectl – latest version  
 - Helm – latest version  
-- Terraform – latest version  
+- OpenTofu – latest version  
 - DigiCert utility – latest version (for CSR generation)
 - OpenSSL – latest version  
 
