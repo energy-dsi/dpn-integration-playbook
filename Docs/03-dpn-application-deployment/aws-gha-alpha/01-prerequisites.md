@@ -12,9 +12,9 @@
 - [Accessibility Prerequisites](#accessibility-prerequisites)
   - [Access Requirements](#access-requirements)
     - [GitHub Access](#github-access)
-    - [Azure Service Principal](#azure-service-principal)
-    - [Azure DevOps Service Connection](#azure-devops-service-connection)
-    - [AKS Access](#aks-access)
+    - [AWS IAM Role](#aws-iam-role)
+    - [AWS CI/CD Connection](#aws-ci/cd-connection)
+    - [ EKS Access](#eks-access)
     - [Data Pipeline Access](#data-pipeline-access)
 - [Security Prerequisites](#security-prerequisites)
 - [Network Prerequisites](#network-prerequisites)
@@ -27,7 +27,7 @@
 
 ## Overview
 
-This section lists the prerequisites that must be completed **before installing DPN nodes from the repository in an Azure environment**.
+This section lists the prerequisites that must be completed **before installing DPN nodes from the repository in an AWS environment**.
 
 The prerequisites are grouped into the following categories:
 
@@ -96,27 +96,27 @@ The following tools are optional but recommended for deployment and operations:
 
 ## Service Prerequisites
 
-The following cloud services and licences are required to run DPN nodes on the Azure platform.
+The following cloud services and licences are required to run DPN nodes on the AWS platform.
 
 - A **GitHub user account** and **Personal Access Token (PAT)** to fetch from GitHub
 - A **Docker Hub user account** and **password** to fetch from the Docker repository
-- An Azure **Pay-As-You-Go** or equivalent **Enterprise subscription**
-- An active **Azure Tenant and Subscription**
-- An **Azure DevOps licence** (Basic or higher) for repository and pipeline access
-- A **Windows Azure Virtual Machine** deployed in the same Azure network as the DPN components (recommended SKU: B8ms or equivalent)
-- A **Bastion Host** to connect to the virtual machine
+- An AWS **Pay-As-You-Go** or equivalent **Enterprise account**
+- An active **AWS IAM / AWS Organizations**
+- An **AWS DevOps licence** (Basic or higher) for repository and pipeline access
+- A **Windows AWS EC2 Instance** deployed in the same AWS network as the DPN components (recommended SKU: B8ms or equivalent)  #Pending
+- A **Bastion Host** to connect to the EC2 Instance
 
 ---
 
 ## Accessibility Prerequisites
 
-The following configuration is recommended to securely operate DPN nodes on the Azure platform. DSI recommends this approach as a **secure and best-practice model**.
+The following configuration is recommended to securely operate DPN nodes on the AWS platform. DSI recommends this approach as a **secure and best-practice model**.
 
-- Use private networks and private endpoints wherever possible
-- Use **self-hosted agents and node pools** in Azure DevOps
-- Use **Role-Based Access Control (RBAC)** instead of local authentication
-- Enable **encryption of data at rest and in transit**
-- Follow a **Zero Trust security model**
+- Use **VPC with private subnets, VPC endpoints**
+- Use **self-hosted runners OR CodeBuild environments**
+- Use **IAM roles (not local users)**
+- Enable **encryption at rest (EBS, S3, RDS) and in transit (TLS)**
+- Follow **Zero Trust model**
 
 ---
 
@@ -128,34 +128,40 @@ The following access configurations are required for DPN deployment.
 
 - A **Personal Access Token (PAT)** with **read-only access** to the required GitHub repositories
 
-#### Azure Service Principal
+#### IAM Role
 
-A **Service Principal in Azure AD** with the following role permissions:
-
-| Role | Purpose |
-|------|---------|
-| Contributor | Create infrastructure resources |
-| User Access Administrator | Assign required permissions |
-| Azure Container Registry Push | Push container images |
-| Key Vault Secrets Officer | Create and manage secrets |
-| Key Vault Certificate Officer | Create and manage certificates |
-
-#### Azure DevOps Service Connection
-
-- A **Service Connection** created using the above Service Principal, used by Azure DevOps pipelines
-
-#### AKS Access
-
-A **Service Principal or Azure AD group** used for managing **Azure Kubernetes Service (AKS)** with the following permissions:
+Create an **AWS IAM Role** with permissions:
 
 | Role | Purpose |
 |------|---------|
-| Azure Container Registry Pull | Pull container images |
-| Azure Key Vault Secrets Reader | Access secrets inside containers |
+| AdministratorAccess or scoped IAM policies | Resource provisioning |
+| IAM PassRole | Assign roles |
+| AmazonEC2FullAccess | Infrastructure creation |
+| AmazonECRFullAccess | Push container images |
+| SecretsManagerFullAccess | Manage secrets |
+| ACMFullAccess | Manage certificates |
+
+
+#### AWS CI/CD Connection
+
+Use **IAM Role assumed by CodePipeline / CodeBuild**
+
+Configure:
+GitHub Webhook / AWS CodeStar connection
+IAM role trust relationship
+
+#### EKS Access
+
+A **IAM roles** used for managing **Elastic Kubernetes Service (EKS)** with the following permissions:
+
+| Role | Purpose |
+|------|---------|
+| AmazonECRReadOnly | Pull container images |
+| Secrets Manager access | Inject secrets into pods |
 
 #### Data Pipeline Access
 
-- A **Blob Storage SAS Token** with **read and write permissions** for file passthrough used by the data pipeline
+- A **Use Amazon S3 pre-signed URLs OR IAM policies** for file passthrough used by the data pipeline
 
 ---
 
@@ -163,9 +169,9 @@ A **Service Principal or Azure AD group** used for managing **Azure Kubernetes S
 
 The following security practices must be implemented before deploying DPN nodes.
 
-- Adoption of a **Zero Trust security model**
+- Adoption of a **Zero Trust architecture**
 - **Mutual TLS (mTLS)** enforced for all inter-organisation communication
-- Storage of secrets in **Azure Key Vault** or an equivalent secure secret store
+- Storage of secrets in **AWS Secrets Manager** or an equivalent secure secret store
 - Regular **rotation of secrets and encryption keys**
 - Regular **rotation of certificates** used for communication
 
@@ -220,9 +226,9 @@ DSI recommends the following skill sets to ensure smooth installation and operat
 
 | Role | Responsibility |
 |------|---------------|
-| Azure DevOps Engineer | Configure and manage CI/CD pipelines |
-| Azure Infrastructure Engineer | Provision and maintain Azure resources |
-| Azure Administrator | Manage Azure AD, RBAC, and platform access |
+| AWS DevOps Engineer | Configure and manage CI/CD pipelines |
+| AWS Infrastructure Engineer | Provision and maintain AWS resources |
+| AWS Administrator | Manage IAM, networking, platform access |
 
 ---
 
@@ -230,8 +236,8 @@ DSI recommends the following skill sets to ensure smooth installation and operat
 
 The prerequisites described in this document assume the following:
 
-- The organisation plans to deploy DPN on **Azure cloud infrastructure**
-- The organisation will use **Azure DevOps** for **Continuous Integration and Continuous Deployment (CI/CD)** into the Azure landing zone
+- The organisation plans to deploy DPN on **AWS cloud infrastructure**
+- The organisation will use **AWS DevOps** for **Continuous Integration and Continuous Deployment (CI/CD)** into the AWS CodePipeline, AWS CodeBuild
 
 ---
 
