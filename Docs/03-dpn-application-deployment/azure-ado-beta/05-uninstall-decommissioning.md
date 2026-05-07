@@ -81,9 +81,7 @@ Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── cd-pipelines/
-            ├── dsi-data-pipelines-uninstall-cd.yaml
-            ├── certificate-manager-uninstall-cd.yaml
-            └── azure-dpn-uninstall-cd.yaml
+            └── XXX-uninstall-cd.yaml
 ```
 
 Each pipeline accepts runtime parameters to scope the uninstallation to a specific environment, cluster, and component set. Internally, each pipeline runs `helm uninstall` scoped to the Helm release and component labels that belong to that repository, leaving components from other repositories unaffected.

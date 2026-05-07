@@ -86,10 +86,10 @@ The following tools are optional but recommended for deployment and operations:
 
 | Tool | Version |
 |------|---------|
-| Azure CLI | Latest |
+| AWS CLI | Latest |
 | Kubectl | Latest |
 | Helm | Latest |
-| Terraform | Latest |
+| OpenTofu | Latest |
 | DigiCert utility | Latest (for CSR generation) |
 
 ---
