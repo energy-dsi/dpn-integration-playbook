@@ -834,7 +834,7 @@ Root-Repository/
     └── github-actions-pipelines/
         └── aws-pipelines
             └── config/
-                ├── dev-dpn01.json    #Pending which naming convention to follow this one or the one present in pipeline
+                ├── dev-dpn01.json
                 ├── test-dpn01.json
                 ├── preprod-dpn01.json
                 └── prd-dpn02.json

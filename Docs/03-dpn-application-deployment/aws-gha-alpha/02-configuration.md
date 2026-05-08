@@ -178,7 +178,7 @@ Root-Repository/
     └── github-actions-pipelines/
         └── aws-pipelines/
             └── config/
-                ├── dev-dpn01.json    #Pending
+                ├── dev-dpn01.json
                 ├── test-dpn01.json
                 ├── preprod-dpn01.json
                 └── prd-dpn02.json        
