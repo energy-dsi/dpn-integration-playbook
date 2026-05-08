@@ -13,7 +13,6 @@
   - [Access Requirements](#access-requirements)
     - [GitHub Access](#github-access)
     - [AWS IAM Role](#aws-iam-role)
-    - [AWS CI/CD Connection](#aws-ci/cd-connection)
     - [ EKS Access](#eks-access)
     - [Data Pipeline Access](#data-pipeline-access)
 - [Security Prerequisites](#security-prerequisites)
@@ -98,13 +97,15 @@ The following tools are optional but recommended for deployment and operations:
 
 The following cloud services and licences are required to run DPN nodes on the AWS platform.
 
-- A **GitHub user account** and **Personal Access Token (PAT)** to fetch from GitHub
-- A **Docker Hub user account** and **password** to fetch from the Docker repository
-- An AWS **Pay-As-You-Go** or equivalent **Enterprise account**
-- An active **AWS IAM / AWS Organizations**
-- An **AWS DevOps licence** (Basic or higher) for repository and pipeline access
-- A **Windows AWS EC2 Instance** deployed in the same AWS network as the DPN components (recommended SKU: B8ms or equivalent)  #Pending
-- A **Bastion Host** to connect to the EC2 Instance
+- A GitHub user account with appropriate repository access (and optionally a Personal Access Token (PAT) if required for integrations)
+- A container registry account (e.g., Docker Hub / GHCR / other) with credentials (username/password or token) to pull container images
+- An active AWS account (Pay-As-You-Go or Enterprise Agreement equivalent)
+- Configured AWS Identity and Access Management (IAM) with required roles and permissions
+- A configured OIDC trust relationship between GitHub and AWS IAM for secure, keyless authentication
+- An Amazon EKS (Elastic Kubernetes Service) cluster deployed in the target environment
+- A compute instance (e.g., Amazon EC2) within the same network (VPC) as the EKS cluster for administrative access
+  (Recommended instance size equivalent to Azure B8ms or as per workload requirements)
+- A secure access mechanism such as a bastion host or AWS Systems Manager (SSM Session Manager) to connect to the compute instance
 
 ---
 
@@ -142,13 +143,9 @@ Create an **AWS IAM Role** with permissions:
 | ACMFullAccess | Manage certificates |
 
 
-#### AWS CI/CD Connection
+### AWS IAM Role (GitHub Actions Integration)
 
-Use **IAM Role assumed by CodePipeline / CodeBuild**
-
-Configure:
-GitHub Webhook / AWS CodeStar connection
-IAM role trust relationship
+An IAM Role configured with a trust relationship to GitHub (via OIDC) and used by GitHub Actions workflows to securely access AWS resources.
 
 #### EKS Access
 
@@ -181,9 +178,9 @@ DSI-provided code is scanned using the following tools (not limited to):
 
 | Tool | Purpose |
 |------|---------|
-| SonarQube | Code quality and test coverage |
-| Checkmarx | Static code analysis |
-| JFrog Xray | Container security scanning |
+| **SonarQube** | Code quality and test coverage |
+| **Checkmarx** | Static code analysis |
+| **JFrog Xray** | Container security scanning |
 
 ---
 
@@ -236,8 +233,8 @@ DSI recommends the following skill sets to ensure smooth installation and operat
 
 The prerequisites described in this document assume the following:
 
-- The organisation plans to deploy DPN on **AWS cloud infrastructure**
-- The organisation will use **AWS DevOps** for **Continuous Integration and Continuous Deployment (CI/CD)** into the AWS CodePipeline, AWS CodeBuild
+- The organization plans to deploy DPN on AWS cloud infrastructure
+- The organization will use GitHub Actions for Continuous Integration and Continuous Deployment (CI/CD) into the AWS environment
 
 ---
 
