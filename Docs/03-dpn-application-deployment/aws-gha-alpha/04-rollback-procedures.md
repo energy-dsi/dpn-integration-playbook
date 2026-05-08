@@ -35,10 +35,9 @@ This document describes the rollback and recovery procedures for **DPN deploymen
 
 The rollback procedures apply to deployments performed using:
 
-- **AWS CodePipeline**
-- **AWS CodeBuild**
-- **Amazon Elastic Container Registry (ECR)**
-- **AAmazon Elastic Kubernetes Service (EKS)**
+- **GitHub Actions CI/CD pipelines**
+- **Container Registry (CR)**
+- **Elastic Kubernetes Service (EKS)**
 - **Helm-based deployments**
 
 The objective of the rollback procedure is to restore the platform to the **last known stable state** with minimal service disruption.
@@ -107,18 +106,20 @@ If the **CI pipeline fails**, no deployment rollback is required because no cont
 
 Recommended actions:
 
-1. Review CI pipeline logs in AWS CodeBuild.
+1. Review CI pipeline logs in GitHub Actions.
 2. Fix any build or dependency issues (refer to the [Troubleshooting](03-installation-process.md#troubleshooting) section).
 3. Re-run the CI pipeline.
 
 Verify whether new container images were pushed before the failure:
 
 ```bash
-aws ecr describe-repositories
+<registry-cli> repository list --registry <registry-name>
 ```
 
 ```bash
-aws ecr list-images --repository-name <repository-name> --query 'imageIds[*].imageTag'
+<registry-cli> repository show-tags \
+  --registry <registry-name> \
+  --repository <image-name>
 ```
 
 If no new images were pushed, the previous deployment remains intact and no further rollback action is required.
@@ -171,17 +172,19 @@ kubectl get pods -n <namespace>
 
 If the failure is caused by a faulty container image, redeploy using the previous known-good image tag.
 
-1. Identify the previous image tag in Amazon ECR:
+1. Identify the previous image tag in Container Registry:
 
 ```bash
-aws ecr list-images --repository-name dpn-federator --query 'imageIds[*].imageTag'
+<registry-cli> repository show-tags \
+  --registry <registry-name> \
+  --repository <image-name>
 ```
 
 2. Update the Helm values file to reference the previous tag:
 
 ```yaml
 image:
-  repository: <account-id>.dkr.ecr.<region>.amazonaws.com/dpn-federator
+  repository: <cr-url>/dpn-federator
   tag: <previous-tag>
 ```
 
@@ -203,7 +206,7 @@ http://kafka-ui:8085
 
 3. Recreate the topics using the Kafka topic creation pipeline, or manually via the Kafka UI.
 
-> **Note:** Kafka UI is only accessible from inside the AWS network (VPC) via a bastion host or Amazon EC2 instance specified in the prerequisites.
+> **Note:** Kafka UI is only accessible from within the AWS network (VPC) via the compute instance (e.g., Amazon EC2 or bastion host) specified in the prerequisites.
 
 ---
 
@@ -212,7 +215,7 @@ http://kafka-ui:8085
 The Federator Certificate Manager is responsible for issuing, renewing, and synchronising mTLS certificates used by the Federator Gateway. It has the following dependencies:
 
 - HashiCorp Vault — stores the key pair, CA chain, and signed certificate
-- Shared file storage — holds the generated P12 keystore and truststore files at `/tls`
+- Shared storage service — holds the generated P12 keystore and truststore files at /tls
 - Federator Gateway — consumes the P12 files for mTLS communication
 
 A certificate manager failure can prevent the Federator Gateway from establishing secure connections. Follow the procedures below to restore the certificate manager to a working state.
@@ -225,18 +228,20 @@ If the **Certificate Manager CI pipeline fails**, no deployment rollback is requ
 
 Recommended actions:
 
-1. Review the CI pipeline logs in Azure DevOps.
+1. Review the CI pipeline logs in Github Actions.
 2. Fix any build or image issues.
 3. Re-run the CI pipeline using the `certificate-manager-ci.yaml` pipeline.
 
 Verify the image registry for successful image push:
 
 ```bash
-aws ecr describe-repositories
+<registry-cli> repository list --registry <registry-name>
 ```
 
 ```bash
-aws ecr list-images --repository-name dpn-federator-certificate-manager --query 'imageIds[*].imageTag'
+<registry-cli> repository show-tags \
+  --registry <registry-name> \
+  --repository <image-name>
 ```
 
 ---
@@ -525,7 +530,7 @@ For critical deployment failures, the following recovery actions may be required
 Organisations should maintain the following to ensure rollback operations can be performed quickly and safely:
 
 - Versioned Helm charts with revision history retained
-- Versioned container images in ACR with previous tags preserved
+- Versioned container images in Container Registry with previous tags preserved
 - Tagged Git releases for all components
 - A securely stored copy of the certificate bundle (key pair, CA chain, signed certificate) outside of the cluster
 

@@ -44,7 +44,7 @@
 
 ## Overview
 
-This document provides step-by-step instructions for installing and deploying **DPN components** using **AWS CI/CD pipelines**.
+This document provides step-by-step instructions for installing and deploying **DPN components** using **GitHub Actions pipelines**.
 
 The deployment uses the following repositories:
 
@@ -139,11 +139,11 @@ or
 git checkout release/<version>
 ```
 
-Push the code to the organisation's AWS code repository.
+Push the code to the organisation's GitHub repository.
 
 ```bash
-git remote add ado https://dev.azure.com/<org>/<project>/_git/<repository>
-git push -u ado main
+git remote add github https://github.com/<org>/<repository>.git
+git push -u github main
 ```
 
 ---
@@ -232,9 +232,10 @@ Each DPN code repository includes the necessary CI and CD pipelines in the follo
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        ├── ci-pipelines/
-        └── cd-pipelines/
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            ├── ci-pipelines/
+            └── cd-pipelines/
 ```
 
 ---
@@ -255,7 +256,83 @@ The installation steps for each component are outlined separately below.
 
 ### Part 1 — Hashicorp Vault Deployment
 
-**Anik To Complete this block**
+The HashiCorp Vault deployment has the following dependencies that must be fulfilled before deployment:
+
+- EKS cluster provisioned and accessible
+- AWS Secrets Manager (or HashiCorp Vault) provisioned with the required TLS certificate secrets (VAULT-TLS-CERT, VAULT-TLS-KEY)
+- AWS KMS configured with the Vault unseal key (vault-unseal-key)
+- IAM Roles (IRSA) or GitHub OIDC-based authentication configured with access to AWS Secrets Manager / KMS
+- Configuration prerequisites met as described in the 01-prerequisites.md and 02-configuration-parameters.md#hashicorp-vault-configuration documents
+
+#### Step 1 — Prepare HashiCorp Vault CD Pipeline
+
+Create a new GitHub Actions Pipeline from the `vault-https-cd.yaml` file located at the following path in the `dpn-federator-certificate-manager` repository:
+
+```
+Root-Repository/
+└── .pipelines/
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── cd-pipelines/
+                └── vault-https-cd.yaml
+```
+
+The CD pipeline deploys HashiCorp Vault to EKS using the Helm chart located at:
+
+```
+Root-Repository/
+└── charts/
+    └── vault-https/
+        ├── values.yaml                <- Reference file; do not edit directly
+        └── values-<env>-dpn01.yaml   <- Environment-specific overrides
+```
+
+Ensure the environment-specific values file is populated as described in the [HashiCorp Vault Configuration](02-configuration-parameters.md#hashicorp-vault-configuration) section before executing the CD pipeline.
+
+#### Step 2 — Execute HashiCorp Vault CD Pipeline
+
+The CD pipeline requires the following runtime parameters. These are selected when manually triggering a pipeline run:
+
+- **role-to-assume** — Required for deployment on the AWS platform (used by GitHub Actions for authentication via IAM)
+- **environment** — The deployment environment (e.g. `dev`, `test`, `preprod`, `prd`)
+
+#### Step 3 — Verify HashiCorp Vault CD Pipeline
+
+Once the CD pipeline completes, verify the deployment using the following commands. Replace `<namespace>` with the target namespace.
+
+Check that the Vault pod is in a `Running` state:
+
+```bash
+kubectl get pods -n <namespace>
+```
+
+Check that the Vault service is exposed on port `8200`:
+
+```bash
+kubectl get svc -n <namespace>
+```
+
+Check that the deployment is healthy (`READY` should match `DESIRED`, e.g. `1/1`):
+
+```bash
+kubectl get deployments -n <namespace>
+```
+
+Verify the Vault status:
+
+```bash
+kubectl -n <namespace> exec vault-0 -- vault status -format=json
+```
+
+View logs and confirm there are no startup errors:
+
+```bash
+kubectl logs vault-0 -n <namespace>
+```
+
+> **Note:** At this stage the Vault will be in a **sealed** state. Proceed to the [HashiCorp Vault Configuration](#hashicorp-vault-configuration) section below to initialise and unseal the Vault and load the certificate bundle before proceeding to Part 2.
+
+---
 
 #### Hashicorp Vault Configuration
 
@@ -331,42 +408,45 @@ The Certificate Life Cycle Manager has the following dependencies that must be f
 
 #### Step 1 — Prepare Federator Certificate Manager CI Pipeline
 
-Create a new AWS DevOps Pipeline from the `certificate-manager-ci.yaml` file located at the following path in the `dpn-federator-certificate-manager` repository:
+Create a new GitHub Actions Pipeline from the `certificate-manager-ci.yaml` file located at the following path in the `dpn-federator-certificate-manager` repository:
 
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── ci-pipelines/
-            └── certificate-manager-ci.yaml
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── ci-pipelines/
+                └── certificate-manager-ci.yaml
 ```
 
 #### Step 2 — Execute Federator Certificate Manager CI Pipeline
 
 The CI pipeline requires the following runtime parameters. These are selected when manually triggering a pipeline run:
 
-- **serviceConnection** — Required for deployment on the Aws Private platform
+- **role-to-assume** — Required for deployment on the AWS platform (used by GitHub Actions for authentication via IAM)
 - **environment** — The deployment environment
 
 > **Note:** The parameters above must be configured according to the existing provisioned infrastructure configuration.
 
 #### Step 3 — Verify Federator Certificate Manager CI Pipeline
 
-Execute the CI pipeline and verify that the image registry has been updated with the correct image tag. Use the following commands against the AWS Container Registry platform.
+Execute the CI pipeline and verify that the image registry has been updated with the correct image tag. Use the following commands against the Container Registry platform.
 
 List all repositories in the registry:
 
 ```bash
-aws ecr describe-repositories
+<registry-cli> repository list --registry <registry-name>
 ```
 
 Verify the image tag for a specific image:
 
 ```bash
-aws ecr list-images --repository-name <repository-name> --query 'imageIds[*].imageTag'
+<registry-cli> repository show-tags \
+  --registry <registry-name> \
+  --repository <image-name>
 ```
 
-Replace <repository-name> with the ECR repository name (e.g. dpn-federator-certificate-manager).
+Replace `<registry-name>` with the registry name and `<image-name>` with the image being checked (e.g. `dpn-federator-certificate-manager`).
 
 > **Note:** The Build ID generated by a successful `certificate-manager-ci.yaml` run is used as the `imageTag` parameter when executing the CD pipeline in the next step.
 
@@ -374,21 +454,22 @@ Replace <repository-name> with the ECR repository name (e.g. dpn-federator-certi
 
 #### Step 4 — Prepare Federator Certificate Manager CD Pipeline
 
-Create a new AWS DevOps Pipeline from the `certificate-manager-cd.yaml` file located at the following path:
+Create a new GitHub Actions Pipeline from the `certificate-manager-cd.yaml` file located at the following path:
 
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── cd-pipelines/
-            └── certificate-manager-cd.yaml
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── cd-pipelines/
+                └── certificate-manager-cd.yaml
 ```
 
 #### Step 5 — Execute Federator Certificate Manager CD Pipeline
 
 The CD pipeline requires the following runtime parameters. These are selected when manually triggering a pipeline run:
 
-- **serviceConnection** — Required for deployment on the AWS Private platform
+- **role-to-assume** — Required for deployment on the AWS platform (used by GitHub Actions for authentication via IAM)
 - **environment** — The deployment environment
 - **imageTag** — The image tag generated from the CI pipeline after verification
 
@@ -439,14 +520,15 @@ The DPN Data Pipeline is a series of data validation stages processed through th
 
 #### Step 1 — Configure Data Pipeline CI Pipeline
 
-Create a new AWS DevOps Pipeline from the CI pipeline YAML file located at the following path:
+Create a new GitHub Actions Pipeline from the CI pipeline YAML file located at the following path:
 
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── ci-pipelines/
-            └── dsi-data-pipelines-ci.yaml
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── ci-pipelines/
+                └── dsi-data-pipelines-ci.yaml
 ```
 
 ---
@@ -459,7 +541,7 @@ The CI pipeline is designed to support both Producer and Consumer configurations
 
 - **Pipeline Version** — Select the appropriate branch or tag (e.g. `devops`)
 - **Environment** — Choose the target environment (e.g. `dev`)
-- **Service Connection** — Select the AWS IAM Role / credentials (via OIDC or access keys corresponding to the chosen environment).
+- **role-to-assume** — Required for deployment on the AWS platform (used by GitHub Actions for authentication via IAM)
 
 ##### Consumer Configuration
 
@@ -475,8 +557,8 @@ The pipeline proceeds with consumer-specific configuration and deployment only.
 When **Config Type = `producer`** is selected:
 
 - **Process Type** — Mandatory. Currently supported value: `file`. (This may be extended in future releases.)
-- **Schema Type** — Mandatory. Currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
-- **Product Type** — Mandatory. Must be provided to correctly parameterise the producer pipeline.
+- **Schema Type** — Mandatory. Remove 'Default' before providing currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
+- **Product Type** — Mandatory. Remove 'Default' before providing supoorted values. Must be provided to correctly parameterise the producer pipeline.
 
 Failure to provide Process Type and Schema Type when running the pipeline in producer mode will result in an invalid or incomplete execution.
 
@@ -501,21 +583,22 @@ Verify that the image registry has been updated with images in the following nam
 List all repositories in the registry to confirm:
 
 ```bash
-aws ecr describe-repositories
+<registry-cli> repository list --registry <registry-name>
 ```
 
 ---
 
 #### Step 4 — Configure Data Pipeline CD Pipeline
 
-Create a new AWS DevOps Pipeline from the CD pipeline YAML file located at the following path:
+Create a new GitHub Actions Pipeline from the CD pipeline YAML file located at the following path:
 
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── cd-pipelines/
-            └── dsi-data-pipelines-cd.yaml
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── cd-pipelines/
+                └── dsi-data-pipelines-cd.yaml
 ```
 
 > **Note:** Organisations must determine which data templates they require for processing. The pipelines are designed to be generic, processing a specific type (producer or consumer), integration pathway (file, topic, API), cloud provider type (Azure, AWS, GCP), and consumer ID.
@@ -524,7 +607,7 @@ Root-Repository/
 
 #### Step 5 — Execute Data Pipeline CD Pipeline
 
-Execute the CD pipeline and verify that the containers are deployed on the Elastic Kubernetes platform. There should be the following two containers running per data product file produced, for each template type (`DL`, `EQ`, `EQBD`, or `SSH`) at each integration pathway level on the producer side:
+Execute the CD pipeline and verify that the containers are deployed on the AWS Elastic Kubernetes Platform. There should be the following two containers running per data product file produced, for each template type (`DL`, `EQ`, `EQBD`, or `SSH`) at each integration pathway level on the producer side:
 
 ```
 producer-{integration type}-adaptor-{data product type}-xxxxxxxx
@@ -556,7 +639,7 @@ Once a successful deployment has completed, the DPN Kubernetes cluster should sh
 ```text
 - Product type  : eq-sample-1, dl-sample-1
 - Schema type   : eq and dl
-- Cloud type    : AWS
+- Cloud type    : aws
 - Process type  : file
 ```
 
@@ -593,18 +676,18 @@ The Federator deployment includes the following components, each appearing as an
 ---
 
 #### Pipeline Variable Groups
-
+ 
 Before running any pipeline, ensure the following **pipeline environment variables / secrets (AWS Secrets Manager or CI/CD secrets store)** are created and populated as secrets. Variable groups store credentials and shared configuration values referenced by all Federator pipelines. Organisations may adopt any other pipeline environment variable strategy to pass these confidential parameters at runtime.
-
+ 
 ##### Variable Group: `dockerhub-creds`
-
+ 
 | Variable Name       | Description |
 |---------------------|-------------|
 | `DOCKERHUB_USERNAME` | DockerHub username used to pull base images during CI builds |
 | `DOCKERHUB_PASSWORD` | DockerHub password or access token |
-
+ 
 ##### Variable Group: `federator-ci`
-
+ 
 | Variable Name          | Description |
 |------------------------|-------------|
 | `GITHUB_MAVEN_USERNAME` | GitHub username with access to the GitHub Maven Package Registry |
@@ -651,26 +734,25 @@ The relevant section of the generated `settings.xml` is shown below for referenc
 
 #### Step 2 — Configure Federator CI Pipeline
 
-The following CI pipeline is present in the `dpn-federator` repository. Create a new AWS DevOps Pipeline from the YAML file at the following location:
+The following CI pipeline is present in the `dpn-federator` repository. Create a new Azure DevOps Pipeline from the YAML file at the following location:
 
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── ci-pipelines/
-            └── DPN-Federator-CI.yaml
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── ci-pipelines/
+                └── DPN-Federator-CI.yaml
 ```
 
-##### How to Create the Pipeline in AWS DevOps
+##### How to Create the Workflow in GitHub Actions
 
-1. Go to **AWS CodePipeline** and click Create pipeline.
-2. Provide a pipeline name and select or create an IAM role for the pipeline.
-3. In the Source stage, select the repository (e.g. GitHub, Bitbucket, or AWS CodeCommit).
-4. Choose the **dpn-federator repository** and configure the branch.
-5. In the Build stage, select AWS CodeBuild and point to the buildspec.yml file (equivalent to pipeline YAML).
-6. In the Deploy stage, configure deployment (e.g. Helm/kubectl to Amazon EKS).
-7. Click Create pipeline (do not run yet — parameters/configuration must be provided before execution).
-
+1. Go to your GitHub repository (dpn-federator).
+2. Navigate to `.github/workflows/` (if folder not present then create it)
+3. Create or upload the required workflow YAML file (e.g., federator-ci.yaml or federator-cd.yaml).
+4. Ensure the workflow file contains the correct configuration and is committed to the repository.
+5. Commit and push the file to the repository (e.g., to the main branch).
+6. The workflow will now appear under: GitHub → Actions tab
 
 ##### CI Pipeline Parameters
 
@@ -678,7 +760,7 @@ The CI pipeline accepts the following runtime parameters, which are selected whe
 
 - **Pipeline Version** — Select the appropriate branch or tag (e.g. `main`)
 - **Environment** — Choose the target environment (e.g. `dev`, `test`)
-- **AWS Credentials / IAM Role** — Select the AWS IAM Role or credentials corresponding to the chosen environment (used by the pipeline to access AWS resources)
+- **role-to-assume** — Select the IAM Role corresponding to the chosen environment (used by GitHub Actions for authentication to AWS)
 
 > **Note:** The parameters above must be configured according to the existing provisioned infrastructure and cluster configuration.
 
@@ -693,16 +775,18 @@ Once the pipeline has executed, verify that the image registry has been updated 
 List all repositories in the registry:
 
 ```bash
-aws ecr describe-repositories
+<registry-cli> repository list --registry <registry-name>
 ```
 
 Verify the image tag for a specific image:
 
 ```bash
-aws ecr list-images --repository-name <repository-name> --query 'imageIds[*].imageTag'
+<registry-cli> repository show-tags \
+  --registry <registry-name> \
+  --repository <image-name>
 ```
 
-Replace <repository-name> with the Amazon ECR repository name (e.g. dpn-federator-client).
+Replace `<registry-name>` with the registry name (e.g. `crdpndevuks01`) and `<image-name>` with the image being checked (e.g. `dpn-federator-client`).
 
 > **Note:** The Build ID generated by a successful `federator-ci.yaml` run is used as the `imageTag` parameter when executing the CD pipeline in Step 5.
 
@@ -710,7 +794,7 @@ Replace <repository-name> with the Amazon ECR repository name (e.g. dpn-federato
 
 #### Step 4 — Configure Federator CD Pipeline
 
-Create a new AWS DevOps Pipeline from the CD pipeline YAML file located at the following path. The CD pipeline deploys the complete Federator package, comprising the following components:
+Create a new GitHub Actions Pipeline from the CD pipeline YAML file located at the following path. The CD pipeline deploys the complete Federator package, comprising the following components:
 
 1. `dpn-zookeeper-src`
 2. `dpn-zookeeper-target`
@@ -725,9 +809,10 @@ Create a new AWS DevOps Pipeline from the CD pipeline YAML file located at the f
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── cd-pipelines/
-            └── aws-dpn-cd.yaml
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── cd-pipelines/
+                └── aws-dpn-cd.yaml
 ```
 
 ##### CD Pipeline Parameters
@@ -736,36 +821,37 @@ The following parameters must be provided during CD pipeline execution:
 
 - **Pipeline Version** — Select the appropriate branch or tag (e.g. `main`)
 - **Environment** — Choose the target environment (e.g. `dev`, `test`)
-- **AWS Credentials / IAM Role** — Select the AWS IAM Role or credentials corresponding to the chosen environment
+- **role-to-assume** — Select the IAM Role corresponding to the chosen environment (used by GitHub Actions for authentication to AWS)
 - **Image Tag** — The image tag created by the Federator CI pipeline
 
 ##### Environment Configuration Files
 
-The CD pipeline reads its environment-specific values from a JSON configuration file in the repository. The file used depends on the `environment` and `dpncluster` parameters selected at runtime. To deploy to a new environment, create a new JSON configuration file following the same structure as the examples below, and ensure the corresponding service connection is configured in AWS DevOps.
+The CD pipeline reads its environment-specific values from a JSON configuration file in the repository. The file used depends on the `environment` and `dpncluster` parameters selected at runtime. To deploy to a new environment, create a new JSON configuration file following the same structure as the examples below, and ensure the corresponding service connection is configured in GitHub Actions.
 
 ```
 Root-Repository/
 └── .pipelines/
-    └── aws-pipelines/
-        └── config/
-            ├── dev-dpn01.json
-            ├── test-dpn01.json
-            ├── preprod-dpn01.json
-            └── prd-dpn02.json
+    └── github-actions-pipelines/
+        └── aws-pipelines
+            └── config/
+                ├── dev-dpn01.json
+                ├── test-dpn01.json
+                ├── preprod-dpn01.json
+                └── prd-dpn02.json
 ```
 
 ---
 
 #### Step 5 — Execute Federator CD Pipeline
 
-1. Go to **AWS CodePipeline** in your AWS DevOps project.
-2. Click on the `dpn-cd` pipeline.
-3. Click **Release change**.
-4. Fill in the parameters:
-   - **AWS IAM Role / Credentials** — select the correct role for the target environment
-   - **environment** — e.g. `dev`
-   - **imageTag** — the Build ID from the successful `federator-ci.yaml` run (e.g. `1042`), found in the pipeline run history
-5. Monitor **execution** in AWS CodeBuild logs and pipeline stages..
+1. Go to your GitHub repository. Navigate to the Actions tab.
+2. Select the **federator-cd** workflow..
+3. Click **Run workflow.**
+4. Fill in the inputs:
+    - **awsRoleArn** — select the correct IAM Role for the target environment
+    - **environment** — e.g. dev
+    - **imageTag** — the build number or workflow run ID from the successful federator-ci.yaml run (e.g. 1042), found in the Actions run history
+5. Click **Run workflow** and monitor the workflow logs.
 
 If the pipeline completes successfully, the following message will appear at the end of the deployment stage:
 
@@ -807,7 +893,8 @@ kubectl logs <pod-name> -n <namespace>
 
 #### Kafka UI Verification
 
-To verify Kafka topics, a User Interface is provided with the DPN deployment. To access this UI, a bastion host / EC2 instance within the AWS network (VPC) specified in the prerequisites is required, as the interface is only accessible within the private network.
+To verify Kafka topics, a User Interface is provided with the DPN deployment. To access this UI, a **compute instance (e.g., Amazon EC2)** specified in the prerequisites is required, as the interface is only accessible within the **AWS network (VPC).**
+
 ```
 http://kafka-ui:8085
 ```
@@ -831,8 +918,8 @@ Possible causes:
 
 - Incorrect GitHub PAT token or missing `read:packages` scope
 - Maven repository authentication failure — verify `GITHUB_MAVEN_USERNAME` and `GITHUB_MAVEN_TOKEN` in the `federator-ci` variable group
-- Docker login failure — verify `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` in CI/CD secrets store
-- Amazon ECR login failure — verify that the IAM Role/credentials used by the pipeline have required ECR permissions (e.g. ecr:PutImage, ecr:GetAuthorizationToken)
+- Docker login failure — verify `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` in the `dockerhub-creds` variable group
+- Container registry login failure — verify that the IAM Role used by GitHub Actions (role-to-assume) has the required permissions (e.g., push/pull access) on the container registry.
 
 Verify pipeline logs and ensure all credentials are correct.
 
@@ -843,7 +930,7 @@ Verify pipeline logs and ensure all credentials are correct.
 Check whether the CI pipeline pushed images to the registry:
 
 ```bash
-aws ecr describe-repositories
+<registry-cli> repository list --registry <registry-name>
 ```
 
 If the expected repository is not listed, re-run the relevant CI pipeline and ensure it completes without errors before proceeding to the CD pipeline.
@@ -858,7 +945,7 @@ Check pod events to identify scheduling or image pull issues:
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
-Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect ACR credentials.
+Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect CR credentials.
 
 ---
 
@@ -873,7 +960,7 @@ kubectl logs <pod-name> -n <namespace>
 Common causes:
 
 - Invalid or missing environment variables — check the Helm values file for typographical errors or missing entries
-- Missing secrets or incorrect credentials for storage — verify all required secrets exist in AWS Secrets Manager with the correct names and values
+- Missing secrets or incorrect object storage access configuration — verify all required secrets are correctly created and available in AWS Secrets Manager, HashiCorp Vault, or  GitHub Secrets, with the correct names and values
 - Kafka topic is not pre-populated — run the Kafka Topic Creator job or manually create topics via the Kafka UI
 
 ---
