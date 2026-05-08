@@ -132,7 +132,7 @@ Root-Repository/
                 └── dsi-data-pipelines-uninstall-cd.yaml
 ```
 
-To create the pipeline in AWS DevOps:
+##### How to Create the Workflow in GitHub Actions
 
 1. Go to your GitHub repository (dpn-data-pipelines).
 2. Navigate to `.github/workflows/` (if folder not present then create it)
@@ -213,7 +213,7 @@ Root-Repository/
                 └── certificate-manager-uninstall-cd.yaml
 ```
 
-To create the pipeline in AWS DevOps:
+##### How to Create the Workflow in GitHub Actions
 
 1. Go to your GitHub repository (dpn-federator-certificate-manager).
 2. Navigate to `.github/workflows/` (if folder not present then create it)
@@ -287,7 +287,7 @@ Root-Repository/
                 └── aws-dpn-uninstall-cd.yaml
 ```
 
-To create the pipeline in AWS DevOps:
+##### How to Create the Workflow in GitHub Actions
 
 1. Go to your GitHub repository (dpn-federator).
 2. Navigate to `.github/workflows/` (if folder not present then create it)
