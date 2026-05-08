@@ -9,9 +9,9 @@
   - [Continuous Deployment (CD)](#continuous-deployment-cd)
 - [Global / Generic Configuration](#global--generic-configuration)
   - [DSI DSM Endpoint Configuration](#dsi-dsm-endpoint-configuration)
-  - [AWS DevOps Configuration](#AWS-devops-configuration)
-    - [Node Pool Set Up](#node-pool-set-up)
-    - [AWS Environment Configuration](#AWS-environment-configuration)
+  - [GitHub Actions Configuration](#github-actions-configuration)
+    - [Runner Setup](#runner-setup)
+    - [Environment Configuration](#environment-configuration)
   - [Secrets Configuration (Global)](#secrets-configuration-global)
     - [Certificate Handling Note](#certificate-handling-note)
   - [Network and Ports Configuration](#network-and-ports-configuration)
@@ -24,7 +24,7 @@
     - [Helm Configuration](#helm-configuration-data-pipelines)
     - [Secrets Configuration](#secrets-configuration-data-pipelines)
   - [DPN Data Store Configuration](#dpn-data-store-configuration)
-    - [Storage Blob / S3 Configuration](#storage-blob--s3-configuration)
+    - [Storage Object Storage Configuration](#storage--object-storage-configuration)
     - [DPN Streaming Service (Kafka)](#dpn-streaming-service-kafka)
   - [DPN Federator Gateway Configuration](#dpn-federator-gateway-configuration)
     - [Helm Configuration](#helm-configuration-federator-gateway)
@@ -49,7 +49,8 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
   - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission.
 - **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes.
 
-DPN components on AWS are deployed using **AWS DevOps (ADO) pipelines**, as defined in the DPN repositories provided by DSI. These pipelines are organised into two stages:
+DPN components on AWS are deployed using **GitHub Actions workflows**, as defined in the DPN repositories, as defined in the DPN repositories provided by DSI. 
+These pipelines are organised into two stages:
 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
@@ -61,7 +62,7 @@ This document describes the configuration parameters required for deploying **DP
 The configuration covers the following areas:
 
 - DSI DSM endpoint configuration
-- AWS DevOps configuration
+- GitHub Actions configuration
 - Secret configuration
 - Helm chart configuration
 - Network and ports configuration
@@ -77,7 +78,7 @@ The **Continuous Integration (CI)** pipeline performs the following activities:
 3. Tag the generated container images.
 4. Push the images to a container registry.
 
-DSI recommends using **Elastic Container Registry (ECR)** for storing container images in AWS due to its seamless integration with AWS services and built-in security capabilities. The DSI package also provides containerised deployment using **GitHub Container Registry (GHCR)**.
+DSI recommends using **Container Registry (CR)** for storing container images in AWS due to its seamless integration with AWS services and built-in security capabilities. The DSI package also provides containerised deployment using **GitHub Container Registry (GHCR)**.
 
 Organisations may use alternative container registries if permitted by their internal network and security policies.
 
@@ -89,10 +90,10 @@ The **Continuous Deployment (CD)** pipeline deploys the container images to the 
 
 During deployment, the pipeline performs the following steps:
 
-1. Authenticate with AWS using the configured service connection.
-2. Retrieve credentials for the target EKS cluster.
-3. Validate Helm charts using `helm lint`.
-4. Perform a Helm **dry-run** validation.
+1. Authenticate with AWS using the configured IAM Role via GitHub Actions (OIDC).
+2. Retrieve credentials for the target Amazon EKS cluster.
+3. Validate Helm charts using helm lint.
+4. Perform a Helm dry-run validation.
 5. Deploy the DPN platform using Helm.
 6. Verify deployment status using Kubernetes rollout checks.
 
@@ -132,62 +133,65 @@ These endpoints are publicly accessible to simplify integration and testing. Org
 
 ---
 
-## AWS DevOps Configuration
+### GitHub Actions Configuration
 
-The provided pipelines require the following configuration to perform **CI and CD operations**.
+The provided workflows require the following configuration to perform **CI and CD operations.**
 
-### Node Pool Set Up
+### 
+Runner Setup
+The provided workflows are configured with the default GitHub-hosted runner: `runs-on: ubuntu-latest` for workflow execution.
 
-The provided pipelines are configured with the default Microsoft-hosted agent pool `ubuntu-latest` for pipeline execution.
-
-However, DSI **recommends using a dedicated self-hosted agent pool**, which provides better control over:
+However, DSI recommends using **a dedicated self-hosted runner**, which provides better control over:
 
 - Security
 - Network access
 - Deployment environment management
 
-Refer to the official Microsoft documentation for Linux node pool agent setup:
-https://docs.AWS.amazon.com/eks/latest/userguide/create-node-pool.html
+This is especially important when workflows need private network access to AWS resources (e.g., EKS clusters inside a VPC).
 
-If a self-hosted agent pool is configured, update the pipeline definition as follows.
+Refer to the official GitHub documentation for self-hosted runner setup:
+https://docs.github.com/en/actions/hosting-your-own-runners
+
+If a self-hosted runner is configured, update the workflow definition as follows.
 
 #### Existing Configuration
 
 ```yaml
-pool:
-  vmImage: 'ubuntu-latest'
+runs-on: ubuntu-latest
 ```
 
 #### Updated Configuration
 
 ```yaml
-pool:
-  name: '[agent-pool-name]'
+runs-on: [-hosted, linux]
 ```
 
 ---
 
-### AWS Environment Configuration
+### Environment Configuration
 
-For the pipelines to run, the following parameters must be updated in the environment-specific **`<env>-dpn01.json`** file located under the AWS Pipelines folder. Environment qualifiers include: `dev`, `sit`, `uat`, `preprod`, `prod`, etc.
+For the pipelines to run, the following parameters must be updated in the environment-specific JSON configuration file located under the GitHub Actions Pipelines folder.
 
 ```text
 Root-Repository/
 └── .pipelines/
-     └── github-actions-pipelines/
-          └── aws-pipelines  
-              └── config/
-                  └── <env>-dpn01.json
+    └── github-actions-pipelines/
+        └── aws-pipelines/
+            └── config/
+                ├── dev-dpn01.json    #Pending
+                ├── test-dpn01.json
+                ├── preprod-dpn01.json
+                └── prd-dpn02.json        
 ```
 
 | Parameter | Description | Example Value |
 |-----------|-------------|---------------|
-| AWS_SUBSCRIPTION | AWS subscription ID where the infrastructure is deployed | `<valid AWS subscription ID>` |
-| SERVICE_CONNECTION | AWS DevOps service connection name for deployment | `<valid AWS service connection name>` |
-| RESOURCE_GROUP | AWS resource group containing the EKS cluster | `rg-prd-uks-dpn-01` |
-| EKS_CLUSTER | Name of the Elastic Kubernetes Service cluster | `eks-prd-uks-dpn-01` |
+| AWS_ACCOUNT_ID | AWS account ID where the infrastructure is deployed | `<valid AWS account ID>` |
+| AWS_ROLE_ARN | IAM Role used by GitHub Actions for deployment (OIDC authentication) | `<valid IAM role ARN>` |
+| EKS_CLUSTER | Name of the Amazon EKS cluster | `reks-prd-uks-dpn-01` |
+| AWS_REGION | AWS region where resources are deployed | `aws-region` |
 | NAMESPACE | Kubernetes namespace for container deployment | `ns-dpn-01` |
-| SECRET_MANAGER_NAME | AWS Secrets Manager used to store secrets and certificates | `asm-prd-uks-dpn-01` |
+| SECRET_MANAGER_NAME | Secrets storage service (AWS Secrets Manager / Vault / Kubernetes secrets) | `dpn-prd-secrets` |
 | BASE_REGISTRY | Base registry path used by deployment images | `<image-registry-url>` |
 | ENV_NAME | Deployment environment abbreviation | `dev` / `sit` / `ppd` / `prd` |
 | VALUES_FILE | Helm values file name for use in the pipeline | `values-prd-dpn01.yaml` |
@@ -199,7 +203,7 @@ Root-Repository/
 Sensitive credentials must **not be stored in source code repositories**. They must be stored securely in one of the following vaults:
 
 - **HashiCorp Vault** — provided with the DSI DPN package
-- **AWS Secrets Manager** — cloud-specific option for organisations using AWS
+- **Aws Secret Manager** — cloud-specific option for organisations using AWS
 
 The table below lists all secrets required across the DPN package. Refer to the component-specific secrets configuration sections for details on where each secret must be provisioned.
 
@@ -217,8 +221,8 @@ The table below lists all secrets required across the DPN package. Refer to the 
 | TARGET_CONNECTION_STRING | SAS token for connecting to the target Blob Storage account |
 | VAULT-TOKEN | Root token of the DPN HashiCorp Vault |
 | OAUTH2-CLIENT-SECRET | OAuth2 client secret for the DPN's client ID received from DSI DSM (equivalent to `IDP_CLIENT_SECRET`) |
-| AWS-STORAGE-ACCOUNT-NAME | Storage account name for the AWS FSx used for common DPN certificate storage |
-| AWS-STORAGE-ACCOUNT-KEY | Storage account key for the AWS FSx used for common DPN certificate storage |
+| SHARED_STORAGE_NAME | Shared storage identifier (e.g., EFS file system, S3 bucket, or equivalent) |
+| SHARED_STORAGE_ACCESS_KEY | Access credential for shared storage (if IAM role is not used) |
 
 ---
 
@@ -237,19 +241,19 @@ The same certificate files are used across all DPN components that require integ
 
 ## Network and Ports Configuration
 
-This section describes DPN connectivity requirements for ports and protocols, including agent pool requirements for building DPN code.
+This section describes DPN connectivity requirements for ports and protocols, including runner (GitHub Actions/self-hosted runner) requirements for building DPN code.
 
 ![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/dpn_ports_and_protocols.png)
 
 The following firewall rules must be applied by the organisation before installing DPN:
 
-| Source IP Address | Source VNET | Source Subnet | Destination IP / Zone / URL | Destination VNET | Destination Subnet | Protocol | Port(s) | Traffic Flow |
+| Source IP Address | Source VPC | Source Subnet | Destination IP / Zone / URL | Destination VPC | Destination Subnet | Protocol | Port(s) | Traffic Flow |
 |-------------------|-------------|---------------|-----------------------------|------------------|--------------------|----------|---------|--------------|
-| Node pool agent VM IP | Node Pool VM VNET | Node Pool VM subnet | `packages.confluent.io/*` | N/A | N/A | TLS | 443 | Outbound |
-| Node pool agent VM IP | Node Pool VM VNET | Node Pool VM subnet | `registry-1.docker.io/*`<br>`auth.docker.io/*`<br>`production.cloudflare.docker.com`<br>`index.docker.io/*` | N/A | N/A | TLS | 443 | Outbound |
-| DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | `auth-mtls.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
-| DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
-| DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 50051 | Bi-directional |
+| Runner instance IP| Runner VPC | Runner subnet | `packages.confluent.io/*` | N/A | N/A | TLS | 443 | Outbound |
+| Runner instance IP| Runner VPC | Runner subnet | `registry-1.docker.io/*`<br>`auth.docker.io/*`<br>`production.cloudflare.docker.com`<br>`index.docker.io/*` | N/A | N/A | TLS | 443 | Outbound |
+| DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | `auth-mtls.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
+| DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
+| DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 50051 | Bi-directional |
 
 > **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `dsidev`, `dsitest`, `dsipre`, and `dsi` (production) environments.
 
@@ -278,32 +282,31 @@ The `dpn-federator-certificate-manager` repository includes a Helm chart values 
 ```text
 Root-Repository
   └── charts
-        └── vault
+        └── vault-https
               ├── values.yaml             <- Reference file; do not edit directly
               └── values-<env>-dpn01.yaml <- Environment-specific overrides
 ```
 
-> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-sit-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [AWS Environment Configuration](#AWS-environment-configuration) section.
+> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-sit-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Environment Configuration](#environment-configuration) section.
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
-| Parameter                        | Purpose                                   | Example Value                                       |
-|----------------------------------|-------------------------------------------|-----------------------------------------------------|
-| image.repository                 | Complete URL of the image registry        | `<DSI public image repository>/hashicorp/vault`     |
-| image.tag                        | Image version tag                         | `1.16`                                              |
-| namespace                        | Name of the Kubernetes namespace          | `ns-dpn-01`                                         |
-| replicaCount                     | Number of replicas for the container      | `3`                                                 |
-| vault.storagePath                | Path inside the persistent storage volume | `/vault/file`                                       |
-| seal.AWSKms.region               | AWS region for KMS                        | `ap-south-1`                                        |
-| seal.AWSKms.kmsKeyId             | KMS Key ID for auto-unseal                | `arn:AWS:kms:ap-south-1:123456789012:key/abcd-1234` |
-| seal.AWSKms.accessKey            | IAM access key (or use IAM role)          | `<AWS_ACCESS_KEY_ID>`                               |
-| seal.AWSKms.secretKey            | IAM secret key (or use IAM role)          | `<AWS_SECRET_ACCESS_KEY>`                           |
-| seal.AWSKms.endpoint (optional)  | Custom endpoint (if needed)               | `kms.ap-south-1.amazonAWS.com`                      |
-| tls.AWSSecretsManager.secretName | TLS cert stored in Secrets Manager        | `vault-tls-cert`                                    |
-| tls.AWSSecretsManager.region     | Region of Secrets Manager                 | `ap-south-1`                                        |
-| tls.AWSSecretsManager.accessKey  | IAM access key (or use IAM role)          | `<AWS_ACCESS_KEY_ID>`                               |
-| tls.AWSSecretsManager.secretKey  | IAM secret key (or use IAM role)          | `<AWS_SECRET_ACCESS_KEY>`                           |
-
+| Parameter                        | Purpose                                   | Example Value                                      |
+|----------------------------------|-------------------------------------------|-------------------------------------------------   |
+| image.repository                 | Complete URL of the image registry        | `<DSI public image repository>/hashicorp/vault`    |
+| image.tag                        | Image version tag                         | `1.16`                                             |
+| namespace                        | Name of the Kubernetes namespace          | `ns-dpn-01`                                        |
+| replicaCount                     | Number of replicas for the container      | `3`                                                |
+| vault.storagePath                | Path inside the persistent storage volume | `/vault/file`                                      |
+| seal.awsKms.region               | AWS region for KMS                        | `aws-region`                                       |
+| seal.awsKms.kmsKeyId             | KMS Key ID for auto-unseal                | `kms-key-id`                                       |
+| seal.awsKms.accessKey            | IAM access key (or use IAM role)          | `<AWS_ACCESS_KEY_ID>`                              |
+| seal.awsKms.secretKey            | IAM secret key (or use IAM role)          | `<AWS_SECRET_ACCESS_KEY>`                          |
+| seal.awsKms.endpoint (optional)  | Custom endpoint (if needed)               | `kms.aws-region.amazonaws.com`                     |
+| tls.awsSecretsManager.secretName | TLS cert stored in Secrets Manager        | `vault-tls-cert`                                   |
+| tls.awsSecretsManager.region     | Region of Secrets Manager                 | `aws-region`                                       |
+| tls.awsSecretsManager.accessKey  | IAM access key (or use IAM role)          | `<AWS_ACCESS_KEY_ID>`                              |
+| tls.awsSecretsManager.secretKey  | IAM secret key (or use IAM role)          | `<AWS_SECRET_ACCESS_KEY>`                          |
 
 #### Secrets Configuration
 
@@ -312,13 +315,13 @@ The `dpn-federator-certificate-manager` repository includes Helm chart secret an
 ```text
 Root-Repository
   └── charts
-        └── vault
+        └── vault-https
               └── templates
                     ├── secret.yaml
                     └── secretproviderclass.yaml
 ```
 
-HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2. The following AWS secrets must be created under `<keyvault.name>` to provide the TLS certificate material:
+HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2. The following AKV secrets must be created under `<keyvault.name>` to provide the TLS certificate material:
 
 | Secret           | Purpose                                                                                |
 |------------------|----------------------------------------------------------------------------------------|
@@ -329,7 +332,8 @@ HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2
 
 ### Shared Storage Service Configuration
 
-The keystore and truststore P12 certificate files used by the Federator Gateway Server and Client are stored in a common SMB-based file share (Amazon FSx). This file share is mounted by both the Federator Certificate Manager and the Federator Gateway components, as all three require access to the same certificate material when communicating with the DSI DSM Management Node and authentication endpoints.
+The keystore and truststore P12 certificate files used by the Federator Gateway Server and Client are stored in a shared storage service (e.g., Amazon EFS, network file system, or equivalent).
+This shared storage is mounted by both the Federator Certificate Manager and the Federator Gateway components, as all require access to the same certificate material when communicating with the DSI DSM Management Node and authentication endpoints.
 
 #### Certificate P12 Storage as File Share
 
@@ -360,12 +364,12 @@ Root-Repository
 
 | Parameter | Purpose | Example Value |
 |-----------|---------|---------------|
-| fsx.shareName | SMB File Share name used for common DPN certificate storage | `fs<env>dpn01<region>01` |
-| fsx.secretName | Kubernetes secret name containing the File Share credentials | `amazon-fsx secret` |
-| fsx.namespace | Kubernetes namespace for the fsx | `ns-dpn-01` |
-| fsx.pvName | Persistent Volume name for the fsx | `pv-dpn-certs-fsx` |
-| fsx.pvcName | Persistent Volume Claim name for the fsx | `pvc-dpn-certs-fsx` |
-| fsx.size | Capacity to allocate for the fsx | `1Gi` |
+| sharedStorage.fileSystemId | File system ID used for common DPN certificate storage (e.g., EFS) | `fs<env>dpn01<region>01` |
+| sharedStorage.secretName | Kubernetes secret name containing storage access details (if required) | `shared-storage-secret` |
+| sharedStorage.namespace | Kubernetes namespace for the shared storage | `ns-dpn-01` |
+| sharedStorage.pvName | Persistent Volume name for the shared storage | `pv-dpn-certs-storage` |
+| sharedStorageleShare.pvcName | Persistent Volume Claim name for the shared storage | `pvc-dpn-certs-storage` |
+| sharedStorage.size | Capacity to allocate for the shared storage | `1Gi` |
 
 #### Secrets Configuration
 
@@ -382,8 +386,8 @@ Root-Repository
 
 | Secret Parameter | Purpose | Example Value             |
 |------------------|---------|---------------------------|
-| `fsx-smb-secret.username` | Username for accessing FSx SMB share (AD user) used for common DPN certificate storage | `st<env>>dpn01<region>01` |
-| `fsx-smb-secret.password` | Password for the AD user used for common DPN certificate storage | `XXXXXXXXXXXXXXXX`        |
+| `shared-storage-secret.FILE_SYSTEM_ID` | File system ID (e.g., Amazon EFS) used for common DPN certificate storage | `st<env>>dpn01<region>01` |
+| `shared-storage-secret.ACCESS_CREDENTIAL` | Access credential for shared storage (only if required; typically not needed with IAM roles) | `XXXXXXXXXXXXXXXX`        |
 
 ---
 
@@ -405,7 +409,7 @@ Root-Repository
               └── values-<env>-dpn01.yaml <- Environment-specific overrides
 ```
 
-> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-test-dpn01.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [AWS Environment Configuration](#AWS-environment-configuration) section.
+> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-test-dpn01.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Environment Configuration](#environment-configuration) section.
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
@@ -420,9 +424,9 @@ DSI proposes only selective changes to the values file but provides the provisio
 | vault.uri              | Complete URL of the DPN Vault                                                | `https://vault.<namespace>.svc.cluster.local:8200`                                                |
 | vault.truststorePath   | Absolute Path of the folder under which vault truststore.jks will be mounted | `/vault`                                                                                           |
 | existingSecret.name    | Secret bundle name for the Federator Certificate Manager secrets             | `certificate-manager-secrets`                                                                     |
-| fsx.shareName    | SMB Share name for common DPN certificate storage                           | `fs<env>dpn01<region>01`                                                                          |
-| fsx.secretName   | Kubernetes secret containing FSx (AD) credentials                      | `fsx-smb-secret`                                                                          |
-| fsx.namespace    | Kubernetes namespace                                     | `ns-dpn-01`                                                                                       |
+| sharedStorage.fileSystemId    | File system identifier used for common DPN certificate storage (e.g., Amazon EFS)  | `fs<env>dpn01<region>01`                                                                          |
+| sharedStorage.secretName  | Secret bundle name for shared storage access configuration (if required)                      | `shared-storage-secret`                                                                          |
+| sharedStorage.namespace    | Kubernetes namespace for the shared storage                                     | `ns-dpn-01`                                                                                       |
 
 #### Secrets Configuration
 
@@ -442,11 +446,8 @@ Root-Repository
 | `certificate-manager-secrets.VAULT-TOKEN`               | Root token of the DPN HashiCorp Vault                                                 | `hsv.xxxxxxxxxxx`        |
 | `certificate-manager-secrets.OAUTH2-CLIENT-SECRET`      | OAuth2 client secret for the DPN's client ID received from DSI DSM                    | `xxxxxxxxxxx`            |
 | `certificate-manager-secrets.VAULT-TRUSTSTORE-PASSWORD` | DPN Hashicorp Vault Truststore password                                               | `changeit`               |
-| `fsx-secret.FSX-FILE-SYSTEM-ID` | FSx File System ID used for common DPN certificate storage | `fs<env>dpn01<region>01` |
-| `fsx-secret.FSX-DNS-NAME` | DNS name of the FSx file system for mounting | `<region>.amazonAWS.com` |
-| `fsx-secret.FSX-MOUNT-NAME` | Mount name / volume name (depends on FSx type) | `share or vol1` |
-| `fsx-secret.FSX-USERNAME` | Username for accessing FSx (for Windows/ONTAP if required) | `fsxadmin` |
-| `fsx-secret.FSX-PASSWORD` | Password for FSx access | `xxxxxxxxxxx` |
+| `shared-storage-secret.FILE_SYSTEM_ID`                  | File system identifier (e.g., Amazon EFS) used for common DPN certificate storage     | `fs<env>dpn01<region>01` |
+| `shared-storage-secret.ACCESS_CONFIGURATION`            | Access configuration for shared storage                                               | `xxxxxxxxxxx`            |
 
 Below Kubernetes secret must be created to load the Vault `truststore.jks` file under `<vault.truststorePath>`.
 
@@ -568,7 +569,7 @@ Root-Repository
                           └── values.yaml
 ```
 
-> **Note:** The `values.yaml` file can be replicated for multiple environments or DPN deployments (e.g. `values-<env>-dpn01.yaml`, `values-<env>-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [AWS Environment Configuration](#AWS-environment-configuration) section.
+> **Note:** The `values.yaml` file can be replicated for multiple environments or DPN deployments (e.g. `values-<env>-dpn01.yaml`, `values-<env>-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Environment Configuration](#environment-configuration) section.
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
@@ -576,7 +577,7 @@ DSI proposes only selective changes to the values file but provides the provisio
 > - Storage container names, Kafka topic names, and product type names must use only alphanumeric characters and hyphens (`-`). No other special characters are permitted.
 > - Organisation names must be abbreviated without spaces.
 > - Schema type must match the blueprint schema type exactly: `eq`, `eqbd`, `dl`, or `ssh`.
-> - For AWS deployments, azure connection string configuration fields should be left empty. The Data Pipeline validates cloud provider type against connection parameters and will detect any mismatch.   #Need to check, Do we need this last point?
+> - For AWS deployments, Azure configuration fields should be left empty. The Data Pipeline validates cloud provider type against connection parameters and will detect any mismatch.
 
 #### Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)
 
@@ -617,27 +618,27 @@ DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own
 
 **Producer Secrets**
 
-The producer secrets contain the storage account connection strings and SAS tokens for each stage. The connection string format is:
+The producer secrets contain the object storage connection details (e.g., S3 bucket paths or endpoints) for each stage.
 
-```text
-https://<storage-account>.blob.core.windows.net/?<sas-token>
+The storage reference format is:
+s3://<bucket-name>/<optional-path>
 ```
 
 The secret object `producer-<processType>-dp-secret` contains the following. If the same storage account is used for all stages, the same connection string value may be used for all three:
 
 | Variable | Description |
 |----------|-------------|
-| SRC_CONNECTION_STRING | Blob Storage connection string for the source storage account |
-| MAPPER_CONNECTION_STRING | Blob Storage connection string for the mapper storage account |
-| TARGET_CONNECTION_STRING | Blob Storage connection string for the target storage account |
+| SRC_CONNECTION_STRING | Object storage reference (e.g., S3 bucket or path) for the source stage |
+| MAPPER_CONNECTION_STRING | Object storage reference for the mapper stage |
+| TARGET_CONNECTION_STRING | Object storage reference for the target stage |
 
 Create the producer secret using the following command:
 
 ```bash
 kubectl create secret generic producer-file-dp-secret \
-  --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string>' | base64)" \
-  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string>' | base64)" \
-  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string>' | base64)" \
+  --from-literal=SRC_CONNECTION_STRING="$(echo -n 's3://<your-source-bucket>' | base64)" \
+  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 's3://<your-mapper-bucket>' | base64)" \
+  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 's3://<your-target-bucket>' | base64)" \
   -n <your namespace>
 ```
 
@@ -647,26 +648,26 @@ The secret object `consumer-<processType>-dp-secret` contains the following. If 
 
 | Variable | Description |
 |----------|-------------|
-| SRC_CONNECTION_STRING | Blob Storage connection string for the consumer source storage account |
-| MAPPER_CONNECTION_STRING | Blob Storage connection string for the consumer mapper storage account |
-| TARGET_CONNECTION_STRING | Blob Storage connection string for the consumer target storage account |
+| SRC_CONNECTION_STRING | Object Storage connection string for the consumer source storage account |
+| MAPPER_CONNECTION_STRING | Object Storage connection string for the consumer mapper storage account |
+| TARGET_CONNECTION_STRING | Object Storage connection string for the consumer target storage account |
 
 Create the consumer secret using the following command:
 
 ```bash
 kubectl create secret generic consumer-file-dp-secret \
-  --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string>' | base64)" \
-  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string>' | base64)" \
-  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string>' | base64)" \
+  --from-literal=SRC_CONNECTION_STRING="$(echo -n 's3://<your-source-bucket>' | base64)" \
+  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 's3://<your-source-bucket>' | base64)" \
+  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 's3://<your-source-bucket>' | base64)" \
   -n <your namespace>
 ```
 
-**AWS Secrets** #Need to check, Do we need these 2 lines below in case of AWS documentation?
+**Azure Secrets**
 
-Azure connection secrets are not required for AWS deployments. The corresponding values in `values.yaml` may be left empty. The following secret is required for AWS deployments only:
+Azure secrets are not required for AWS deployments. The corresponding values in `values.yaml` may be left empty. The following secret is required for AWS deployments only:
 
 ```bash
-kubectl create secret generic AWS-access-secret \
+kubectl create secret generic aws-access-secret \
   --from-literal=AWS_ACCESS_KEY_ID="$(echo -n '<your AWS access key ID>' | base64)" \
   --from-literal=AWS_SECRET_ACCESS_KEY="$(echo -n '<your AWS secret access key>' | base64)" \
   -n <your namespace>
@@ -742,7 +743,7 @@ Example:
 
 ```json
 {
-  "sourceType": "S3",
+  "sourceType": "AWS",
   "storageContainer": "eq-sample-1-target",
   "path": "eq-orga-sample_v1.xml"
 }
@@ -783,7 +784,7 @@ Root-Repository
               └── values-<env>-dpn01.yaml  <- Environment-specific overrides for all components
 ```
 
-> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-sit-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [AWS Environment Configuration](#AWS-environment-configuration) section.
+> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-sit-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Environment Configuration](#environment-configuration) section.
 
 > **Note:** Only a single pipeline run is required. It applies the environment-specific values file on top of `values.yaml` and deploys all components in a single Helm release named `dpn-platform`.
 
@@ -817,19 +818,19 @@ Open `values-<env>-dpn01.yaml` and update the following parameters as a minimum:
 
 **Shared Key Vault Parameters**
 
-DPN Federator uses AWS Secret Manager to store secrets for both the Federator Server and Client. Organisations may alternatively use Kubernetes secrets or another approved secret store.
+DPN Federator uses a centralised secret management solution such as AWS Secrets Manager, HashiCorp Vault, or Kubernetes secrets to store secrets for both the Federator Server and Client. Organisations may choose the appropriate secret store based on their security and compliance requirements.
 
 | Parameter | Purpose | Example Value |
 |-----------|---------|---------------|
-| secretsmanager.name | Name (or ARN) of the secret stored in AWS Secrets Manager | `dpn-<env>-<region>-<seq>` |
-| AWS.roleArn | IAM Role ARN that allows access to Secrets Manager | `arn:AWS:iam::123456789012:role/dpn-secrets-access-role` |
-| AWS.accountId | Organisation's AWS account ID | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
+| secretsManager.name | Name of the secret store where all secrets are stored | `dpn-<env>-<region>-<seq>-secrets` |
+| secretsManager.roleArn | IAM Role that allows access to the secret store (used via GitHub Actions or EKS) | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
+| secretsManager.region | AWS region where the secret store is hosted | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 
 ### Secrets Configuration {#secrets-configuration-federator-gateway}
 
-Secrets must never be written into the values file or the code repository. Organisations must store secrets securely using HashiCorp Vault, AWS Secret Manager, or another approved secret management solution, and ensure they are injected automatically when pods start up.
+Secrets must never be written into the values file or the code repository. Organisations must store secrets securely using HashiCorp Vault, AWS Secrets Manager, or another approved secret management solution, and ensure they are injected automatically when pods start up.
 
-DSI provides a reference implementation using AWS Secret Manager. The secret templates are located in the `dpn-federator-gateway` repository as follows:
+DSI provides a reference implementation using AWS Secrets Manager. The secret templates are located in the `dpn-federator-gateway` repository as follows:
 
 ```text
 dpn-federator-gateway/
@@ -841,21 +842,21 @@ dpn-federator-gateway/
                   └── federator-idp-secretproviderclass.yaml
 ```
 
-**Federator Server Secrets** (provision in: AWS Secret Manager)
+**Federator Server Secrets** (provision in: AWS Secrets Manager)
 
 | Parameter | Purpose | Example Value |
 |-----------|---------|---------------|
 | SERVER-P12-PASSWORD | Password for the server's certificate keystore, used to prove the server's identity to connecting clients | `changeit` |
 | SERVER-TRUSTSTORE-PASSWORD | Password for the server's truststore, used to verify the identity of connecting clients | `changeit` |
 
-**Federator Client Secrets** (provision in: AWS Secret Manager)
+**Federator Client Secrets** (provision in: AWS Secrets Manager)
 
 | Parameter | Purpose | Example Value |
 |-----------|---------|---------------|
 | CLIENT-P12-PASSWORD | Password for the client's certificate keystore, used to prove the client's identity when connecting to the Federator Server | `changeit` |
 | CLIENT-TRUSTSTORE-PASSWORD | Password for the client's truststore, used to verify it is connecting to the correct server | `changeit` |
 
-**Federator IDP Secrets** (provision in: AWS Secret Manager)
+**Federator IDP Secrets** (provision in: AWS Secrets Manager)
 
 | Parameter | Purpose | Example Value |
 |-----------|---------|---------------|
