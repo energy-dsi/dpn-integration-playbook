@@ -182,8 +182,7 @@ Root-Repository/
 
 | Parameter | Description | Example Value |
 |-----------|-------------|---------------|
-| AWS_SUBSCRIPTION | AWS subscription ID where the infrastructure is deployed | `<valid AWS subscription ID>` |
-| SERVICE_CONNECTION | AWS DevOps service connection name for deployment | `<valid AWS service connection name>` |
+| AWS_SUBSCRIPTION_ID | AWS subscription ID where the infrastructure is deployed | `<valid AWS subscription ID>` |
 | RESOURCE_GROUP | AWS resource group containing the EKS cluster | `rg-prd-uks-dpn-01` |
 | EKS_CLUSTER | Name of the Elastic Kubernetes Service cluster | `eks-prd-uks-dpn-01` |
 | NAMESPACE | Kubernetes namespace for container deployment | `ns-dpn-01` |
