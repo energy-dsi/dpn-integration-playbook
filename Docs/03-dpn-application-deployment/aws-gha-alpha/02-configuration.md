@@ -10,7 +10,7 @@
 - [Global / Generic Configuration](#global--generic-configuration)
   - [DSI DSM Endpoint Configuration](#dsi-dsm-endpoint-configuration)
   - [GitHub Actions Configuration](#github-actions-configuration)
-    - [Runner Setup](#runner-setup)
+    - [GitHub Actions Runner Setup](#github-actions-runner-setup)
     - [Environment Configuration](#environment-configuration)
   - [Secrets Configuration (Global)](#secrets-configuration-global)
     - [Certificate Handling Note](#certificate-handling-note)
@@ -137,8 +137,8 @@ These endpoints are publicly accessible to simplify integration and testing. Org
 
 The provided workflows require the following configuration to perform **CI and CD operations.**
 
-### 
-Runner Setup
+#### GitHub Actions Runner Setup
+
 The provided workflows are configured with the default GitHub-hosted runner: `runs-on: ubuntu-latest` for workflow execution.
 
 However, DSI recommends using **a dedicated self-hosted runner**, which provides better control over:
@@ -181,7 +181,7 @@ Root-Repository/
                 ├── dev-dpn01.json
                 ├── test-dpn01.json
                 ├── preprod-dpn01.json
-                └── prd-dpn02.json        
+                └── prd-dpn01.json        
 ```
 
 | Parameter | Description | Example Value |
@@ -189,7 +189,7 @@ Root-Repository/
 | AWS_ACCOUNT_ID | AWS account ID where the infrastructure is deployed | `<valid AWS account ID>` |
 | AWS_ROLE_ARN | IAM Role used by GitHub Actions for deployment (OIDC authentication) | `<valid IAM role ARN>` |
 | EKS_CLUSTER | Name of the Amazon EKS cluster | `reks-prd-uks-dpn-01` |
-| AWS_REGION | AWS region where resources are deployed | `aws-region` |
+| AWS_REGION | AWS region where resources are deployed | `<aws-region>` |
 | NAMESPACE | Kubernetes namespace for container deployment | `ns-dpn-01` |
 | SECRET_MANAGER_NAME | Secrets storage service (AWS Secrets Manager / Vault / Kubernetes secrets) | `dpn-prd-secrets` |
 | BASE_REGISTRY | Base registry path used by deployment images | `<image-registry-url>` |
@@ -253,11 +253,11 @@ The following firewall rules must be applied by the organisation before installi
 | Runner instance IP| Runner VPC | Runner subnet | `registry-1.docker.io/*`<br>`auth.docker.io/*`<br>`production.cloudflare.docker.com`<br>`index.docker.io/*` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | `auth-mtls.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
-| DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 50051 | Bi-directional |
+| DPN Kubernetes subnet IP range | EKS VPC | EKS subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 443 | Bi-directional |
 
 > **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `dsidev`, `dsitest`, `dsipre`, and `dsi` (production) environments.
 
-> **Note:** DPN uses HTTP/2 traffic over gRPC on port **50051**. HTTP/2 traffic requires TCP passthrough to a Layer 4 load balancer; Layer 7 load balancing is not supported for this traffic.
+> **Note:** DPN uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 load balancer; Layer 7 load balancing is not supported for this traffic.
 
 ---
 
@@ -298,13 +298,13 @@ DSI proposes only selective changes to the values file but provides the provisio
 | namespace                        | Name of the Kubernetes namespace          | `ns-dpn-01`                                        |
 | replicaCount                     | Number of replicas for the container      | `3`                                                |
 | vault.storagePath                | Path inside the persistent storage volume | `/vault/file`                                      |
-| seal.awsKms.region               | AWS region for KMS                        | `aws-region`                                       |
-| seal.awsKms.kmsKeyId             | KMS Key ID for auto-unseal                | `kms-key-id`                                       |
+| seal.awsKms.region               | AWS region for KMS                        | `<aws-region>`                                       |
+| seal.awsKms.kmsKeyId             | KMS Key ID for auto-unseal                | `<kms-key-id>`                                       |
 | seal.awsKms.accessKey            | IAM access key (or use IAM role)          | `<AWS_ACCESS_KEY_ID>`                              |
 | seal.awsKms.secretKey            | IAM secret key (or use IAM role)          | `<AWS_SECRET_ACCESS_KEY>`                          |
-| seal.awsKms.endpoint (optional)  | Custom endpoint (if needed)               | `kms.aws-region.amazonaws.com`                     |
+| seal.awsKms.endpoint (optional)  | Custom endpoint (if needed)               | `<kms.aws-region.amazonaws.com>`                     |
 | tls.awsSecretsManager.secretName | TLS cert stored in Secrets Manager        | `vault-tls-cert`                                   |
-| tls.awsSecretsManager.region     | Region of Secrets Manager                 | `aws-region`                                       |
+| tls.awsSecretsManager.region     | Region of Secrets Manager                 | `<aws-region>`                                       |
 | tls.awsSecretsManager.accessKey  | IAM access key (or use IAM role)          | `<AWS_ACCESS_KEY_ID>`                              |
 | tls.awsSecretsManager.secretKey  | IAM secret key (or use IAM role)          | `<AWS_SECRET_ACCESS_KEY>`                          |
 
@@ -767,7 +767,7 @@ The gateway does not operate in isolation. It depends on a set of supporting ser
 | Kafka Target | Message queue where incoming data from other DPNs is delivered. The Federator Client writes received data here. |
 | Kafka UI | Web dashboard to monitor and inspect messages in both Kafka clusters. Useful during testing. |
 | Redis | Fast in-memory store used by both the Federator Server and Client for caching and tracking data offsets. |
-| Federator Server | Listens on port 50051 for incoming data connections from other DPN nodes; reads from Kafka Source. |
+| Federator Server | Listens on port 443 for incoming data connections from other DPN nodes; reads from Kafka Source. |
 | Federator Client | Connects outward to a remote Federator Server; writes received data into Kafka Target. |
 
 All components are deployed together in a single pipeline run using one Helm release (`dpn-platform`).

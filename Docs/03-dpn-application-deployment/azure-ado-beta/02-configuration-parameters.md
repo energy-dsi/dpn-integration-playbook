@@ -251,11 +251,11 @@ The following firewall rules must be applied by the organisation before installi
 | Node pool agent VM IP | Node Pool VM VNET | Node Pool VM subnet | `registry-1.docker.io/*`<br>`auth.docker.io/*`<br>`production.cloudflare.docker.com`<br>`index.docker.io/*` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | `auth-mtls.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
-| DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 50051 | Bi-directional |
+| DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 443 | Bi-directional |
 
 > **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `dsidev`, `dsitest`, `dsipre`, and `dsi` (production) environments.
 
-> **Note:** DPN uses HTTP/2 traffic over gRPC on port **50051**. HTTP/2 traffic requires TCP passthrough to a Layer 4 load balancer; Layer 7 load balancing is not supported for this traffic.
+> **Note:** DPN uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 load balancer; Layer 7 load balancing is not supported for this traffic.
 
 ---
 
@@ -762,7 +762,7 @@ The gateway does not operate in isolation. It depends on a set of supporting ser
 | Kafka Target | Message queue where incoming data from other DPNs is delivered. The Federator Client writes received data here. |
 | Kafka UI | Web dashboard to monitor and inspect messages in both Kafka clusters. Useful during testing. |
 | Redis | Fast in-memory store used by both the Federator Server and Client for caching and tracking data offsets. |
-| Federator Server | Listens on port 50051 for incoming data connections from other DPN nodes; reads from Kafka Source. |
+| Federator Server | Listens on port 443 for incoming data connections from other DPN nodes; reads from Kafka Source. |
 | Federator Client | Connects outward to a remote Federator Server; writes received data into Kafka Target. |
 
 All components are deployed together in a single pipeline run using one Helm release (`dpn-platform`).
