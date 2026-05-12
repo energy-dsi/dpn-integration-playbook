@@ -273,6 +273,130 @@ HashiCorp Vault is used in the DPN to store the Intermediate CA, CA Chain, and K
 
 DSI provides a community edition of the HashiCorp Vault container as part of the DSI package. Organisations may choose to substitute an enterprise edition based on their licensing strategy.
 
+#### HTTPS Configuration
+
+- Create a Root CA (once)
+
+Create a CA directory:
+```bash
+mkdir -p ca
+cd ca
+```
+Generate Root CA private key
+```bash
+openssl genrsa -out rootCA.key 4096
+```
+Generate Root CA certificate
+```bash
+openssl req -x509 -new -nodes -key rootCA.key \
+  -sha256 -days 3650 \
+  -out rootCA.crt \
+  -subj "<Your Subject>"
+```
+✅ You now have:
+
+rootCA.key
+rootCA.crt
+
+
+- Create a Vault private key
+  From your project root:
+```bash
+mkdir -p certs
+openssl genrsa -out certs/vault.key 4096
+```
+
+- Create a CSR (Certificate Signing Request) for Vault
+  Browsers, Vault, and modern TLS require SANs.
+  Create a config file:
+  **certs/vault-openssl.cnf**
+```text
+[ req ]
+default_bits       = 4096
+prompt             = no
+default_md         = sha256
+req_extensions     = req_ext
+distinguished_name = dn
+
+[ dn ]
+C  = <Your Country>
+O  = <Your Org>
+CN = <Your CN>
+
+[ req_ext ]
+subjectAltName = @alt_names
+
+[ alt_names ]
+DNS.1 = vault
+DNS.2 = localhost
+DNS.3 = <Other SANs>
+IP.1  = 127.0.0.1
+```
+
+Generate the CSR:
+```bash
+openssl req -new \
+  -key certs/vault.key \
+  -out certs/vault.csr \
+  -config certs/vault-openssl.cnf
+```
+
+- Sign the CSR using the Root CA
+From the ca/ directory:
+```bash
+openssl x509 -req \
+  -in ../certs/vault.csr \
+  -CA rootCA.crt \
+  -CAkey rootCA.key \
+  -CAcreateserial \
+  -out ../certs/vault.crt \
+  -days 825 \
+  -sha256 \
+  -extensions req_ext \
+  -extfile ../certs/vault-openssl.cnf
+```
+✅ Output:
+
+certs/vault.crt → signed by Root CA
+certs/vault.key → private key
+ca/rootCA.crt → CA trust anchor
+
+- Configure Vault to use the signed cert
+**vault.hcl**
+```text
+  listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_disable   = 0
+  tls_cert_file = "/vault/certs/vault.crt"
+  tls_key_file  = "/vault/certs/vault.key"
+  }
+
+api_addr     = "https://localhost:8200"
+cluster_addr = "https://localhost:8201"
+ui           = true
+
+storage "file" {
+path = "/vault/file"
+}
+```
+Ensure Docker mounts certs:
+```yaml
+- ./certs:/vault/certs:ro
+```
+
+- Test Vault from the https endpoint
+  ✅ Curl test
+```bash
+curl --cacert ca/rootCA.crt https://localhost:8200/v1/sys/health
+```
+
+- Configure clients to trust the Root CA
+  **Create a Java truststore using keytool** (PKCS12 format):
+    ```bash
+    keytool -import -trustcacerts -noprompt -alias ca -ext san=dns:localhost,ip:127.0.0.1 -file ca/rootCA.crt -keystore truststore.jks -storetype PKCS12
+    ```
+
+
 #### Helm Configuration
 
 The `dpn-federator-certificate-manager` repository includes a Helm chart values file for customising the HashiCorp Vault deployment. The values files are located as follows:
@@ -444,7 +568,7 @@ Root-Repository
 | `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME`     | Storage account name for the Azure File Share used for common DPN certificate storage | `fs<env>dpn01<region>01` |
 | `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY`      | Storage account key for the Azure File Share used for common DPN certificate storage  | `xxxxxxxxxxx`            |
 
-Below Kubernetes secret must be created to load the Vault `truststore.jks` file under `<vault.truststorePath>`.
+Below Kubernetes secret must be created to load the Vault `truststore.jks` file created using steps [here](#https-configuration) under path `<vault.truststorePath>`.
 
 | Secret Parameter       | Purpose                                                     | Example Value |
 |------------------------|-------------------------------------------------------------|---------------|
