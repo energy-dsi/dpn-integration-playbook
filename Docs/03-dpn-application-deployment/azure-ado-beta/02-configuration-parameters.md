@@ -37,7 +37,7 @@
 
 Data Preparation Node (DPN) consists of the following components in the DSI package:
 
-![DPN Components](/Docs/04-dpn-architecture/images/dpn_components.png)
+![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_components.png)
 
 - **DPN Security Service**
   - Vault Service — Certificate regeneration for DSM communication and storage.
