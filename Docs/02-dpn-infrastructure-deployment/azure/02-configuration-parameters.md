@@ -2,6 +2,30 @@
 
 This section defines the configuration parameters used during infrastructure deployment.
 
+## Table of Contents
+
+- [02 - Configuration Parameters](#02---configuration-parameters)
+  - [Purpose](#purpose)
+  - [1. Core Environment Parameters](#1-core-environment-parameters)
+  - [2. Subnet Parameters](#2-subnet-parameters)
+  - [3. Key Vault Parameters](#3-key-vault-parameters)
+  - [4. ACR Parameters](#4-acr-parameters)
+  - [5. AKS Parameters](#5-aks-parameters)
+  - [6. Storage Parameters](#6-storage-parameters)
+    - [6.1 Application Storage Account](#61-application-storage-account)
+    - [6.2 State Storage Account (Terraform Backend)](#62-state-storage-account-terraform-backend)
+  - [7. Backend Configuration Template](#7-backend-configuration-template)
+  - [8. VM Parameters](#8-vm-parameters)
+  - [9. Environment tfvars File (Required)](#9-environment-tfvars-file-required)
+  - [10. Azure DevOps Configuration for Infrastructure Deployment](#10-azure-devops-configuration-for-infrastructure-deployment)
+    - [Service Connection Setup](#service-connection-setup)
+    - [Service Principal Configuration (Template)](#service-principal-configuration-template)
+    - [Self-Hosted Agent Pool Configuration](#self-hosted-agent-pool-configuration)
+    - [Repository Structure for Infrastructure](#repository-structure-for-infrastructure)
+    - [Variable Group and Key Vault Usage](#variable-group-and-key-vault-usage)
+    - [Deployment Connectivity Flow](#deployment-connectivity-flow)
+  - [11. Validation Checklist Before Apply](#11-validation-checklist-before-apply)
+
 ## Purpose
 
 This document consolidates common Terraform variable patterns used during deployment.
@@ -426,7 +450,7 @@ Recommended least-privilege roles:
 - **Contributor** at deployment scope
 - **User Access Administrator** only if Terraform creates role assignments
 - **Storage Blob Data Owner** on the backend state storage account used by Terraform
-- **Reader** on connectivity/dns subscription when private DNS lives centrally, based on the organization network architecture
+- **Reader** on connectivity/dns subscription when private DNS lives centrally, based on the organisation network architecture
 
 **Create Service Connection:**
 
@@ -448,7 +472,7 @@ Configure a self-hosted agent pool in Azure DevOps for infrastructure deployment
 ```bash
 az devops admin pipelines pool create \
   --name "dpn-infrastructure-agents-<env>" \
-  --organization "https://dev.azure.com/<organization>" \
+  --organisation "https://dev.azure.com/<organisation>" \
   --project "<project-name>"
 ```
 
@@ -465,7 +489,7 @@ The self-hosted agent VM (provisioned during infrastructure deployment) must hav
 
 ### Repository Structure for Infrastructure
 
-Use a clear and discoverable common structure for pipeline organization.
+Use a clear and discoverable common structure for pipeline organisation.
 The example below is a common pattern based on the current repository layout.
 
 Reference repository:

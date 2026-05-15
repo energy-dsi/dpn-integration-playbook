@@ -8,23 +8,31 @@
 - [Uninstallation Scope](#uninstallation-scope)
 - [Uninstallation Approach](#uninstallation-approach)
 - [Pre-Uninstallation Checklist](#pre-uninstallation-checklist)
+
 - [Part 1 — Uninstall DPN Data Pipeline](#part-1--uninstall-dpn-data-pipeline)
   - [Step 1 — Prepare Data Pipeline Uninstall CD Pipeline](#step-1--prepare-data-pipeline-uninstall-cd-pipeline)
+    - [How to Create the Workflow in GitHub Actions](#how-to-create-the-workflow-in-github-actions)
   - [Step 2 — Execute Data Pipeline Uninstall CD Pipeline](#step-2--execute-data-pipeline-uninstall-cd-pipeline)
   - [Step 3 — Verify Data Pipeline Removal](#step-3--verify-data-pipeline-removal)
+
 - [Part 2 — Uninstall DPN Federator Certificate Manager](#part-2--uninstall-dpn-federator-certificate-manager)
   - [Step 1 — Prepare Certificate Manager Uninstall CD Pipeline](#step-1--prepare-certificate-manager-uninstall-cd-pipeline)
+    - [How to Create the Workflow in GitHub Actions](#how-to-create-the-workflow-in-github-actions-1)
   - [Step 2 — Execute Certificate Manager Uninstall CD Pipeline](#step-2--execute-certificate-manager-uninstall-cd-pipeline)
   - [Step 3 — Verify Certificate Manager Removal](#step-3--verify-certificate-manager-removal)
+
 - [Part 3 — Uninstall DPN Federator Gateway](#part-3--uninstall-dpn-federator-gateway)
   - [Step 1 — Prepare Federator Gateway Uninstall CD Pipeline](#step-1--prepare-federator-gateway-uninstall-cd-pipeline)
+    - [How to Create the Workflow in GitHub Actions](#how-to-create-the-workflow-in-github-actions-2)
   - [Step 2 — Execute Federator Gateway Uninstall CD Pipeline](#step-2--execute-federator-gateway-uninstall-cd-pipeline)
   - [Step 3 — Verify Federator Gateway Removal](#step-3--verify-federator-gateway-removal)
+
 - [Part 4 — Post-Uninstallation Cleanup](#part-4--post-uninstallation-cleanup)
-  - [Remove Container Images from Container Registry](#remove-container-images-from-cr)
+  - [Remove Container Images from Container Registry](#remove-container-images-from-container-registry)
   - [Remove Kafka Topics](#remove-kafka-topics)
   - [Remove Secrets and Certificates](#remove-secrets-and-certificates)
   - [Remove AWS DevOps Pipelines](#remove-aws-devops-pipelines)
+
 - [Final Verification](#final-verification)
 - [Review Notes](#review-notes)
 

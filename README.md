@@ -11,7 +11,9 @@
 
 This repository provides the documentation required for organisations to **install, configure, deploy, and operate a Data Platform Node (DPN)** within their own infrastructure environment.
 
-The documentation describes how to deploy the **DPN Federator** and **DPN Data Pipeline** components using **Azure DevOps CI/CD pipelines** and **Azure Kubernetes Service (AKS)**.
+The documentation describes how to deploy the **DPN Federator** and **DPN Data Pipeline** components using **Azure DevOps CI/CD pipelines** and **Azure Kubernetes Service (AKS)** with reference implementation. 
+
+It also provides prescriptive guidance on using Github Actions based pipeline on AWS platform following the same configuration, installation, uninstallation and rollback strategies of ADO based deployment.
 
 The objective of this repository is to provide organisations with a **clear and structured implementation guide** to deploy a DPN node that can securely exchange data with the **Data Sharing Infrastructure (DSI)** and other participating organisations.
 
@@ -61,7 +63,9 @@ Follow the documentation sections below to deploy and operate a DPN node.
 Ensure the organisation satisfies the required infrastructure, security, and access prerequisites.
 
 ```
-Docs/01-prerequisites/
+Docs/02-dpn-infrastructure-deployment/01-prerequisites/
+Docs/03-dpn-application-deployment/aws-gha-alpha/01-prerequisites/
+Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
 ```
 
 Topics covered include:
@@ -80,7 +84,9 @@ Topics covered include:
 Understand the configuration required before running deployment pipelines.
 
 ```
-Docs/02-deployment-configuration/
+Docs/02-dpn-infrastructure-deployment/02-configuration/
+Docs/03-dpn-application-deployment/aws-gha-alpha/02-configuration/
+Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/
 ```
 
 Topics covered include:
@@ -98,7 +104,9 @@ Topics covered include:
 Follow the installation guide to deploy the platform.
 
 ```
-Docs/03-dpn-application-deployment/
+Docs/02-dpn-infrastructure-deployment/03-installation-process/
+Docs/03-dpn-application-deployment/aws-gha-alpha/03-installation-process/
+Docs/03-dpn-application-deployment/azure-ado-beta/03-installation-process/
 ```
 
 The installation process includes:
@@ -129,25 +137,40 @@ The repository is organised into structured documentation sections that guide or
 ```
 Docs/
 │
-├── 01-prerequisites
-│   └── prerequisites.md
+├── 01-introduction-scope
+│   ├── 01-introduction.md
+│   ├── 02-purpose-of-document.md
+│   └── 03-intended-audience.md
 │
-├── 02-deployment-configuration
-│   └── deployment-configuration-guide.md
+├── 02-dpn-infrastructure-deployment
+│   └── azure
+│       ├── 01-prerequisites.md
+│       ├── 02-configuration-parameters.md
+│       ├── 03-installation-process.md
+│       ├── 04-rollback-procedures.md
+│       ├── 05-uninstall-decommissioning.md
+│       └── README.md
 │
 ├── 03-dpn-application-deployment
-│   └── azure
-│       └── installation-process.md
+│   ├── aws-gha-alpha
+│   │   ├── 01-prerequisites.md
+│   │   ├── 02-configuration.md
+│   │   ├── 03-installation-process.md
+│   │   ├── 04-rollback-procedures.md
+│   │   └── 05-uninstall-decommissioning.md
+│   │
+│   └── azure-ado-beta
+│       ├── 01-prerequisites.md
+│       ├── 02-configuration-parameters.md
+│       ├── 03-installation-process.md
+│       ├── 04-rollback-procedures.md
+│       └── 05-uninstall-decommissioning.md
 │
 ├── 04-dpn-architecture
-│   └── images
-│       └── integration_architecture.png
 │
-├── 05-rollback
-│   └── rollback-guide.md
+├── CHANGELOG.md
 │
-├── 06-uninstallation
-│   └── uninstallation-guide.md
+└── README.md
 ```
 
 ---
@@ -227,63 +250,6 @@ Code provided by DSI is security scanned using tools including:
 
 ---
 
-# Public Funding Acknowledgment
-
-This repository has been developed with public funding as part of the **National Energy System Operator (NESO)** Data Sharing Infrastructure initiative.
-
-The initiative aims to promote **secure, federated, and interoperable data-sharing across organisations** within the energy sector.
-
----
-
-# License
-
-This repository contains documentation licensed under the **Open Government Licence v3.0**.
-
-By contributing to this repository, you agree that your contributions will be licensed under these terms.
-
-Refer to:
-
-```
-OGL_LICENSE.md
-NOTICE.md
-```
-
----
-
-# Security and Responsible Disclosure
-
-We take security seriously. If you believe you have identified a security vulnerability in this repository, please follow the responsible disclosure process defined in:
-
-```
-SECURITY.md
-```
-
----
-
-# Contributing
-
-We welcome contributions that improve documentation clarity, deployment guidance, or operational procedures.
-
-Before submitting a pull request, please review the contributing guidelines:
-
-```
-CONTRIBUTING.md
-```
-
----
-
-# Acknowledgements
-
-This documentation has been developed with collaboration from organisations participating in the **DSI Data Sharing Infrastructure ecosystem**.
-
-Refer to:
-
-```
-ACKNOWLEDGEMENTS.md
-```
-
----
-
 # Support and Contact
 
 For questions, feedback, or support requests:
@@ -292,7 +258,7 @@ For questions, feedback, or support requests:
 - Contact the DSI team in the email provided below
 
 ```
-**TBD**
+**dsi@neso.energy**
 ```
 
 ---

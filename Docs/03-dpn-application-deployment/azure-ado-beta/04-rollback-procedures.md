@@ -5,26 +5,32 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Rollback Strategy](#rollback-strategy)
-- [Rollback Scenarios](#rollback-scenarios)
-- [Part 1 — DPN Federator Gateway Rollback](#part-1--dpn-federator-gateway-rollback)
-  - [Rollback During CI Pipeline Failure](#rollback-during-ci-pipeline-failure)
-  - [Rollback During CD Pipeline Failure](#rollback-during-cd-pipeline-failure)
-  - [Helm Release Rollback](#helm-release-rollback)
-  - [Container Image Rollback](#container-image-rollback)
-  - [Rollback Kafka Topics](#rollback-kafka-topics)
-- [Part 2 — DPN Federator Certificate Manager Rollback](#part-2--dpn-federator-certificate-manager-rollback)
-  - [Rollback During Certificate Manager CI Pipeline Failure](#rollback-during-certificate-manager-ci-pipeline-failure)
-  - [Rollback During Certificate Manager CD Pipeline Failure](#rollback-during-certificate-manager-cd-pipeline-failure)
-  - [Vault Certificate Bundle Rollback](#vault-certificate-bundle-rollback)
-  - [P12 Keystore Recovery](#p12-keystore-recovery)
-  - [Certificate Renewal Job Recovery](#certificate-renewal-job-recovery)
-- [Part 3 — DPN Data Pipeline Rollback](#part-3--dpn-data-pipeline-rollback)
-  - [Rollback Data Pipeline Containers](#rollback-data-pipeline-containers)
-  - [Rollback Kafka Topics for Data Pipelines](#rollback-kafka-topics-for-data-pipelines)
-  - [Rollback Storage Processing Jobs](#rollback-storage-processing-jobs)
-- [Post-Rollback Verification](#post-rollback-verification)
-- [Disaster Recovery Considerations](#disaster-recovery-considerations)
+- [Uninstallation Scope](#uninstallation-scope)
+- [Uninstallation Approach](#uninstallation-approach)
+- [Pre-Uninstallation Checklist](#pre-uninstallation-checklist)
+
+- [Part 1 — Uninstall DPN Data Pipeline](#part-1--uninstall-dpn-data-pipeline)
+  - [Step 1 — Prepare Data Pipeline Uninstall CD Pipeline](#step-1--prepare-data-pipeline-uninstall-cd-pipeline)
+  - [Step 2 — Execute Data Pipeline Uninstall CD Pipeline](#step-2--execute-data-pipeline-uninstall-cd-pipeline)
+  - [Step 3 — Verify Data Pipeline Removal](#step-3--verify-data-pipeline-removal)
+
+- [Part 2 — Uninstall DPN Federator Certificate Manager](#part-2--uninstall-dpn-federator-certificate-manager)
+  - [Step 1 — Prepare Certificate Manager Uninstall CD Pipeline](#step-1--prepare-certificate-manager-uninstall-cd-pipeline)
+  - [Step 2 — Execute Certificate Manager Uninstall CD Pipeline](#step-2--execute-certificate-manager-uninstall-cd-pipeline)
+  - [Step 3 — Verify Certificate Manager Removal](#step-3--verify-certificate-manager-removal)
+
+- [Part 3 — Uninstall DPN Federator Gateway](#part-3--uninstall-dpn-federator-gateway)
+  - [Step 1 — Prepare Federator Gateway Uninstall CD Pipeline](#step-1--prepare-federator-gateway-uninstall-cd-pipeline)
+  - [Step 2 — Execute Federator Gateway Uninstall CD Pipeline](#step-2--execute-federator-gateway-uninstall-cd-pipeline)
+  - [Step 3 — Verify Federator Gateway Removal](#step-3--verify-federator-gateway-removal)
+
+- [Part 4 — Post-Uninstallation Cleanup](#part-4--post-uninstallation-cleanup)
+  - [Remove Container Images from ACR](#remove-container-images-from-acr)
+  - [Remove Kafka Topics](#remove-kafka-topics)
+  - [Remove Secrets and Certificates](#remove-secrets-and-certificates)
+  - [Remove Azure DevOps Pipelines](#remove-azure-devops-pipelines)
+
+- [Final Verification](#final-verification)
 - [Review Notes](#review-notes)
 
 ---

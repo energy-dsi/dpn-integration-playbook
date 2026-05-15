@@ -12,8 +12,9 @@
 - [Accessibility Prerequisites](#accessibility-prerequisites)
   - [Access Requirements](#access-requirements)
     - [GitHub Access](#github-access)
-    - [AWS IAM Role](#aws-iam-role)
-    - [ EKS Access](#eks-access)
+    - [IAM Role](#iam-role)
+    - [AWS IAM Role (GitHub Actions Integration)](#aws-iam-role-github-actions-integration)
+    - [EKS Access](#eks-access)
     - [Data Pipeline Access](#data-pipeline-access)
 - [Security Prerequisites](#security-prerequisites)
 - [Network Prerequisites](#network-prerequisites)
@@ -233,8 +234,8 @@ DSI recommends the following skill sets to ensure smooth installation and operat
 
 The prerequisites described in this document assume the following:
 
-- The organization plans to deploy DPN on AWS cloud infrastructure
-- The organization will use GitHub Actions for Continuous Integration and Continuous Deployment (CI/CD) into the AWS environment
+- The organisation plans to deploy DPN on AWS cloud infrastructure
+- The organisation will use GitHub Actions for Continuous Integration and Continuous Deployment (CI/CD) into the AWS environment
 
 ---
 
