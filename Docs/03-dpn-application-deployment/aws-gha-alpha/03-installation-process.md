@@ -6,15 +6,31 @@
 
 - [Overview](#overview)
 - [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
+
 - [Installation Prerequisites](#installation-prerequisites)
   - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
   - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
   - [3. Certificate Preparation and CSR Generation](#3-certificate-preparation-and-csr-generation)
+    - [Step-by-Step Certificate Generation](#step-by-step-certificate-generation)
+    - [Certificate Files Received in DPN Package from DSI](#certificate-files-received-in-dpn-package-from-dsi)
   - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
+
 - [Installation Steps](#installation-steps)
+
   - [Part 1 — Hashicorp Vault Deployment](#part-1--hashicorp-vault-deployment)
+    - [Step 1 — Prepare HashiCorp Vault CD Pipeline](#step-1--prepare-hashicorp-vault-cd-pipeline)
+    - [Step 2 — Execute HashiCorp Vault CD Pipeline](#step-2--execute-hashicorp-vault-cd-pipeline)
+    - [Step 3 — Verify HashiCorp Vault CD Pipeline](#step-3--verify-hashicorp-vault-cd-pipeline)
     - [Hashicorp Vault Configuration](#hashicorp-vault-configuration)
+      - [Step 1 — Verify the HashiCorp Vault Container is Running](#step-1--verify-the-hashicorp-vault-container-is-running)
+      - [Step 2 — Initialise the Vault and Generate Unseal Keys and Root Token](#step-2--initialise-the-vault-and-generate-unseal-keys-and-root-token)
+      - [Step 3 — Unseal the Vault](#step-3--unseal-the-vault)
+      - [Step 4 — Enable the Vault KV v2 Engine](#step-4--enable-the-vault-kv-v2-engine)
     - [Certificate Load Steps in Vault](#certificate-load-steps-in-vault)
+      - [Step 1 — Load the Key Pair to Vault](#step-1--load-the-key-pair-to-vault)
+      - [Step 2 — Load the CA Chain to Vault](#step-2--load-the-ca-chain-to-vault)
+      - [Step 3 — Load the Certificate to Vault](#step-3--load-the-certificate-to-vault)
+
   - [Part 2 — DPN Certificate Life Cycle Manager Installation](#part-2--dpn-certificate-life-cycle-manager-installation)
     - [Step 1 — Prepare Federator Certificate Manager CI Pipeline](#step-1--prepare-federator-certificate-manager-ci-pipeline)
     - [Step 2 — Execute Federator Certificate Manager CI Pipeline](#step-2--execute-federator-certificate-manager-ci-pipeline)
@@ -22,6 +38,7 @@
     - [Step 4 — Prepare Federator Certificate Manager CD Pipeline](#step-4--prepare-federator-certificate-manager-cd-pipeline)
     - [Step 5 — Execute Federator Certificate Manager CD Pipeline](#step-5--execute-federator-certificate-manager-cd-pipeline)
     - [Step 6 — Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline)
+
   - [Part 3 — DPN Data Pipeline Installation](#part-3--dpn-data-pipeline-installation)
     - [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline)
     - [Step 2 — Execute Data Pipeline CI Pipeline](#step-2--execute-data-pipeline-ci-pipeline)
@@ -29,16 +46,36 @@
     - [Step 4 — Configure Data Pipeline CD Pipeline](#step-4--configure-data-pipeline-cd-pipeline)
     - [Step 5 — Execute Data Pipeline CD Pipeline](#step-5--execute-data-pipeline-cd-pipeline)
     - [Step 6 — Verify Data Pipeline CD Pipeline](#step-6--verify-data-pipeline-cd-pipeline)
+
   - [Part 4 — DPN Federator Gateway Installation](#part-4--dpn-federator-gateway-installation)
     - [Pipeline Variable Groups](#pipeline-variable-groups)
+      - [Variable Group: `dockerhub-creds`](#variable-group-dockerhub-creds)
+      - [Variable Group: `federator-ci`](#variable-group-federator-ci)
     - [Step 1 — Configure Maven Settings](#step-1--configure-maven-settings)
     - [Step 2 — Configure Federator CI Pipeline](#step-2--configure-federator-ci-pipeline)
+      - [How to Create the Workflow in GitHub Actions](#how-to-create-the-workflow-in-github-actions)
+      - [CI Pipeline Parameters](#ci-pipeline-parameters)
     - [Step 3 — Execute Federator CI Pipeline](#step-3--execute-federator-ci-pipeline)
     - [Step 4 — Configure Federator CD Pipeline](#step-4--configure-federator-cd-pipeline)
+      - [CD Pipeline Parameters](#cd-pipeline-parameters)
+      - [Environment Configuration Files](#environment-configuration-files)
     - [Step 5 — Execute Federator CD Pipeline](#step-5--execute-federator-cd-pipeline)
     - [Post Deployment Verification](#post-deployment-verification)
     - [Kafka UI Verification](#kafka-ui-verification)
+
 - [Troubleshooting](#troubleshooting)
+  - [CI Pipeline Failure](#ci-pipeline-failure)
+  - [Container Image Not Found](#container-image-not-found)
+  - [Pods Not Starting](#pods-not-starting)
+  - [Container CrashLoopBackOff](#container-crashloopbackoff)
+  - [Kafka Topic Issues](#kafka-topic-issues)
+  - [Certificate Renewal Job Failing](#certificate-renewal-job-failing)
+  - [Emergency certificate rotation process](#emergency-certificate-rotation-process)
+  - [Certificate Sync Job Failing](#certificate-sync-job-failing)
+  - [Federator Connection Failing](#federator-connection-failing)
+  - [Invalid Client Credential](#invalid-client-credential)
+
+- [Review Notes](#review-notes)
 
 ---
 

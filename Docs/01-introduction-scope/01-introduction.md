@@ -1,6 +1,6 @@
 # Introduction
 
-The **Data Platform Node (DPN)** enables organisations to securely exchange data following **Data Sharing Infrastructure (DSI)** ecosystem standars with other Organizations participating in the Data Sharing process.
+The **Data Platform Node (DPN)** enables organisations to securely exchange data following **Data Sharing Infrastructure (DSI)** ecosystem standars with other organisations participating in the Data Sharing process.
 
 A DPN node is deployed within an organisation’s own infrastructure and provides the capability to publish, receive, and process data in a **federated data-sharing architecture**.
 

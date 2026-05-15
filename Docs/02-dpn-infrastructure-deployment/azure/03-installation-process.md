@@ -2,6 +2,58 @@
 
 This section describes the end-to-end infrastructure installation process.
 
+## Table of Contents
+
+- [03 - Installation Process](#03---installation-process)
+  - [Purpose](#purpose)
+
+- [Phase 0: Preflight (Required)](#phase-0-preflight-required)
+  - [Current ADO Pipeline Stage Sequence (Authoritative)](#current-ado-pipeline-stage-sequence-authoritative)
+  - [Step 0.1 Set Deployment Variables](#step-01-set-deployment-variables)
+    - [How to Create the Library Variable Group](#how-to-create-the-library-variable-group)
+    - [A. Azure Subscription & Environment](#a-azure-subscription--environment)
+    - [B. Agent Pool & Service Connection](#b-agent-pool--service-connection)
+    - [C. Terraform Backend State Storage](#c-terraform-backend-state-storage)
+    - [D. Virtual Network](#d-virtual-network)
+    - [E. Private DNS](#e-private-dns)
+    - [F. Pipeline YAML-Defined Variables](#f-pipeline-yaml-defined-variables)
+  - [Step 0.2 Authenticate and Select Subscription](#step-02-authenticate-and-select-subscription)
+  - [Step 0.3 Validate Tooling and Required Files](#step-03-validate-tooling-and-required-files)
+
+- [Phase 1: Bootstrap Infrastructure](#phase-1-bootstrap-infrastructure)
+  - [Step 1.0 Use the Bootstrap Pipeline](#step-10-use-the-bootstrap-pipeline)
+  - [Step 1.1 Check Bootstrap State](#step-11-check-bootstrap-state)
+  - [Step 1.2 Deploy Bootstrap via Subscription-Scope Bicep](#step-12-deploy-bootstrap-via-subscription-scope-bicep)
+  - [Step 1.4 Validate Backend Storage Redundancy](#step-14-validate-backend-storage-redundancy)
+
+- [Phase 2: Initialize and Plan](#phase-2-initialize-and-plan)
+  - [Step 2.1 Prepare Environment tfvars](#step-21-prepare-environment-tfvars)
+  - [Step 2.2 Initialize Terraform](#step-22-initialize-terraform)
+  - [Step 2.3 Plan Infrastructure](#step-23-plan-infrastructure)
+
+- [Phase 3: Validate Core Services](#phase-3-validate-core-services)
+  - [Step 3.1 Validate Security and Monitoring Components](#step-31-validate-security-and-monitoring-components)
+
+- [Phase 4: Compute Platform](#phase-4-compute-platform)
+  - [Step 4.1 Validate Compute Components](#step-41-validate-compute-components)
+  - [Step 4.2 VM Validation](#step-42-vm-validation)
+
+- [Phase 5: Storage Services](#phase-5-storage-services)
+  - [Step 5.1 Deploy Storage Accounts](#step-51-deploy-storage-accounts)
+  - [Step 5.2 Deploy Azure File Share](#step-52-deploy-azure-file-share)
+
+- [Phase 6: Validation and Testing](#phase-6-validation-and-testing)
+  - [Step 6.1 Complete Remaining Deployments](#step-61-complete-remaining-deployments)
+  - [Step 6.2 Infrastructure Validation](#step-62-infrastructure-validation)
+
+- [Post-Deployment Configuration](#post-deployment-configuration)
+  - [10.1 Configure Monitoring](#101-configure-monitoring)
+  - [10.2 Configure Alerts](#102-configure-alerts)
+  - [10.3 Configure Backup](#103-configure-backup)
+  - [10.4 Document Deployment](#104-document-deployment)
+  - [10.5 Prepare for Application Deployment](#105-prepare-for-application-deployment)
+  - [10.6 Pipeline Execution and Connectivity Validation](#106-pipeline-execution-and-connectivity-validation)
+
 ## Purpose
 
 This document contains the deployment sequence for the DPN participant environment.
@@ -355,7 +407,7 @@ Expected output examples:
 
 ```text
 Backend state storage: Standard_RAGRS
-Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organization policy)
+Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organisation policy)
 ```
 
 ### Step 5.2 Deploy Azure File Share
@@ -423,7 +475,7 @@ az keyvault secret list --vault-name "<keyvault-name>"
 
 Use the following post-deployment steps to complete operational setup.
 These actions are not part of the current base infrastructure deployment pipeline.
-Use them only through a separate operations pipeline or controlled runbook if your organization requires them.
+Use them only through a separate operations pipeline or controlled runbook if your organisation requires them.
 
 ### 10.1 Configure Monitoring
 

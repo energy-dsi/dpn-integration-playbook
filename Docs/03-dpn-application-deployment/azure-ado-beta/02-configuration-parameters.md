@@ -7,28 +7,55 @@
 - [Overview](#overview)
   - [Continuous Integration (CI)](#continuous-integration-ci)
   - [Continuous Deployment (CD)](#continuous-deployment-cd)
+
 - [Global / Generic Configuration](#global--generic-configuration)
   - [DSI DSM Endpoint Configuration](#dsi-dsm-endpoint-configuration)
   - [Azure DevOps Configuration](#azure-devops-configuration)
     - [Node Pool Set Up](#node-pool-set-up)
+      - [Existing Configuration](#existing-configuration)
+      - [Updated Configuration](#updated-configuration)
     - [Azure Environment Configuration](#azure-environment-configuration)
   - [Secrets Configuration (Global)](#secrets-configuration-global)
     - [Certificate Handling Note](#certificate-handling-note)
   - [Network and Ports Configuration](#network-and-ports-configuration)
+
 - [Component-Specific Configuration](#component-specific-configuration)
+
   - [DPN Security Services](#dpn-security-services)
     - [HashiCorp Vault Configuration](#hashicorp-vault-configuration)
+      - [HTTPS Configuration](#https-configuration)
+      - [Vault Helm Configuration For Certificate Manager](#vault-helm-configuration-for-certificate-manager)
+      - [Vault Secrets Configuration](#vault-secrets-configuration)
+
     - [Shared Storage Service Configuration](#shared-storage-service-configuration)
+      - [Certificate P12 Storage as File Share](#certificate-p12-storage-as-file-share)
+      - [Helm Configuration](#helm-configuration)
+      - [Secrets Configuration](#secrets-configuration)
+
     - [Federator Certificate Manager Configuration](#federator-certificate-manager-configuration)
+      - [Helm Configuration](#helm-configuration-1)
+      - [Secrets Configuration](#secrets-configuration-1)
+        - [Key Vault Secrets Configuration](#key-vault-secrets-configuration)
+        - [Kubernetes Secrets Configuration](#kubernetes-secrets-configuration)
+
   - [DPN Data Pipelines Configuration](#dpn-data-pipelines-configuration)
+    - [Introduction and Purpose](#introduction-and-purpose)
     - [Helm Configuration](#helm-configuration-data-pipelines)
+      - [Data Pipeline Blueprints](#data-pipeline-blueprints)
+      - [Producer Setup](#producer-setup)
+      - [Consumer Setup](#consumer-setup)
+      - [Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper)
+      - [Consumer Parameters — extractor & schema_mapper](#consumer-parameters--extractor--schema_mapper)
     - [Secrets Configuration](#secrets-configuration-data-pipelines)
+
   - [DPN Data Store Configuration](#dpn-data-store-configuration)
     - [Storage Blob / S3 Configuration](#storage-blob--s3-configuration)
     - [DPN Streaming Service (Kafka)](#dpn-streaming-service-kafka)
+
   - [DPN Federator Gateway Configuration](#dpn-federator-gateway-configuration)
     - [Helm Configuration](#helm-configuration-federator-gateway)
     - [Secrets Configuration](#secrets-configuration-federator-gateway)
+
 - [Review Notes](#review-notes)
 
 ---
@@ -275,41 +302,52 @@ DSI provides a community edition of the HashiCorp Vault container as part of the
 
 #### HTTPS Configuration
 
-- Create a Root CA (once)
+Vault should be set up to use a https based connection internally within DPN application. In this document , stpes are provided to create a Root CA (once) for using a self signed certificate in Vault. However, if organisation already have a CA authority, no need to create a ROOT CA. They should generate a CSR for the Vault URL and jump to step 8 onwards.
 
-Create a CA directory:
+organisations would require a server machine that has access to the kubernetes cluster private environment/machine from where Certificate manager and federator containers are accessible and has openssl installed as mentioned in the prerequisite section 01.The output of the following steps would generate truststore ,vault crt and key files which would be mounted on the Certificate manager and federator containers to invoke vault service over https.
+
+##### Step 1: 
+Create a vault directory and ca subdirectory in a suitable location on the server machine
+
 ```bash
+mkdir -p vault
+cd vault
 mkdir -p ca
 cd ca
 ```
+
+##### Step 2: 
 Generate Root CA private key
+
 ```bash
 openssl genrsa -out rootCA.key 4096
 ```
+##### Step 3: 
 Generate Root CA certificate
+
 ```bash
 openssl req -x509 -new -nodes -key rootCA.key \
   -sha256 -days 3650 \
   -out rootCA.crt \
   -subj "<Your Subject>"
 ```
-✅ You now have:
+After the above steps are completed, the following files will be available in the ca folder.
 
-rootCA.key
-rootCA.crt
+vault/ca/rootCA.key
+vault/ca/rootCA.crt
 
+##### Step 4: 
+Switch to Vault directory and create another subdirectory certs. Create a Vault private key in the certs folder.
 
-- Create a Vault private key
-  From your project root:
 ```bash
+cd ..
 mkdir -p certs
 openssl genrsa -out certs/vault.key 4096
 ```
+##### Step 5: 
+Create a config file as vault-openssl.cnf to use for certificate signining request. The SAN should include the internal Kubernetes DNS URL or any defined url by the organisation to access the Vault.
 
-- Create a CSR (Certificate Signing Request) for Vault
-  Browsers, Vault, and modern TLS require SANs.
-  Create a config file:
-  **certs/vault-openssl.cnf**
+**certs/vault-openssl.cnf**
 ```text
 [ req ]
 default_bits       = 4096
@@ -327,13 +365,14 @@ CN = <Your CN>
 subjectAltName = @alt_names
 
 [ alt_names ]
-DNS.1 = vault
-DNS.2 = localhost
+DNS.1 = vault.<namespace>.svc.cluster.local
+DNS.2 = <vault.xyz.com>
 DNS.3 = <Other SANs>
-IP.1  = 127.0.0.1
 ```
 
-Generate the CSR:
+##### Step 6: 
+Create a CSR (Certificate Signing Request) for Vault.
+
 ```bash
 openssl req -new \
   -key certs/vault.key \
@@ -341,27 +380,38 @@ openssl req -new \
   -config certs/vault-openssl.cnf
 ```
 
-- Sign the CSR using the Root CA
-From the ca/ directory:
+##### Step 7: 
+Go to vault folder again and run the following command to sign the csr using the root CA created before.
+
 ```bash
 openssl x509 -req \
-  -in ../certs/vault.csr \
-  -CA rootCA.crt \
-  -CAkey rootCA.key \
+  -in certs/vault.csr \
+  -CA ca/rootCA.crt \
+  -CAkey ca/rootCA.key \
   -CAcreateserial \
-  -out ../certs/vault.crt \
+  -out certs/vault.crt \
   -days 825 \
   -sha256 \
   -extensions req_ext \
-  -extfile ../certs/vault-openssl.cnf
+  -extfile certs/vault-openssl.cnf
 ```
-✅ Output:
+At the end of this step the following files will be ready in the respective folders.
 
 certs/vault.crt → signed by Root CA
-certs/vault.key → private key
-ca/rootCA.crt → CA trust anchor
+<br>certs/vault.key → private key
+<br>ca/rootCA.crt → CA trust anchor
 
-- Configure Vault to use the signed cert
+##### Step 8: 
+Verify the vault.hcl file located in the federator-certificate-manager repository has the above tls configuration for tls_cert_file , tls_key_file and path
+
+```text
+Root-Repository/
+└── docker/
+    └── vault-https/
+        └── config/
+            ├── vault.hcl
+```
+
 **vault.hcl**
 ```text
   listener "tcp" {
@@ -379,25 +429,36 @@ storage "file" {
 path = "/vault/file"
 }
 ```
-Ensure Docker mounts certs:
+
+##### Step 9: 
+
+Verify the docker-compose.yaml located in the federator-certificate-manager repository has the certificate files from the following location on the Vault container.
+
+```text
+Root-Repository/
+└── docker/
+    └── vault-https/
+        ├── docker-compose.yaml
+```
+
+Check the docker compose file for the certificate mount path
+
 ```yaml
 - ./certs:/vault/certs:ro
 ```
 
-- Test Vault from the https endpoint
-  ✅ Curl test
+##### Step 11:
+
+Prepare truststore for trusting the Vault HTTPS certificate. **Create a Java truststore using keytool** (PKCS12 format) from the vault directory created above 
+
 ```bash
-curl --cacert ca/rootCA.crt https://localhost:8200/v1/sys/health
+keytool -import -trustcacerts -noprompt -alias ca -file ca/rootCA.crt -keystore truststore.jks -storetype PKCS12
 ```
 
-- Configure clients to trust the Root CA
-  **Create a Java truststore using keytool** (PKCS12 format):
-    ```bash
-    keytool -import -trustcacerts -noprompt -alias ca -ext san=dns:localhost,ip:127.0.0.1 -file ca/rootCA.crt -keystore truststore.jks -storetype PKCS12
-    ```
+This trust store needs to be set up in Federator Gateway and Certificate Manager trustore.jks file in the secret configuration defined in the subsequent step below.
+ 
 
-
-#### Helm Configuration
+#### Vault Helm Configuration For Certificate Manager
 
 The `dpn-federator-certificate-manager` repository includes a Helm chart values file for customising the HashiCorp Vault deployment. The values files are located as follows:
 
@@ -428,9 +489,9 @@ DSI proposes only selective changes to the values file but provides the provisio
 | keyvault.clientID               | TLS Cert KeyVault's Client Id             | `xxxxx-yyyy`                                    |
 | keyvault.name                   | TLS Cert KeyVault's Name                  | `kv-dpn-dev-uks-xx`                             |
 
-#### Secrets Configuration
+#### Vault Secrets Configuration
 
-The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault. The relevant files are located as follows:
+The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault (AKV). The relevant files are located as follows:
 
 ```text
 Root-Repository
@@ -445,8 +506,8 @@ HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2
 
 | Secret           | Purpose                                                                                |
 |------------------|----------------------------------------------------------------------------------------|
-| `VAULT-TLS-CERT` | Kubernetes secret containing the TLS certificate used to secure Vault's HTTPS listener |
-| `VAULT-TLS-KEY`  | Kubernetes secret containing the TLS key used to secure Vault's HTTPS listener         |
+| `VAULT-TLS-CERT` | AKV secret containing the TLS certificate **vault.crt** file  |
+| `VAULT-TLS-KEY`  | AKV secret containing the TLS key **vault.key** |
 
 ---
 
@@ -456,10 +517,10 @@ The keystore and truststore P12 certificate files used by the Federator Gateway 
 
 #### Certificate P12 Storage as File Share
 
-The Federator Certificate Manager, Federator Gateway Server, and Federator Gateway Client all require the certificate P12 files and their passwords to be accessible from a common mount point (e.g. `/tls`):
+The Federator Certificate Manager, Federator Gateway Server, and Federator Gateway Client all require the certificate P12 files and their passwords to be accessible from a common mount point (e.g. `/tls`) on the file share.These files are dynamically created when certificate manager renews or fetch certificate from DSI.These files are mounted in read only mode for the federator.
 
 ```text
-/
+/file-share-mount-path
 └── tls
     ├── keystore.p12
     ├── truststore.p12
@@ -549,7 +610,9 @@ DSI proposes only selective changes to the values file but provides the provisio
 
 #### Secrets Configuration
 
-The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault. The relevant files are located as follows:
+The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault. 
+
+The relevant files are located as follows:
 
 ```text
 Root-Repository
@@ -560,6 +623,8 @@ Root-Repository
                     └── secretproviderclass.yaml
 ```
 
+##### Key Vault Secrets Configuration
+
 | Secret Parameter                                        | Purpose                                                                               | Example Value            |
 |---------------------------------------------------------|---------------------------------------------------------------------------------------|--------------------------|
 | `certificate-manager-secrets.VAULT-TOKEN`               | Root token of the DPN HashiCorp Vault                                                 | `hsv.xxxxxxxxxxx`        |
@@ -567,6 +632,8 @@ Root-Repository
 | `certificate-manager-secrets.VAULT-TRUSTSTORE-PASSWORD` | DPN Hashicorp Vault Truststore password                                               | `changeit`               |
 | `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME`     | Storage account name for the Azure File Share used for common DPN certificate storage | `fs<env>dpn01<region>01` |
 | `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY`      | Storage account key for the Azure File Share used for common DPN certificate storage  | `xxxxxxxxxxx`            |
+
+##### Kubernetes Secrets Configuration
 
 Below Kubernetes secret must be created to load the Vault `truststore.jks` file created using steps [here](#https-configuration) under path `<vault.truststorePath>`.
 
@@ -594,7 +661,7 @@ This separation ensures that each pipeline stage operates with file-type-specifi
 
 #### Data Pipeline Blueprints
 
-DSI provided following schema types belonging to energy industry. Organizations are supposed to verify and augment any new schema type following the DSM data template definition and bring their own adaptor and mapper components accordingly. 
+DSI provided following schema types belonging to energy industry. organisations are supposed to verify and augment any new schema type following the DSM data template definition and bring their own adaptor and mapper components accordingly. 
 
 | Schema | Description |
 |------|-------------|

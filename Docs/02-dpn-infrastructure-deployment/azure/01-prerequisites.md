@@ -2,6 +2,34 @@
 
 This section introduces the prerequisites for infrastructure deployment.
 
+- [01 - Prerequisites](#01---prerequisites)
+  - [Purpose](#purpose)
+  - [1. Overview](#1-overview)
+    - [What You'll Deploy](#what-youll-deploy)
+    - [Deployment Architecture](#deployment-architecture)
+  - [2. Azure Subscription Requirements](#2-azure-subscription-requirements)
+  - [3. Entra ID / Identity Requirements](#3-entra-id--identity-requirements)
+  - [4. Tooling Requirements](#4-tooling-requirements)
+    - [Required](#required)
+    - [Optional](#optional)
+  - [5. Planning Inputs](#5-planning-inputs)
+  - [6. Naming Convention](#6-naming-convention)
+  - [7. Pre-Deployment Decisions](#7-pre-deployment-decisions)
+  - [8. Service Principal and Pipeline Trust Model](#8-service-principal-and-pipeline-trust-model)
+    - [Recommended Model](#recommended-model)
+    - [Minimum Identity Requirements](#minimum-identity-requirements)
+    - [Why this matters](#why-this-matters)
+  - [9. Access and Authentication](#9-access-and-authentication)
+  - [10. Self-Hosted Agent Requirements](#10-self-hosted-agent-requirements)
+    - [Self-Hosted Agent Setup](#self-hosted-agent-setup)
+    - [Agent Requirements](#agent-requirements)
+    - [Agent Pool Configuration](#agent-pool-configuration)
+  - [11. Azure File Share Details](#11-azure-file-share-details)
+    - [What is created](#what-is-created)
+    - [Key configuration values](#key-configuration-values)
+    - [Deployment behavior](#deployment-behavior)
+    - [Why this matters](#why-this-matters-1)
+
 ## Purpose
 
 This document lists the prerequisites and pre-deployment checks for DPN participant infrastructure deployment.
@@ -70,7 +98,7 @@ Ensure the Azure subscription is ready and validated against the following requi
 - Regional quota available:
   - AKS : 12+ vCPUs (Standard_D4s_v3)
   - VM: 4+ vCPUs (Standard_D2lds_v6)
-  - Public IP requirement depends on your organization network architecture; private deployments may require none
+  - Public IP requirement depends on your organisation network architecture; private deployments may require none
 - Region selected: <azure-region>
 - No conflicting IP ranges; use customer-safe example CIDR such as `10.x.x.x/27`
 
@@ -134,7 +162,7 @@ Common pattern used is: `{resource-type-abbreviation}-dpn-{env}-{instance}`. Fol
 Agree the following deployment choices with stakeholders before proceeding.
 
 - Target Azure region and naming standard for the environment
-- Organization network architecture and private DNS ownership model
+- organisation network architecture and private DNS ownership model
 - Whether service mesh / Istio is required for the platform
 - Change approval, deployment window, and rollback ownership
 
@@ -158,7 +186,7 @@ Self-Hosted Agent
 - Contributor scope on deployment subscription/resource groups
 - `User Access Administrator` only if Terraform manages RBAC assignments
 - `Storage Blob Data Owner` on the backend state storage account for the service principal used by the Azure DevOps service connection
-- Reader on shared connectivity subscription when private DNS zones are external, based on the organization's network architecture.
+- Reader on shared connectivity subscription when private DNS zones are external, based on the organisation's network architecture.
 
 ### Why this matters
 

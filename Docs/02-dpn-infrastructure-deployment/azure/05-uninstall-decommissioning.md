@@ -2,6 +2,20 @@
 
 This section explains how to uninstall and decommission the deployed infrastructure.
 
+## Table of Contents
+
+- [05 - Uninstall & Decommissioning](#05---uninstall--decommissioning)
+  - [Purpose](#purpose)
+  - [1. Prerequisites](#1-prerequisites)
+  - [2. Backup State (Recommended)](#2-backup-state-recommended)
+  - [3. Review Destroy Plan](#3-review-destroy-plan)
+  - [4. Destroy Managed Infrastructure](#4-destroy-managed-infrastructure)
+  - [5. Verify Cleanup](#5-verify-cleanup)
+  - [6. Manual Cleanup (If Needed)](#6-manual-cleanup-if-needed)
+  - [7. Restore Previous State (If Required)](#7-restore-previous-state-if-required)
+  - [8. Decommissioning Checklist](#8-decommissioning-checklist)
+  - [9. References](#9-references)
+
 ## Purpose
 
 This document describes how to safely remove DPN participant infrastructure and complete decommissioning activities.

@@ -1,32 +1,34 @@
 # DPN Rollback and Recovery Process
 
 ---
-
 ## Table of Contents
 
 - [Overview](#overview)
 - [Rollback Strategy](#rollback-strategy)
 - [Rollback Scenarios](#rollback-scenarios)
+
 - [Part 1 — DPN Federator Gateway Rollback](#part-1--dpn-federator-gateway-rollback)
   - [Rollback During CI Pipeline Failure](#rollback-during-ci-pipeline-failure)
   - [Rollback During CD Pipeline Failure](#rollback-during-cd-pipeline-failure)
   - [Helm Release Rollback](#helm-release-rollback)
   - [Container Image Rollback](#container-image-rollback)
   - [Rollback Kafka Topics](#rollback-kafka-topics)
+
 - [Part 2 — DPN Federator Certificate Manager Rollback](#part-2--dpn-federator-certificate-manager-rollback)
   - [Rollback During Certificate Manager CI Pipeline Failure](#rollback-during-certificate-manager-ci-pipeline-failure)
   - [Rollback During Certificate Manager CD Pipeline Failure](#rollback-during-certificate-manager-cd-pipeline-failure)
   - [Vault Certificate Bundle Rollback](#vault-certificate-bundle-rollback)
   - [P12 Keystore Recovery](#p12-keystore-recovery)
   - [Certificate Renewal Job Recovery](#certificate-renewal-job-recovery)
+
 - [Part 3 — DPN Data Pipeline Rollback](#part-3--dpn-data-pipeline-rollback)
   - [Rollback Data Pipeline Containers](#rollback-data-pipeline-containers)
   - [Rollback Kafka Topics for Data Pipelines](#rollback-kafka-topics-for-data-pipelines)
   - [Rollback Storage Processing Jobs](#rollback-storage-processing-jobs)
+
 - [Post-Rollback Verification](#post-rollback-verification)
 - [Disaster Recovery Considerations](#disaster-recovery-considerations)
 - [Review Notes](#review-notes)
-
 ---
 
 ## Overview
