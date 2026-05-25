@@ -268,7 +268,7 @@ The same certificate files are used across all DPN components that require integ
 
 This section describes DPN connectivity requirements for ports and protocols, including agent pool requirements for building DPN code.
 
-![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/dpn_ports_and_protocols.png)
+![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/DPN_ports_and_protocols.png)
 
 The following firewall rules must be applied by the organisation before installing DPN:
 
