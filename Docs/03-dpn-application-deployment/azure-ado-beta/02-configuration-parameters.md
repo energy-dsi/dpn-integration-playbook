@@ -649,7 +649,7 @@ Below Kubernetes secret must be created to load the Vault `truststore.jks` file 
 
 The DPN Data Pipeline ensures secure and governed data exchange by validating and transforming datasets before and after transmission. It applies schema assurance, security labelling, and controlled processing across producer and consumer stages. This ensures all shared data conforms to required schemas, security classifications, and governance standards, enabling reliable and compliant data sharing.
 
-### Helm Configuration {#helm-configuration-data-pipelines}
+### Helm Configuration
 
 The Helm configuration for the DPN deployment is segregated between the Producer and Consumer domains.
 
@@ -794,7 +794,7 @@ DSI proposes only selective changes to the values file but provides the provisio
 | targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
 
-### Secrets Configuration {#secrets-configuration-data-pipelines}
+### Secrets Configuration
 
 DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Two secret objects are created — one for Producer and one for Consumer.
 
@@ -1012,7 +1012,7 @@ DPN Federator uses Azure Key Vault to store secrets for both the Federator Serve
 | keyvault.clientID | Managed Identity client ID that allows the cluster to read from Key Vault | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | keyvault.tenantId | Organisation's Azure Active Directory tenant ID | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 
-### Secrets Configuration {#secrets-configuration-federator-gateway}
+### Secrets Configuration
 
 Secrets must never be written into the values file or the code repository. Organisations must store secrets securely using HashiCorp Vault, Azure Key Vault, or another approved secret management solution, and ensure they are injected automatically when pods start up.
 

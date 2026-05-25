@@ -642,7 +642,7 @@ Below Kubernetes secret must be created to load the Vault `truststore.jks` file 
 
 The DPN Data Pipeline ensures secure and governed data exchange by validating and transforming datasets before and after transmission. It applies schema assurance, security labelling, and controlled processing across producer and consumer stages. This ensures all shared data conforms to required schemas, security classifications, and governance standards, enabling reliable and compliant data sharing.
 
-### Helm Configuration {#helm-configuration-data-pipelines}
+### Helm Configuration
 
 The Helm configuration for the DPN deployment is segregated between the Producer and Consumer domains.
 
@@ -787,7 +787,7 @@ DSI proposes only selective changes to the values file but provides the provisio
 | targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
 
-### Secrets Configuration {#secrets-configuration-data-pipelines}
+### Secrets Configuration
 
 DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Two secret objects are created — one for Producer and one for Consumer.
 
@@ -951,7 +951,7 @@ The gateway does not operate in isolation. It depends on a set of supporting ser
 
 All components are deployed together in a single pipeline run using one Helm release (`dpn-platform`).
 
-### Helm Configuration {#helm-configuration-federator-gateway}
+### Helm Configuration
 
 The `dpn-federator-gateway` repository includes a Helm chart values file for customising the deployment. The values files are located as follows:
 
