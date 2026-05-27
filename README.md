@@ -63,7 +63,7 @@ Follow the documentation sections below to deploy and operate a DPN node.
 Ensure the organisation satisfies the required infrastructure, security, and access prerequisites.
 
 ```
-Docs/02-dpn-infrastructure-deployment/01-prerequisites/
+Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites/
 Docs/03-dpn-application-deployment/aws-gha-alpha/01-prerequisites/
 Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
 ```
@@ -84,7 +84,7 @@ Topics covered include:
 Understand the configuration required before running deployment pipelines.
 
 ```
-Docs/02-dpn-infrastructure-deployment/02-configuration/
+Docs/02-dpn-infrastructure-deployment/azure/02-configuration/
 Docs/03-dpn-application-deployment/aws-gha-alpha/02-configuration/
 Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/
 ```
@@ -104,7 +104,7 @@ Topics covered include:
 Follow the installation guide to deploy the platform.
 
 ```
-Docs/02-dpn-infrastructure-deployment/03-installation-process/
+Docs/02-dpn-infrastructure-deployment/azure/03-installation-process/
 Docs/03-dpn-application-deployment/aws-gha-alpha/03-installation-process/
 Docs/03-dpn-application-deployment/azure-ado-beta/03-installation-process/
 ```
