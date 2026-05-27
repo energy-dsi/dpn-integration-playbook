@@ -58,6 +58,15 @@ Docs/04-dpn-architecture/
 
 Follow the documentation sections below to deploy and operate a DPN node.
 
+
+# Explaination for Numbering
+The numbering convention (01, 02, 03, etc.) is used to maintain a clear logical sequence and structured flow of the documentation.
+
+This ensures:
+- Consistent ordering of sections within the repository
+- Improved navigation when browsing files directly
+- A step-by-step progression aligned with the playbook approach
+
 ### 1. Review Prerequisites
 
 Ensure the organisation satisfies the required infrastructure, security, and access prerequisites.
