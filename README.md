@@ -59,7 +59,7 @@ Docs/04-dpn-architecture/
 Follow the documentation sections below to deploy and operate a DPN node.
 
 
-# Explaination for Numbering
+# Explanation for Numbering
 The numbering convention (01, 02, 03, etc.) is used to maintain a clear logical sequence and structured flow of the documentation.
 
 This ensures:
