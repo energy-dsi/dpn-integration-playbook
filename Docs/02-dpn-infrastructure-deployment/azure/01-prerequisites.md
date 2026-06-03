@@ -63,26 +63,26 @@ The following diagram shows the high-level deployment architecture for the targe
 ┌─────────────────────────────────────────────────────┐
 │           Your Azure Subscription                   │
 │                                                     │
-│  ┌──────────────────────────────────────────────┐  │
-│  │  Bootstrap (Phase 1)                         │  │
-│  │  • Resource Group                            │  │
-│  │  • Storage Account (Terraform State)         │  │
-│  │  • tfstate Container + Access/RBAC           │  │
-│  └──────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Bootstrap (Phase 1)                         │   │
+│  │  • Resource Group                            │   │
+│  │  • Storage Account (Terraform State)         │   │
+│  │  • tfstate Container + Access/RBAC           │   │
+│  └──────────────────────────────────────────────┘   │
 │                      ↓                              │
-│  ┌──────────────────────────────────────────────┐  │
-│  │  Core Infrastructure (Phases 2-5)            │  │
-│  │  • Virtual Network & Subnets                 │  │
-│  │  • Network Security Groups                   │  │
-│  │  • AKS Cluster                               │  │
-│  │  • Azure Container Registry (ACR)            │  │
-│  │  • Key Vault & Secrets                       │  │
-│  │  • Log Analytics Workspace                    │  │
-│  │  • Application/Developer Storage Accounts     │  │
-│  │  • Workload Identity                          │  │
-│  │  • Private Endpoints                         │  │
-│  │  • Windows Management VM                      │  │
-│  └──────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Core Infrastructure (Phases 2-5)            │   │
+│  │  • Virtual Network & Subnets                 │   │
+│  │  • Network Security Groups                   │   │
+│  │  • AKS Cluster                               │   │
+│  │  • Azure Container Registry (ACR)            │   │
+│  │  • Key Vault & Secrets                       │   │
+│  │  • Log Analytics Workspace                   │   │
+│  │  • Application/Developer Storage Accounts    │   │
+│  │  • Workload Identity                         │   │
+│  │  • Private Endpoints                         │   │
+│  │  • Windows Management VM                     │   │
+│  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
 
