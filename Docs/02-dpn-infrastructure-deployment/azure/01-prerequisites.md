@@ -63,26 +63,26 @@ The following diagram shows the high-level deployment architecture for the targe
 ┌─────────────────────────────────────────────────────┐
 │           Your Azure Subscription                   │
 │                                                     │
-│  ┌──────────────────────────────────────────────┐  │
-│  │  Bootstrap (Phase 1)                         │  │
-│  │  • Resource Group                            │  │
-│  │  • Storage Account (Terraform State)         │  │
-│  │  • tfstate Container + Access/RBAC           │  │
-│  └──────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Bootstrap (Phase 1)                         │   │
+│  │  • Resource Group                            │   │
+│  │  • Storage Account (Terraform State)         │   │
+│  │  • tfstate Container + Access/RBAC           │   │
+│  └──────────────────────────────────────────────┘   │
 │                      ↓                              │
-│  ┌──────────────────────────────────────────────┐  │
-│  │  Core Infrastructure (Phases 2-5)            │  │
-│  │  • Virtual Network & Subnets                 │  │
-│  │  • Network Security Groups                   │  │
-│  │  • AKS Cluster                               │  │
-│  │  • Azure Container Registry (ACR)            │  │
-│  │  • Key Vault & Secrets                       │  │
-│  │  • Log Analytics Workspace                    │  │
-│  │  • Application/Developer Storage Accounts     │  │
-│  │  • Workload Identity                          │  │
-│  │  • Private Endpoints                         │  │
-│  │  • Windows Management VM                      │  │
-│  └──────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  Core Infrastructure (Phases 2-5)            │   │
+│  │  • Virtual Network & Subnets                 │   │
+│  │  • Network Security Groups                   │   │
+│  │  • AKS Cluster                               │   │
+│  │  • Azure Container Registry (ACR)            │   │
+│  │  • Key Vault & Secrets                       │   │
+│  │  • Log Analytics Workspace                   │   │
+│  │  • Application/Developer Storage Accounts    │   │
+│  │  • Workload Identity                         │   │
+│  │  • Private Endpoints                         │   │
+│  │  • Windows Management VM                     │   │
+│  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -115,13 +115,21 @@ Confirm the required identity and access capabilities are available before deplo
 
 Use the following tooling guidance to prepare the deployment workstation.
 
-### Required
+### Required Tools
 
-Install and verify the following mandatory tools before starting the deployment.
 
-- Azure CLI v2.50+
-- Terraform v1.5+
-- Git v2.48+
+The following software must be installed before running deployment and application pipelines:
+
+- Java 21  
+- Maven 3.9+  
+- Docker (latest version)  
+- Git v2.48+  
+- Python 3.10 or 3.11  
+- OpenSSL (latest version)  
+- Azure CLI v2.50+ (if deploying to Azure)  
+- kubectl (latest version)  
+- Helm (latest version)  
+- Infrastructure-as-code tool: Terraform v1.5+ or OpenTofu  
  
 
 ### Optional
@@ -138,8 +146,8 @@ Capture the following planning inputs before deployment begins.
 
 | Parameter                      | Your Value        | Example                                    |
 |--------------------------------|-------------------|--------------------------------------------|
-| Subscription ID                | _________________ | `00000000-0000-0000-0000-000000000000`    |
-| Environment Name               | _________________ | `dev`, `test`, `preprod`, `prod`          |
+| Subscription ID                | _________________ | `00000000-0000-0000-0000-000000000000`     |
+| Environment Name               | _________________ | `dev`, `test`, `preprod`, `prod`           |
 | Instance Number                | _________________ | `01`, `02`, `03`                           |
 | VNET CIDR                      | _________________ | `10.x.x.x/27`                              |
 | Connectivity Sub ID (optional) | _________________ | For Private DNS zones                      |
@@ -230,19 +238,6 @@ DSI recommends using a dedicated self-hosted agent pool instead of the default M
 - Ensure the agent has network access to all required Azure services (AKS, Key Vault, Container Registry, etc.)
 - Configure the agent pool in Azure DevOps with appropriate permissions and labels
 
-### Agent Requirements
-
-The following software must be available on the self-hosted agent VM before running deployment and application pipelines:
-
-- Java 21
-- Maven 3.9+
-- Docker (latest version)
-- Git (latest version)
-- Python 3.10 or 3.11
-- OpenSSL (latest version)
-- Azure CLI (latest version)
-- kubectl (latest version)
-- Helm (latest version)
 
 ### Agent Pool Configuration
 
