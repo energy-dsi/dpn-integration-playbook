@@ -280,7 +280,7 @@ test -f "environments/$(TFVARS_FILE)"
 
 ### Step 2.2 Initialize Terraform
 
-Use the following pipeline task command to initialize Terraform with the configured backend.
+Use the following pipeline task command to initialise Terraform with the configured backend.
 
 ```bash
 terraform init \

@@ -5,7 +5,7 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
+  - [Overview](#overview)
   - [Continuous Integration (CI)](#continuous-integration-ci)
   - [Continuous Deployment (CD)](#continuous-deployment-cd)
 

@@ -187,9 +187,9 @@ DSI-provided code is scanned using the following tools (not limited to):
 
 ## Network Prerequisites
 
-The following networking requirements must be satisfied before installing DPN nodes.
+The following networking requirements must be satisfied before installing nodes.
 
-The DPN node communicates with the DSI Data Sharing Mechanism (DSM) and other organisation DPNs through defined endpoints and ports (refer to the Interface Documentation), including:
+The DPN communicates with the DSI Data Sharing Mechanism (DSM) and other organisation DPNs through defined endpoints and ports (refer to the Interface Documentation), including:
 
 - Management Node
 - Authentication endpoint
@@ -208,7 +208,7 @@ Ensure the following:
 The DPN Federator service enforces **mutual TLS (mTLS)** when communicating with:
 
 - DSI DSM services
-- Other participating organisations during data exchange
+- Other nodes of participating organisations during data exchange
 
 The following certificate setup is required:
 

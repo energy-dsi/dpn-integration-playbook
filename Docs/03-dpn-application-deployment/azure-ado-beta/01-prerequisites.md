@@ -166,7 +166,7 @@ DSI-provided code is scanned using the following tools (not limited to):
 
 The following networking requirements must be satisfied before installing DPN nodes.
 
-The DPN node communicates with DSI data sharing mechanism (DSM) and other organisation DPNs through defined **endpoints and ports** (refer to the Interface Documentation), including:
+The DPN Node communicates with NESOs DSM through defined **endpoints and ports**(refer to the Interface Documentation), including:
 
 - Management Node  
 - Authentication End point
