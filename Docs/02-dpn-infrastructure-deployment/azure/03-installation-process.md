@@ -99,7 +99,6 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 **Variable group naming:**
 
 - DPN-001 pipelines → `dpn-<env>-vars-001`
-- DPN-002 pipelines → `dpn-<env>-vars-002`
 
 > Example for `devtest01`: `dpn-devtest01-vars-001`
 
