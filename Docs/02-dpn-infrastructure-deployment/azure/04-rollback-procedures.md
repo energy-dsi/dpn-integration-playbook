@@ -11,7 +11,7 @@ This section explains how to roll back failed or partial infrastructure deployme
   - [3. Module-Level Rollback](#3-module-level-rollback)
   - [4. Commit-Based Rollback (Recommended for Bad IaC Changes)](#4-commit-based-rollback-recommended-for-bad-iac-changes)
   - [5. Common Issues](#5-common-issues)
-    - [Issue: Terraform State Lock](#issue-terraform-state-lock)
+    - [Issue: OpenTofu State Lock](#issue-opentofu-state-lock)
     - [Issue: AKS Deployment Fails](#issue-aks-deployment-fails)
     - [Issue: Private Endpoint DNS Not Resolving](#issue-private-endpoint-dns-not-resolving)
     - [Issue: Workload Identity Not Working](#issue-workload-identity-not-working)
@@ -31,7 +31,7 @@ This document provides rollback and recovery actions for failed or partially suc
 
 Use the following principles to guide safe and controlled rollback decisions.
 
-- Prefer Terraform-managed rollback over manual deletion.
+- Prefer OpenTofu-managed rollback over manual deletion.
 - Roll back only the failed module first; avoid broad destructive actions.
 - Capture current state and plan output before remediation.
 - Use maintenance windows for production rollback.
@@ -41,13 +41,13 @@ Use the following principles to guide safe and controlled rollback decisions.
 Take the following immediate actions as soon as a deployment issue is detected.
 
 - Pause further pipeline or manual applies.
-- Export current Terraform state snapshot.
-- Save current `terraform plan` output for audit trail.
+- Export current OpenTofu state snapshot.
+- Save current `tofu plan` output for audit trail.
 
 ```bash
-cd infrastructure/terraform
-terraform state pull > terraform.tfstate.rollback.backup
-terraform plan -var-file="environments/my-deployment.tfvars" -out=tfplan-investigation
+cd infrastructure/opentofu
+tofu state pull > opentofu.tfstate.rollback.backup
+tofu plan -var-file="environments/my-deployment.tfvars" -out=tfplan-investigation
 ```
 
 ## 3. Module-Level Rollback
@@ -57,27 +57,27 @@ Use the following approach to roll back a single affected module.
 If a specific module introduces invalid resources, perform a targeted destroy for that module only.
 
 ```bash
-terraform plan \
+tofu plan \
   -var-file="environments/my-deployment.tfvars" \
   -destroy \
   -target=module.<module_name> \
   -out=tfplan-rollback-module
 
-terraform apply tfplan-rollback-module
+tofu apply tfplan-rollback-module
 ```
 
 Re-apply with corrected parameters:
 
 ```bash
-terraform plan -var-file="environments/my-deployment.tfvars" -target=module.<module_name> -out=tfplan-redeploy-module
-terraform apply tfplan-redeploy-module
+tofu plan -var-file="environments/my-deployment.tfvars" -target=module.<module_name> -out=tfplan-redeploy-module
+tofu apply tfplan-redeploy-module
 ```
 
 ## 4. Commit-Based Rollback (Recommended for Bad IaC Changes)
 
 Use this rollback path when the failure is caused by a recent code/configuration commit.
 
-If you revert to the previous known-good commit (or revert commit) and run the deployment pipeline again with `apply`, Terraform reconciles resources back to that previous desired state.
+If you revert to the previous known-good commit (or revert commit) and run the deployment pipeline again with `apply`, OpenTofu reconciles resources back to that previous desired state.
 
 Typical flow:
 
@@ -96,7 +96,7 @@ git push
 
 Important:
 
-- `terraform apply` does not "undo" by itself; it applies the current code in the repo.
+- `tofu apply` does not "undo" by itself; it applies the current code in the repo.
 - To roll back infrastructure behavior, the desired state in Git must first be rolled back.
 - Always review the rollback `plan` output before `apply`.
 
@@ -104,18 +104,18 @@ Important:
 
 Review the following common issues and their suggested remediation steps.
 
-### Issue: Terraform State Lock
+### Issue: OpenTofu State Lock
 
-Use the following commands if Terraform reports a locked state file.
+Use the following commands if OpenTofu reports a locked state file.
 
 Symptom: `Error acquiring state lock`
 
 ```bash
-terraform force-unlock <LOCK-ID>
+tofu force-unlock <LOCK-ID>
 az storage blob show \
   --account-name <state-storage-account> \
   --container-name tfstate \
-  --name dpn-<env>.terraform.tfstate \
+  --name dpn-<env>.opentofu.tfstate \
   --query "properties.lease"
 ```
 
@@ -191,8 +191,8 @@ Use the following steps only when targeted rollback is not sufficient.
 Use only when module rollback is not sufficient.
 
 ```bash
-terraform plan -destroy -var-file="environments/my-deployment.tfvars" -out=tfplan-destroy-all
-terraform apply tfplan-destroy-all
+tofu plan -destroy -var-file="environments/my-deployment.tfvars" -out=tfplan-destroy-all
+tofu apply tfplan-destroy-all
 ```
 
 ## 7. Post-Rollback Validation
@@ -200,12 +200,12 @@ terraform apply tfplan-destroy-all
 Perform the following checks to confirm the environment is stable after rollback.
 
 - Validate resource inventory in affected resource groups.
-- Confirm Terraform state is consistent.
+- Confirm OpenTofu state is consistent.
 - Re-run plan and verify no unexpected drift.
 
 ```bash
 az resource list --resource-group <resource-group-name> --output table
-terraform plan -var-file="environments/my-deployment.tfvars"
+tofu plan -var-file="environments/my-deployment.tfvars"
 ```
 
 ## 8. Rollback Checklist

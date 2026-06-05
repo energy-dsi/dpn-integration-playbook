@@ -66,7 +66,7 @@ The following diagram shows the high-level deployment architecture for the targe
 │  ┌──────────────────────────────────────────────┐   │
 │  │  Bootstrap (Phase 1)                         │   │
 │  │  • Resource Group                            │   │
-│  │  • Storage Account (Terraform State)         │   │
+│  │  • Storage Account (OpenTofu State)          │   │
 │  │  • tfstate Container + Access/RBAC           │   │
 │  └──────────────────────────────────────────────┘   │
 │                      ↓                              │
@@ -129,7 +129,7 @@ The following software must be installed before running deployment and applicati
 - Azure CLI v2.50+ (if deploying to Azure)  
 - kubectl (latest version)  
 - Helm (latest version)  
-- Infrastructure-as-code tool: Terraform v1.5+ or OpenTofu  
+- Infrastructure-as-code tool: OpenTofu  
  
 
 ### Optional
@@ -137,7 +137,7 @@ The following software must be installed before running deployment and applicati
 The following tools are optional but can simplify administration and troubleshooting.
 
 - kubectl
-- VS Code with Terraform extension
+- VS Code with OpenTofu extension
 - Azure Storage Explorer
 
 ## 5. Planning Inputs
@@ -192,7 +192,7 @@ Self-Hosted Agent
 
 - One dedicated service principal per environment (or per trust boundary)
 - Contributor scope on deployment subscription/resource groups
-- `User Access Administrator` only if Terraform manages RBAC assignments
+- `User Access Administrator` only if OpenTofu manages RBAC assignments
 - `Storage Blob Data Owner` on the backend state storage account for the service principal used by the Azure DevOps service connection
 - Reader on shared connectivity subscription when private DNS zones are external, based on the organisation's network architecture.
 
