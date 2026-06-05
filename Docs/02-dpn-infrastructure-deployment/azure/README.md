@@ -1,6 +1,6 @@
 # Azure Infrastructure Deployment Guide
 
-This folder provides a common, implementation-agnostic guide to deploy DPN-style infrastructure on Azure using Terraform (with optional Bicep bootstrap).
+This folder provides a common, implementation-agnostic guide to deploy DPN-style infrastructure on Azure using OpenTofu (with optional Bicep bootstrap).
 
 The documents are intentionally written as reference patterns so that teams can adapt naming, environments, and module wiring to their own repository.
 
@@ -22,4 +22,4 @@ The documents are intentionally written as reference patterns so that teams can 
 - Treat all resource names as examples unless your project standard requires exact naming.
 - Replace placeholder values (for example `<env>`, `<region>`, `<subscription-id>`) before executing commands.
 - If your repository variable names differ, map the examples to your own `variables.tf`, `outputs.tf`, and pipeline conventions.
-- Prefer full `terraform plan` / `terraform apply` workflows first; use targeted module operations only for controlled troubleshooting.
+- Prefer full `tofu plan` / `tofu apply` workflows first; use targeted module operations only for controlled troubleshooting.

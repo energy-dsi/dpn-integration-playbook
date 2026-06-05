@@ -13,7 +13,7 @@ This section describes the end-to-end infrastructure installation process.
     - [How to Create the Library Variable Group](#how-to-create-the-library-variable-group)
     - [A. Azure Subscription & Environment](#a-azure-subscription--environment)
     - [B. Agent Pool & Service Connection](#b-agent-pool--service-connection)
-    - [C. Terraform Backend State Storage](#c-terraform-backend-state-storage)
+    - [C. OpenTofu Backend State Storage](#c-opentofu-backend-state-storage)
     - [D. Virtual Network](#d-virtual-network)
     - [E. Private DNS](#e-private-dns)
     - [F. Pipeline YAML-Defined Variables](#f-pipeline-yaml-defined-variables)
@@ -28,7 +28,7 @@ This section describes the end-to-end infrastructure installation process.
 
 - [Phase 2: Initialize and Plan](#phase-2-initialize-and-plan)
   - [Step 2.1 Prepare Environment tfvars](#step-21-prepare-environment-tfvars)
-  - [Step 2.2 Initialize Terraform](#step-22-initialize-terraform)
+  - [Step 2.2 Initialize OpenTofu](#step-22-initialize-opentofu)
   - [Step 2.3 Plan Infrastructure](#step-23-plan-infrastructure)
 
 - [Phase 3: Validate Core Services](#phase-3-validate-core-services)
@@ -86,10 +86,10 @@ Use this stage sequence to understand the current Azure DevOps deployment flow b
 
 2. **Main infrastructure pipeline** (`azure-pipelines-*.yml`)
   - `Prerequisites`
-  - `TerraformDeployment`
-    - `TerraformPlan`
+  - `OpenTofuDeployment`
+    - `OpenTofuPlan`
     - `ManualApproval` (only when `action=apply` and approval required)
-    - `TerraformApply` (only when `action=apply`)
+    - `OpenTofuApply` (only when `action=apply`)
   - `Verification` (only after successful apply)
 
 ### Step 0.1 Set Deployment Variables
@@ -137,14 +137,14 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 ---
 
-#### C. Terraform Backend State Storage
+#### C. OpenTofu Backend State Storage
 
 > All three values are created by the **bootstrap pipeline**. Run bootstrap first, then read the values from Azure portal or pipeline logs.
 
-- `BACKEND_RESOURCE_GROUP` — Resource group that holds the Terraform remote state storage account.
+- `BACKEND_RESOURCE_GROUP` — Resource group that holds the OpenTofu remote state storage account.
   - Pattern: `rg-tfstate-dpn-<env>-uks-01`
   - Example: `rg-tfstate-dpn-<env-name>-uks-01`
-- `BACKEND_STORAGE_ACCOUNT` — Storage account name for Terraform remote state 
+- `BACKEND_STORAGE_ACCOUNT` — Storage account name for OpenTofu remote state 
   - Pattern: `sttfdpn<env>uks01`
 - `BACKEND_KEY` — Blob name for the state file inside the `tfstate` container. Must be unique per environment and never change across runs.
   - Pattern: `dpn.<env>.tfstate`
@@ -157,7 +157,7 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 - `VNET_RESOURCE_GROUP` — Resource group of the pre-existing VNet for this environment. Example: `<vnet-resource-group-name>`
 - `VNET_NAME` — Name of the pre-existing VNet. Example: `<vnet-name>`
-- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the Terraform state private endpoint subnet. Example: `<subnet-cidr>/28`
+- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the OpenTofu state private endpoint subnet. Example: `<subnet-cidr>/28`
 
 ---
 
@@ -177,7 +177,7 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 - `TF_WORKING_DIR` — Repo-relative path to the environment folder containing `main.tf` and `environments/`. Use the folder name at the repository root that matches the target environment. Example: `<repo-environment-folder-name>`
 - `TFVARS_FILE` — Exact `.tfvars` filename under `$(TF_WORKING_DIR)/environments/`. The file must exist before the pipeline runs. Example: `<env-name>.tfvars`
-- `TF_VERSION` — Terraform CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.8`
+- `TF_VERSION` — OpenTofu CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.8`
 
 ### Step 0.2 Authenticate and Select Subscription
 
@@ -194,7 +194,7 @@ Use the following pipeline task checks to verify tooling and required files are 
 
 ```bash
 az version
-terraform version
+tofu version
 
 cd $(TF_WORKING_DIR)
 test -f "environments/$(TFVARS_FILE)"
@@ -248,7 +248,7 @@ az deployment sub create \
 
 ### Step 1.4 Validate Backend Storage Redundancy
 
-Confirm the Terraform state storage account uses the bootstrap-configured redundancy.
+Confirm the OpenTofu state storage account uses the bootstrap-configured redundancy.
 
 ```bash
 az storage account show \
@@ -278,12 +278,12 @@ cd $(TF_WORKING_DIR)
 test -f "environments/$(TFVARS_FILE)"
 ```
 
-### Step 2.2 Initialize Terraform
+### Step 2.2 Initialize OpenTofu
 
-Use the following pipeline task command to initialize Terraform with the configured backend.
+Use the following pipeline task command to initialize OpenTofu with the configured backend.
 
 ```bash
-terraform init \
+tofu init \
   -backend-config="resource_group_name=$(BACKEND_RESOURCE_GROUP)" \
   -backend-config="storage_account_name=$(BACKEND_STORAGE_ACCOUNT)" \
   -backend-config="container_name=tfstate" \
@@ -294,21 +294,21 @@ terraform init \
 Expected Output:
 
 ```text
-Terraform has been successfully initialized!
+OpenTofu has been successfully initialized!
 ```
 
 ### Step 2.3 Plan Infrastructure
 
 Main pipeline behavior is controlled by `action` parameter:
 
-- `plan` → runs Terraform plan and publishes plan artifact
+- `plan` → runs OpenTofu plan and publishes plan artifact
 - `apply` → runs plan, optional manual approval, then apply
 - `destroy` → routed through destroy path/pipeline
 
 Plan command in pipeline:
 
 ```bash
-terraform plan \
+tofu plan \
   -var-file=environments/$(TFVARS_FILE) \
   -out=tfplan \
   -parallelism=4
@@ -320,7 +320,7 @@ Optional (advanced): If troubleshooting, you can target a specific module with
 Apply workflow behavior:
 
 - Temporarily removes CanNotDelete lock on `$(VNET_RESOURCE_GROUP)`
-- Runs `terraform apply -var-file=environments/$(TFVARS_FILE) -auto-approve`
+- Runs `tofu apply -var-file=environments/$(TFVARS_FILE) -auto-approve`
 - Restores the CanNotDelete lock after apply (always)
 
 Validation:
@@ -385,7 +385,7 @@ Use the following step to deploy the required storage services.
 
 If storage components are defined in your stack, verify both accounts after full apply:
 
-- state storage account (terraform backend)
+- state storage account (opentofu backend)
 - application storage account (workload data)
 
 ```bash
@@ -444,11 +444,11 @@ Use the following steps to validate the completed infrastructure deployment.
 
 ### Step 6.1 Complete Remaining Deployments
 
-Use the following pipeline task commands to apply any remaining unmanaged Terraform changes.
+Use the following pipeline task commands to apply any remaining unmanaged OpenTofu changes.
 
 ```bash
-terraform plan -var-file=environments/$(TFVARS_FILE) -out=tfplan-complete
-terraform apply tfplan-complete
+tofu plan -var-file=environments/$(TFVARS_FILE) -out=tfplan-complete
+tofu apply tfplan-complete
 ```
 
 Expected result: no changes (or only intentional drift remediation).
@@ -523,7 +523,7 @@ az resource list \
   --resource-group "<infra-resource-group>" \
   --output table > deployment-resources.txt
 
-terraform show -json | jq '.values.root_module.resources[] | {type, name}' > terraform-resources.json
+tofu show -json | jq '.values.root_module.resources[] | {type, name}' > tofu-resources.json
 ```
 
 ### 10.5 Prepare for Application Deployment
@@ -532,16 +532,16 @@ After infrastructure deployment completes successfully, prepare handoff document
 
 **Export Infrastructure Outputs:**
 
-Terraform outputs contain critical information needed for application deployment configuration. Export these values:
+OpenTofu outputs contain critical information needed for application deployment configuration. Export these values:
 
 ```bash
-# Retrieve Terraform outputs for application team
-terraform output -json > infrastructure-outputs.json
+# Retrieve OpenTofu outputs for application team
+tofu output -json > infrastructure-outputs.json
 
 # Extract key values
-AKS_CLUSTER=$(terraform output -raw aks_cluster_name)
-ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
-KEYVAULT_URI=$(terraform output -raw keyvault_uri)
+AKS_CLUSTER=$(tofu output -raw aks_cluster_name)
+ACR_LOGIN_SERVER=$(tofu output -raw acr_login_server)
+KEYVAULT_URI=$(tofu output -raw keyvault_uri)
 
 # Set AKS resource group from your tfvars or outputs key naming
 AKS_RESOURCE_GROUP="<aks-resource-group-name>"
@@ -565,7 +565,7 @@ Checklist:
 - Self-hosted agent can access Azure DevOps and fetch repository.
 - Pipeline references the intended service connection.
 - Service principal has required RBAC scope.
-- Terraform operations succeed without interactive login.
+- OpenTofu operations succeed without interactive login.
 
 **Document Infrastructure Details:**
 

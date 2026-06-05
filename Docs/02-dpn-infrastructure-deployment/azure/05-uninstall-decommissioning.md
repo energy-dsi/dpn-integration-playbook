@@ -26,18 +26,18 @@ This document describes how to safely remove DPN participant infrastructure and 
 
 Confirm the following prerequisites before starting any uninstall or decommissioning activity.
 
-- Terraform 1.0+
+- OpenTofu 1.0+
 - Azure CLI access to target subscription
 - Permissions to delete resource groups and dependent resources
 - Approved decommissioning window and change record
 
 ## 2. Backup State (Recommended)
 
-Run the following command to back up the current Terraform state before any removal actions.
+Run the following command to back up the current OpenTofu state before any removal actions.
 
 ```bash
-cd infrastructure/terraform
-terraform state pull > terraform.tfstate.backup
+cd infrastructure/opentofu
+tofu state pull > opentofu.tfstate.backup
 ```
 
 ## 3. Review Destroy Plan
@@ -45,17 +45,17 @@ terraform state pull > terraform.tfstate.backup
 Run the following command to review the proposed destroy actions before execution.
 
 ```bash
-terraform plan -destroy -var-file=environments/<env>.tfvars
+tofu plan -destroy -var-file=environments/<env>.tfvars
 ```
 
 ## 4. Destroy Managed Infrastructure
 
-Run the following commands to remove Terraform-managed infrastructure resources.
+Run the following commands to remove OpenTofu-managed infrastructure resources.
 
 Warning: This action is irreversible.
 
 ```bash
-terraform destroy -var-file=environments/<env>.tfvars
+tofu destroy -var-file=environments/<env>.tfvars
 ```
 
 ## 5. Verify Cleanup
@@ -68,7 +68,7 @@ az resource list --resource-group <resource-group-name>
 
 Also verify both storage accounts are handled as expected:
 
-- Terraform state storage account (backend)
+- OpenTofu state storage account (backend)
 - Application/workload storage account
 - Developer storage account (Azure Files)
 
@@ -89,7 +89,7 @@ az storage account list --query "[?name=='<application-storage-account-name>']"
 
 Use the following steps to remove any remaining resources not handled automatically.
 
-If resources were created outside Terraform or are retained by policies:
+If resources were created outside OpenTofu or are retained by policies:
 
 - Resource group deletion:
    ```bash
@@ -106,10 +106,10 @@ If resources were created outside Terraform or are retained by policies:
 
 ## 7. Restore Previous State (If Required)
 
-Run the following command only if the previous Terraform state must be restored.
+Run the following command only if the previous OpenTofu state must be restored.
 
 ```bash
-terraform state push terraform.tfstate.backup
+tofu state push opentofu.tfstate.backup
 ```
 
 ## 8. Decommissioning Checklist
@@ -117,8 +117,8 @@ terraform state push terraform.tfstate.backup
 Use the following checklist to verify the decommissioning process is fully complete.
 
 - Resources reviewed and approved for removal
-- Terraform state backup captured
-- `terraform destroy` completed successfully
+- OpenTofu state backup captured
+- `tofu destroy` completed successfully
 - Azure resource groups verified as removed
 - Backend and residual manual resources removed
 - Access roles, service principals, and secrets rotated or retired
@@ -128,7 +128,7 @@ Use the following checklist to verify the decommissioning process is fully compl
 
 Refer to the following documentation for detailed product guidance.
 
-- [Terraform Destroy Documentation](https://www.terraform.io/cli/commands/destroy)
+- [OpenTofu Destroy Documentation](https://opentofu.org/docs/cli/commands/destroy/)
 - [Azure CLI Documentation](https://learn.microsoft.com/en-us/cli/azure/)
 
 Deployment Complete! 🎉
