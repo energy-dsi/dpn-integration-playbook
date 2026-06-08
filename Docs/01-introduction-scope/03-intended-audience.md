@@ -1,8 +1,8 @@
 # Intended Audience
 
-This documentation is intended for **technical teams responsible for deploying and operating a Data Platform Node (DPN)** within an organisation.
+This documentation is intended for **technical teams responsible for deploying and operating a Data Preparation Node (DPN)** within an organisation.
 
-The guide assumes that readers have experience with cloud infrastructure, container technologies, and DevOps practices.
+The guide assumes that readers have experience with cloud infrastructure, container technologies, and DevOps practices.It is also assumed that readers will have an overview understanding of the DSI using the resources of the DSI Shared Knowledge Base.
 
 ---
 
@@ -68,9 +68,9 @@ This documentation may also be useful for:
 Readers should have working knowledge of the following technologies:
 
 - Kubernetes and container orchestration
-- Docker containerization
-- Azure cloud infrastructure
-- Azure DevOps pipelines
+- Docker containerisation
+- Their organisation’s chosen cloud infrastructure
+- DevOps pipelines
 - Helm deployments
 - Network and firewall configuration
 - TLS certificates and secure communications
