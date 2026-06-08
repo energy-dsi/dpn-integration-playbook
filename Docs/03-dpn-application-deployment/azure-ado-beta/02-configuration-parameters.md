@@ -850,16 +850,6 @@ kubectl create secret generic consumer-file-dp-secret \
   -n <your namespace>
 ```
 
-**AWS Secrets**
-
-AWS secrets are not required for Azure deployments. The corresponding values in `values.yaml` may be left empty. The following secret is required for AWS deployments only:
-
-```bash
-kubectl create secret generic aws-access-secret \
-  --from-literal=AWS_ACCESS_KEY_ID="$(echo -n '<your AWS access key ID>' | base64)" \
-  --from-literal=AWS_SECRET_ACCESS_KEY="$(echo -n '<your AWS secret access key>' | base64)" \
-  -n <your namespace>
-```
 
 ---
 
@@ -937,7 +927,7 @@ Example:
 }
 ```
 
-> **Note:** Valid values for `sourceType` are `AZURE`, `GCP`, and `S3`. AWS support is not yet implemented.
+> **Note:** Valid values for `sourceType` are `AZURE`, `GCP`, and `S3`. 
 
 ---
 
