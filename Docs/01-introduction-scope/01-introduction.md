@@ -61,11 +61,6 @@ Typical deployments use:
 - **Azure Container Registry (ACR)** for container image management
 - **Helm charts** for Kubernetes deployments
 
-### AWS Deployment: 
-      -	TBD and upcoming
-### GCP Deployment: 
-      - TBD and upcoming
-
 This architecture ensures that deployments are:
 
 - scalable
