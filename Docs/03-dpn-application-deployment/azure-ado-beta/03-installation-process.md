@@ -204,7 +204,7 @@ Ensure the following prerequisites are completed before deployment:
 
 ### 3. Certificate Preparation and CSR Generation
 
-Organisations must provide their own Certificate Signing Request (CSR) file to DSI and have it signed by the DSI Certificate Authority before DPN usage. The following CSR generation process uses OpenSSL commands. Organisations may alternatively use their own standard CSR generation process.
+Organisations must provide their own Certificate Signing Request (CSR) file to DSI and have it signed by the DSI Certificate Authority via the DSM before DPN usage. The following CSR generation process uses OpenSSL commands. Organisations may alternatively use their own standard CSR generation process.
 
 The CSR file must contain at minimum the following Subject Alternative Names (SANs):
 
