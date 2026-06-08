@@ -93,6 +93,8 @@ The configuration covers the following areas:
 
 ## Continuous Integration (CI)
 
+The **Continuous Integration (CI)** pipeline is optional, partipants can either use it to build container components from the provided DPN Source code. Or it can be replaced in full by obtaining pre-build DPN containers directly from the DSI provided **GitHub Container Registry (GHCR)**.
+
 The **Continuous Integration (CI)** pipeline performs the following activities:
 
 1. Build the application source code.
