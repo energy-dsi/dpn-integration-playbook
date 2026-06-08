@@ -97,6 +97,8 @@ The configuration covers the following areas:
 
 ## Continuous Integration (CI)
 
+The **Continuous Integration (CI)** pipeline is optional, partipants can either use it to build container components from the provided DPN Source code. Or it can be replaced in full by obtaining pre-build DPN containers directly from the DSI provided **GitHub Container Registry (GHCR)**.
+
 The **Continuous Integration (CI)** pipeline performs the following activities:
 
 1. Build the application source code.
@@ -104,7 +106,7 @@ The **Continuous Integration (CI)** pipeline performs the following activities:
 3. Tag the generated container images.
 4. Push the images to a container registry.
 
-DSI recommends using **Azure Container Registry (ACR)** for storing container images in Azure due to its seamless integration with Azure services and built-in security capabilities. The DSI package also provides containerised deployment using **GitHub Container Registry (GHCR)**.
+DSI recommends using **Azure Container Registry (ACR)** for storing container images in Azure due to its seamless integration with Azure services and built-in security capabilities.
 
 Organisations may use alternative container registries if permitted by their internal network and security policies.
 
