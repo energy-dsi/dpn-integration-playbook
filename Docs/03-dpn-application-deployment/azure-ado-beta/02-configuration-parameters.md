@@ -765,7 +765,6 @@ DSI proposes only selective changes to the values file but provides the provisio
 > - Storage container names, Kafka topic names, and product type names must use only alphanumeric characters and hyphens (`-`). No other special characters are permitted.
 > - Organisation names must be abbreviated without spaces.
 > - Schema type must match the blueprint schema type exactly: `eq`, `eqbd`, `dl`, or `ssh`.
-> - For Azure deployments, AWS configuration fields should be left empty. The Data Pipeline validates cloud provider type against connection parameters and will detect any mismatch.
 
 #### Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)
 
