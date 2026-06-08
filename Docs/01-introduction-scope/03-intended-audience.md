@@ -87,12 +87,4 @@ The documentation assumes that the organisation intends to deploy DPN nodes usin
 - Azure Kubernetes Service (AKS)
 - Azure Container Registry (ACR)
 
-### AWS Platform
-
-- TBD and upcoming
-
-### GCP Platform
-
-- TBD and upcoming
-
 However, organisations may adapt the deployment architecture to other environments if required.
