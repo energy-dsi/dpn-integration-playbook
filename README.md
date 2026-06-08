@@ -13,8 +13,6 @@ This repository provides documentation to support organisations to **install, co
 
 The documentation describes how to deploy the **DPN Federator** and **DPN Data Pipeline** components using **Azure DevOps CI/CD pipelines** and **Azure Kubernetes Service (AKS)** with reference implementation. 
 
-It also provides prescriptive guidance on using Github Actions based pipeline on AWS platform following the same configuration, installation, uninstallation and rollback strategies of ADO based deployment.
-
 The objective of this repository is to provide organisations with a **clear and structured implementation guide** to deploy a DPN that can securely exchange data with other participating organisations in the **Data Sharing Infrastructure (DSI)**.
 
 The DPN architecture enables:
@@ -74,7 +72,6 @@ Ensure the organisation satisfies the required infrastructure, security, and acc
 
 ```
 Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites/
-Docs/03-dpn-application-deployment/aws-gha-alpha/01-prerequisites/
 Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
 ```
 
@@ -95,7 +92,6 @@ Understand the configuration required before running deployment pipelines.
 
 ```
 Docs/02-dpn-infrastructure-deployment/azure/02-configuration/
-Docs/03-dpn-application-deployment/aws-gha-alpha/02-configuration/
 Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/
 ```
 
@@ -115,7 +111,6 @@ Follow the installation guide to deploy the platform.
 
 ```
 Docs/02-dpn-infrastructure-deployment/azure/03-installation-process/
-Docs/03-dpn-application-deployment/aws-gha-alpha/03-installation-process/
 Docs/03-dpn-application-deployment/azure-ado-beta/03-installation-process/
 ```
 
@@ -162,13 +157,6 @@ Docs/
 │       └── README.md
 │
 ├── 03-dpn-application-deployment
-│   ├── aws-gha-alpha
-│   │   ├── 01-prerequisites.md
-│   │   ├── 02-configuration.md
-│   │   ├── 03-installation-process.md
-│   │   ├── 04-rollback-procedures.md
-│   │   └── 05-uninstall-decommissioning.md
-│   │
 │   └── azure-ado-beta
 │       ├── 01-prerequisites.md
 │       ├── 02-configuration-parameters.md
