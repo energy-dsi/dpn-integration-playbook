@@ -690,7 +690,7 @@ Once a successful deployment has completed, the DPN Kubernetes cluster should sh
 - Process type  : file
 ```
 
-![DPN Reference Implementation](/Docs/04-dpn-architecture/images/dpn_reference_implementation.png)
+![DPN Reference Implementation](/Docs/04-dpn-architecture/images/dpn_ref_implementation.png)
 
 ```bash
 kubectl get pods -n <namespace>
