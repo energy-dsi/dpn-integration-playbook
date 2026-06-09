@@ -142,22 +142,15 @@ These endpoints are publicly accessible to simplify integration and testing. Org
 
 | Environment | Component | URL |
 |-------------|-----------|-----|
-| Dev | Authentication | https://auth-mtls.dsm01.dsidev.neso.energy |
-| Dev | Management Node | https://management.dsm01.dsidev.neso.energy |
-| Dev | DSI DPN Producer | https://producer.dpn01.dsidev.neso.energy |
-| Dev | DSI DPN Consumer | https://consumer.dpn01.dsidev.neso.energy |
-| Integration Test | Authentication | https://auth-mtls.dsm01.dsitest.neso.energy |
-| Integration Test | Management Node | https://management.dsm01.dsitest.neso.energy |
-| Integration Test | DSI DPN Producer | https://producer.dpn01.dsitest.neso.energy |
-| Integration Test | DSI DPN Consumer | https://consumer.dpn01.dsitest.neso.energy |
-| Pre-Production | Authentication | https://auth-mtls.dsm01.dsipre.neso.energy |
-| Pre-Production | Management Node | https://management.dsm01.dsipre.neso.energy |
-| Pre-Production | DSI DPN Producer | https://producer.dpn01.dsipre.neso.energy |
-| Pre-Production | DSI DPN Consumer | https://consumer.dpn01.dsipre.neso.energy |
-| Production | Authentication | https://auth-mtls.dsm01.dsi.neso.energy |
-| Production | Management Node | https://management.dsm01.dsi.neso.energy |
-| Production | DSI DPN Producer | https://producer.dpn01.dsi.neso.energy |
-| Production | DSI DPN Consumer | https://consumer.dpn01.dsi.neso.energy |
+| Pre Production-Dev | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
+| Pre Production-Dev | Management Node | https://management.dsm01.dsipreprod1.neso.energy |
+| Pre Production-Dev | DSI DPN Producer | https://producer.dpn01.dsipreprod1.neso.energy |
+| Pre Production-Test | Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
+| Pre Production-Test | Management Node | https://management.dsm01.dsipreprod2.neso.energy |
+| Pre Production-Test | DSI DPN Producer | https://producer.dpn01.dsipreprod2.neso.energy |
+| Pre-Production-Uat | Authentication | https://auth-mtls.dsm01.dsipreprod3.neso.energy |
+| Pre-Production-Uat | Management Node | https://management.dsm01.dsipreprod3.neso.energy |
+| Pre-Production-Uat | DSI DPN Producer | https://producer.dpn01.dsipreprod3.neso.energy |
 
 ---
 
