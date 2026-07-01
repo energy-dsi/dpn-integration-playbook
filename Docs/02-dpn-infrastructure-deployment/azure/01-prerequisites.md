@@ -29,6 +29,12 @@ This section introduces the prerequisites for infrastructure deployment.
     - [Key configuration values](#key-configuration-values)
     - [Deployment behavior](#deployment-behavior)
     - [Why this matters](#why-this-matters-1)
+  - [12. File Scanning Service Components](#12-file-scanning-service-components)
+    - [What is created](#what-is-created-1)
+    - [Key configuration values](#key-configuration-values-1)
+    - [Role Assignments](#role-assignments)
+    - [Deployment behavior](#deployment-behavior-1)
+    - [Why this matters](#why-this-matters-2)
 
 ## Purpose
 
@@ -52,6 +58,7 @@ The following core infrastructure components are included in this deployment sco
 - Log Analytics Workspace
 - Workload Identity
 - Windows management VM
+- File Scanning Service components (Event Grid topic, Service Bus namespace, dedicated storage account)
 - Supporting controls (NSGs, Private Endpoints, RBAC)
 
 
@@ -82,6 +89,9 @@ The following diagram shows the high-level deployment architecture for the targe
 │  │  • Workload Identity                         │   │
 │  │  • Private Endpoints                         │   │
 │  │  • Windows Management VM                     │   │
+│  │  • Event Grid Topic (file scanning)          │   │
+│  │  • Service Bus Namespace (file scanning)     │   │
+│  │  • File Scanning Storage Account             │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -286,6 +296,65 @@ The following variables are used in the deployment:
 - Ensures developer storage is provided as a managed Azure Files share
 - Keeps the file share traffic private inside the VNet
 - Supports secure access to developer storage without exposing the share over the public internet
+
+## 12. File Scanning Service Components
+
+This deployment includes a File Scanning Service, made up of an Event Grid topic, a Service Bus namespace, and a dedicated storage account. Together these components decouple file upload notifications from downstream scanning/processing workloads.
+
+### What is created
+
+- **1** Azure Event Grid custom topic, used to publish file-related events (for example, new file uploads) to downstream subscribers
+- **1** Azure Service Bus namespace (Premium SKU) with optional queues, used to reliably queue file scanning work items
+- **1** new dedicated blob storage account, used to stage files for scanning
+- A private endpoint for every component (Event Grid `topic`, Service Bus `namespace`, storage `blob` and optionally `file`), each in its own dedicated subnet
+- Role assignments scoped to each component for data-plane access (see [Role Assignments](#role-assignments) below)
+
+### Key configuration values
+
+The following variables are used in the deployment:
+
+- `event_grid_topic_name` / `event_grid_resource_group_name` – Event Grid topic identity
+- `event_grid_subnet_name` – subnet used for the Event Grid private endpoint
+- `event_grid_local_auth_enabled` – disables topic access/SAS keys; access is via Azure AD/RBAC only
+- `event_grid_public_network_access_enabled` – **the Event Grid topic is deployed with public network access enabled** in addition to its private endpoint (unlike Service Bus and the file scanning storage account, which are private-endpoint only). Confirm this is intentional for your environment before deployment.
+- `event_grid_data_receiver_principal_ids` / `event_grid_data_sender_principal_ids` / `event_grid_contributor_principal_ids` – principal IDs granted the `EventGrid Data Receiver`, `EventGrid Data Sender`, and `EventGrid Contributor` roles respectively
+- `service_bus_namespace_name` / `service_bus_resource_group_name` – Service Bus namespace identity
+- `service_bus_sku` – SKU for the namespace; Premium is required to support private endpoints
+- `service_bus_subnet_name` – subnet used for the Service Bus private endpoint
+- `service_bus_queues` – map of queues to create in the namespace
+- `service_bus_data_receiver_principal_ids` / `service_bus_data_sender_principal_ids` / `service_bus_data_owner_principal_ids` – principal IDs granted the `Azure Service Bus Data Receiver`, `Data Sender`, and `Data Owner` roles respectively
+- `file_scanning_service_storage_account_name` / `file_scanning_service_storage_resource_group_name` – new storage account identity
+- `file_scanning_service_storage_subnet_name` – subnet used for the storage account's private endpoint(s)
+- `file_scanning_service_storage_create_blob_endpoint` / `file_scanning_service_storage_create_file_endpoint` – toggle blob and Azure Files private endpoints independently
+- `file_scanning_service_storage_data_receiver_principal_ids` / `file_scanning_service_storage_data_contributor_principal_ids` – principal IDs granted `Storage Blob Data Reader` and `Storage Blob Data Contributor` respectively on the **new** storage account
+- `dev_storage_additional_blob_contributor_principal_ids` – principal IDs additionally granted `Storage Blob Data Contributor` on the **existing** developer/application storage account (see below), so the file scanning service principal can read from and write to both storage accounts
+
+### Role Assignments
+
+The file scanning service principal (referred to here as the file scanning/DPN SPN) requires role assignments across all three components:
+
+| Component | Role | Variable |
+|---|---|---|
+| Service Bus namespace | `Azure Service Bus Data Receiver` | `service_bus_data_receiver_principal_ids` |
+| New file scanning storage account | `Storage Blob Data Reader` | `file_scanning_service_storage_data_receiver_principal_ids` |
+| Existing developer/application storage account | `Storage Blob Data Contributor` | `dev_storage_additional_blob_contributor_principal_ids` |
+
+Additional producer/administrative roles (`EventGrid Data Sender`, `EventGrid Contributor`, `Azure Service Bus Data Sender`, `Azure Service Bus Data Owner`, `Storage Blob Data Contributor` on the new storage account) are assigned to separate publisher/team principals as needed — see Section 7 of [02-configuration-parameters.md](02-configuration-parameters.md#7-file-scanning-service-parameters).
+
+Important: the same SPN object ID must be supplied consistently across `service_bus_data_receiver_principal_ids`, `file_scanning_service_storage_data_receiver_principal_ids`, and `dev_storage_additional_blob_contributor_principal_ids` for the role assignments to apply to the correct identity. This object ID is different for each environment — the file scanning service principal used in dev is a distinct SPN from the ones used in test, preprod, and prod. Each environment's object ID must be obtained and provided separately before that environment's role assignments can be completed; do not reuse the dev object ID in other environments' tfvars.
+
+### Deployment behavior
+
+- Each component (Event Grid, Service Bus, storage) is deployed with its own dedicated subnet and private endpoint, isolated from the core application subnets.
+- Service Bus requires the Premium SKU when a private endpoint is used; do not downgrade the SKU without also removing the private endpoint.
+- The storage account's Azure Files private endpoint is only created when both `file_scanning_service_storage_create_file_endpoint` is enabled and a file share name is provided.
+- RBAC role assignments follow least-privilege data-plane roles (Reader/Receiver, Sender/Contributor, Owner) rather than granting broad control-plane access.
+
+### Why this matters
+
+- Keeps Service Bus and file scanning storage traffic private inside the VNet, while allowing the Event Grid topic's public endpoint where required by the publishing pattern
+- Separates the file scanning data path from the core application storage and messaging used elsewhere in the platform
+- Supports least-privilege access for producer, consumer, and administrative principals through scoped role assignments, including cross-account access to the existing developer/application storage account
 
 ---
 

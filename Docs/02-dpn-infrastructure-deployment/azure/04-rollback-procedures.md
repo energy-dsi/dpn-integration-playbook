@@ -17,6 +17,7 @@ This section explains how to roll back failed or partial infrastructure deployme
     - [Issue: Workload Identity Not Working](#issue-workload-identity-not-working)
     - [Issue: VM Provisioned but Not Reachable](#issue-vm-provisioned-but-not-reachable)
     - [Issue: Pipeline Fails with Authorization Errors](#issue-pipeline-fails-with-authorization-errors)
+    - [Issue: File Scanning Service Component Fails to Provision](#issue-file-scanning-service-component-fails-to-provision)
   - [6. Full Environment Rollback (Last Resort)](#6-full-environment-rollback-last-resort)
   - [7. Post-Rollback Validation](#7-post-rollback-validation)
   - [8. Rollback Checklist](#8-rollback-checklist)
@@ -183,6 +184,25 @@ Mitigation:
 - Confirm pipeline uses the intended service connection.
 - Ensure service principal has required RBAC at correct scope.
 - Re-run after RBAC propagation delay.
+
+### Issue: File Scanning Service Component Fails to Provision
+
+Use the following checks when the Event Grid topic, Service Bus namespace, or file scanning storage account fails to deploy or its private endpoint does not connect.
+
+```bash
+az eventgrid topic show --name <event-grid-topic-name> --resource-group <event-grid-resource-group> --query "provisioningState"
+az servicebus namespace show --name <service-bus-namespace-name> --resource-group <service-bus-resource-group> --query "status"
+az network private-endpoint show --name <private-endpoint-name> --resource-group <resource-group-name> --query "privateLinkServiceConnections[].privateLinkServiceConnectionState"
+```
+
+Common causes:
+- Service Bus namespace SKU is not `Premium` (required for private endpoints).
+- The dedicated subnet for the component (Event Grid, Service Bus, or file scanning storage) does not exist yet or has `private_endpoint_network_policies` set incorrectly.
+- RBAC role assignment principal IDs (`event_grid_*_principal_ids`, `service_bus_*_principal_ids`, `file_scanning_service_storage_*_principal_ids`) reference an object ID that does not exist in the tenant.
+
+Mitigation:
+- Roll back the specific module only, following [Section 3](#3-module-level-rollback) (for example `-target=module.event_grid`, `-target=module.service_bus`, or `-target=module.file_scanning_service_storage`).
+- Re-validate subnet and SKU configuration before re-applying.
 
 ## 6. Full Environment Rollback (Last Resort)
 
