@@ -38,9 +38,12 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 4.1 Validate Compute Components](#step-41-validate-compute-components)
   - [Step 4.2 VM Validation](#step-42-vm-validation)
 
-- [Phase 5: Storage Services](#phase-5-storage-services)
+- [Phase 5: Storage & Messaging Services](#phase-5-storage--messaging-services)
   - [Step 5.1 Deploy Storage Accounts](#step-51-deploy-storage-accounts)
   - [Step 5.2 Deploy Azure File Share](#step-52-deploy-azure-file-share)
+  - [Step 5.3 Validate Event Grid Topic (File Scanning Service)](#step-53-validate-event-grid-topic-file-scanning-service)
+  - [Step 5.4 Validate Service Bus Namespace (File Scanning Service)](#step-54-validate-service-bus-namespace-file-scanning-service)
+  - [Step 5.5 Validate File Scanning Storage Account](#step-55-validate-file-scanning-storage-account)
 
 - [Phase 6: Validation and Testing](#phase-6-validation-and-testing)
   - [Step 6.1 Complete Remaining Deployments](#step-61-complete-remaining-deployments)
@@ -377,9 +380,9 @@ az network nic list --query "[].{NIC:name,RG:resourceGroup,PrivateIP:ipConfigura
 
 ---
 
-## Phase 5: Storage Services
+## Phase 5: Storage & Messaging Services
 
-Use the following step to deploy the required storage services.
+Use the following steps to deploy the required storage and file scanning messaging services.
 
 ### Step 5.1 Deploy Storage Accounts
 
@@ -435,6 +438,66 @@ az storage file list \
 ```
 
 Expected output: File share exists and is accessible through private endpoint.
+
+### Step 5.3 Validate Event Grid Topic (File Scanning Service)
+
+If the File Scanning Service is part of your stack, verify the Event Grid topic and its private endpoint after full apply.
+
+```bash
+az eventgrid topic show \
+  --name "<event-grid-topic-name>" \
+  --resource-group "<event-grid-resource-group>" \
+  --query "{name:name, endpoint:endpoint, publicNetworkAccess:publicNetworkAccess}" -o table
+
+az network private-endpoint list \
+  --resource-group "<event-grid-resource-group>" \
+  --query "[?contains(name, 'pe-')].name" -o table
+
+az role assignment list --scope "$(az eventgrid topic show --name "<event-grid-topic-name>" --resource-group "<event-grid-resource-group>" --query id -o tsv)" -o table
+```
+
+Expected output: topic exists, private endpoint is connected, and the expected `EventGrid Data Receiver` / `Data Sender` / `Contributor` role assignments are present.
+
+### Step 5.4 Validate Service Bus Namespace (File Scanning Service)
+
+If the File Scanning Service is part of your stack, verify the Service Bus namespace, queues, and private endpoint after full apply.
+
+```bash
+az servicebus namespace show \
+  --name "<service-bus-namespace-name>" \
+  --resource-group "<service-bus-resource-group>" \
+  --query "{name:name, sku:sku.name, status:status}" -o table
+
+az servicebus queue list \
+  --namespace-name "<service-bus-namespace-name>" \
+  --resource-group "<service-bus-resource-group>" \
+  --query "[].name" -o table
+
+az network private-endpoint list \
+  --resource-group "<service-bus-resource-group>" \
+  --query "[?contains(name, 'pe-')].name" -o table
+```
+
+Expected output: namespace is `Active`, SKU is `Premium`, and the private endpoint is connected.
+
+### Step 5.5 Validate File Scanning Storage Account
+
+If the File Scanning Service is part of your stack, verify the dedicated storage account and its private endpoint(s) after full apply.
+
+```bash
+az storage account show \
+  --name "<file-scanning-storage-account-name>" \
+  --resource-group "<file-scanning-storage-resource-group>" \
+  --query "{name:name, sku:sku.name, publicNetworkAccess:publicNetworkAccess}" -o table
+
+az network private-endpoint list \
+  --resource-group "<file-scanning-storage-resource-group>" \
+  --query "[?contains(name, 'pe-') || contains(name, '-blob-pe') || contains(name, '-file')].name" -o table
+
+az role assignment list --scope "$(az storage account show --name "<file-scanning-storage-account-name>" --resource-group "<file-scanning-storage-resource-group>" --query id -o tsv)" -o table
+```
+
+Expected output: storage account exists with public network access disabled, the blob private endpoint (and file endpoint if enabled) is connected, and the expected `Storage Blob Data Reader` / `Storage Blob Data Contributor` role assignments are present.
 
 ---
 
@@ -576,6 +639,7 @@ Create a handoff document for the application deployment team with:
 - Network topology and security group rules
 - RBAC assignments and service principal information
 - Key Vault endpoint and secret naming conventions
+- File Scanning Service endpoints (Event Grid topic endpoint, Service Bus namespace, file scanning storage account) and associated RBAC assignments
 
 
 **Next Steps:**

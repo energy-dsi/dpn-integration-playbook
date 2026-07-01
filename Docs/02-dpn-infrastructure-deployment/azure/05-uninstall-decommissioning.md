@@ -66,11 +66,12 @@ Run the following command to confirm resources have been removed from Azure.
 az resource list --resource-group <resource-group-name>
 ```
 
-Also verify both storage accounts are handled as expected:
+Also verify all storage accounts are handled as expected:
 
 - OpenTofu state storage account (backend)
 - Application/workload storage account
 - Developer storage account (Azure Files)
+- File scanning service storage account
 
 Verify Azure File Share cleanup:
 
@@ -83,6 +84,20 @@ az network private-endpoint list --resource-group <application-storage-resource-
 
 # Confirm storage account is removed (if not retained)
 az storage account list --query "[?name=='<application-storage-account-name>']"
+```
+
+Verify File Scanning Service component cleanup:
+
+```bash
+# Confirm Event Grid topic is removed
+az eventgrid topic list --resource-group <event-grid-resource-group>
+
+# Confirm Service Bus namespace is removed
+az servicebus namespace list --resource-group <service-bus-resource-group>
+
+# Confirm file scanning storage account and its private endpoints are removed
+az storage account list --query "[?name=='<file-scanning-storage-account-name>']"
+az network private-endpoint list --resource-group <file-scanning-storage-resource-group>
 ```
 
 ## 6. Manual Cleanup (If Needed)
