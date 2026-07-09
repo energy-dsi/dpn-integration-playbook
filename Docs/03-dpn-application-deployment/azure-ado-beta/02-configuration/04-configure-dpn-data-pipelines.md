@@ -46,6 +46,10 @@
       - [Consumer Setup](#consumer-setup)
       - [Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper)
       - [Consumer Parameters — extractor & schema_mapper](#consumer-parameters--extractor--schema_mapper)
+    - [Scheduling Configuration](#scheduling-configuration)
+      - [Automated Scheduling](#automated-scheduling)
+      - [Manual Scheduling](#manual-scheduling)
+      - [Onboarding a New Data Product — Scheduling Setup](#onboarding-a-new-data-product--scheduling-setup)
     - [Secrets Configuration](#secrets-configuration-data-pipelines)
 
   - [DPN Data Store Configuration](#dpn-data-store-configuration)
@@ -787,6 +791,54 @@ DSI proposes only selective changes to the values file but provides the provisio
 | mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
 | targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
+
+### Scheduling Configuration
+
+Each data pipeline stage (adaptor, schema mapper, extractor) is triggered in one of two ways: **Automated Scheduling** or **Manual Scheduling**. Which one applies is controlled by the `SCHEDULER_BACKEND` parameter in that stage's `values.yaml`.
+
+#### Automated Scheduling
+
+Under automated scheduling, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics:
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| SCHEDULER_BACKEND | Set to `kafka-trigger` to enable software-triggered scheduling | `kafka-trigger` |
+| PIPELINE_CONTROL_TOPIC | Kafka topic the pipeline stage listens on for a start signal | `dpn-pipeline-control` |
+| PIPELINE_STATUS_TOPIC | Kafka topic the pipeline stage publishes run status/progress to | `dpn-pipeline-status` |
+| EXECUTION_MODE | `automatic` — the stage self-schedules on `scheduleInterval` — or `manual` — the stage only runs when a message arrives on `PIPELINE_CONTROL_TOPIC` | `automatic` / `manual` |
+| scheduleInterval | Polling interval in seconds. Only used when `EXECUTION_MODE: automatic` | `60` |
+
+A message published to `PIPELINE_CONTROL_TOPIC` starts a run; the pipeline stage reports progress back on `PIPELINE_STATUS_TOPIC`. No operator action is required once this is configured — this is why it's referred to as automated.
+
+> **Placeholder:** <Hari's input>
+
+#### Manual Scheduling
+
+Manual scheduling uses an orchestrator (Airflow) to start pipeline runs on a fixed schedule or on operator demand, instead of relying on the Kafka control-topic signal above.
+
+```text
+Root-Repository
+  └── charts
+        └── airflow/
+              ├── values-<env>-dpn01.yaml   <- Environment-specific Airflow overrides
+              └── dags/
+                    └── {product_type}.py   <- One DAG per data product
+```
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| SCHEDULER_BACKEND | Set to `airflow` to hand scheduling control to Airflow instead of the Kafka control topic | `airflow` |
+
+#### Onboarding a New Data Product — Scheduling Setup
+
+Scheduling configuration is **not created automatically** — it must be set up alongside every new data product, in addition to the steps in [Producer Setup](#producer-setup):
+
+1. Locate the sample/existing DAG closest to your new product's schema type under `charts/airflow/dags/` (this is the same sample-doc-style copy pattern used for Helm values in Producer Setup).
+2. Copy that DAG file and rename it to match the new `product_type` (e.g. copying the sample `eq` DAG to create the DAG for a new product `xyz-sample-1`).
+3. Update the copied DAG's references (topic names, container names, `product_type`) so they match the values used in that product's `values.yaml`.
+4. Set `SCHEDULER_BACKEND` on the product's `values.yaml` to match the chosen approach — `kafka-trigger` for automated scheduling, or `airflow` for manual scheduling.
+
+> **Placeholder:**  <Hari's input>
 
 ### Secrets Configuration
 
