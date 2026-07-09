@@ -12,11 +12,11 @@ DSI provides an **automated method** (Azure DevOps pipelines) that generates the
 
 - [Overview](#overview)
 - [Automated Vault Configuration](#automated-vault-configuration)
-  - [Step 1 — Prerequisites (before Vault can be deployed)](#step-1--prerequisites-before-vault-can-be-deployed)
-  - [Step 2 — Reference Configuration Data (populate before deployment)](#step-2--reference-configuration-data-populate-before-deployment)
-  - [Step 3 — Deployment](#step-3--deployment)
-  - [Step 4 — Post-Deployment: Auto-Unseal and Automatic Publication](#step-4--post-deployment-auto-unseal-and-automatic-publication)
-  - [Step 5 — Manual Verification (optional)](#step-5--manual-verification-optional)
+  - [Step 1: Prerequisites (before Vault can be deployed)](#step-1-prerequisites-before-vault-can-be-deployed)
+  - [Step 2: Reference Configuration Data (populate before deployment)](#step-2-reference-configuration-data-populate-before-deployment)
+  - [Step 3: Deployment](#step-3-deployment)
+  - [Step 4: Post-Deployment: Auto-Unseal and Automatic Publication](#step-4-post-deployment-auto-unseal-and-automatic-publication)
+  - [Step 5: Manual Verification (optional)](#step-5-manual-verification-optional)
 - [Manual Vault Configuration (Fallback)](#manual-vault-configuration-fallback)
 - [Review Notes](#review-notes)
 
@@ -68,7 +68,7 @@ Root-Repository/
 
 ---
 
-### Step 1 — Prerequisites (before Vault can be deployed)
+### Step 1: Prerequisites (before Vault can be deployed)
 
 Ensure the following are in place **before** running any pipeline:
 
@@ -80,14 +80,14 @@ Ensure the following are in place **before** running any pipeline:
 | 4 | **User-assigned managed identity** with access to the Key Vault | Needs *get* on secrets and *wrap/unwrap* on the unseal key. Its client ID is used for both auto-unseal and the CSI driver |
 | 5 | **Secrets Store CSI driver** (Azure provider) enabled on AKS | Vault mounts its TLS cert/key from Key Vault via CSI |
 | 6 | **ADO service connection** to the subscription, and a **self-hosted agent** with `openssl`, `keytool`, `az`, `kubectl`, `kubelogin`, and `helm` | See [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md) |
-| 7 | **Environment config and values files populated** | See [Step 2](#step-2--reference-configuration-data-populate-before-deployment) |
-| 8 | **DSM-signed client bundle available** | The client private key, DSM-signed certificate, and CA chain — loaded in [Step 3C](#step-3--deployment) |
+| 7 | **Environment config and values files populated** | See [Step 2](#step-2-reference-configuration-data-populate-before-deployment) |
+| 8 | **DSM-signed client bundle available** | The client private key, DSM-signed certificate, and CA chain — loaded in [Step 3C](#step-3-deployment) |
 
 > **Azure DevOps pipeline setup (one-time):** Before running any pipeline, complete [Azure DevOps Pipeline Prerequisites](00-common-dpn-configuration.md#azure-devops-pipeline-prerequisites). In particular the pipelines **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), set up the Azure **service connection**, populate `config/<env>.json`, and (for the bundle load) upload the Secure Files.
 
 ---
 
-### Step 2 — Reference Configuration Data (populate before deployment)
+### Step 2: Reference Configuration Data (populate before deployment)
 
 Two files must be populated for your environment. **Use your own values — the examples below are placeholders only.**
 
@@ -128,15 +128,15 @@ Root-Repository
 | `keyvault.clientID` | Managed-identity client ID used by the CSI driver | `<managed-identity-client-id>` |
 | `keyvault.name` | TLS-cert Key Vault name (CSI) | `kv-dpn-<env>-<region>-<seq>` |
 
-> **Note:** Keep `replicaCount: 1` — Vault uses a `ReadWriteOnce` persistent volume. The Vault TLS certificate and key are **not** set here; they are generated and published to Key Vault in [Step 3A](#step-3--deployment) and mounted into the pod via the CSI driver.
+> **Note:** Keep `replicaCount: 1` — Vault uses a `ReadWriteOnce` persistent volume. The Vault TLS certificate and key are **not** set here; they are generated and published to Key Vault in [Step 3A](#step-3-deployment) and mounted into the pod via the CSI driver.
 
 ---
 
-### Step 3 — Deployment
+### Step 3: Deployment
 
 Run the three pipelines in order. Each takes your environment as a runtime parameter and resolves `config/<env>.json` and `values-<env>.yaml` automatically.
 
-#### Step 3A — Bootstrap Vault TLS (`vault-tls-bootstrap-cd`)
+#### Step 3A: Bootstrap Vault TLS (`vault-tls-bootstrap-cd`)
 
 Generates a Root CA, the Vault server certificate/key, and the Certificate Manager truststore in a single run, then publishes them to Key Vault and Kubernetes.
 
@@ -151,11 +151,11 @@ Runtime parameters:
 | `sans` | Comma-separated DNS SANs for the Vault URL. **Must include the internal Kubernetes DNS name**, e.g. `vault-https.<namespace>.svc.cluster.local` |
 | `truststorePassword` | Password published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD` — default `changeit` |
 
-On completion it publishes (see [Step 4](#step-4--post-deployment-auto-unseal-and-automatic-publication)):
+On completion it publishes (see [Step 4](#step-4-post-deployment-auto-unseal-and-automatic-publication)):
 - `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` → Azure Key Vault
 - `truststore.jks` → Kubernetes secret `cert-manager-truststore`
 
-#### Step 3B — Deploy and Initialise Vault (`vault-https-cd`)
+#### Step 3B: Deploy and Initialise Vault (`vault-https-cd`)
 
 Deploys the `vault-https` Helm chart and runs four stages: **Validate** (`helm lint` + dry-run) → **Deploy** (`helm upgrade --install`, approval-gated) → **Verify** (pod/service/seal status) → **VaultInit** (initialise Vault, enable the KV v2 engine at `pki-client`, enable audit logging).
 
@@ -171,7 +171,7 @@ Runtime parameters:
 
 > **Important:** The init stage publishes the full init output (**root token + recovery keys**) as the `vault-init-output` pipeline artifact. Download it, store the recovery keys securely per your secrets policy, then delete the artifact.
 
-#### Step 3C — Load the Certificate Bundle (`vault-load-bundle-cd`)
+#### Step 3C: Load the Certificate Bundle (`vault-load-bundle-cd`)
 
 Upload the DSM client bundle to Azure DevOps **Library → Secure Files** using these exact names, then run the pipeline:
 
@@ -189,7 +189,7 @@ Runtime parameters: `serviceConnection`, `environment`.
 
 ---
 
-### Step 4 — Post-Deployment: Auto-Unseal and Automatic Publication
+### Step 4: Post-Deployment: Auto-Unseal and Automatic Publication
 
 No manual unseal is required. Vault uses **Azure Key Vault auto-unseal** (configured via the `seal "azurekeyvault"` stanza rendered into the Vault ConfigMap), so `vault operator init` produces **Recovery Keys, not Unseal Keys**, and Vault unseals itself on start-up.
 
@@ -209,7 +209,7 @@ The Vault pod mounts `VAULT-TLS-CERT` / `VAULT-TLS-KEY` from Key Vault via the S
 
 ---
 
-### Step 5 — Manual Verification (optional)
+### Step 5: Manual Verification (optional)
 
 Run these checks to confirm the automated flow completed successfully. Replace `<namespace>` with your namespace and `<vault-pod>` with the Vault pod name (label `app=dpn-vault-https`).
 
@@ -393,7 +393,7 @@ kubectl -n <namespace> exec $VPOD -- env VAULT_TOKEN=<RootToken> VAULT_ADDR=http
   vault kv put pki-client/node-net/client/certificate certificate="$(cat certificate.crt)"
 ```
 
-Verify using the checks in [Step 5 — Manual Verification](#step-5--manual-verification-optional).
+Verify using the checks in [Step 5: Manual Verification](#step-5-manual-verification-optional).
 
 ---
 

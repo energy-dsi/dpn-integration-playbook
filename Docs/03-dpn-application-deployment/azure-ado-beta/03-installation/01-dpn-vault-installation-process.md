@@ -41,13 +41,13 @@ Root-Repository/
 
 ## Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Vault Service → Step 1](../02-configuration/01-configure-dpn-vault-service.md#step-1--prerequisites-before-vault-can-be-deployed). In summary: an AKS cluster, an Azure Key Vault with the `vault-unseal-key` and a user-assigned managed identity, the Secrets Store CSI driver enabled, a populated `config/<env>.json` and `values-<env>.yaml`, and the DSM-signed client bundle.
+Confirm the prerequisites before starting — see [Configure DPN Vault Service → Step 1](../02-configuration/01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed). In summary: an AKS cluster, an Azure Key Vault with the `vault-unseal-key` and a user-assigned managed identity, the Secrets Store CSI driver enabled, a populated `config/<env>.json` and `values-<env>.yaml`, and the DSM-signed client bundle.
 
 ---
 
 ## Installation Sequence
 
-Run the three pipelines in order, each with your environment as the runtime parameter. Full parameter tables and details are in [Configure DPN Vault Service → Step 3](../02-configuration/01-configure-dpn-vault-service.md#step-3--deployment).
+Run the three pipelines in order, each with your environment as the runtime parameter. Full parameter tables and details are in [Configure DPN Vault Service → Step 3](../02-configuration/01-configure-dpn-vault-service.md#step-3-deployment).
 
 | Order | Pipeline | What it does |
 |-------|----------|--------------|
@@ -59,7 +59,7 @@ Run the three pipelines in order, each with your environment as the runtime para
 
 ## Verification
 
-After the sequence completes, confirm Vault is up, unsealed, and populated using the checks in [Configure DPN Vault Service → Step 5](../02-configuration/01-configure-dpn-vault-service.md#step-5--manual-verification-optional). Quick check:
+After the sequence completes, confirm Vault is up, unsealed, and populated using the checks in [Configure DPN Vault Service → Step 5](../02-configuration/01-configure-dpn-vault-service.md#step-5-manual-verification-optional). Quick check:
 
 ```bash
 kubectl get pods -n <namespace> -l app=dpn-vault-https -o wide

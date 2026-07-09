@@ -7,7 +7,7 @@
 - [Overview](#overview)
   - [Continuous Integration (CI)](#continuous-integration-ci)
   - [Continuous Deployment (CD)](#continuous-deployment-cd)
-- [Global / Generic Configuration](#global--generic-configuration)
+- [Global and Generic Configuration](#global-and-generic-configuration)
   - [DSI DSM Endpoint Configuration](#dsi-dsm-endpoint-configuration)
   - [Azure DevOps Configuration](#azure-devops-configuration)
     - [Node Pool Set Up](#node-pool-set-up)
@@ -88,7 +88,7 @@ During deployment, the pipeline performs the following steps:
 6. Verify deployment status using Kubernetes rollout checks.
 
 ---
-# Global / Generic Configuration
+# Global and Generic Configuration
 
 ## DSI DSM Endpoint Configuration
 
@@ -207,7 +207,7 @@ Update `config/<env>.json` (or `config/<env>-<cluster>.json` for the gateway) pe
 The approval-gated Deploy stages reference an Azure DevOps **Environment** (the `approval_group` parameter). Create the matching Environment under *Pipelines → Environments* and add approval checks if your process requires them.
 
 **6. Upload Secure Files (Vault bundle load only).**
-The `vault-load-bundle-cd` pipeline reads the DSM client bundle from **Library → Secure Files**. Upload `vault.key`, `certificate.pem`, and `ca-chain.pem` before running it — see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3--deployment).
+The `vault-load-bundle-cd` pipeline reads the DSM client bundle from **Library → Secure Files**. Upload `vault.key`, `certificate.pem`, and `ca-chain.pem` before running it — see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3-deployment).
 
 ---
 

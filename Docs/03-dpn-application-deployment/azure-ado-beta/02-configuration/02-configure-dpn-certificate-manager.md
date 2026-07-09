@@ -34,7 +34,7 @@ The Federator Gateway Server and Client mount the same file share (read-only) an
 
 | Path (`pki-client/node-net/client/…`) | Content | Written by |
 |---------------------------------------|---------|------------|
-| `keypair`, `certificate`, `ca-chain` | Client key pair, DSM-signed certificate, CA chain | Vault bundle load (during [Vault setup](01-configure-dpn-vault-service.md#step-3--deployment)) |
+| `keypair`, `certificate`, `ca-chain` | Client key pair, DSM-signed certificate, CA chain | Vault bundle load (during [Vault setup](01-configure-dpn-vault-service.md#step-3-deployment)) |
 | `intermediate-ca` | Intermediate CA certificate | Certificate Manager (renewal) |
 | `keystore-password`, `truststore-password` | Passwords for the generated P12 files | Certificate Manager |
 
@@ -180,7 +180,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `keyvault.enabled` | Use the Azure Key Vault CSI driver for secrets (`true`) instead of the chart-managed Secret rendered from the values file (`false`) | `true` |
 | `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, managed-identity client ID, tenant ID (when `keyvault.enabled: true`) | `kv-dpn-<env>-<region>-<seq>` / `<managed-identity-client-id>` / `<tenant-id>` |
 | `existingSecret.name` | Consume a pre-created Kubernetes secret (set to the CSI-produced secret when `keyvault.enabled: true`) | `certificate-manager-secrets` |
-| `vaultInitJob.enabled` | Run the one-time Job that enables Vault KV v2 + `pki-client` on first deploy. Leave `false` if Vault was already initialised during [Vault setup](01-configure-dpn-vault-service.md#step-3--deployment) | `false` |
+| `vaultInitJob.enabled` | Run the one-time Job that enables Vault KV v2 + `pki-client` on first deploy. Leave `false` if Vault was already initialised during [Vault setup](01-configure-dpn-vault-service.md#step-3-deployment) | `false` |
 
 ### Secrets Configuration
 

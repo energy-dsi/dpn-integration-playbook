@@ -21,7 +21,7 @@ This document describes how to configure and deploy the **DPN Federator Gateway*
 - [Values to Configure Before Deployment](#values-to-configure-before-deployment)
   - [Federator Server](#federator-server)
   - [Federator Client](#federator-client)
-  - [Shared — Key Vault and Vault](#shared--key-vault-and-vault)
+  - [Shared: Key Vault and Vault](#shared-key-vault-and-vault)
 - [Deployment](#deployment)
 - [Post-Deployment and Verification](#post-deployment-and-verification)
 - [Review Notes](#review-notes)
@@ -91,7 +91,9 @@ https://<storage-account>.blob.core.windows.net/?<sas-token>
 
 > **Note:** The keystore/truststore P12 passwords are **not** provisioned here — the gateway reads them from Vault at runtime. Only the storage connection strings live in Key Vault for the Federator Gateway.
 
-> **Dependency:** The gateway CD pipeline also reads **`VAULT-TRUSTSTORE-PASSWORD`** from this Key Vault (`az keyvault secret show`) and injects it as `vaultConfig.truststorePassword` at deploy time. This secret is created earlier by the Vault `vault-tls-bootstrap-cd` pipeline — confirm it exists in Key Vault before deploying the gateway.
+> **Vault truststore password (deploy-time):** The gateway CD pipeline reads **`VAULT-TRUSTSTORE-PASSWORD`** from this Key Vault (`az keyvault secret show`) and injects it as `vaultConfig.truststorePassword`, which is rendered into the Federator common config at deploy time. This secret is created earlier by the Vault `vault-tls-bootstrap-cd` pipeline — confirm it exists in Key Vault before deploying the gateway.
+>
+> **Rotating this password:** it is captured **at deploy time** and baked into the rendered config, so restarting the Federator pods keeps the **old** value. To rotate it: update `VAULT-TRUSTSTORE-PASSWORD` in Key Vault (via `vault-tls-bootstrap-cd`), then **re-run the gateway CD pipeline** (`azure-dpn-cd`) so the config is re-rendered with the new value — a pod restart alone is not sufficient.
 
 ---
 
@@ -103,7 +105,7 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 |-------------------|-------------|----------|
 | `federator-server-secrets` | CSI driver from AKV `STORAGE-CONNECTION-STRING` (Server `SecretProviderClass`) | Server storage connection string |
 | `federator-client-secrets` | CSI driver from AKV `CLIENT-STORAGE-CONNECTION-STRING` (Client `SecretProviderClass`) | Client storage connection string |
-| `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Vault truststore password, used by the gateway to read the P12 passwords from Vault over HTTPS |
+| `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the Vault root token (`VAULT_TOKEN`) the gateway uses to authenticate to Vault and read the P12 passwords |
 | `cert-manager-truststore` | Created by the Vault **`vault-tls-bootstrap-cd`** pipeline | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
 
 In addition, the shared file share PVC **`pvc-dpn-certs-fileshare`** must exist — it is mounted at `/tls` to provide `keystore.p12` and `truststore.p12`.
@@ -157,7 +159,7 @@ Root-Repository
 | `federatorClient.storage.azure.endpoint` | **Blob endpoint of the File Scan Service source storage account** (not the Server's account) | `https://stfss<env>dpn<region>01.blob.core.windows.net` |
 | `federatorClient.storage.azure.container` | Container where inbound files are written (File Scan source container) | `dp-consumer-raw` |
 
-### Shared — Key Vault and Vault
+### Shared: Key Vault and Vault
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
