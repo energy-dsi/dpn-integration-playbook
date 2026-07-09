@@ -1092,4 +1092,4 @@ dpn-federator-gateway/
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| 15-May-2026 | DSI Assurance | Draft | V0.1.0 |
+| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
