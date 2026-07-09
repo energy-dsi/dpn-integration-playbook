@@ -76,12 +76,14 @@ Ensure the following are in place **before** running any pipeline:
 |---|--------------|-------|
 | 1 | **AKS cluster** provisioned and reachable | Target cluster for the deployment |
 | 2 | **Azure Key Vault** provisioned | Stores the Vault TLS material, the auto-unseal key, and the Vault root token |
-| 3 | **Auto-unseal key** `vault-unseal-key` created in the Key Vault | An RSA key (not a secret) used by Vault's Azure Key Vault seal to auto-unseal |
+| 3 | **Auto-unseal key** `vault-unseal-key` created in the Key Vault | An RSA **key** (not a secret) used by Vault's Azure Key Vault seal to auto-unseal. Create once: `az keyvault key create --vault-name <KEY_VAULT_NAME> --name vault-unseal-key --kty RSA` |
 | 4 | **User-assigned managed identity** with access to the Key Vault | Needs *get* on secrets and *wrap/unwrap* on the unseal key. Its client ID is used for both auto-unseal and the CSI driver |
 | 5 | **Secrets Store CSI driver** (Azure provider) enabled on AKS | Vault mounts its TLS cert/key from Key Vault via CSI |
 | 6 | **ADO service connection** to the subscription, and a **self-hosted agent** with `openssl`, `keytool`, `az`, `kubectl`, `kubelogin`, and `helm` | See [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md) |
 | 7 | **Environment config and values files populated** | See [Step 2](#step-2--reference-configuration-data-populate-before-deployment) |
 | 8 | **DSM-signed client bundle available** | The client private key, DSM-signed certificate, and CA chain — loaded in [Step 3C](#step-3--deployment) |
+
+> **Azure DevOps pipeline setup (one-time):** Before running any pipeline, complete [Azure DevOps Pipeline Prerequisites](00-common-dpn-configuration.md#azure-devops-pipeline-prerequisites). In particular the pipelines **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), set up the Azure **service connection**, populate `config/<env>.json`, and (for the bundle load) upload the Secure Files.
 
 ---
 

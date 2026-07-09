@@ -151,29 +151,63 @@ pool:
 
 ### Azure Environment Configuration
 
-For the pipelines to run, the following parameters must be updated in the environment-specific JSON configuration file located under the Azure Pipelines folder.
+Each CD pipeline reads its Azure targeting from an environment-specific JSON config file under the repository's Azure Pipelines folder. **Update this file with your environment's values before running any pipeline.**
+
+The config file naming differs slightly per repository:
+
+- **Vault and Certificate Manager** (`dpn-federator-certificate-manager`): `config/<env>.json`
+- **Federator Gateway** (`dpn-federator-gateway`): `config/<env>-<cluster>.json` (one per DPN cluster)
 
 ```text
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── config/
-            ├── pdev.json
-            ├── ptest.json
-            ├── puat.json
+            └── <env>.json            # Federator Gateway: <env>-<cluster>.json
 ```
 
-| Parameter | Description | Example Value |
-|-----------|-------------|---------------|
-| AZURE_SUBSCRIPTION | Azure subscription ID where the infrastructure is deployed | `<valid Azure subscription ID>` |
-| SERVICE_CONNECTION | Azure DevOps service connection name for deployment | `<valid Azure service connection name>` |
-| RESOURCE_GROUP | Azure resource group containing the AKS cluster | `rg-prd-uks-dpn-01` |
-| AKS_CLUSTER | Name of the Azure Kubernetes Service cluster | `aks-prd-uks-dpn-01` |
-| NAMESPACE | Kubernetes namespace for container deployment | `ns-dpn-01` |
-| KEY_VAULT_NAME | Azure Key Vault used to store secrets and certificates | `akv-prd-uks-dpn-01` |
-| BASE_REGISTRY | Base registry path used by deployment images | `<image-registry-url>` |
-| ENV_NAME | Deployment environment abbreviation | `dev` / `sit` / `ppd` / `prd` |
-| VALUES_FILE | Helm values file name for use in the pipeline | `values-pdev.yaml` |
+| Key | Description | Example (placeholder) |
+|-----|-------------|-----------------------|
+| ENV_NAME | Deployment environment abbreviation | `<env>` |
+| AZURE_SUBSCRIPTION_ID | Subscription ID where the infrastructure is deployed | `<subscription-id>` |
+| RESOURCE_GROUP | Resource group containing the AKS cluster | `rg-<env>-uks-dpn-01` |
+| AKS_CLUSTER | Name of the AKS cluster | `aks-<env>-uks-dpn-01` |
+| NAMESPACE | Kubernetes namespace for the deployment | `ns-dpn-01` |
+| KEY_VAULT_NAME | Azure Key Vault for secrets and certificates | `kv-dpn-<env>-<region>-<seq>` |
+| BASE_REGISTRY | Base container registry URL | `<image-registry-url>` |
+| CONTAINER_REGISTRY / CONTAINER_REGISTRY_URL | Registry name / URL | `<acr-name>` / `<acr-name>.azurecr.io` |
+
+> **Note:** The **service connection**, **environment**, and (Federator Gateway only) **DPN cluster** are supplied as pipeline **runtime parameters** when you trigger a run — they are **not** keys in the JSON file. The Helm **values file** is derived from those parameters: `values-<env>.yaml` (Vault / Certificate Manager) or `values-<env>-<cluster>.yaml` (Federator Gateway).
+
+---
+
+### Azure DevOps Pipeline Prerequisites
+
+Complete these one-time setup steps **before running any CD pipeline**. They apply to the Vault pipelines (`vault-tls-bootstrap-cd`, `vault-https-cd`, `vault-load-bundle-cd`), the Certificate Manager pipeline (`certificate-manager-cd`), and the Federator Gateway pipeline (`azure-dpn-cd`).
+
+**1. Create the Azure service connection.**
+Create an **Azure Resource Manager** service connection in your Azure DevOps project (*Project settings → Service connections*), scoped to the target subscription using the deployment service principal / managed identity. You select this connection by name as the `serviceConnection` / `ServiceConnection` runtime parameter on every pipeline. The identity needs, at minimum: **Contributor** on the resource group, **get** access to the Key Vault secrets, **ACR pull**, and **AKS user/admin** access (for `az aks get-credentials` + `kubelogin`).
+
+**2. Configure the self-hosted agent pool.**
+The pipelines run on a self-hosted Linux agent pool (`pool.name` in the pipeline YAML — set it to your pool, e.g. `<agent-pool-name>`). The agent must have `az`, `kubectl`, `kubelogin`, `helm`, `jq`, `openssl`, and `keytool` installed (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md)). Update `pool.name` in the pipeline YAML if your pool name differs.
+
+**3. Create the Kubernetes namespace — required (pipelines do NOT create it).**
+None of the CD pipelines create the target namespace, and the first pipeline (`vault-tls-bootstrap-cd`) writes a secret into it. Create it once beforehand:
+
+```bash
+az aks get-credentials --resource-group <RESOURCE_GROUP> --name <AKS_CLUSTER> --overwrite-existing
+kubelogin convert-kubeconfig -l azurecli
+kubectl create namespace <NAMESPACE>    # e.g. ns-dpn-01 (may already exist from infrastructure provisioning)
+```
+
+**4. Populate the config JSON and Helm values files.**
+Update `config/<env>.json` (or `config/<env>-<cluster>.json` for the gateway) per [Azure Environment Configuration](#azure-environment-configuration), and the component's `values-<env>.yaml` / `values-<env>-<cluster>.yaml`, before triggering a run.
+
+**5. Create the Azure DevOps Environment for approval gating.**
+The approval-gated Deploy stages reference an Azure DevOps **Environment** (the `approval_group` parameter). Create the matching Environment under *Pipelines → Environments* and add approval checks if your process requires them.
+
+**6. Upload Secure Files (Vault bundle load only).**
+The `vault-load-bundle-cd` pipeline reads the DSM client bundle from **Library → Secure Files**. Upload `vault.key`, `certificate.pem`, and `ca-chain.pem` before running it — see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3--deployment).
 
 ---
 
@@ -193,7 +227,7 @@ During the organisation's onboarding process, an initial certificate package is 
 - The **P12/PFX certificate** issued by the DSI DSM Certificate Authority (keystore)
 - The **DSI certificate chain pem file** (truststore)
 
-Refer to the [DPN Federator Certificate Manager](\02-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
+Refer to the [DPN Federator Certificate Manager](02-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
 
 The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
 

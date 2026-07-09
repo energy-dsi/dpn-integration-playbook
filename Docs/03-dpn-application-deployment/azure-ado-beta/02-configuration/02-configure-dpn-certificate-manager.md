@@ -51,11 +51,13 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | 1 | **DPN Vault deployed, initialised, and loaded** | Vault running over HTTPS, KV v2 enabled at `pki-client`, and the certificate bundle loaded into `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the Vault `vault-tls-bootstrap-cd` pipeline |
 | 3 | **`VAULT-TOKEN` and `VAULT-TRUSTSTORE-PASSWORD` available** | The Vault root token (stored in Key Vault by the Vault init stage) and the Vault truststore password (from the Vault bootstrap). Both are consumed by the Certificate Manager |
-| 4 | **Shared Azure File Share provisioned** | Common storage for the P12 files (see [Shared File Share](#shared-file-share) below), plus the `azure-fileshare-secret` holding the storage account name and key |
+| 4 | **Shared Azure File Share provisioned + `azure-fileshare-secret` created manually** | Common storage for the P12 files. The `azure-fileshare-secret` Kubernetes secret must be **created manually before deploy** (the PV mounts using it) — see [Shared File Share](#shared-file-share) below |
 | 5 | **AKS cluster** + (if using Azure Key Vault for secrets) a **user-assigned managed identity** and the **Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
 | 6 | **OAuth2 client ID, client secret, and Management Node URL** | Received from DSM during onboarding to establish the DPN connection |
 | 7 | **Certificate Manager container image available** | Built via the DSI-provided CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD pipeline as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
 | 8 | **`config/<env>.json` and `values-<env>.yaml` populated** | See [Pre-Deployment Configuration](#pre-deployment-configuration) |
+
+> **Azure DevOps pipeline setup (one-time):** Before running the CD pipeline, complete [Azure DevOps Pipeline Prerequisites](00-common-dpn-configuration.md#azure-devops-pipeline-prerequisites) — the pipeline **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), set up the Azure **service connection**, and populate `config/<env>.json`.
 
 ### Shared File Share
 
@@ -71,6 +73,17 @@ The Certificate Manager, Federator Gateway Server, and Federator Gateway Client 
 > **Note:** Only the P12 files are written to the file share. The keystore and truststore **passwords are held in Vault** (`pki-client/node-net/client/keystore-password` and `truststore-password`) and managed by the Certificate Manager — they are not written as `.password` files on the share.
 
 The file share is provisioned by the certificate-manager chart (`charts/certificate-manager`, PV/PVC in `templates/pv-pvc.yaml`) when `fileShare.create: true`. Set it to `false` if the PV/PVC already exist.
+
+> **Manual Kubernetes secret — create this BEFORE deploying (required).** The file-share PersistentVolume authenticates to Azure Files with a storage-account key held in a **pre-existing** Kubernetes secret (`fileShare.secretName`, default `azure-fileshare-secret`), referenced by the PV's `nodeStageSecretRef`. It **must exist before the Certificate Manager is deployed** — it cannot be supplied by the Key Vault CSI driver, because the PV mounts before any CSI-synced secret is created. Create it once in the target namespace:
+>
+> ```bash
+> kubectl create secret generic azure-fileshare-secret \
+>   --namespace <namespace> \
+>   --from-literal=azurestorageaccountname=<file-share-storage-account> \
+>   --from-literal=azurestorageaccountkey=<file-share-storage-account-key>
+> ```
+>
+> This same secret and PVC are reused by the Federator Gateway (which mounts `/tls` read-only), so it only needs to be created once.
 
 ---
 
@@ -200,6 +213,8 @@ Create the following secrets in `<keyvault.name>`. The `SecretProviderClass` map
 | `AZURE-STORAGE-ACCOUNT-KEY` | `azure-fileshare-secret` / `azurestorageaccountkey` | Storage account key for the file share | `xxxxxxxxxxx` |
 
 > **Note:** `VAULT-TOKEN` and `VAULT-TRUSTSTORE-PASSWORD` are produced during Vault setup — the token by the Vault init stage (`storeRootTokenInAkv: true`) and the truststore password by the Vault bootstrap pipeline. Confirm both exist in Key Vault before deploying.
+
+> **Note:** Even when `keyvault.enabled: true`, the `azure-fileshare-secret` Kubernetes secret must still be **created manually before the first deploy** (see [Shared File Share](#shared-file-share)). The file-share PV mounts using it via `nodeStageSecretRef` before any CSI-synced secret exists, so the CSI sync alone is not sufficient for the initial mount.
 
 #### Option B — Chart-managed values (`keyvault.enabled: false`)
 
