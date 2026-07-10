@@ -33,7 +33,7 @@ Jaeger is particularly valuable for:
    http://<jaeger-host>:16686
    Use your credential (to be allocated by Admin) to login
    ```
-   ![Jaeger UI Home Page](/Docs/05-dpn-user-interfaces/images/jaeger-ui-home-page.png)
+   ![Jaeger UI Home Page](images/jaeger-ui-home-page.png)
 
 2. **Search for a trace** using the search panel on the left:
    - **Service** — select the microservice you want to investigate (e.g. `producer-file-schema-mapper`)
@@ -42,7 +42,7 @@ Jaeger is particularly valuable for:
    - **Lookback** — choose a time window (last 1h, 6h, etc.)
    - **Min / Max Duration** — optionally filter by trace duration
    - **Limit Results** — cap the number of traces returned
-   ![Search a Trace](/Docs/05-dpn-user-interfaces/images/jaeger-search-traces.png)
+   ![Search a Trace](images/jaeger-search-traces.png)
 
 3. **Click "Find Traces"** — the results panel lists matching traces ordered by time, showing service name, operation, duration, spans count, and timestamp.
 
@@ -53,7 +53,7 @@ Jaeger is particularly valuable for:
 > http://<jaeger-host>:16686/trace/<traceID>
 > ```
 
-![A Full Trace](/Docs/05-dpn-user-interfaces/images/jaeger-trace-timeline-view.png)
+![A Full Trace](images/jaeger-trace-timeline-view.png)
 
 ---
 
@@ -87,7 +87,7 @@ Time a span spent doing its *own* work, excluding time spent waiting for child s
 
 **What it shows**
 Horizontal Gantt/waterfall chart. Each span is a bar; its horizontal position and width show when it started and how long it ran relative to the trace start. Parent–child relationships are shown by indentation on the left.
-![Trace-Timeline view](/Docs/05-dpn-user-interfaces/images/jaeger-trace-timeline-view.png)
+![Trace-Timeline view](images/jaeger-trace-timeline-view.png)
 
 **Key numbers / signals to read**
 - **Bar width** → relative duration of each span
@@ -105,7 +105,7 @@ Debugging slow requests. Identifying which span dominates the total duration. Fi
 
 **What it shows**
 Flat tabular listing of every span. Columns: Service Name, Operation Name, Span ID, Duration, Start Time. Supports filtering by Service or Operation Name.
-![Trace-Spans-Table view](/Docs/05-dpn-user-interfaces/images/jaeger-trace-span-table-view.png)
+![Trace-Spans-Table view](images/jaeger-trace-span-table-view.png)
 
 **Key numbers / signals to read**
 - **Span ID** → cross-reference logs in OpenSearch or other tools
@@ -122,7 +122,7 @@ Cross-tool correlation. Copying span IDs for OpenSearch queries. Scanning operat
 
 **What it shows**
 Aggregated statistical summary grouped by Service Name (or Operation). Columns include Count, Total, Avg, Min, Max, ST Total, ST Avg, ST Min, ST Max, ST in Duration.
-![Trace-Statistics view](/Docs/05-dpn-user-interfaces/images/jaeger-trace-statistics-view.png)
+![Trace-Statistics view](images/jaeger-trace-statistics-view.png)
 
 **Key numbers / signals to read**
 - **Count: 4** → total span instances
@@ -141,7 +141,7 @@ Performance analysis. Comparing self-time vs total time. Identifying service con
 
 **What it shows**
 Table (Location, Self Time, Total Time) plus a Flamegraph (stacked bars where width ∝ time consumed).
-![Trace-Flamegraph view](/Docs/05-dpn-user-interfaces/images/jaeger-trace-flamegraph-view.png)
+![Trace-Flamegraph view](images/jaeger-trace-flamegraph-view.png)
 
 **Key numbers / signals to read**
 - **Self time** → actual work done by the span
@@ -159,7 +159,7 @@ Root cause of CPU/latency. Distinguishing orchestration spans from worker spans.
 
 **What it shows**
 Directed acyclic graph (DAG). Nodes represent spans and arrows represent call flow.
-![Trace-Graph view](/Docs/05-dpn-user-interfaces/images/jaeger-trace-graph-view.png)
+![Trace-Graph view](images/jaeger-trace-graph-view.png)
 
 **Key numbers / signals to read**
 - **Arrow direction** → caller → callee
@@ -177,7 +177,7 @@ Architecture understanding. Visualizing dependencies, fan-out patterns, and trac
 
 **What it shows**
 Full trace payload from `/api/traces/{traceID}?prettyPrint=true`. Includes traceID, spanID, operationName, references, startTime, duration, tags, logs, processID.
-![Trace-Json view](/Docs/05-dpn-user-interfaces/images/jaeger-trace-JSON-view.png)
+![Trace-Json view](images/jaeger-trace-JSON-view.png)
 
 **Key numbers / signals to read**
 - `references: []` → root span
