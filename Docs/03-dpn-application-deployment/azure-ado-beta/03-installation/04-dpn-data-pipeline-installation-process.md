@@ -1,21 +1,11 @@
-# DPN Installation Process
-
----
-
-# Table of Contents
-
-- [Overview](#overview)
-- [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
+- [DPN Data Pipeline Architecture](#dpn-data-pipeline-architecture)
 
 - [Installation Prerequisites](#installation-prerequisites)
-  - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
+  - [1. Clone and Prepare Source Repository](#1-clone-and-prepare-source-repository)
   - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
-  - [3. Certificate Preparation and CSR Generation](#3-certificate-preparation-and-csr-generation)
-    - [Step-by-Step Certificate Generation](#step-by-step-certificate-generation)
-    - [Certificate Files Received in DPN Package from DSI](#certificate-files-received-in-dpn-package-from-dsi)
-  - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
+  - [3. Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
 
-- [DPN Data Pipeline Installation](#part-3--dpn-data-pipeline-installation)
+- [DPN Data Pipeline Installation](#dpn-data-pipeline-installation)
   - [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline)
   - [Step 2 — Execute Data Pipeline CI Pipeline](#step-2--execute-data-pipeline-ci-pipeline)
     - [Common Parameters (Required for Both Producer and Consumer)](#common-parameters-required-for-both-producer-and-consumer)
@@ -25,18 +15,16 @@
   - [Step 4 — Configure Data Pipeline CD Pipeline](#step-4--configure-data-pipeline-cd-pipeline)
   - [Step 5 — Execute Data Pipeline CD Pipeline](#step-5--execute-data-pipeline-cd-pipeline)
   - [Step 6 — Verify Data Pipeline CD Pipeline](#step-6--verify-data-pipeline-cd-pipeline)
+  - [Step 7 — (Optional) Deploy the Scheduling Backend](#step-7--optional-deploy-the-scheduling-backend)
 
 - [Troubleshooting](#troubleshooting)
   - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
+  - [Data Pipeline Image Tag Malformed](#data-pipeline-image-tag-malformed)
   - [Pods Not Starting](#pods-not-starting)
+  - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
   - [Kafka Topic Issues](#kafka-topic-issues)
-  - [Certificate Renewal Job Failing](#certificate-renewal-job-failing)
-  - [Emergency certificate rotation process](#emergency-certificate-rotation-process)
-  - [Certificate Sync Job Failing](#certificate-sync-job-failing)
-  - [Federator Connection Failing](#federator-connection-failing)
-  - [Invalid Client Credential](#invalid-client-credential)
 
 - [Review Notes](#review-notes)
 
@@ -44,7 +32,7 @@
 
 ## Overview
 
-This document provides step-by-step instructions for installing and deploying **DPN components** using **Azure DevOps (ADO) pipelines**.
+This document provides step-by-step instructions for installing and deploying **DPN Data Pipeline component** using **Azure DevOps (ADO) pipelines**.
 
 The deployment uses the following repositories:
 
@@ -122,80 +110,16 @@ git push -u ado main
 
 Ensure the following prerequisites are completed before deployment:
 
-- Infrastructure prerequisites
+- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](02-configuration-parameters.md#secrets-configuration-data-pipelines))
+- Network and firewall rules applied as described in [Network and Ports Configuration](02-configuration-parameters.md#network-and-ports-configuration)
 - Software prerequisites
-- Network prerequisites
-- Security prerequisites
-- Certificate prerequisites
 
 [Refer to the **Prerequisites** and **Configuration** documentation for details](01-prerequisites.md)
 
+> **Note:** Certificate/CSR generation is **not** required for the Data Pipeline — that prerequisite applies only to the DPN Vault, Federator Certificate Manager, and Federator Gateway, which are covered in their own installation guides.
 ---
 
-### 3. Certificate Preparation and CSR Generation
-
-Organisations must provide their own Certificate Signing Request (CSR) file to DSI and have it signed by the DSI Certificate Authority via the DSM before DPN usage. The following CSR generation process uses OpenSSL commands. Organisations may alternatively use their own standard CSR generation process.
-
-The CSR file must contain at minimum the following Subject Alternative Names (SANs):
-
-- A producer endpoint for serving data products — e.g. `producer.xyz.com`
-- A consumer endpoint for consuming data products — e.g. `consumer.xyz.com`
-
-### Step-by-Step Certificate Generation
-
-For development purposes, follow these steps to generate certificates for mTLS. All passwords used are `changeit`. When generating these certficates, for the `Country Name`, you can use the value of 'UK'. All remaining certificate fields can be left to their default values.
-
-move to the docker folder
-```bash
-cd docker
-```
-
-Create a config file `<orgname.cnf>` to include required SANs. 
-
-```text
-[req]
-default_bits       = 2048
-prompt             = no
-distinguished_name = dn
-req_extensions     = req_ext
-
-[dn]
-CN = <organisation specific CN>
-
-[req_ext]
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = producer.xyz.com
-DNS.2 = consumer.xyz.com
-```
-
-Generate an RSA private key for the organisation's DPN:
-
-```text
-openssl genrsa -out <orgname>.key 2048
-```
-
-Generate the CSR for the organisation using the key file above, then submit the CSR to DSI DSM through the UI:
-
-```text
-openssl req -new -key <orgname>.key -out <orgname>.csr -config <orgname>.cnf
-```
-
-Organisations receive a **signed certificate from DSI DSM** based on their submitted CSR.
-
-#### Certificate Files Received in DPN Package from DSI
-
-Organisations receive a certificate package after uploading their CSR file to DSI. The package contains the `certificate.crt` and `ca_chain.crt` files from DSI. The following table lists the files provided to DPNs during DPN connection setup.
-
-| File            | Description |
-|-----------------|-------------|
-| `<orgname>.crt` | Certificate signed by DSI DSM |
-| `ca_chain.crt`  | Intermediate certificate chain provided by DSI DSM |
-
----
-
-### 4. Identify Pipeline Repository Structure
+### 3. Identify Pipeline Repository Structure
 
 Each DPN code repository includes the necessary CI and CD pipelines in the following folder structure for reference.
 
@@ -210,14 +134,6 @@ Root-Repository/
 ---
 
 ## Installation Steps
-
-The DPN currently comprises the following components:
-
-- DPN Vault and Shared File Service
-- DPN Federator Certificate Manager
-- DPN Federator Gateway
-- DPN Data Pipeline
-- DPN Data Store
 
 The installation steps for each component are outlined separately.
 
