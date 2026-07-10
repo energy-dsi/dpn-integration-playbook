@@ -1,9 +1,9 @@
 - [DPN Data Pipeline Architecture](#dpn-data-pipeline-architecture)
 
 - [Installation Prerequisites](#installation-prerequisites)
-  - [1. Clone and Prepare Source Repository](#1-clone-and-prepare-source-repository)
-  - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
-  - [3. Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
+  - [Clone and Prepare Source Repository](#1-clone-and-prepare-source-repository)
+  - [Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
+  - [Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
 
 - [DPN Data Pipeline Installation](#dpn-data-pipeline-installation)
   - [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline)
