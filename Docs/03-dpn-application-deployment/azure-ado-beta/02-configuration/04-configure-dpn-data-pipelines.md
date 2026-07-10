@@ -19,6 +19,11 @@
     - [Certificate Handling Note](#certificate-handling-note)
   - [Network and Ports Configuration](#network-and-ports-configuration)
 
+- [Container Image Configuration](#container-image-configuration)
+  - [Custom Images (GHCR)](#custom-images-ghcr)
+  - [Image Pull Configuration](#image-pull-configuration)
+  - [Known Issues](#known-issues)
+
 - [DPN Data Pipelines Configuration](#dpn-data-pipelines-configuration)
   - [Introduction and Purpose](#introduction-and-purpose)
   - [Helm Configuration](#helm-configuration-data-pipelines)
@@ -27,9 +32,9 @@
     - [Consumer Setup](#consumer-setup)
     - [Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper)
     - [Consumer Parameters — extractor & schema_mapper](#consumer-parameters--extractor--schema_mapper)
-  - [Scheduling Configuration](#scheduling-configuration)
-    - [Automated Scheduling](#automated-scheduling)
-    - [Manual Scheduling](#manual-scheduling)
+  - [Scheduler Configuration](#scheduler-configuration)
+    - [Automated Scheduler](#automated-scheduler)
+    - [Manual Scheduler](#manual-scheduler)
     - [Onboarding a New Data Product — Scheduling Setup](#onboarding-a-new-data-product--scheduling-setup)
   - [Secrets Configuration](#secrets-configuration-data-pipelines)
 
@@ -57,35 +62,32 @@ DPN components on Azure are deployed using **Azure DevOps (ADO) pipelines**, as 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
 
-The CI pipeline builds the application artefacts, while the CD pipeline deploys them to the target infrastructure.
+The CI pipeline builds the application artefacts, while the CD pipeline deploys them to the target infrastructure. Deployment is **containerised throughout**: every custom DPN Data Pipeline component (adaptor, schema mapper, extractor, Airflow) and every third-party dependency it relies on (Kafka client base images, Postgres, Redis, Alpine build base) run as container images pulled from the **GitHub Container Registry (GHCR)** — see [Container Image Configuration](#container-image-configuration).
 
 This document describes the configuration parameters required for deploying **DPN nodes on Azure Kubernetes Service (AKS)**. These parameters must be configured before running the deployment pipelines.
 
 The configuration covers the following areas:
 
-- DSI DSM endpoint configuration
-- Azure DevOps configuration
+- Azure DevOps configuration, including environment-specific approval gates
+- Container image sourcing and versioning
+- Helm chart configuration, including autoscaling
 - Secret configuration
-- Helm chart configuration
 - Network and ports configuration
 
 ---
 
 ## Continuous Integration (CI)
 
-The **Continuous Integration (CI)** pipeline is optional, partipants can either use it to build container components from the provided DPN Source code. Or it can be replaced in full by obtaining pre-build DPN containers directly from the DSI provided **GitHub Container Registry (GHCR)**.
+The **Continuous Integration (CI)** pipeline is optional, builds each custom component and publishes it to **GHCR** — this is now the primary distribution path, replacing the earlier per-cluster Azure Container Registry (ACR) mirroring approach. Organisations obtaining pre-built DPN containers directly, rather than building from source, pull the same GHCR images referenced in [Custom Images (GHCR)](#custom-images-ghcr) below.
 
 The **Continuous Integration (CI)** pipeline performs the following activities:
 
 1. Build the application source code.
 2. Produce container image artefacts.
-3. Tag the generated container images.
-4. Push the images to a container registry.
+3. Tag the generated container images with a fixed semantic version (e.g. `1.0.0`)
+4. Push the images to `ghcr.io/energy-dsi/<image-name>:<version>`.
 
-DSI recommends using **Azure Container Registry (ACR)** for storing container images in Azure due to its seamless integration with Azure services and built-in security capabilities.
-
-Organisations may use alternative container registries if permitted by their internal network and security policies.
-
+Organisations may use alternative container registries if permitted by their internal network and security policies, but GHCR is the DSI-provided default and the registry every documented image reference in this guide assumes.
 ---
 
 ## Continuous Deployment (CD)
@@ -98,8 +100,9 @@ During deployment, the pipeline performs the following steps:
 2. Retrieve credentials for the target AKS cluster.
 3. Validate Helm charts using `helm lint`.
 4. Perform a Helm **dry-run** validation.
-5. Deploy the DPN platform using Helm.
-6. Verify deployment status using Kubernetes rollout checks.
+5. **Wait for environment approval**, where configured — see [Environment-Specific Approval Gates](#environment-specific-approval-gates). Pipeline execution pauses here until an authorised approver signs off for that specific environment.
+6. Deploy the DPN platform using Helm, pulling images from GHCR per [Container Image Configuration](#container-image-configuration).
+7. Verify deployment status using Kubernetes rollout checks, including confirming any configured Horizontal Pod Autoscalers are healthy — see [Horizontal Pod Autoscaler (HPA) Configuration](#horizontal-pod-autoscaler-hpa-configuration).
 
 ---
 
@@ -194,44 +197,25 @@ Root-Repository/
 
 ---
 
-## Secrets Configuration (Global)
+### Environment-Specific Approval Gates
 
-Sensitive credentials must **not be stored in source code repositories**. They must be stored securely in one of the following vaults:
+Each environment-specific config file above corresponds to an **Azure DevOps Environment** (Pipelines → Environments), and each Environment can have its own approval and check configuration. The CD pipeline pauses at the point described in [Continuous Deployment (CD)](#continuous-deployment-cd) until the configured approval is satisfied for that environment.
 
-- **HashiCorp Vault** — provided with the DSI DPN package
-- **Azure Key Vault** — cloud-specific option for organisations using Azure
+Proposed approval configuration per environment:
 
-The table below lists all secrets required across the DPN package. Refer to the component-specific secrets configuration sections for details on where each secret must be provisioned.
+| Environment | Config File | Approval Required | Approvers | Notes |
+|-------------|--------------|---------------------|-----------|-------|
+| Development | `dev-dpn01.json` | None (auto-deploy) | — | Fast iteration; no gate |
+| Test | `test-dpn01.json` | Single approver | Test/QA lead | Confirms the build under test is ready to promote |
+| Pre-Production | `preprod-dpn01.json` | Two approvers | Platform lead + Security representative | Both must approve; mirrors production controls without production risk |
+| Production | `prd-dpn02.json` | Two approvers, plus a defined deployment window | Release manager / Change Advisory Board | Aligns with the organisation's change management process |
 
-| Variable | Description |
-|----------|-------------|
-| CLIENT_P12_PASSWORD | Password for the federator client certificate keystore |
-| CLIENT_TRUSTSTORE_PASSWORD | Password for the federator client truststore |
-| SERVER_P12_PASSWORD | Password for the federator server certificate keystore |
-| SERVER_TRUSTSTORE_PASSWORD | Password for the federator server truststore |
-| IDP_CLIENT_SECRET | Client secret used for DSI DSM Identity Provider authentication |
-| IDP_KEYSTORE_PASSWORD | Password for the IDP keystore |
-| IDP_TRUSTSTORE_PASSWORD | Password for the IDP truststore |
-| SRC_CONNECTION_STRING | SAS token for connecting to the source Blob Storage account |
-| MAPPER_CONNECTION_STRING | SAS token for connecting to the mapper Blob Storage account |
-| TARGET_CONNECTION_STRING | SAS token for connecting to the target Blob Storage account |
-| VAULT-TOKEN | Root token of the DPN HashiCorp Vault |
-| OAUTH2-CLIENT-SECRET | OAuth2 client secret for the DPN's client ID received from DSI DSM (equivalent to `IDP_CLIENT_SECRET`) |
-| AZURE-STORAGE-ACCOUNT-NAME | Storage account name for the Azure File Share used for common DPN certificate storage |
-| AZURE-STORAGE-ACCOUNT-KEY | Storage account key for the Azure File Share used for common DPN certificate storage |
+To configure an approval check in Azure DevOps:
 
----
-
-### Certificate Handling Note
-
-During the organisation's onboarding process, an initial certificate package is provided containing the certificate and CA Chain files. Organisations must securely store these certificates in a vault or equivalent secret store. The following certificate artefacts are included in the DPN package:
-
-- The **P12/PFX certificate** issued by the DSI DSM Certificate Authority (keystore)
-- The **DSI certificate chain** (truststore)
-
-Refer to the [Federator Certificate Manager Configuration](#federator-certificate-manager-configuration) section for detailed instructions on certificate lifecycle management.
-
-The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
+1. Go to **Pipelines → Environments** and select the target environment (create it first if it doesn't exist, matching the `AZURE_ENVIRONMENT_NAME` value above).
+2. Click **Approvals and checks → Add check → Approvals**.
+3. Add the required approver(s) or approver group(s) from the table above.
+4. Optionally set a timeout and whether the requestor can approve their own change (recommend **disabling** self-approval for Pre-Production and Production).
 
 ---
 
@@ -256,6 +240,54 @@ The following firewall rules must be applied by the organisation before installi
 > **Note:** DPN uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 load balancer; Layer 7 load balancing is not supported for this traffic.
 
 ---
+
+# Container Image Configuration
+
+The DPN Data Pipeline is fully containerised: every deployable stage (adaptor, schema mapper, extractor, Airflow) runs as a Kubernetes Deployment sourced from a container image. Custom DPN images and third-party dependencies are sourced differently, as described below. This section is based on the DSI-maintained image inventory for this component.
+
+## Custom Images (GHCR)
+
+All custom DPN Data Pipeline images are published to GHCR with a fixed semantic version tag (`1.0.0` at time of writing) — **not** a build-number or date-based tag.
+
+**File pathway:**
+
+| Image | GHCR Reference |
+|-------|------------------|
+| Producer adaptor — EQ | `ghcr.io/energy-dsi/producer-file-adaptor-eq:1.0.0` |
+| Producer mapper — EQ | `ghcr.io/energy-dsi/producer-file-mapper-eq:1.0.0` |
+| Consumer extractor | `ghcr.io/energy-dsi/consumer-file-extractor:1.0.0` |
+| Consumer mapper | `ghcr.io/energy-dsi/consumer-file-mapper:1.0.0` |
+
+**Topic pathway:**
+
+| Image | GHCR Reference |
+|-------|------------------|
+| Producer adaptor — EQ | `ghcr.io/energy-dsi/producer-topic-adaptor-eq:1.0.0` |
+| Producer mapper — EQ | `ghcr.io/energy-dsi/producer-topic-mapper-eq:1.0.0` |
+| Consumer extractor | `ghcr.io/energy-dsi/consumer-topic-extractor:1.0.0` |
+| Consumer mapper | `ghcr.io/energy-dsi/consumer-topic-mapper:1.0.0` |
+
+Set each product's `imageName` and `imageTag` (or an equivalent `image.repository`/`image.tag` pair, depending on the chart) to the matching row above — see [Producer Parameters](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper) and [Consumer Parameters](#consumer-parameters--extractor--schema_mapper).
+
+## Image Pull Configuration
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| image.registry / IMAGE_REGISTRY | GHCR namespace all images are pulled from | `ghcr.io/energy-dsi` |
+| imagePullSecrets | Kubernetes secret referencing a GHCR Personal Access Token, if the `energy-dsi` GHCR packages are private | `ghcr-pull-secret` |
+| imagePullPolicy | Whether to always re-check the registry for the tag | `IfNotPresent` (safe given every image is pinned to a fixed version, not `latest`) |
+
+If GHCR packages under `energy-dsi` are public, `imagePullSecrets` is not required. If private, create the pull secret once per namespace:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username-or-bot-account> \
+  --docker-password=<GitHub PAT with read:packages scope> \
+  -n <namespace>
+```
+
+--
 
 ## DPN Data Pipelines Configuration
 
@@ -337,6 +369,7 @@ The following steps are required when an organisation produces a data product:
 2. Copy the relevant schema folder (e.g. `eq`, `eqbd`, `dl`, or `ssh`) from `Root-Repository/blueprints/producer/file/{schema_type}` to `Root-Repository/producer/file/{schema_type}`.
 3. Rename the copied `{schema_type}` folder to `{product_type}` (e.g. rename `eq` to `eq-dp-01`). Only hyphens are permitted as special characters; all other special characters are disallowed.
 4. Ensure the `product_type` value is passed consistently during the CI pipeline run.
+5. Set `imageName`/`imageTag` to the matching GHCR reference from [Custom Images (GHCR)](#custom-images-ghcr).
 
 ```text
 Root-Repository
@@ -407,13 +440,29 @@ DSI proposes only selective changes to the values file but provides the provisio
 | targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
 
+### Horizontal Pod Autoscaler (HPA) Configuration
+
+Each adaptor, schema_mapper, and extractor Deployment can scale horizontally based on load, rather than running a fixed `replicaCount`. This requires the Kubernetes **metrics-server** to be running in the AKS cluster (standard on AKS by default).
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| hpa.enabled | Enables the Horizontal Pod Autoscaler for this stage | `true` |
+| hpa.minReplicas | Minimum pod count, including at idle | `1` |
+| hpa.maxReplicas | Maximum pod count under peak load | `5` |
+| hpa.targetCPUUtilizationPercentage | Average CPU utilisation (as % of requested CPU) that triggers scale-out | `70` |
+| hpa.targetMemoryUtilizationPercentage | Average memory utilisation (as % of requested memory) that triggers scale-out | `80` |
+
+> **Note:** when `hpa.enabled: true`, the chart's `replicaCount` value is treated only as the **initial** replica count at first deploy — the HPA controller owns the replica count from that point on. Do not rely on `replicaCount` to reflect the running pod count once HPA is active; check `kubectl get hpa` instead.
+
+Recommended starting point: enable HPA on `adaptor` and `schema_mapper` stages, which see variable load depending on file/message volume; leave `extractor` at a fixed `replicaCount` initially unless consumer-side volume is also expected to vary significantly, then revisit.
+
 ### Scheduling Configuration
 
 Each data pipeline stage (adaptor, schema mapper, extractor) is triggered in one of two ways: **Automated Scheduling** or **Manual Scheduling**. Which one applies is controlled by the `SCHEDULER_BACKEND` parameter in that stage's `values.yaml`.
 
-#### Automated Scheduling
+#### Automated Scheduler
 
-Under automated scheduling, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics:
+Under automated scheduler, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics:
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
@@ -427,9 +476,9 @@ A message published to `PIPELINE_CONTROL_TOPIC` starts a run; the pipeline stage
 
 > **Placeholder:** <Hari's input>
 
-#### Manual Scheduling
+#### Manual Scheduler
 
-Manual scheduling uses an orchestrator (Airflow) to start pipeline runs on a fixed schedule or on operator demand, instead of relying on the Kafka control-topic signal above.
+Manual scheduler uses an orchestrator (Airflow) to start pipeline runs on a fixed schedule or on operator demand, instead of relying on the Kafka control-topic signal above.
 
 ```text
 Root-Repository
@@ -444,14 +493,30 @@ Root-Repository
 |-----------|---------|---------|
 | SCHEDULER_BACKEND | Set to `airflow` to hand scheduling control to Airflow instead of the Kafka control topic | `airflow` |
 
-#### Onboarding a New Data Product — Scheduling Setup
+#### Onboarding a New Data Product — Scheduler Setup
 
-Scheduling configuration is **not created automatically** — it must be set up alongside every new data product, in addition to the steps in [Producer Setup](#producer-setup):
+cheduling configuration is **not created automatically** — a DAG must be added alongside every new data product using `SCHEDULER_BACKEND: airflow`, in addition to the steps in [Producer Setup](#producer-setup).
 
-1. Locate the sample/existing DAG closest to your new product's schema type under `charts/airflow/dags/` (this is the same sample-doc-style copy pattern used for Helm values in Producer Setup).
-2. Copy that DAG file and rename it to match the new `product_type` (e.g. copying the sample `eq` DAG to create the DAG for a new product `xyz-sample-1`).
-3. Update the copied DAG's references (topic names, container names, `product_type`) so they match the values used in that product's `values.yaml`.
-4. Set `SCHEDULER_BACKEND` on the product's `values.yaml` to match the chosen approach — `kafka-trigger` for automated scheduling, or `airflow` for manual scheduling.
+Every existing DAG under `charts/airflow/dags/` is a copy of the same template — a four-task chain (`trigger_adaptor` → `wait_adaptor_done` → `trigger_schema_mapper` → `wait_schema_mapper_done`) driving the already-running adaptor/schema_mapper pods over Kafka. The `file`-pathway reference DAG (`dpn_producer_file_bp_natural_gas.py`) documents this explicitly in its own docstring and isolates everything that changes per product into one block:
+
+```python
+# ── Product identity ──────────────────────────────────────────────────────────
+# These are the only three lines that change when you copy this DAG for another product.
+PRODUCT         = "bp-natural-gas"
+PIPELINE_TYPE   = "file"
+PIPELINE_ROLE   = "producer"
+
+BOOTSTRAP_SERVER = "dpn-kafka-src:9092"
+SCHEDULE         = '*/3 * * * *'
+```
+
+To onboard a new product:
+
+1. Copy `dpn_producer_file_bp_natural_gas.py` (recommended, over a `topic`-pathway DAG — see the note below) and rename the file to `dpn_producer_{pathway}_{product_type}.py`, following the existing naming convention.
+2. Update the **Product identity** block: `PRODUCT` to the new `product_type`, `PIPELINE_TYPE` to `file` or `topic` as appropriate, and `BOOTSTRAP_SERVER`/`SCHEDULE` if they differ from the default.
+3. Update the DAG definition's `dag_id` and `tags` to match the new product (e.g. `dag_id="producer_file_<product_type>"`, `tags=["dpn", "producer", "file", "<product_type>", "kafka-trigger"]`).
+4. Nothing else needs to change — the four-task chain, the `PipelineStatusSensor`, and the trigger-publishing logic are all generic and read `PRODUCT`/`PIPELINE_TYPE`/`PIPELINE_ROLE` rather than hardcoding product-specific behaviour.
+5. Set `SCHEDULER_BACKEND: airflow` on the product's `values.yaml` to match.
 
 > **Placeholder:**  <Hari's input>
 
