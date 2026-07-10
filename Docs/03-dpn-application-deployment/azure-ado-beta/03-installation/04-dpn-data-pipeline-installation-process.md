@@ -1,9 +1,11 @@
 - [DPN Data Pipeline Architecture](#dpn-data-pipeline-architecture)
 
 - [Installation Prerequisites](#installation-prerequisites)
-  - [Clone and Prepare Source Repository](#1-clone-and-prepare-source-repository)
-  - [Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
-  - [Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
+  - [1. Clone and Prepare Source Repository](#1-clone-and-prepare-source-repository)
+  - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
+  - [3. Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
+  - [4. Configure GHCR Image Access](#4-configure-ghcr-image-access)
+  - [5. Configure Environment Approval Gates](#5-configure-environment-approval-gates)
 
 - [DPN Data Pipeline Installation](#dpn-data-pipeline-installation)
   - [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline)
@@ -15,19 +17,20 @@
   - [Step 4 — Configure Data Pipeline CD Pipeline](#step-4--configure-data-pipeline-cd-pipeline)
   - [Step 5 — Execute Data Pipeline CD Pipeline](#step-5--execute-data-pipeline-cd-pipeline)
   - [Step 6 — Verify Data Pipeline CD Pipeline](#step-6--verify-data-pipeline-cd-pipeline)
-  - [Step 7 — (Optional) Deploy the Scheduling Backend](#step-7--optional-deploy-the-scheduling-backend)
+  - [Step 7 — Verify Horizontal Pod Autoscalers](#step-7--verify-horizontal-pod-autoscalers)
+  - [Step 8 — (Optional) Deploy the Scheduling Backend](#step-8--optional-deploy-the-scheduling-backend)
 
 - [Troubleshooting](#troubleshooting)
   - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
+  - [GHCR Image Pull Failures](#ghcr-image-pull-failures)
+  - [Data Pipeline Image Tag Malformed](#data-pipeline-image-tag-malformed)
+  - [CD Pipeline Stuck Awaiting Approval](#cd-pipeline-stuck-awaiting-approval)
   - [Pods Not Starting](#pods-not-starting)
+  - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
+  - [HPA Not Scaling](#hpa-not-scaling)
   - [Kafka Topic Issues](#kafka-topic-issues)
-  - [Certificate Renewal Job Failing](#certificate-renewal-job-failing)
-  - [Emergency certificate rotation process](#emergency-certificate-rotation-process)
-  - [Certificate Sync Job Failing](#certificate-sync-job-failing)
-  - [Federator Connection Failing](#federator-connection-failing)
-  - [Invalid Client Credential](#invalid-client-credential)
 
 - [Review Notes](#review-notes)
 
@@ -74,6 +77,7 @@ This component is responsible for event emission and storing the locations of da
 **DPN Caching Service**
 This component uses Redis caching to store Kafka offsets for various topics and to cache tokens as necessary for the Federator Server and Clients. It is also bundled with the Federator Gateway package.
 
+Every component above runs as a container image pulled from **GHCR** — see [Container Image Configuration](02-configuration-parameters.md#container-image-configuration) in the Configuration Guide for the full image inventory.
 ---
 
 ## Installation Prerequisites
@@ -113,13 +117,15 @@ git push -u ado main
 
 Ensure the following prerequisites are completed before deployment:
 
+- AKS cluster provisioned and accessible, with the **metrics-server** running (required for HPA — enabled by default on AKS)
+- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](02-configuration-parameters.md#dpn-streaming-service-kafka) in the Configuration Guide)
+- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](02-configuration-parameters.md#storage-blob--s3-configuration))
 - Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](02-configuration-parameters.md#secrets-configuration-data-pipelines))
-- Network and firewall rules applied as described in [Network and Ports Configuration](02-configuration-parameters.md#network-and-ports-configuration)
-- Software prerequisites
+- Network and firewall rules applied as described in [Network and Ports Configuration](02-configuration-parameters.md#network-and-ports-configuration), including outbound access to `ghcr.io`
+- Software prerequisites (Azure DevOps access, GHCR access — see Step 4 below)
 
 [Refer to the **Prerequisites** and **Configuration** documentation for details](01-prerequisites.md)
 
-> **Note:** Certificate/CSR generation is **not** required for the Data Pipeline — that prerequisite applies only to the DPN Vault, Federator Certificate Manager, and Federator Gateway, which are covered in their own installation guides.
 ---
 
 ### 3. Identify Pipeline Repository Structure
@@ -135,6 +141,31 @@ Root-Repository/
 ```
 
 ---
+
+### 4. Configure GHCR Image Access
+
+All custom and third-party images are pulled from `ghcr.io/energy-dsi` — see [Container Image Configuration](02-configuration-parameters.md#container-image-configuration) in the Configuration Guide for the full list.
+
+1. Confirm whether the `energy-dsi` GHCR packages required for this deployment are public or private.
+2. If private, create an `imagePullSecrets`-referenced Kubernetes secret in the target namespace **before** running the CD pipeline:
+   ```bash
+   kubectl create secret docker-registry ghcr-pull-secret \
+     --docker-server=ghcr.io \
+     --docker-username=<github-username-or-bot-account> \
+     --docker-password=<GitHub PAT with read:packages scope> \
+     -n <namespace>
+   ```
+3. Ensure the CI pipeline's service connection/credentials have `write:packages` scope if this deployment will also be building and publishing images to GHCR, not just pulling pre-built ones.
+
+--
+
+### 5. Configure Environment Approval Gates
+
+Before running the CD pipeline against any environment beyond Development, confirm the corresponding Azure DevOps Environment has its approval check configured — see [Environment-Specific Approval Gates](02-configuration-parameters.md#environment-specific-approval-gates) in the Configuration Guide for the proposed approver configuration per environment (Development: none; Test: single approver; Pre-Production: two approvers; Production: two approvers plus a defined deployment window).
+
+Without this configured, the CD pipeline will either deploy immediately without the intended sign-off, or (if the Environment resource doesn't exist yet) fail to resolve the environment reference — confirm the Environment exists and is configured before proceeding to Step 4 of [DPN Data Pipeline Installation](#dpn-data-pipeline-installation) below.
+
+--
 
 ## Installation Steps
 
@@ -204,25 +235,21 @@ Failure to provide Process Type and Schema Type when running the pipeline in pro
 > - The same CI pipeline is used for both producer and consumer, with behaviour controlled entirely by parameter selection.
 > - Schema Type and Process Type are validated only when `producer` is selected.
 > - Future enhancements may introduce additional schema types and process types without changing the overall pipeline structure.
+> - On successful completion, the CI pipeline pushes the built image to `ghcr.io/energy-dsi/<image-name>:1.0.0` (or the current released version) — see [Custom Images (GHCR)](02-configuration-parameters.md#custom-images-ghcr) for the exact reference per product/schema combination.
 
 ---
 
 #### Step 3 — Validate Data Pipeline CI Pipeline
 
-Verify that the image registry has been updated with images in the following naming format:
-
-```
-<configType>-<processType>-adaptor-<schemaType>:<buildId-productType>
-<configType>-<processType>-mapper-<schemaType>:<buildId-productType>
-<configType>-<processType>-extractor:<buildId>
-<configType>-<processType>-mapper:<buildId>
-```
-
-List all repositories in the registry to confirm:
+Verify that GHCR has been updated with the expected image, using the exact reference from [Custom Images (GHCR)](02-configuration-parameters.md#custom-images-ghcr) — for example:
 
 ```bash
-az acr repository list --name <acr-name>
+gh api /orgs/energy-dsi/packages/container/producer-file-adaptor-eq/versions
 ```
+
+or check the package directly at `https://github.com/orgs/energy-dsi/packages/container/package/producer-file-adaptor-eq`.
+
+> **Repo note:** the image name/tag is produced from the `imageName`/`imageTag`/`productType`/`schemaType` fields set in each product's `values.yaml` (see [Producer Setup](02-configuration-parameters.md#producer-setup)). If `productType` or `schemaType` is left blank in a product's `values.yaml`, the resulting reference will be malformed — see [Data Pipeline Image Tag Malformed](#data-pipeline-image-tag-malformed) in Troubleshooting.
 
 ---
 
@@ -238,9 +265,11 @@ Root-Repository/
             └── dsi-data-pipelines-cd.yaml
 ```
 
-> **Note:** Organisations must determine which data templates they require for processing. The pipelines are designed to be generic, processing a specific type (producer or consumer), integration pathway (file, topic, API), cloud provider type (Azure, AWS, GCP), and consumer ID.
+> **Notes:**
+> - Organisations must determine which data templates they require for processing. The pipelines are designed to be generic, processing a specific type (producer or consumer), integration pathway (file, topic, API), cloud provider type (Azure, AWS, GCP), and consumer ID.
+> - before running this pipeline, confirm the `SCHEDULER_BACKEND` value set on each product's `values.yaml` (`kafka-trigger` for automated, software-triggered scheduling, or `airflow` for orchestrator-driven scheduling — see [Scheduling Configuration](02-configuration-parameters.md#scheduling-configuration) in the Configuration Guide). If `airflow` is used for any product, complete [Step 7](#step-7--optional-deploy-the-scheduling-backend) below as part of this installation.
+> - confirm `IMAGE_REGISTRY` in the target environment's config JSON points at `ghcr.io/energy-dsi` (see [Azure Environment Configuration](02-configuration-parameters.md#azure-environment-configuration)), and that the Azure DevOps Environment for this target has its approval check configured per [Environment-Specific Approval Gates](02-configuration-parameters.md#environment-specific-approval-gates) — see [Prerequisite 5](#5-configure-environment-approval-gates) above.
 
-> **Repo note:** before running this pipeline, confirm the `SCHEDULER_BACKEND` value set on each product's `values.yaml` (`kafka-trigger` for automated, software-triggered scheduling, or `airflow` for orchestrator-driven scheduling — see [Scheduling Configuration](02-configuration-parameters.md#scheduling-configuration) in the Configuration Guide). If `airflow` is used for any product, complete [Step 7](#step-7--optional-deploy-the-scheduling-backend) below as part of this installation.
 ---
 
 #### Step 5 — Execute Data Pipeline CD Pipeline
@@ -295,7 +324,27 @@ kubectl logs <pod-name> -n <namespace>
 
 ---
 
-### Step 7 — (Optional) Deploy the Scheduling Backend
+### Step 7 — Verify Horizontal Pod Autoscalers
+
+For any stage deployed with `hpa.enabled: true` (see [Horizontal Pod Autoscaler (HPA) Configuration](02-configuration-parameters.md#horizontal-pod-autoscaler-hpa-configuration)):
+
+```bash
+kubectl get hpa -n <namespace>
+```
+
+Confirm the `TARGETS` column shows real CPU/memory percentages (not `<unknown>`, which indicates metrics-server is not reachable), and that `MINPODS`/`MAXPODS` match the configured `hpa.minReplicas`/`hpa.maxReplicas`.
+
+To confirm scaling behaviour under load, generate synthetic traffic against an adaptor or schema_mapper with HPA enabled, and watch:
+
+```bash
+kubectl get hpa -n <namespace> -w
+```
+
+Replica count should increase as the target metric exceeds the configured threshold, and scale back down once load subsides (subject to the default stabilisation window).
+
+---
+
+### Step 8 — (Optional) Deploy the Scheduler Backend
 
 If any deployed data product uses `SCHEDULER_BACKEND: airflow` (manual/orchestrator-driven scheduling) rather than `kafka-trigger` (automated, software-triggered scheduling), the Airflow chart must also be deployed — it is not installed as part of Step 5.
 
@@ -326,24 +375,52 @@ Products using `SCHEDULER_BACKEND: kafka-trigger` do not require this step — t
 
 Possible causes:
 
-- Incorrect GitHub PAT token or missing `read:packages` scope
-- Maven repository authentication failure — verify `GITHUB_MAVEN_USERNAME` and `GITHUB_MAVEN_TOKEN` in the `federator-ci` variable group
-- Docker login failure — verify `DOCKERHUB_USERNAME` and `DOCKERHUB_PASSWORD` in the `dockerhub-creds` variable group
-- ACR login failure — verify that the service principal used by the Service Connection has the `AcrPush` role on the Container Registry
+- GHCR authentication/push failure — verify the CI pipeline's credentials have `write:packages` scope on the `energy-dsi` GHCR namespace
+- Missing or incorrect Process Type / Schema Type / Product Type parameters when triggering a producer run (see [Producer Configuration](#producer-configuration))
 
-Verify pipeline logs and ensure all credentials are correct.
+Verify pipeline logs and ensure all credentials and parameters are correct.
 
 ---
 
 ### Container Image Not Found
 
-Check whether the CI pipeline pushed images to the registry:
+Check whether the CI pipeline pushed the image to GHCR (see [Step 3 — Validate Data Pipeline CI Pipeline](#step-3--validate-data-pipeline-ci-pipeline)).
+
+If the expected package/tag is not listed, re-run the relevant CI pipeline and ensure it completes without errors before proceeding to the CD pipeline.
+
+---
+
+### GHCR Image Pull Failures
+
+If pods show `ImagePullBackOff` or `ErrImagePull`:
+
+- If the `energy-dsi` GHCR packages are private, confirm the `imagePullSecrets` referenced by the chart exists in the target namespace and contains a valid, non-expired GitHub PAT with `read:packages` scope — see [Configure GHCR Image Access](#4-configure-ghcr-image-access).
+- Confirm the AKS node pool has outbound network access to `ghcr.io` and `pkg-containers.githubusercontent.com` — see [Network and Ports Configuration](02-configuration-parameters.md#network-and-ports-configuration).
+- Confirm the image reference (`imageRegistry`/`imageName`/`imageTag`) matches an actual published GHCR package/tag exactly — a typo here produces the same failure as a genuine access issue.
+
+---
+
+### Data Pipeline Image Tag Malformed
+
+If a data pipeline image tag or repository name is missing its schema/product segment (e.g. it ends in a trailing `-` or `:` instead of the expected `<buildId>-<productType>`), the product's `values.yaml` most likely has `productType` and/or `schemaType` left blank.
+
+Check the affected product's `values.yaml` for both the adaptor and schema_mapper charts:
 
 ```bash
-az acr repository list --name <acr-name>
+grep -E "^productType:|^schemaType:" producer/{file|topic}/<product_type>/{adaptor,schema_mapper}/charts/values.yaml
 ```
 
-If the expected repository is not listed, re-run the relevant CI pipeline and ensure it completes without errors before proceeding to the CD pipeline.
+Both values must be populated (matching the schema types in [Data Pipeline Blueprints](02-configuration-parameters.md#data-pipeline-blueprints)) before re-running the CI pipeline in [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline).
+
+---
+
+### CD Pipeline Stuck Awaiting Approval
+
+If a CD run for Test, Pre-Production, or Production doesn't progress past deployment, check **Pipelines → Runs → [run]** for a pending **Review** action. Confirm:
+
+- The correct approver(s) for that environment are configured under **Pipelines → Environments → [environment] → Approvals and checks** (see [Environment-Specific Approval Gates](02-configuration-parameters.md#environment-specific-approval-gates)).
+- The person expected to approve has been notified and has the necessary Azure DevOps permissions on that Environment.
+- If self-approval is disabled for that environment, confirm the approver is not the same identity that triggered the run.
 
 ---
 
@@ -355,7 +432,19 @@ Check pod events to identify scheduling or image pull issues:
 kubectl describe pod <pod-name> -n <namespace>
 ```
 
-Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect ACR credentials.
+Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect GHCR credentials (see [GHCR Image Pull Failures](#ghcr-image-pull-failures)).
+
+---
+
+### Data Pipeline Pod Overwritten by Its Sibling Stage
+
+If only one pod appears for a product where two are expected (adaptor and schema_mapper), check whether both charts' `values.yaml` files use the same final `name`/`imageName`:
+
+```bash
+grep -E "^name:|^imageName:" producer/{file|topic}/<product_type>/{adaptor,schema_mapper}/charts/values.yaml
+```
+
+If they match, the two Helm releases are colliding on the same Kubernetes resource name and one is overwriting the other. Give the schema_mapper chart a distinct `-mapper`-suffixed `name`/`imageName` (see the naming convention in [Naming Conventions — Avoiding Resource Collisions](02-configuration-parameters.md#naming-conventions--avoiding-resource-collisions)) and re-run the CD pipeline for that product.
 
 ---
 
@@ -370,8 +459,19 @@ kubectl logs <pod-name> -n <namespace>
 Common causes:
 
 - Invalid or missing environment variables — check the Helm values file for typographical errors or missing entries
-- Missing secrets or incorrect SAS Token for Blob storage — verify all required secrets exist in Azure Key Vault with the correct names and values
+- Missing secrets or incorrect SAS Token for Blob storage — verify all required secrets exist as Kubernetes secrets with the correct names and values
 - Kafka topic is not pre-populated — run the Kafka Topic Creator job or manually create topics via the Kafka UI
+
+---
+
+### HPA Not Scaling
+
+If `kubectl get hpa` shows `<unknown>` under `TARGETS`:
+
+- Confirm metrics-server is running: `kubectl get deployment metrics-server -n kube-system`.
+- Confirm the affected pods have CPU/memory `requests` set in their Deployment spec — HPA cannot compute a percentage without a request baseline.
+
+If metrics are available but replica count never changes, confirm `hpa.minReplicas`/`hpa.maxReplicas` allow room to scale, and that current load is actually crossing the configured `targetCPUUtilizationPercentage`/`targetMemoryUtilizationPercentage` threshold.
 
 ---
 
@@ -386,69 +486,9 @@ http://kafka-ui:8085
 Check that:
 
 - The topic exists in both the source and destination Kafka clusters
-- The topic name in the Federator configuration matches exactly (topic names are case-sensitive)
-- There are no consumer group errors shown in the Kafka UI for the Federator consumer group
-
----
-
-### Certificate Renewal Job Failing
-
-When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
-
-Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](02-configuration-parameters.md#vault-configuration).
-
-To restart a pod:
-
-```bash
-kubectl -n <namespace> delete po/<pod_id>
-```
-
-> **Note:** If the renewal job fails after the pods have been stopped for a period exceeding the renewal frequency (`cert.renewalRateMs`), the organisation's DPN administrator must raise a request with a new CSR to the DSM to obtain a new certificate bundle. Load the new bundle into the DPN Vault using the steps described in [Certificate Load Steps in Vault](02-configuration-parameters.md#certificate-load-steps-in-vault).
-
----
-
-### Emergency certificate rotation process
-
-In case we need to rotate/renew the certificate adhoc forcefully using new certificate bundle received from DSI DSM, we need to perform the cleanup and rollback process listed [here](04-rollback-procedures.md#vault-certificate-bundle-rollback) using the new certificate bundle. 
-
----
-
-### Certificate Sync Job Failing
-
-If the sync job fails with the following error:
-
-```text
-INFO  u.g.d.n.f.c.m.s.KeyStoreSyncServiceImpl [] - Synchronizing keystores to filesystem...
-ERROR u.g.d.n.f.c.m.job.CertificateSyncJob [] - Error during certificate synchronization job execution: Failed to create keystore
-uk.gov.dbt.ndtp.federator.certificate.manager.exception.KeyStoreCreationException: Failed to create keystore
-        at uk.gov.dbt.ndtp.federator.certificate.manager.service.pki.KeyStoreService.createKeyStore(KeyStoreService.java:62)
-Caused by: java.security.KeyStoreException: Certificate chain is not valid
-```
-
-Verify that the CA chain, intermediate CA, certificate, and key pair files stored in the Vault are in sync — that is, all are linked to the same CSR and root CA. If they are not, raise a new certificate bundle request using a new CSR.
-
----
-
-### Federator Connection Failing
-
-If the following log entries are observed and the connection does not proceed:
-
-```
-u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - No cached token in Redis for default management node, fetching from IDP
-15:15:34.346 [main] DEBUG u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - attempting to fetch token for management node
-```
-
-Verify that the mutual TLS certificates are correctly loaded in Vault and that the Vault and certificate manager pods are in a healthy running state. Check that keystore and truststore files are present at the expected shared storage path (e.g. `/tls`).
-
----
-
-### Invalid Client Credential
-
-An "Invalid client credential" error can arise due to a mismatch in the IDP client secret (`OAUTH2-CLIENT-SECRET`), which may occur following a periodic rotation carried out at the DSM side that renders the secret invalid at the DPN end.
-
-```
-Recommended fix: Obtain the updated client secret for the Client ID from DSM by raising a request with the DSM team.
-```
+- The topic name in the data pipeline configuration matches exactly (topic names are case-sensitive)
+- There are no consumer group errors shown in the Kafka UI for the data pipeline's consumer group(s)
+- For the `topic` pathway specifically, `srcGroupId` values are unique per product and free of stray environment/test suffixes
 
 ---
 
