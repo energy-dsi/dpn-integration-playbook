@@ -18,7 +18,7 @@
   - [Step 7 — (Optional) Deploy the Scheduling Backend](#step-7--optional-deploy-the-scheduling-backend)
 
 - [Troubleshooting](#troubleshooting)
- - [CI Pipeline Failure](#ci-pipeline-failure)
+  - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
   - [Pods Not Starting](#pods-not-starting)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
