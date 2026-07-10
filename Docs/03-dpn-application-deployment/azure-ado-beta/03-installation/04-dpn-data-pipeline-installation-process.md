@@ -18,13 +18,16 @@
   - [Step 7 — (Optional) Deploy the Scheduling Backend](#step-7--optional-deploy-the-scheduling-backend)
 
 - [Troubleshooting](#troubleshooting)
-  - [CI Pipeline Failure](#ci-pipeline-failure)
+ - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
-  - [Data Pipeline Image Tag Malformed](#data-pipeline-image-tag-malformed)
   - [Pods Not Starting](#pods-not-starting)
-  - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
   - [Kafka Topic Issues](#kafka-topic-issues)
+  - [Certificate Renewal Job Failing](#certificate-renewal-job-failing)
+  - [Emergency certificate rotation process](#emergency-certificate-rotation-process)
+  - [Certificate Sync Job Failing](#certificate-sync-job-failing)
+  - [Federator Connection Failing](#federator-connection-failing)
+  - [Invalid Client Credential](#invalid-client-credential)
 
 - [Review Notes](#review-notes)
 
