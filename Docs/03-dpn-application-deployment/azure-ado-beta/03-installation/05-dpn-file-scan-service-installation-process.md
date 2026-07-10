@@ -26,15 +26,6 @@ This document describes the planned installation process for the DPN File Scanni
 
 ---
 
-## Architecture
- 
-The following diagram illustrates the file scanning flow, from the Federator Client's file drop through Microsoft Defender for Storage, Event Grid, and Service Bus, to the existing Consumer Extractor:
- 
-![DPN File Scanning Service Architecture](/Docs/04-dpn-architecture/images/dpn_filescan_architecture.png)
- 
- 
----
-
 ## Prerequisites
 
 - The DPN Data Pipeline Consumer (Extractor + Schema Mapper) is already installed and reading from `dp-consumer-stage` — see the [DPN Data Pipeline Installation Process](../dpn-data-pipelines/installation.md).
