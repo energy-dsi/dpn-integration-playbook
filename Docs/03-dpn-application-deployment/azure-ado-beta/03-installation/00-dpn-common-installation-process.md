@@ -91,6 +91,11 @@ This is a file share component shared between the Federator Certificate Manager 
 - Cloud-native malware scanning of inbound files before they reach the existing consumer container
 - Only verified-clean files are made available to the DPN Data Pipeline Consumer
 
+**DPN Health Monitoring Service**
+- Hosts the shared OTEL Collector every other DPN component sends traces, metrics, and logs to (`dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317`)
+- Routes each signal type through Kafka to a dedicated storage/dashboard stack: Prometheus + Thanos + Perses (metrics), OpenSearch + Data Prepper (logs), Jaeger (traces)
+- Fronts all dashboards with a single authenticated reverse proxy
+
 **DPN Streaming Service — Kafka**
 This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor, mapper, and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
 
@@ -237,11 +242,12 @@ The DPN currently comprises the following components. Complete the prerequisites
 
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
-| DPN Vault and Shared File Service | *component installation.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Federator Certificate Manager | *component installation.md* | Depends on Vault |
+| DPN Vault and Shared File Service | *component installation.md — not yet split out of this document* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
+| DPN Federator Certificate Manager | *component installation.md — not yet split out of this document* | Depends on Vault |
+| DPN Federator Gateway | *component installation.md — not yet split out of this document* | Depends on Vault and Certificate Manager being installed and configured first |
 | DPN Data Pipeline | [`dpn-data-pipelines/installation.md`](../dpn-data-pipelines/installation.md) | Independent of Vault/Certificate Manager/Federator Gateway |
-| DPN File Scanning Service | [`dpn-file-scan-service/installation.md`](../dpn-file-scan-service/installation.md) | **Design stage** — depends on the Data Pipeline Consumer already being installed |
-| DPN Federator Gateway | *component installation.md* | Depends on Vault and Certificate Manager being installed and configured first |
+| DPN File Scanning Service | [`dpn-file-scan-service/installation.md`](../dpn-file-scan-service/installation.md) | **Design stage** — no implementation exists yet; depends on the Data Pipeline Consumer already being installed |
+| DPN Health Monitoring Service | [`dpn-health-monitoring-service/installation.md`](../dpn-health-monitoring-service/installation.md) | ** see that guide for the environment-specific setup (`dev`/`devtest` vs. `pdev`/`ptest`/`puat`) |
 
 ## Installation Steps
 
@@ -250,6 +256,7 @@ The DPN currently comprises the following components:
 - **DPN Vault and Shared File Service**
 - **DPN Federator Certificate Manager**
 - **DPN Federator Gateway**
+- **DPN Health Monitoring Service**
 - **DPN Data Pipeline**
 - **DPN File Scanning Service** 
 - **DPN Data Store** 
