@@ -98,17 +98,17 @@ Open a browser and navigate to:
 http://<your-host>:5601
 Use your credential (to be allocated by Admin) to login
 ```
-![Opensearch UI Login](images/os_login)
+![Opensearch UI Login](images/os_login.png)
 
 Once the Dashboards home page loads:
-![Opensearch Landing Page](images/os_landing_page)
+![Opensearch Landing Page](images/os_landing_page.png)
 
 1. Click **Dashboards** in the left-hand navigation menu.
 2. Find and open **DPN Monitoring**.
-![DPN_Monitoring Dashboard](images/os_dpn_monitoring)
+![DPN_Monitoring Dashboard](images/os_dpn_monitoring.png)
 
 The dashboard opens directly to the pre-built view with last 7 days of log in panels visible
-![DPN_Monitoring Dashboard Landing Page](images/os_dpn_monitoring_dashboard)
+![DPN_Monitoring Dashboard Landing Page](images/os_dpn_monitoring_dashboard.png)
 
 > **Tip:** Bookmark the direct dashboard URL after your first visit — it will include the dashboard ID in the path and return you straight to this view next time.
 
@@ -117,7 +117,7 @@ The dashboard opens directly to the pre-built view with last 7 days of log in pa
 ## 4. Dashboard Controls
 
 Before exploring individual panels, it helps to understand the controls at the top of every dashboard page.
-![Dashboard Controls](images/os_dashboard_controls)
+![Dashboard Controls](images/os_dashboard_controls.png)
 
 ### Time picker
 
@@ -162,7 +162,7 @@ The search box at the top of the page accepts **Kibana Query Language (KQL)** ex
 
 ### Panel 1 — Component Health State
 
-![Component Health State](images/os_component_health_state)
+![Component Health State](images/os_component_health_state.png)
 
 **What it shows**
 
@@ -190,7 +190,7 @@ Hovering over any box displays the component name, time of log and the severity 
 
 ### Panel 2 — Pipeline Health State
 
-![Pipeline Health State](images/os_pipeline_health_state)
+![Pipeline Health State](images/os_pipeline_health_state.png)
 
 **What it shows**
 
@@ -215,7 +215,7 @@ A component can be alive (green in Panel 1) but still producing pipeline failure
 
 ### Panel 3 — Component Failure Count
 
-![Component Failure Count](images/os_component_failure_count)
+![Component Failure Count](images/os_component_failure_count.png)
 
 **What it shows**
 
@@ -240,7 +240,7 @@ This table lists every component alongside a count of failure-level events (seve
 
 ### Panel 4 — Log View
 
-![Log View](images/os_log_view)
+![Log View](images/os_log_view.png)
 
 **What it shows**
 
@@ -374,7 +374,7 @@ log.body: "timeout"
 ### Filter bar tips
 
 - **Add a filter without typing:** Expand any row in the Log View (Panel 4), hover over a field value, and click the **+** magnifying glass. The filter is added automatically.
-![Filter Trace from Log View](images/os_log_view_select_trace)
+![Filter Trace from Log View](images/os_log_view_select_trace.png)
 - **Temporarily disable a filter** without deleting it: click the filter chip and toggle it off. The filter turns grey and is no longer active.
 - **Invert a filter** (exclude a value): click the filter chip and select **Exclude results** to flip it into a "NOT" filter.
 - **Stack multiple filters:** each filter you add narrows results further (AND logic). You can mix filter-bar filters with a KQL query in the query bar at the same time.
