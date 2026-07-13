@@ -5,534 +5,275 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Uninstallation Scope](#uninstallation-scope)
-- [Uninstallation Approach](#uninstallation-approach)
-- [Pre-Uninstallation Checklist](#pre-uninstallation-checklist)
+- [Rollback Mechanisms Available Today](#rollback-mechanisms-available-today)
+- [Pre-Rollback Checklist](#pre-rollback-checklist)
 
-- [Part 1 — Uninstall DPN Data Pipeline](#part-1--uninstall-dpn-data-pipeline)
-  - [Step 1 — Prepare Data Pipeline Uninstall CD Pipeline](#step-1--prepare-data-pipeline-uninstall-cd-pipeline)
-  - [Step 2 — Execute Data Pipeline Uninstall CD Pipeline](#step-2--execute-data-pipeline-uninstall-cd-pipeline)
-  - [Step 3 — Verify Data Pipeline Removal](#step-3--verify-data-pipeline-removal)
+- [Part 1 — DPN Data Pipeline Rollback](#part-1--dpn-data-pipeline-rollback)
+  - [Pipeline Parameters](#pipeline-parameters)
+  - [How Release/Image Names Are Derived](#how-releaseimage-names-are-derived)
+  - [Mode 1 — Helm Revision Rollback](#mode-1--helm-revision-rollback)
+  - [Mode 2 — Image Tag Rollback](#mode-2--image-tag-rollback)
+  - [Finding a Valid `rollbackRevision` or `imageTag`](#finding-a-valid-rollbackrevision-or-imagetag)
+  - [Scope Limitations of This Pipeline](#scope-limitations-of-this-pipeline)
+  - [Verification](#verification)
 
-- [Part 2 — Uninstall DPN Federator Certificate Manager](#part-2--uninstall-dpn-federator-certificate-manager)
-  - [Step 1 — Prepare Certificate Manager Uninstall CD Pipeline](#step-1--prepare-certificate-manager-uninstall-cd-pipeline)
-  - [Step 2 — Execute Certificate Manager Uninstall CD Pipeline](#step-2--execute-certificate-manager-uninstall-cd-pipeline)
-  - [Step 3 — Verify Certificate Manager Removal](#step-3--verify-certificate-manager-removal)
+- [Part 2 — DPN Federator Gateway Rollback](#part-2--dpn-federator-gateway-rollback)
+- [Part 3 — DPN Federator Certificate Manager Rollback](#part-3--dpn-federator-certificate-manager-rollback)
+- [Part 4 — DPN Vault Rollback](#part-4--dpn-vault-rollback)
+- [Part 5 — DPN File Scanning Service Rollback](#part-5--dpn-file-scanning-service-rollback)
+- [Part 6 — DPN Health Monitoring Service Rollback](#part-6--dpn-health-monitoring-service-rollback)
 
-- [Part 3 — Uninstall DPN Federator Gateway](#part-3--uninstall-dpn-federator-gateway)
-  - [Step 1 — Prepare Federator Gateway Uninstall CD Pipeline](#step-1--prepare-federator-gateway-uninstall-cd-pipeline)
-  - [Step 2 — Execute Federator Gateway Uninstall CD Pipeline](#step-2--execute-federator-gateway-uninstall-cd-pipeline)
-  - [Step 3 — Verify Federator Gateway Removal](#step-3--verify-federator-gateway-removal)
-
-- [Part 4 — Post-Uninstallation Cleanup](#part-4--post-uninstallation-cleanup)
-  - [Remove Container Images from ACR](#remove-container-images-from-acr)
-  - [Remove Kafka Topics](#remove-kafka-topics)
-  - [Remove Secrets and Certificates](#remove-secrets-and-certificates)
-  - [Remove Azure DevOps Pipelines](#remove-azure-devops-pipelines)
-
-- [Final Verification](#final-verification)
+- [Kafka Topic Recovery](#kafka-topic-recovery)
+- [Post-Rollback Verification (All Components)](#post-rollback-verification-all-components)
+- [Disaster Recovery Considerations](#disaster-recovery-considerations)
+- [Config and Installation Guide Cross-References](#config-and-installation-guide-cross-references)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-This document describes the rollback and recovery procedures for **DPN deployments** in the event of a failed installation or unsuccessful deployment.
+This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, Data Pipeline, File Scanning Service, and Health Monitoring Service.
 
-The rollback procedures apply to deployments performed using:
+This document uses that pipeline as the concrete, technical reference for how DPN's rollback strategy actually works, then generalises the same two-mode approach (Helm revision vs. image tag) to every other component via manual `helm rollback`/`helm upgrade` commands, since no equivalent dedicated pipeline was found for them.
 
-- **Azure DevOps CI/CD pipelines**
-- **Azure Container Registry (ACR)**
-- **Azure Kubernetes Service (AKS)**
-- **Helm-based deployments**
-
-The objective of the rollback procedure is to restore the platform to the **last known stable state** with minimal service disruption.
-
+All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Mechanisms](#rollback-mechanisms).
 ---
 
 ## Rollback Strategy
 
-The DPN deployment rollback strategy follows the layered architecture of the deployment:
+There are **two separate pipelines**, not two modes of one pipeline — this is the key distinction to get right:
 
-| Layer | Rollback Method |
-|-------|----------------|
-| CI Pipeline | Re-run pipeline with previous commit or tag |
-| Container Registry | Deploy previous container image tag |
-| Helm Deployment | Use Helm rollback to previous revision |
-| Kubernetes Deployment | Restart or redeploy pods |
-| Vault Secrets | Reload certificate bundle from previous known-good state |
-| Kafka Topics | Recreate or purge incorrect messages if required |
+| | Pipeline used | What you provide | What it does |
+|---|------------------|----------------------|-------------------|
+| **Strategy 1 — Image tag rollback** | The **same, standard CD pipeline** used for every normal deployment | A previous **image tag** (an Azure DevOps Build ID / build number) | Runs exactly like any other deployment — a fresh `helm upgrade --install` — except pointed at an older, already-built image instead of the latest one |
+| **Strategy 2 — Helm revision rollback** | A **separate, dedicated rollback pipeline** | A **Helm revision number** | Runs `helm rollback <release> <revision>`, reverting the release — chart *and* values — to exactly how it was at that revision |
 
-Rollback operations should always be performed in the following order:
+The distinction matters for what actually gets reverted:
 
-1. Stop the failed pipeline execution
-2. Identify the last successful deployment revision
-3. Roll back the Helm release to the previous stable revision
-4. Verify container and service status
-5. Validate Kafka topics and application logs
+- **Strategy 1** The standard CD pipeline deploys whatever `values.yaml` currently defines, just with an older `imageTag` substituted in. If the *values* are also wrong (not just the image), Strategy 1 alone won't fix that — it'll faithfully redeploy the bad values with an old image.
+- **Strategy 2 reverts everything about that revision** — chart version, values, and therefore whatever image tag was in use at that revision too. It doesn't let you pick an image tag independently of the revision; you get exactly what that revision was.
 
----
+**On image tags being build numbers:** every component's CI pipeline is assumed to tag images with a numeric Azure DevOps Build ID (e.g. `1042`), pushed to its registry — confirmed for the Data Pipeline. The `imageTag` value you type into Strategy 1 **is a build number**, not a semantic version or a date, unless/until a component has migrated to GHCR with fixed semantic-version tags (see [Config and Installation Guide Cross-References](#config-and-installation-guide-cross-references)).
+--
 
-## Rollback Scenarios
+## Rollback Pipeline Availability by Component
 
-Rollback procedures may be required under the following scenarios:
-
-| Scenario | Description |
-|----------|-------------|
-| CI Pipeline Failure | Image build failed or artefact corrupted |
-| CD Pipeline Failure | Deployment failed during Helm installation |
-| Container Startup Failure | Pods crash or enter CrashLoopBackOff after deployment |
-| Certificate Sync Failure | P12 keystore not generated or corrupted |
-| Vault Configuration Error | Incorrect certificate bundle loaded into Vault |
-| Kafka Processing Failure | Topics not created or data pipeline failing |
-| Configuration Error | Incorrect secrets, environment variables, or certificates |
+| Component | Standard CD pipeline (Strategy 1) | Dedicated rollback pipeline (Strategy 2) | Confidence |
+|-----------|--------------------------------------|-----------------------------------------------|--------------|
+| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | 
+| DPN Federator Gateway | `azure-dpn-cd.yaml` | `federator-gateway-rollback-cd.yaml` |
+| DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `certificate-manager-rollback-cd.yaml`|
 
 ---
 
-## Part 1 — DPN Federator Gateway Rollback
+## Pre-Rollback Checklist
 
-The Federator Gateway deployment includes the following services:
+Before initiating any rollback:
 
-| Component | Purpose |
-|-----------|---------|
-| Zookeeper Source | Coordination service for source Kafka cluster |
-| Zookeeper Target | Coordination service for target Kafka cluster |
-| Kafka Source | Source Kafka cluster |
-| Kafka Target | Target Kafka cluster |
-| Kafka UI | Kafka monitoring interface |
-| Redis | Stores Kafka offsets and token cache |
-| Federator Server | Sends data via gRPC |
-| Federator Client | Receives data and writes to Kafka |
+1. Confirm the CI/CD pipeline currently running (if any) has stopped or completed — don't roll back into an in-progress deployment.
+2. Decide which strategy applies: is the problem a bad **image build** (use Strategy 1) or a bad **configuration/values change** (use Strategy 2)? Using the wrong one either won't fix the actual problem or will revert more than intended.
+3. For Strategy 1: identify the last known-good image tag/build number. For Strategy 2: identify the last known-good Helm revision number.
+4. For the Data Pipeline specifically: confirm no active file ingestion is mid-flight, and that Kafka topics for the affected product are not actively being written to, where practical.
+5. For Vault/Certificate Manager rollbacks: confirm you have a secure, offline copy of the certificate bundle before touching Vault contents.
+6. Notify anyone actively using the affected component's dashboards/endpoints, especially for Health Monitoring Service, since a rollback there briefly interrupts telemetry collection platform-wide.
 
----
+## Part 1 — DPN Data Pipeline Rollback
 
-### Rollback During CI Pipeline Failure
+Both pipelines below were read directly from the `develop-rollback` branch of `dpn-data-pipelines`.
 
-If the **CI pipeline fails**, no deployment rollback is required because no containers have been deployed.
+### Strategy 1 — Redeploy a Previous Build via the Standard CD Pipeline
 
-Recommended actions:
+This is `.pipelines/azure-pipelines/cd-pipelines/dsi-data-pipelines-cd.yaml` — the same pipeline used for every normal deployment, not a rollback-specific one.
 
-1. Review CI pipeline logs in Azure DevOps.
-2. Fix any build or dependency issues (refer to the [Troubleshooting](03-installation-process.md#troubleshooting) section).
-3. Re-run the CI pipeline.
+| Parameter | Purpose | Values |
+|-----------|---------|--------|
+| `environment` | Target environment |`pdev`, `ptest`, `puat` |
+| `configType` | Producer or consumer | `producer`, `consumer` |
+| `processType` | Integration pathway | `file`, `topic` |
+| `productType` | Product type name (producer only) | free text, default `default` |
+| `schemaType` | Schema type (producer only) | free text, default `default` |
+| `imageTag` | **Image Tag To Deploy** — the build number to roll back to | free text, **no default — must be supplied every run** |
 
-Verify whether new container images were pushed before the failure:
+To roll back: trigger this pipeline exactly as you would for a normal deployment, but set `imageTag` to a previous, known-good build number instead of the latest one. There is no separate "rollback mode" — the pipeline has a single `Deploy` stage that always runs `helm upgrade --install` against whatever `imageTag` you give it, whether that's the newest build or an older one.
+
+**Finding a previous build number:**
 
 ```bash
-az acr repository list --name <acr-name>
+az acr repository show-tags --name <acr-name> --repository <image-name> --orderby time_desc
 ```
 
+Tags are Azure DevOps Build IDs — cross-reference against the CI pipeline's run history to confirm what a given build number actually corresponds to before choosing one.
+
+### Strategy 2 — Dedicated Rollback Pipeline (Helm Revision)
+
+This is the separate `.pipelines/azure-pipelines/cd-pipelines/dsi-data-pipelines-rollback-cd.yaml`.
+
+| Parameter | Purpose | Values |
+|-----------|---------|--------|
+| `environment` / `cluster` / `ServiceConnection` / `configType` / `processType` / `productType` / `schemaType` | Same as Strategy 1 | Same as Strategy 1 |
+| `rollbackRevision` | **Helm Revision** to roll back to | free text |
+
+Release/image names are derived the same way as the standard pipeline: `{configType}-{processType}-{base_name}-{schemaType}` for producer, `{configType}-{processType}-{base_name}` for consumer, where a `schema_mapper` folder is remapped to `mapper` in the release name.
+
 ```bash
-az acr repository show-tags --name <acr-name> --repository <image-name>
+helm rollback $RELEASE_NAME <rollbackRevision> -n $NAMESPACE
 ```
 
-If no new images were pushed, the previous deployment remains intact and no further rollback action is required.
+The pipeline does not independently verify the revision number exists before attempting the rollback — `helm rollback` will simply fail if it doesn't. Check history first:
+
+```bash
+helm history <release-name> -n <namespace>
+```
+
+> **Note:** the pipeline file also contains a `rollbackMode`/`imageTag` code path in addition to the Helm-revision path described above. **Strategy 1 (the standard CD pipeline) is the intended, documented way to perform an image-tag-based rollback** — treat any image-tag capability inside the rollback pipeline itself as redundant with Strategy 1, not a third option, unless confirmed otherwise.
+
+### Which Strategy to Use
+
+| Situation | Use |
+|-----------|-----|
+| The image build is broken (bad code, bad dependency) but the Helm values/chart are fine | **Strategy 1** — redeploy an older build number |
+| A values/config change was bad (wrong secret reference, wrong scheduling config, wrong resource limits) | **Strategy 2** — revert to a prior Helm revision |
+| Both the image *and* the values changed and both are suspect | **Strategy 2** first (reverts both), then confirm the image at that revision is actually the one you want — use Strategy 1 afterward only if you need an even older image than what that revision had |
+
+### Verification
+
+```bash
+kubectl get deployment $RELEASE_NAME -n <namespace> \
+  -o=jsonpath='{.spec.template.spec.containers[0].image}'
+
+kubectl rollout status deployment/$RELEASE_NAME -n <namespace> --timeout=180s
+```
 
 ---
 
-### Rollback During CD Pipeline Failure
+## Part 2 — DPN Federator Gateway Rollback
 
-If the **CD pipeline fails during deployment**, Kubernetes resources may be partially deployed.
+**Strategy 1 — standard CD pipeline (`azure-dpn-cd.yaml`):** re-run with an older `imageTag` (Build ID). Since this pipeline deploys the entire `dpn-platform` release together (Zookeeper Source/Target, Kafka Source/Target, Kafka UI, Redis, Federator Server, Federator Client), redeploying an old build number rebuilds the whole platform release at that image version, not just one sub-component.
 
-1. Identify the current Helm release:
+If only one sub-component's image needs to change, target it directly instead of using the platform-wide pipeline:
 
 ```bash
-helm list -n <namespace>
+kubectl set image deployment/federator-server \
+  federator-server=<acr-url>/dpn-federator-server:<imageTag> -n <namespace>
+kubectl rollout status deployment/federator-server -n <namespace>
 ```
 
-2. Check the Helm revision history:
+**Strategy 2 — dedicated rollback pipeline:**
 
 ```bash
+helm rollback dpn-platform <rollbackRevision> -n <namespace>
+```
+
+Reverts the entire combined release — every sub-component — to that revision at once. There's no partial Helm-revision rollback of just one sub-component within a shared release.
+
+**Verification:**
+
+```bash
+kubectl get pods -n <namespace>
 helm history dpn-platform -n <namespace>
 ```
 
-3. Identify the last successful revision from the history output, then proceed with a Helm release rollback as described in the next step.
-
 ---
 
-### Helm Release Rollback
+## Part 3 — DPN Federator Certificate Manager Rollback
 
-Use Helm rollback to restore the previous working revision:
+**Strategy 1 — standard CD pipeline (`certificate-manager-cd.yaml`):** re-run with an older `imageTag`.
 
-```bash
-helm rollback dpn-platform <revision-number> -n <namespace>
-```
-
-Example:
+**Strategy 2 — dedicated rollback pipeline:**
 
 ```bash
-helm rollback dpn-platform 2 -n ns-dpn
+helm rollback dpn-certificate-manager <rollbackRevision> -n <namespace>
 ```
 
-Verify that all pods return to a `Running` state after rollback:
+**Neither strategy rolls back Vault's contents** — the certificate manager's deployment revision is independent of what's stored in Vault. If the problem is the *certificate bundle itself* rather than the certificate manager's code, see [Part 4 — DPN Vault Rollback](#part-4--dpn-vault-rollback).
+
+**Verification:**
 
 ```bash
 kubectl get pods -n <namespace>
-```
-
----
-
-### Container Image Rollback
-
-If the failure is caused by a faulty container image, redeploy using the previous known-good image tag.
-
-1. Identify the previous image tag in ACR:
-
-```bash
-az acr repository show-tags --name <acr-name> --repository dpn-federator
-```
-
-2. Update the Helm values file to reference the previous tag:
-
-```yaml
-image:
-  repository: <acr-url>/dpn-federator
-  tag: <previous-tag>
-```
-
-3. Re-run the CD pipeline with the updated image tag.
-
----
-
-### Rollback Kafka Topics
-
-If Kafka topics were incorrectly created or contain corrupted messages:
-
-1. Access the Kafka UI:
-
-```
-http://kafka-ui:8085
-```
-
-2. Identify and delete the incorrect topics.
-
-3. Recreate the topics using the Kafka topic creation pipeline, or manually via the Kafka UI.
-
-> **Note:** Kafka UI is only accessible from inside the Azure network via the Windows Virtual Machine specified in the prerequisites.
-
----
-
-## Part 2 — DPN Federator Certificate Manager Rollback
-
-The Federator Certificate Manager is responsible for issuing, renewing, and synchronising mTLS certificates used by the Federator Gateway. It has the following dependencies:
-
-- HashiCorp Vault — stores the key pair, CA chain, and signed certificate
-- Shared file storage — holds the generated P12 keystore and truststore files at `/tls`
-- Federator Gateway — consumes the P12 files for mTLS communication
-
-A certificate manager failure can prevent the Federator Gateway from establishing secure connections. Follow the procedures below to restore the certificate manager to a working state.
-
----
-
-### Rollback During Certificate Manager CI Pipeline Failure
-
-If the **Certificate Manager CI pipeline fails**, no deployment rollback is required because no containers have been deployed.
-
-Recommended actions:
-
-1. Review the CI pipeline logs in Azure DevOps.
-2. Fix any build or image issues.
-3. Re-run the CI pipeline using the `certificate-manager-ci.yaml` pipeline.
-
-Verify the image registry for successful image push:
-
-```bash
-az acr repository list --name <acr-name>
-```
-
-```bash
-az acr repository show-tags --name <acr-name> --repository dpn-federator-certificate-manager
-```
-
----
-
-### Rollback During Certificate Manager CD Pipeline Failure
-
-If the **Certificate Manager CD pipeline fails**, restore the previous working deployment using Helm.
-
-1. List current Helm releases:
-
-```bash
-helm list -n <namespace>
-```
-
-2. Review the revision history for the certificate manager release:
-
-```bash
-helm history dpn-certificate-manager -n <namespace>
-```
-
-3. Roll back to the last successful revision:
-
-```bash
-helm rollback dpn-certificate-manager <revision-number> -n <namespace>
-```
-
-4. Verify that the certificate manager and Vault pods are in a `Running` state:
-
-```bash
-kubectl get pods -n <namespace>
-```
-
-5. Confirm the P12 keystore and truststore files are present at the shared storage location:
-
-```bash
 kubectl -n <namespace> exec <pod-name> -- ls /tls
 ```
 
 ---
 
-### Vault Certificate Bundle Rollback
+## Part 4 — DPN Health Monitoring Service Rollback
 
-If an incorrect certificate bundle was loaded into the Vault (for example, mismatched key pair and certificate chain), the Vault secrets must be corrected by reloading the previous valid bundle.
+Every sub-component (`dpn-kafka-health`, `dpn-otel-collector`, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, nginx-observability) has its own standard CD pipeline today (confirmed in code).
 
-> **Warning:** An incorrect or mismatched bundle will cause the certificate sync job to fail with a `KeyStoreCreationException`. Confirm the bundle integrity before reloading.
+**Strategy 1 — standard CD pipeline for the affected sub-component:** re-run with an older `imageTag`.
 
-1. Verify the Vault is unsealed and accessible:
-
-```bash
-kubectl -n <namespace> exec vault-x -- vault status -format=json
-```
-
-2. If required, unseal the Vault:
+**Strategy 2 — dedicated rollback pipeline for that sub-component:**
 
 ```bash
-kubectl -n <namespace> exec vault-x -- vault operator unseal <unseal_key>
+helm rollback <release-name> <rollbackRevision> -n ns-dpn-health-01
 ```
-3. Cleanup the vault contents, by logging into its UI and deleting the below files one by one. Confirm acceptance of delete when prompted.
 
-- pki-client/node-net/client/keypair
-- pki-client/node-net/client/certificate
-- pki-client/node-net/client/ca-chain
-- pki-client/node-net/client/keystore.password
-- pki-client/node-net/client/truststore.password
+**Rollback order matters here**, mirroring the deployment dependency graph (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper`/`Jaeger → Perses → OTel → NginxObservability`): if rolling back a component others depend on (e.g. Kafka), check whether dependent components also need attention afterward.
 
-4. Cleanup the below files from the file share (common storage),
+**A rollback of the OTEL Collector specifically** interrupts telemetry collection platform-wide during the rollout — factor this into timing per the [Pre-Rollback Checklist](#pre-rollback-checklist).
 
-- /tls/keystore.p12
-- /tls/truststore.p12
-- /tls/keystore.password
-- /tls/truststore.password
-
-by executing below command on the certificate manager pod:
+**Verification:**
 
 ```bash
-kubectl -n <namespace> exec certificate-manager-x -- rm /tls/*
+kubectl get pods -n ns-dpn-health-01
+kubectl get hpa -n ns-dpn-health-01
 ```
 
-5. Reload the correct key pair:
+Trigger a known event upstream and confirm it still reaches all three dashboards after the rollback.
 
-```bash
-kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/keypair \
-  privateKey="$(cat <orgname>.key)" \
-  publicKey="$(openssl rsa -in <orgname>.key -pubout 2>/dev/null)"
-```
+--
+## Kafka Topic Recovery
 
-6. Reload the correct CA chain:
+Applicable to any component that produces to or consumes from Kafka (Data Pipeline, Federator Gateway, Health Monitoring Service's `otel-metrics`/`otel-logs`/`otel-traces` topics):
 
-```bash
-kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/ca-chain \
-  chain="$(cat ca-chain.crt)"
-```
+- **Delete invalid messages** — inspect and remove via the relevant Kafka UI.
+- **Recreate a topic** — delete and recreate if the topic's own configuration (partitions, retention, replication factor) is wrong, not just its contents.
+- **Resume from last offset** — redeploying a consumer without deleting anything resumes from its last committed consumer group offset; usually preferable to deleting messages.
 
-7. Reload the correct signed certificate:
-
-```bash
-kubectl -n <namespace> exec vault-x -- env VAULT_TOKEN=<RootToken> vault kv put pki-client/node-net/client/certificate \
-  certificate="$(cat certificate.crt)"
-```
-
-8. Restart the certificate manager pod to trigger a fresh synchronisation:
-
-```bash
-kubectl -n <namespace> delete po/<pod-id>
-```
-
-9. Monitor the logs and confirm the sync job completes without errors:
-
-```bash
-kubectl logs <certificate-manager-pod> -n <namespace>
-```
+> For Health Monitoring Service specifically: Kafka there is currently single-broker and non-persistent in `dev`/`devtest` — a topic-level recovery action may be moot if the underlying broker has already lost the data across a restart.
 
 ---
 
-### P12 Keystore Recovery
-
-If the P12 keystore or truststore files at the `/tls` shared storage location are missing or corrupted:
-
-1. Confirm the current state of the `/tls` directory:
-
-```bash
-kubectl -n <namespace> exec <pod-name> -- ls /tls
-```
-
-2. If files are absent or incomplete, restart both the Vault pod and the certificate manager pod to force regeneration:
-
-```bash
-kubectl -n <namespace> delete po/<vault-pod-id>
-kubectl -n <namespace> delete po/<certificate-manager-pod-id>
-```
-
-3. Allow the certificate sync job to complete and verify the `/tls` directory again:
-
-```bash
-kubectl -n <namespace> exec <pod-name> -- ls /tls
-```
-
-4. Once the P12 files are confirmed present, restart the Federator Gateway pods so they pick up the regenerated certificates:
-
-```bash
-kubectl rollout restart deployment/federator-server -n <namespace>
-kubectl rollout restart deployment/federator-client -n <namespace>
-```
-
----
-
-### Certificate Renewal Job Recovery
-
-If the certificate renewal job is failing after the pods have been restarted following a prolonged outage, the stored certificates may have expired.
-
-1. Check the certificate manager logs for renewal errors:
-
-```bash
-kubectl logs <certificate-manager-pod> -n <namespace>
-```
-
-2. If the renewal frequency threshold (`cert.renewalRateMs`) has been exceeded, the existing certificate bundle can no longer be renewed automatically. In this case, raise a new CSR request with DSI DSM to obtain a fresh certificate bundle.
-
-3. Once the new bundle is received, reload the certificate bundle into Vault following the steps in [Vault Certificate Bundle Rollback](#vault-certificate-bundle-rollback).
-
-> **Note:** If the certificate sync job fails with `KeyStoreException: Certificate chain is not valid`, verify that the CA chain, intermediate CA, signed certificate, and key pair stored in Vault all correspond to the same CSR and root CA. If there is a mismatch, request a new certificate bundle from DSI DSM.
-
----
-
-## Part 3 — DPN Data Pipeline Rollback
-
-The Data Pipeline deployment includes the following components per schema type:
-
-| Component | Mode |
-|-----------|------|
-| Adaptor | Producer |
-| Mapper | Producer |
-| Extractor | Consumer |
-| Mapper | Consumer |
-
----
-
-### Rollback Data Pipeline Containers
-
-If a data pipeline container fails after deployment:
-
-1. Identify failing pods:
+## Post-Rollback Verification (All Components)
 
 ```bash
 kubectl get pods -n <namespace>
-```
-
-2. Review pod logs to identify the root cause:
-
-```bash
-kubectl logs <pod-name> -n <namespace>
-```
-
-3. Roll back the Helm deployment or redeploy using the previous container image tag.
-
-```bash
-helm rollback <data-pipeline-release> <revision-number> -n <namespace>
-```
-
----
-
-### Rollback Kafka Topics for Data Pipelines
-
-Kafka topics may contain invalid data as a result of a failed pipeline run.
-
-Possible recovery actions depending on the failure:
-
-- **Delete invalid messages** — use the Kafka UI to inspect and remove messages from the affected topic
-- **Recreate the topic** — delete and recreate the topic if the topic configuration is incorrect
-- **Restart the consumer pipeline** — redeploy the consumer containers to resume processing from the last committed offset
-
-Access the Kafka UI to verify message flows:
-
-```
-http://kafka-ui:8085
-```
-
----
-
-### Rollback Storage Processing Jobs
-
-If a file processing job fails:
-
-1. Delete the failed Kubernetes job:
-
-```bash
-kubectl delete job <job-name> -n <namespace>
-```
-
-2. Re-trigger the adaptor CD pipeline to restart the file ingestion process from the beginning.
-
----
-
-## Post-Rollback Verification
-
-After performing any rollback procedure, verify overall system health using the following checks.
-
-Check that all pods are in a `Running` state:
-
-```bash
-kubectl get pods -n <namespace>
-```
-
-Check that all services are exposed:
-
-```bash
 kubectl get svc -n <namespace>
-```
-
-Check that all deployments are healthy (`READY` should match `DESIRED`):
-
-```bash
 kubectl get deployments -n <namespace>
-```
-
-Verify pod logs are clean:
-
-```bash
 kubectl logs <pod-name> -n <namespace>
 ```
 
-Confirm P12 keystore and truststore files are present (Certificate Manager):
+Component-specific additions:
 
-```bash
-kubectl -n <namespace> exec <pod-name> -- ls /tls
-```
-
-Verify Kafka cluster topics and message flows via the Kafka UI:
-
-```
-http://kafka-ui:8085
-```
+| Component | Additional check |
+|-----------|----------------------|
+| Federator Certificate Manager / Vault | `kubectl -n <namespace> exec <pod-name> -- ls /tls` — confirm P12 keystore/truststore present |
+| Data Pipeline / Federator Gateway | Kafka UI — confirm topics and message flow |
+| Health Monitoring Service | `kubectl get hpa -n ns-dpn-health-01` — confirm the OTEL Collector's HPA is healthy post-rollback |
 
 ---
 
 ## Disaster Recovery Considerations
 
-For critical deployment failures, the following recovery actions may be required:
+- Rebuild container images from the last stable tagged Git commit if no registry tag is usable.
+- Reload the certificate bundle into Vault from a **secure offline copy** — without it, a corrupted Vault has no recovery path short of a new CSR to DSI DSM.
+- Restore Kafka topics if data corruption occurred, understanding that Health Monitoring Service's current single-broker, non-persistent Kafka configuration may mean "restore" means "accept the data is gone."
+- Restart CI/CD pipelines with corrected configuration once the root cause is fixed, not just the symptom rolled back.
 
-- Restore Kubernetes deployments from the previous Helm revision
-- Rebuild container images from the last stable tagged Git commit
-- Reload the certificate bundle into Vault from a secure offline copy
-- Restore Kafka topics if data corruption occurs
-- Restart CI/CD pipelines with a corrected configuration
+Organisations should maintain:
 
-Organisations should maintain the following to ensure rollback operations can be performed quickly and safely:
+- Versioned Helm charts with revision history retained (don't `helm uninstall`/reinstall routinely — this resets revision history to 1, losing Strategy 2 targets).
+- Versioned container images in the registry with previous build tags preserved, not garbage-collected aggressively — Strategy 1 depends on old tags still being pullable.
+- Tagged Git releases for all components.
+- A securely stored copy of the certificate bundle outside the cluster.
 
-- Versioned Helm charts with revision history retained
-- Versioned container images in ACR with previous tags preserved
-- Tagged Git releases for all components
-- A securely stored copy of the certificate bundle (key pair, CA chain, signed certificate) outside of the cluster
+---
+
+## Config and Installation Guide Cross-References
+
+- **Configuration Guide (`dpn-data-pipelines/config.md`)** documents `IMAGE_REGISTRY`/GHCR as the **target** registry state. This document reflects what the confirmed pipelines actually use today (`ACR_NAME`, per-environment ACR, build-number tags). If/when the GHCR migration lands, Strategy 1's `az acr repository show-tags` command becomes a GHCR equivalent, and tags become semantic versions rather than build numbers — for every component, not just Data Pipeline.
+- **Each component's Installation Process** should link to this document from its own Troubleshooting section, and vice versa.
 
 ---
 
@@ -540,4 +281,4 @@ Organisations should maintain the following to ensure rollback operations can be
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
-| 15-May-2026 | DSI Assurance | Draft | V0.1.0 |
+| 31-July-2026 | DSI Assurance | Final | V1.0.0 |

@@ -19,42 +19,28 @@
     - [Certificate Handling Note](#certificate-handling-note)
   - [Network and Ports Configuration](#network-and-ports-configuration)
 
-- [Component-Specific Configuration](#component-specific-configuration)
+- [Container Image Configuration](#container-image-configuration)
+  - [Custom Images (GHCR)](#custom-images-ghcr)
+  - [Image Pull Configuration](#image-pull-configuration)
+  - [Known Issues](#known-issues)
 
-  - [DPN Security Services](#dpn-security-services)
-    - [HashiCorp Vault Configuration](#hashicorp-vault-configuration)
-      - [HTTPS Configuration](#https-configuration)
-      - [Vault Helm Configuration For Certificate Manager](#vault-helm-configuration-for-certificate-manager)
-      - [Vault Secrets Configuration](#vault-secrets-configuration)
+- [DPN Data Pipelines Configuration](#dpn-data-pipelines-configuration)
+  - [Introduction and Purpose](#introduction-and-purpose)
+  - [Helm Configuration](#helm-configuration-data-pipelines)
+    - [Data Pipeline Blueprints](#data-pipeline-blueprints)
+    - [Producer Setup](#producer-setup)
+    - [Consumer Setup](#consumer-setup)
+    - [Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper)
+    - [Consumer Parameters — extractor & schema_mapper](#consumer-parameters--extractor--schema_mapper)
+  - [Scheduler Configuration](#scheduler-configuration)
+    - [Automated Scheduler](#automated-scheduler)
+    - [Manual Scheduler](#manual-scheduler)
+    - [Onboarding a New Data Product — Scheduling Setup](#onboarding-a-new-data-product--scheduling-setup)
+  - [Secrets Configuration](#secrets-configuration-data-pipelines)
 
-    - [Shared Storage Service Configuration](#shared-storage-service-configuration)
-      - [Certificate P12 Storage as File Share](#certificate-p12-storage-as-file-share)
-      - [Helm Configuration](#helm-configuration)
-      - [Secrets Configuration](#secrets-configuration)
-
-    - [Federator Certificate Manager Configuration](#federator-certificate-manager-configuration)
-      - [Helm Configuration](#helm-configuration-1)
-      - [Secrets Configuration](#secrets-configuration-1)
-        - [Key Vault Secrets Configuration](#key-vault-secrets-configuration)
-        - [Kubernetes Secrets Configuration](#kubernetes-secrets-configuration)
-
-  - [DPN Data Pipelines Configuration](#dpn-data-pipelines-configuration)
-    - [Introduction and Purpose](#introduction-and-purpose)
-    - [Helm Configuration](#helm-configuration-data-pipelines)
-      - [Data Pipeline Blueprints](#data-pipeline-blueprints)
-      - [Producer Setup](#producer-setup)
-      - [Consumer Setup](#consumer-setup)
-      - [Producer Parameters — dl, eq, eqbd, and ssh (adaptor & schema_mapper)](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper)
-      - [Consumer Parameters — extractor & schema_mapper](#consumer-parameters--extractor--schema_mapper)
-    - [Secrets Configuration](#secrets-configuration-data-pipelines)
-
-  - [DPN Data Store Configuration](#dpn-data-store-configuration)
-    - [Storage Blob / S3 Configuration](#storage-blob--s3-configuration)
-    - [DPN Streaming Service (Kafka)](#dpn-streaming-service-kafka)
-
-  - [DPN Federator Gateway Configuration](#dpn-federator-gateway-configuration)
-    - [Helm Configuration](#helm-configuration-federator-gateway)
-    - [Secrets Configuration](#secrets-configuration-federator-gateway)
+- [DPN Data Store Configuration](#dpn-data-store-configuration)
+  - [Storage Blob / S3 Configuration](#storage-blob--s3-configuration)
+  - [DPN Streaming Service (Kafka)](#dpn-streaming-service-kafka)
 
 - [Review Notes](#review-notes)
 
@@ -66,50 +52,42 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
 
 ![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_components.png)
 
-- **DPN Security Service**
-  - Vault Service — Certificate regeneration for DSM communication and storage.
-  - Digital Certificate Manager — Manages recycling of certificates at a predefined interval from the DSI Management Node.
-  - Shared File Service — SMB-based shared file storage between the Federator Certificate Manager and Federator Gateway for storing certificate P12 files.
 - **DPN Data Pipelines** — Responsible for producing and consuming data products of an organisation.
 - **DPN Data Store Service**
   - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate P12 files, and Redis caching data.
   - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission.
-- **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes.
 
 DPN components on Azure are deployed using **Azure DevOps (ADO) pipelines**, as defined in the DPN repositories provided by DSI. These pipelines are organised into two stages:
 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
 
-The CI pipeline builds the application artefacts, while the CD pipeline deploys them to the target infrastructure.
+The CI pipeline builds the application artefacts, while the CD pipeline deploys them to the target infrastructure. Deployment is **containerised throughout**: every custom DPN Data Pipeline component (adaptor, schema mapper, extractor, Airflow) and every third-party dependency it relies on (Kafka client base images, Postgres, Redis, Alpine build base) run as container images pulled from the **GitHub Container Registry (GHCR)** — see [Container Image Configuration](#container-image-configuration).
 
 This document describes the configuration parameters required for deploying **DPN nodes on Azure Kubernetes Service (AKS)**. These parameters must be configured before running the deployment pipelines.
 
 The configuration covers the following areas:
 
-- DSI DSM endpoint configuration
-- Azure DevOps configuration
+- Azure DevOps configuration, including environment-specific approval gates
+- Container image sourcing and versioning
+- Helm chart configuration, including autoscaling
 - Secret configuration
-- Helm chart configuration
 - Network and ports configuration
 
 ---
 
 ## Continuous Integration (CI)
 
-The **Continuous Integration (CI)** pipeline is optional, partipants can either use it to build container components from the provided DPN Source code. Or it can be replaced in full by obtaining pre-build DPN containers directly from the DSI provided **GitHub Container Registry (GHCR)**.
+The **Continuous Integration (CI)** pipeline is optional, builds each custom component and publishes it to **GHCR** — this is now the primary distribution path, replacing the earlier per-cluster Azure Container Registry (ACR) mirroring approach. Organisations obtaining pre-built DPN containers directly, rather than building from source, pull the same GHCR images referenced in [Custom Images (GHCR)](#custom-images-ghcr) below.
 
 The **Continuous Integration (CI)** pipeline performs the following activities:
 
 1. Build the application source code.
 2. Produce container image artefacts.
-3. Tag the generated container images.
-4. Push the images to a container registry.
+3. Tag the generated container images with a fixed semantic version (e.g. `1.0.0`)
+4. Push the images to `ghcr.io/energy-dsi/<image-name>:<version>`.
 
-DSI recommends using **Azure Container Registry (ACR)** for storing container images in Azure due to its seamless integration with Azure services and built-in security capabilities.
-
-Organisations may use alternative container registries if permitted by their internal network and security policies.
-
+Organisations may use alternative container registries if permitted by their internal network and security policies, but GHCR is the DSI-provided default and the registry every documented image reference in this guide assumes.
 ---
 
 ## Continuous Deployment (CD)
@@ -122,8 +100,9 @@ During deployment, the pipeline performs the following steps:
 2. Retrieve credentials for the target AKS cluster.
 3. Validate Helm charts using `helm lint`.
 4. Perform a Helm **dry-run** validation.
-5. Deploy the DPN platform using Helm.
-6. Verify deployment status using Kubernetes rollout checks.
+5. **Wait for environment approval**, where configured — see [Environment-Specific Approval Gates](#environment-specific-approval-gates). Pipeline execution pauses here until an authorised approver signs off for that specific environment.
+6. Deploy the DPN platform using Helm, pulling images from GHCR per [Container Image Configuration](#container-image-configuration).
+7. Verify deployment status using Kubernetes rollout checks, including confirming any configured Horizontal Pod Autoscalers are healthy — see [Horizontal Pod Autoscaler (HPA) Configuration](#horizontal-pod-autoscaler-hpa-configuration).
 
 ---
 
@@ -218,44 +197,25 @@ Root-Repository/
 
 ---
 
-## Secrets Configuration (Global)
+### Environment-Specific Approval Gates
 
-Sensitive credentials must **not be stored in source code repositories**. They must be stored securely in one of the following vaults:
+Each environment-specific config file above corresponds to an **Azure DevOps Environment** (Pipelines → Environments), and each Environment can have its own approval and check configuration. The CD pipeline pauses at the point described in [Continuous Deployment (CD)](#continuous-deployment-cd) until the configured approval is satisfied for that environment.
 
-- **HashiCorp Vault** — provided with the DSI DPN package
-- **Azure Key Vault** — cloud-specific option for organisations using Azure
+Proposed approval configuration per environment:
 
-The table below lists all secrets required across the DPN package. Refer to the component-specific secrets configuration sections for details on where each secret must be provisioned.
+| Environment | Config File | Approval Required | Approvers | Notes |
+|-------------|--------------|---------------------|-----------|-------|
+| Development | `dev-dpn01.json` | None (auto-deploy) | — | Fast iteration; no gate |
+| Test | `test-dpn01.json` | Single approver | Test/QA lead | Confirms the build under test is ready to promote |
+| Pre-Production | `preprod-dpn01.json` | Two approvers | Platform lead + Security representative | Both must approve; mirrors production controls without production risk |
+| Production | `prd-dpn02.json` | Two approvers, plus a defined deployment window | Release manager / Change Advisory Board | Aligns with the organisation's change management process |
 
-| Variable | Description |
-|----------|-------------|
-| CLIENT_P12_PASSWORD | Password for the federator client certificate keystore |
-| CLIENT_TRUSTSTORE_PASSWORD | Password for the federator client truststore |
-| SERVER_P12_PASSWORD | Password for the federator server certificate keystore |
-| SERVER_TRUSTSTORE_PASSWORD | Password for the federator server truststore |
-| IDP_CLIENT_SECRET | Client secret used for DSI DSM Identity Provider authentication |
-| IDP_KEYSTORE_PASSWORD | Password for the IDP keystore |
-| IDP_TRUSTSTORE_PASSWORD | Password for the IDP truststore |
-| SRC_CONNECTION_STRING | SAS token for connecting to the source Blob Storage account |
-| MAPPER_CONNECTION_STRING | SAS token for connecting to the mapper Blob Storage account |
-| TARGET_CONNECTION_STRING | SAS token for connecting to the target Blob Storage account |
-| VAULT-TOKEN | Root token of the DPN HashiCorp Vault |
-| OAUTH2-CLIENT-SECRET | OAuth2 client secret for the DPN's client ID received from DSI DSM (equivalent to `IDP_CLIENT_SECRET`) |
-| AZURE-STORAGE-ACCOUNT-NAME | Storage account name for the Azure File Share used for common DPN certificate storage |
-| AZURE-STORAGE-ACCOUNT-KEY | Storage account key for the Azure File Share used for common DPN certificate storage |
+To configure an approval check in Azure DevOps:
 
----
-
-### Certificate Handling Note
-
-During the organisation's onboarding process, an initial certificate package is provided containing the certificate and CA Chain files. Organisations must securely store these certificates in a vault or equivalent secret store. The following certificate artefacts are included in the DPN package:
-
-- The **P12/PFX certificate** issued by the DSI DSM Certificate Authority (keystore)
-- The **DSI certificate chain** (truststore)
-
-Refer to the [Federator Certificate Manager Configuration](#federator-certificate-manager-configuration) section for detailed instructions on certificate lifecycle management.
-
-The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
+1. Go to **Pipelines → Environments** and select the target environment (create it first if it doesn't exist, matching the `AZURE_ENVIRONMENT_NAME` value above).
+2. Click **Approvals and checks → Add check → Approvals**.
+3. Add the required approver(s) or approver group(s) from the table above.
+4. Optionally set a timeout and whether the requestor can approve their own change (recommend **disabling** self-approval for Pre-Production and Production).
 
 ---
 
@@ -281,362 +241,53 @@ The following firewall rules must be applied by the organisation before installi
 
 ---
 
-# Component-Specific Configuration
+# Container Image Configuration
 
-## DPN Security Services
+The DPN Data Pipeline is fully containerised: every deployable stage (adaptor, schema mapper, extractor, Airflow) runs as a Kubernetes Deployment sourced from a container image. Custom DPN images and third-party dependencies are sourced differently, as described below. This section is based on the DSI-maintained image inventory for this component.
 
-The DPN Security Services consist of the Federator Certificate Manager, HashiCorp Vault, Azure Key Vault, and an SMB-based File Share.
+## Custom Images (GHCR)
 
----
+All custom DPN Data Pipeline images are published to GHCR with a fixed semantic version tag (`1.0.0` at time of writing) — **not** a build-number or date-based tag.
 
-### HashiCorp Vault Configuration
+**File pathway:**
 
-HashiCorp Vault is used in the DPN to store the Intermediate CA, CA Chain, and KeyPair files. These files are used to create keystore and truststore files for the Federator Gateway Server and Client to communicate with the DSI Management Node and authentication services.
+| Image | GHCR Reference |
+|-------|------------------|
+| Producer adaptor — EQ | `ghcr.io/energy-dsi/producer-file-adaptor-eq:1.0.0` |
+| Producer mapper — EQ | `ghcr.io/energy-dsi/producer-file-mapper-eq:1.0.0` |
+| Consumer extractor | `ghcr.io/energy-dsi/consumer-file-extractor:1.0.0` |
+| Consumer mapper | `ghcr.io/energy-dsi/consumer-file-mapper:1.0.0` |
 
-DSI provides a community edition of the HashiCorp Vault container as part of the DSI package. Organisations may choose to substitute an enterprise edition based on their licensing strategy.
+**Topic pathway:**
 
-#### HTTPS Configuration
+| Image | GHCR Reference |
+|-------|------------------|
+| Producer adaptor — EQ | `ghcr.io/energy-dsi/producer-topic-adaptor-eq:1.0.0` |
+| Producer mapper — EQ | `ghcr.io/energy-dsi/producer-topic-mapper-eq:1.0.0` |
+| Consumer extractor | `ghcr.io/energy-dsi/consumer-topic-extractor:1.0.0` |
+| Consumer mapper | `ghcr.io/energy-dsi/consumer-topic-mapper:1.0.0` |
 
-Vault should be set up to use a https based connection internally within DPN application. In this document , stpes are provided to create a Root CA (once) for using a self signed certificate in Vault. However, if organisation already have a CA authority, no need to create a ROOT CA. They should generate a CSR for the Vault URL and jump to step 8 onwards.
+Set each product's `imageName` and `imageTag` (or an equivalent `image.repository`/`image.tag` pair, depending on the chart) to the matching row above — see [Producer Parameters](#producer-parameters--dl-eq-eqbd-and-ssh-adaptor--schema_mapper) and [Consumer Parameters](#consumer-parameters--extractor--schema_mapper).
 
-organisations would require a server machine that has access to the kubernetes cluster private environment/machine from where Certificate manager and federator containers are accessible and has openssl installed as mentioned in the prerequisite section 01.The output of the following steps would generate truststore ,vault crt and key files which would be mounted on the Certificate manager and federator containers to invoke vault service over https.
+## Image Pull Configuration
 
-##### Step 1: 
-Create a vault directory and ca subdirectory in a suitable location on the server machine
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| image.registry / IMAGE_REGISTRY | GHCR namespace all images are pulled from | `ghcr.io/energy-dsi` |
+| imagePullSecrets | Kubernetes secret referencing a GHCR Personal Access Token, if the `energy-dsi` GHCR packages are private | `ghcr-pull-secret` |
+| imagePullPolicy | Whether to always re-check the registry for the tag | `IfNotPresent` (safe given every image is pinned to a fixed version, not `latest`) |
 
-```bash
-mkdir -p vault
-cd vault
-mkdir -p ca
-cd ca
-```
-
-##### Step 2: 
-Generate Root CA private key
-
-```bash
-openssl genrsa -out rootCA.key 4096
-```
-##### Step 3: 
-Generate Root CA certificate
-
-```bash
-openssl req -x509 -new -nodes -key rootCA.key \
-  -sha256 -days 3650 \
-  -out rootCA.crt \
-  -subj "<Your Subject>"
-```
-After the above steps are completed, the following files will be available in the ca folder.
-
-vault/ca/rootCA.key
-vault/ca/rootCA.crt
-
-##### Step 4: 
-Switch to Vault directory and create another subdirectory certs. Create a Vault private key in the certs folder.
+If GHCR packages under `energy-dsi` are public, `imagePullSecrets` is not required. If private, create the pull secret once per namespace:
 
 ```bash
-cd ..
-mkdir -p certs
-openssl genrsa -out certs/vault.key 4096
-```
-##### Step 5: 
-Create a config file as vault-openssl.cnf to use for certificate signining request. The SAN should include the internal Kubernetes DNS URL or any defined url by the organisation to access the Vault.
-
-**certs/vault-openssl.cnf**
-```text
-[ req ]
-default_bits       = 4096
-prompt             = no
-default_md         = sha256
-req_extensions     = req_ext
-distinguished_name = dn
-
-[ dn ]
-C  = <Your Country>
-O  = <Your Org>
-CN = <Your CN>
-
-[ req_ext ]
-subjectAltName = @alt_names
-
-[ alt_names ]
-DNS.1 = vault.<namespace>.svc.cluster.local
-DNS.2 = <vault.xyz.com>
-DNS.3 = <Other SANs>
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username-or-bot-account> \
+  --docker-password=<GitHub PAT with read:packages scope> \
+  -n <namespace>
 ```
 
-##### Step 6: 
-Create a CSR (Certificate Signing Request) for Vault.
-
-```bash
-openssl req -new \
-  -key certs/vault.key \
-  -out certs/vault.csr \
-  -config certs/vault-openssl.cnf
-```
-
-##### Step 7: 
-Go to vault folder again and run the following command to sign the csr using the root CA created before.
-
-```bash
-openssl x509 -req \
-  -in certs/vault.csr \
-  -CA ca/rootCA.crt \
-  -CAkey ca/rootCA.key \
-  -CAcreateserial \
-  -out certs/vault.crt \
-  -days 825 \
-  -sha256 \
-  -extensions req_ext \
-  -extfile certs/vault-openssl.cnf
-```
-At the end of this step the following files will be ready in the respective folders.
-
-certs/vault.crt → signed by Root CA
-<br>certs/vault.key → private key
-<br>ca/rootCA.crt → CA trust anchor
-
-##### Step 8: 
-Verify the vault.hcl file located in the federator-certificate-manager repository has the above tls configuration for tls_cert_file , tls_key_file and path
-
-```text
-Root-Repository/
-└── docker/
-    └── vault-https/
-        └── config/
-            ├── vault.hcl
-```
-
-**vault.hcl**
-```text
-  listener "tcp" {
-  address       = "0.0.0.0:8200"
-  tls_disable   = 0
-  tls_cert_file = "/vault/certs/vault.crt"
-  tls_key_file  = "/vault/certs/vault.key"
-  }
-
-api_addr     = "https://localhost:8200"
-cluster_addr = "https://localhost:8201"
-ui           = true
-
-storage "file" {
-path = "/vault/file"
-}
-```
-
-##### Step 9: 
-
-Verify the docker-compose.yaml located in the federator-certificate-manager repository has the certificate files from the following location on the Vault container.
-
-```text
-Root-Repository/
-└── docker/
-    └── vault-https/
-        ├── docker-compose.yaml
-```
-
-Check the docker compose file for the certificate mount path
-
-```yaml
-- ./certs:/vault/certs:ro
-```
-
-##### Step 11:
-
-Prepare truststore for trusting the Vault HTTPS certificate. **Create a Java truststore using keytool** (PKCS12 format) from the vault directory created above 
-
-```bash
-keytool -import -trustcacerts -noprompt -alias ca -file ca/rootCA.crt -keystore truststore.jks -storetype PKCS12
-```
-
-This trust store needs to be set up in Federator Gateway and Certificate Manager trustore.jks file in the secret configuration defined in the subsequent step below.
- 
-
-#### Vault Helm Configuration For Certificate Manager
-
-The `dpn-federator-certificate-manager` repository includes a Helm chart values file for customising the HashiCorp Vault deployment. The values files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── vault-https
-              ├── values.yaml             <- Reference file; do not edit directly
-              └── values-<env>-dpn01.yaml <- Environment-specific overrides
-```
-
-> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-sit-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](#azure-environment-configuration) section.
-
-DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
-
-| Parameter                       | Purpose                                   | Example Value                                   |
-|---------------------------------|-------------------------------------------|-------------------------------------------------|
-| image.repository                | Complete URL of the image registry        | `<DSI public image repository>/hashicorp/vault` |
-| image.tag                       | Image version tag                         | `1.16`                                          |
-| namespace                       | Name of the Kubernetes namespace          | `ns-dpn-01`                                     |
-| replicaCount                    | Number of replicas for the container      | `3`                                             |
-| vault.storagePath               | Path inside the persistent storage volume | `/vault/file`                                   |
-| seal.azureKeyVault.tenantId     | Unseal Key KeyVault's Tenant Id           | `xxxxx-yyyy`                                    |
-| seal.azureKeyVault.clientId     | Unseal Key KeyVault's Client Id           | `xxxxx-yyyy`                                    |                                                 |
-| seal.azureKeyVault.keyVaultName | Unseal Key KeyVault's Name                | `kv-dpn-dev-uks-xx`                             |
-| seal.azureKeyVault.keyName      | Unseal Key KeyVault's Key name            | `vault-unseal-key`                              |
-| keyvault.tenantId               | TLS Cert KeyVault's Tenant Id             | `xxxxx-yyyy`                                    |
-| keyvault.clientID               | TLS Cert KeyVault's Client Id             | `xxxxx-yyyy`                                    |
-| keyvault.name                   | TLS Cert KeyVault's Name                  | `kv-dpn-dev-uks-xx`                             |
-
-#### Vault Secrets Configuration
-
-The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault (AKV). The relevant files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── vault-https
-              └── templates
-                    ├── secret.yaml
-                    └── secretproviderclass.yaml
-```
-
-HashiCorp Vault must be configured to serve over HTTPS with a minimum of TLS 1.2. The following AKV secrets must be created under `<keyvault.name>` to provide the TLS certificate material:
-
-| Secret           | Purpose                                                                                |
-|------------------|----------------------------------------------------------------------------------------|
-| `VAULT-TLS-CERT` | AKV secret containing the TLS certificate **vault.crt** file  |
-| `VAULT-TLS-KEY`  | AKV secret containing the TLS key **vault.key** |
-
----
-
-### Shared Storage Service Configuration
-
-The keystore and truststore P12 certificate files used by the Federator Gateway Server and Client are stored in a common SMB-based file share (Azure File Share). This file share is mounted by both the Federator Certificate Manager and the Federator Gateway components, as all three require access to the same certificate material when communicating with the DSI DSM Management Node and authentication endpoints.
-
-#### Certificate P12 Storage as File Share
-
-The Federator Certificate Manager, Federator Gateway Server, and Federator Gateway Client all require the certificate P12 files and their passwords to be accessible from a common mount point (e.g. `/tls`) on the file share.These files are dynamically created when certificate manager renews or fetch certificate from DSI.These files are mounted in read only mode for the federator.
-
-```text
-/file-share-mount-path
-└── tls
-    ├── keystore.p12
-    ├── truststore.p12
-    ├── keystore.password
-    └── truststore.password
-```
-
-#### Helm Configuration
-
-The `dpn-federator-certificate-manager` repository includes a Helm chart values file and a PV/PVC manifest for customising the File Share deployment. The values files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── certificate-manager
-              ├── values.yaml             <- Reference file; do not edit directly
-              ├── values-<env>-dpn01.yaml <- Environment-specific overrides
-              └── templates
-                    └── pv-pvc.yaml
-```
-
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| fileShare.shareName | SMB File Share name used for common DPN certificate storage | `fs<env>dpn01<region>01` |
-| fileShare.secretName | Kubernetes secret name containing the File Share credentials | `azure-fileshare-secret` |
-| fileShare.namespace | Kubernetes namespace for the File Share | `ns-dpn-01` |
-| fileShare.pvName | Persistent Volume name for the File Share | `pv-dpn-certs-fileshare` |
-| fileShare.pvcName | Persistent Volume Claim name for the File Share | `pvc-dpn-certs-fileshare` |
-| fileShare.size | Capacity to allocate for the File Share | `1Gi` |
-
-#### Secrets Configuration
-
-The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault. The relevant files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── certificate-manager
-              └── templates
-                    ├── secret.yaml
-                    └── secretproviderclass.yaml
-```
-
-| Secret Parameter | Purpose | Example Value             |
-|------------------|---------|---------------------------|
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME` | Storage account name for the Azure File Share used for common DPN certificate storage | `st<env>>dpn01<region>01` |
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY` | Storage account key for the Azure File Share used for common DPN certificate storage | `XXXXXXXXXXXXXXXX`        |
-
----
-
-### Federator Certificate Manager Configuration
-
-The Federator Certificate Manager is a non-interactive Spring Boot service that automates X.509 certificate lifecycle management for Federator components within the **DSI DPN**. It operates as a headless daemon — no HTTP endpoints are exposed — running two scheduled jobs that handle certificate renewal and filesystem synchronisation.
-
-The service integrates with **HashiCorp Vault** (KV v2) for secret persistence, an external **Management Node** API for PKI operations (intermediate CA retrieval and CSR signing), and an **OAuth2 Identity Provider** for token-based authentication. All external HTTP communication is secured via mutual TLS (mTLS).
-
-#### Helm Configuration
-
-The `dpn-federator-certificate-manager` repository includes a Helm chart values file for customising the deployment. The values files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── certificate-manager
-              ├── values.yaml             <- Reference file; do not edit directly
-              └── values-<env>-dpn01.yaml <- Environment-specific overrides
-```
-
-> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-test-dpn01.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](#azure-environment-configuration) section.
-
-DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
-
-| Parameter              | Purpose                                                                      | Example Value                                                                                     |
-|------------------------|------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------|
-| image.repository       | Complete URL of the image in the registry                                    | `<DSI public image repository>/dpn-federator-certificate-manager`                                 |
-| namespace              | Name of the Kubernetes namespace                                             | `ns-dpn-01`                                                                                       |
-| managementNode.baseUrl | Complete URL of the DSI DSM Management Node                                  | `https://management.dsm01.dsiXXX.neso.energy`                                                     |
-| oauth2.clientId        | Client ID received from DSM to establish the DPN connection                  | `9c4f2e8a-6b21-4d73-9a5e-1f6b8c7a4d92`                                                            |
-| oauth2.tokenUri        | IDP token URL received from DSM to establish the DPN connection              | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
-| replicaCount           | Number of replicas for the container                                         | `1`                                                                                               |
-| vault.uri              | Complete URL of the DPN Vault                                                | `https://vault.<namespace>.svc.cluster.local:8200`                                                |
-| vault.truststorePath   | Absolute Path of the folder under which vault truststore.jks will be mounted | `/vault`                                                                                           |
-| existingSecret.name    | Secret bundle name for the Federator Certificate Manager secrets             | `certificate-manager-secrets`                                                                     |
-| fileShare.shareName    | File Share name for common DPN certificate storage                           | `fs<env>dpn01<region>01`                                                                          |
-| fileShare.secretName   | Secret bundle name for the Azure File Share credentials                      | `azure-fileshare-secret`                                                                          |
-| fileShare.namespace    | Kubernetes namespace for the File Share                                      | `ns-dpn-01`                                                                                       |
-
-#### Secrets Configuration
-
-The `dpn-federator-certificate-manager` repository includes Helm chart secret and `SecretProviderClass` templates for retrieving and bundling secrets from Azure Key Vault. 
-
-The relevant files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── certificate-manager
-              └── templates
-                    ├── secret.yaml
-                    └── secretproviderclass.yaml
-```
-
-##### Key Vault Secrets Configuration
-
-| Secret Parameter                                        | Purpose                                                                               | Example Value            |
-|---------------------------------------------------------|---------------------------------------------------------------------------------------|--------------------------|
-| `certificate-manager-secrets.VAULT-TOKEN`               | Root token of the DPN HashiCorp Vault                                                 | `hsv.xxxxxxxxxxx`        |
-| `certificate-manager-secrets.OAUTH2-CLIENT-SECRET`      | OAuth2 client secret for the DPN's client ID received from DSI DSM                    | `xxxxxxxxxxx`            |
-| `certificate-manager-secrets.VAULT-TRUSTSTORE-PASSWORD` | DPN Hashicorp Vault Truststore password                                               | `changeit`               |
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-NAME`     | Storage account name for the Azure File Share used for common DPN certificate storage | `fs<env>dpn01<region>01` |
-| `azure-fileshare-secret.AZURE-STORAGE-ACCOUNT-KEY`      | Storage account key for the Azure File Share used for common DPN certificate storage  | `xxxxxxxxxxx`            |
-
-##### Kubernetes Secrets Configuration
-
-Below Kubernetes secret must be created to load the Vault `truststore.jks` file created using steps [here](#https-configuration) under path `<vault.truststorePath>`.
-
-| Secret Parameter       | Purpose                                                     | Example Value |
-|------------------------|-------------------------------------------------------------|---------------|
-| `VAULT-TRUSTSTORE-JKS` | Secret container for DPN Vault's Truststore.jks binary file | ` `           |
-
----
+--
 
 ## DPN Data Pipelines Configuration
 
@@ -718,6 +369,7 @@ The following steps are required when an organisation produces a data product:
 2. Copy the relevant schema folder (e.g. `eq`, `eqbd`, `dl`, or `ssh`) from `Root-Repository/blueprints/producer/file/{schema_type}` to `Root-Repository/producer/file/{schema_type}`.
 3. Rename the copied `{schema_type}` folder to `{product_type}` (e.g. rename `eq` to `eq-dp-01`). Only hyphens are permitted as special characters; all other special characters are disallowed.
 4. Ensure the `product_type` value is passed consistently during the CI pipeline run.
+5. Set `imageName`/`imageTag` to the matching GHCR reference from [Custom Images (GHCR)](#custom-images-ghcr).
 
 ```text
 Root-Repository
@@ -787,6 +439,86 @@ DSI proposes only selective changes to the values file but provides the provisio
 | mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
 | targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
+
+### Horizontal Pod Autoscaler (HPA) Configuration
+
+Each adaptor, schema_mapper, and extractor Deployment can scale horizontally based on load, rather than running a fixed `replicaCount`. This requires the Kubernetes **metrics-server** to be running in the AKS cluster (standard on AKS by default).
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| hpa.enabled | Enables the Horizontal Pod Autoscaler for this stage | `true` |
+| hpa.minReplicas | Minimum pod count, including at idle | `1` |
+| hpa.maxReplicas | Maximum pod count under peak load | `5` |
+| hpa.targetCPUUtilizationPercentage | Average CPU utilisation (as % of requested CPU) that triggers scale-out | `70` |
+| hpa.targetMemoryUtilizationPercentage | Average memory utilisation (as % of requested memory) that triggers scale-out | `80` |
+
+> **Note:** when `hpa.enabled: true`, the chart's `replicaCount` value is treated only as the **initial** replica count at first deploy — the HPA controller owns the replica count from that point on. Do not rely on `replicaCount` to reflect the running pod count once HPA is active; check `kubectl get hpa` instead.
+
+Recommended starting point: enable HPA on `adaptor` and `schema_mapper` stages, which see variable load depending on file/message volume; leave `extractor` at a fixed `replicaCount` initially unless consumer-side volume is also expected to vary significantly, then revisit.
+
+### Scheduling Configuration
+
+Each data pipeline stage (adaptor, schema mapper, extractor) is triggered in one of two ways: **Automated Scheduling** or **Manual Scheduling**. Which one applies is controlled by the `SCHEDULER_BACKEND` parameter in that stage's `values.yaml`.
+
+#### Automated Scheduler
+
+Under automated scheduler, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics:
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| SCHEDULER_BACKEND | Set to `kafka-trigger` to enable software-triggered scheduling | `kafka-trigger` |
+| PIPELINE_CONTROL_TOPIC | Kafka topic the pipeline stage listens on for a start signal | `dpn-pipeline-control` |
+| PIPELINE_STATUS_TOPIC | Kafka topic the pipeline stage publishes run status/progress to | `dpn-pipeline-status` |
+| EXECUTION_MODE | `automatic` — the stage self-schedules on `scheduleInterval` — or `manual` — the stage only runs when a message arrives on `PIPELINE_CONTROL_TOPIC` | `automatic` / `manual` |
+| scheduleInterval | Polling interval in seconds. Only used when `EXECUTION_MODE: automatic` | `60` |
+
+A message published to `PIPELINE_CONTROL_TOPIC` starts a run; the pipeline stage reports progress back on `PIPELINE_STATUS_TOPIC`. No operator action is required once this is configured — this is why it's referred to as automated.
+
+> **Placeholder:** <Hari's input>
+
+#### Manual Scheduler
+
+Manual scheduler uses an orchestrator (Airflow) to start pipeline runs on a fixed schedule or on operator demand, instead of relying on the Kafka control-topic signal above.
+
+```text
+Root-Repository
+  └── charts
+        └── airflow/
+              ├── values-<env>-dpn01.yaml   <- Environment-specific Airflow overrides
+              └── dags/
+                    └── {product_type}.py   <- One DAG per data product
+```
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| SCHEDULER_BACKEND | Set to `airflow` to hand scheduling control to Airflow instead of the Kafka control topic | `airflow` |
+
+#### Onboarding a New Data Product — Scheduler Setup
+
+cheduling configuration is **not created automatically** — a DAG must be added alongside every new data product using `SCHEDULER_BACKEND: airflow`, in addition to the steps in [Producer Setup](#producer-setup).
+
+Every existing DAG under `charts/airflow/dags/` is a copy of the same template — a four-task chain (`trigger_adaptor` → `wait_adaptor_done` → `trigger_schema_mapper` → `wait_schema_mapper_done`) driving the already-running adaptor/schema_mapper pods over Kafka. The `file`-pathway reference DAG (`dpn_producer_file_bp_natural_gas.py`) documents this explicitly in its own docstring and isolates everything that changes per product into one block:
+
+```python
+# ── Product identity ──────────────────────────────────────────────────────────
+# These are the only three lines that change when you copy this DAG for another product.
+PRODUCT         = "bp-natural-gas"
+PIPELINE_TYPE   = "file"
+PIPELINE_ROLE   = "producer"
+
+BOOTSTRAP_SERVER = "dpn-kafka-src:9092"
+SCHEDULE         = '*/3 * * * *'
+```
+
+To onboard a new product:
+
+1. Copy `dpn_producer_file_bp_natural_gas.py` (recommended, over a `topic`-pathway DAG — see the note below) and rename the file to `dpn_producer_{pathway}_{product_type}.py`, following the existing naming convention.
+2. Update the **Product identity** block: `PRODUCT` to the new `product_type`, `PIPELINE_TYPE` to `file` or `topic` as appropriate, and `BOOTSTRAP_SERVER`/`SCHEDULE` if they differ from the default.
+3. Update the DAG definition's `dag_id` and `tags` to match the new product (e.g. `dag_id="producer_file_<product_type>"`, `tags=["dpn", "producer", "file", "<product_type>", "kafka-trigger"]`).
+4. Nothing else needs to change — the four-task chain, the `PipelineStatusSensor`, and the trigger-publishing logic are all generic and read `PRODUCT`/`PIPELINE_TYPE`/`PIPELINE_ROLE` rather than hardcoding product-specific behaviour.
+5. Set `SCHEDULER_BACKEND: airflow` on the product's `values.yaml` to match.
+
+> **Placeholder:**  <Hari's input>
 
 ### Secrets Configuration
 
@@ -923,121 +655,8 @@ Example:
 
 ---
 
-## DPN Federator Gateway Configuration
-
-The DPN Federator Gateway handles all secure communication between your DPN node and other DPN nodes or the DSI DSM platform. It ensures data is sent and received safely, only to and from trusted parties.
-
-The gateway does not operate in isolation. It depends on a set of supporting services that are all deployed together in a single Helm release into the same Kubernetes cluster:
-
-| Component | Purpose |
-|-----------|---------|
-| Zookeeper Source | Coordination service for the Source Kafka cluster. Must be running before Kafka Source starts. |
-| Zookeeper Target | Coordination service for the Target Kafka cluster. Must be running before Kafka Target starts. |
-| Kafka Source | Message queue where the DPN's outgoing data is staged. The Federator Server reads from here to send data out. |
-| Kafka Target | Message queue where incoming data from other DPNs is delivered. The Federator Client writes received data here. |
-| Kafka UI | Web dashboard to monitor and inspect messages in both Kafka clusters. Useful during testing. |
-| Redis | Fast in-memory store used by both the Federator Server and Client for caching and tracking data offsets. |
-| Federator Server | Listens on port 443 for incoming data connections from other DPN nodes; reads from Kafka Source. |
-| Federator Client | Connects outward to a remote Federator Server; writes received data into Kafka Target. |
-
-All components are deployed together in a single pipeline run using one Helm release (`dpn-platform`).
-
-### Helm Configuration {#helm-configuration-federator-gateway}
-
-The `dpn-federator-gateway` repository includes a Helm chart values file for customising the deployment. The values files are located as follows:
-
-```text
-Root-Repository
-  └── charts
-        └── dpn-platform/
-              ├── values.yaml              <- Default settings for all components; do not edit directly
-              └── values-<env>-dpn01.yaml  <- Environment-specific overrides for all components
-```
-
-> **Note:** Replicate `values.yaml` for each environment or DPN deployment (e.g. `values-dev-dpn01.yaml`, `values-sit-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](#azure-environment-configuration) section.
-
-> **Note:** Only a single pipeline run is required. It applies the environment-specific values file on top of `values.yaml` and deploys all components in a single Helm release named `dpn-platform`.
-
-> **Note:** DSI proposes only the minimum required changes listed below. Additional parameters may be customised if needed.
-
-Open `values-<env>-dpn01.yaml` and update the following parameters as a minimum:
-
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| redis.image.repository | Container registry address for the Redis image | `<DSI public image registry>/redis` |
-| redis.image.tag | Redis image tag | `7.2` |
-| zookeeper.image.repository | Container registry address for the Zookeeper image | `<DSI public image registry>/cp-zookeeper` |
-| zookeeper.image.tag | Zookeeper image tag | `7.5.3` |
-| kafka.image.repository | Container registry address for the Kafka image | `<DSI public image registry>/cp-kafka` |
-| kafka.image.tag | Kafka image tag | `7.5.3` |
-| kafkaUI.image.repository | Container registry address for the Kafka UI image | `<DSI public image registry>/kafka-ui` |
-| federatorServer.image.repository | Container registry address for the Federator Server image | `<DSI public image registry>/dpn-federator-server` |
-| federatorServer.image.tag | Federator Server image tag | `<latest published version>` |
-| federatorServer.service.loadBalancerIP | Fixed internal IP for the Federator Server. Obtain from the Kubernetes service external IP after first deployment. | `<fixed private load balancer IP>` |
-| federatorServer.config.management_node_base_url | DSI DSM Management Node URL for your environment | `https://management.dsm01.dsiXXX.neso.energy` |
-| federatorServer.idp.clientId | Client ID provided by DSI to identify this DPN node | `7af382c4-1759-4938-b596-c4c5c572304e` |
-| federatorServer.idp.jwksUrl | JWKS endpoint for verifying identity tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/certs` |
-| federatorServer.idp.tokenUrl | Token endpoint for requesting access tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
-| federatorClient.image.repository | Container registry address for the Federator Client image | `<DSI public image registry>/dpn-federator-client` |
-| federatorClient.image.tag | Federator Client image tag | `<latest published version>` |
-| federatorClient.service.loadBalancerIP | Fixed internal IP for the Federator Client. Obtain from the Kubernetes service external IP after first deployment. | `<fixed private load balancer IP>` |
-| federatorClient.config.management_node_base_url | DSI DSM Management Node URL for your environment | `https://management.dsm01.dsiXXX.neso.energy` |
-| federatorClient.idp.clientId | Client ID provided by DSI to identify this DPN node | `9c4f2e8a-6b21-4d73-9a5e-1f6b8c7a4d92` |
-| federatorClient.idp.jwksUrl | JWKS endpoint for verifying identity tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/certs` |
-| federatorClient.idp.tokenUrl | Token endpoint for requesting access tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
-
-**Shared Key Vault Parameters**
-
-DPN Federator uses Azure Key Vault to store secrets for both the Federator Server and Client. Organisations may alternatively use Kubernetes secrets or another approved secret store.
-
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| keyvault.name | Azure Key Vault name where all secrets are stored | `kv-dpn-<env>-<region>-<seq>` |
-| keyvault.clientID | Managed Identity client ID that allows the cluster to read from Key Vault | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
-| keyvault.tenantId | Organisation's Azure Active Directory tenant ID | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
-
-### Secrets Configuration
-
-Secrets must never be written into the values file or the code repository. Organisations must store secrets securely using HashiCorp Vault, Azure Key Vault, or another approved secret management solution, and ensure they are injected automatically when pods start up.
-
-DSI provides a reference implementation using Azure Key Vault. The secret templates are located in the `dpn-federator-gateway` repository as follows:
-
-```text
-dpn-federator-gateway/
-└── charts/
-      └── dpn-platform/
-            └── templates/
-                  ├── federator-server-secretproviderclass.yaml
-                  ├── federator-client-secretproviderclass.yaml
-                  └── federator-idp-secretproviderclass.yaml
-```
-
-**Federator Server Secrets** (provision in: Azure Key Vault)
-
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| SERVER-P12-PASSWORD | Password for the server's certificate keystore, used to prove the server's identity to connecting clients | `changeit` |
-| SERVER-TRUSTSTORE-PASSWORD | Password for the server's truststore, used to verify the identity of connecting clients | `changeit` |
-
-**Federator Client Secrets** (provision in: Azure Key Vault)
-
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| CLIENT-P12-PASSWORD | Password for the client's certificate keystore, used to prove the client's identity when connecting to the Federator Server | `changeit` |
-| CLIENT-TRUSTSTORE-PASSWORD | Password for the client's truststore, used to verify it is connecting to the correct server | `changeit` |
-
-**Federator IDP Secrets** (provision in: Azure Key Vault)
-
-| Parameter | Purpose | Example Value |
-|-----------|---------|---------------|
-| IDP-KEYSTORE-PASSWORD | Password for the IDP keystore certificate file, used to prove the client's identity when connecting to the IDP service | `changeit` |
-| IDP-TRUSTSTORE-PASSWORD | Password for the IDP truststore, used to verify connection to the correct IDP server | `changeit` |
-| IDP-CLIENT-SECRET | Secret used to authenticate the Federator Client to the DSI authentication service; provided as part of the DSI package | `xxxxxxxx` |
-
----
-
 # Review Notes
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| 15-May-2026 | DSI Assurance | Draft | V0.1.0 |
+| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
