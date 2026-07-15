@@ -2,10 +2,9 @@
 
 ---
 
-# Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
-- [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
 - [Installation Steps](#installation-steps)
   - [Step 1 — Provision the Quarantine Container](#step-1--provision-the-quarantine-container)
@@ -19,6 +18,12 @@
   - [Step 9 — Verify the Horizontal Pod Autoscaler](#step-9--verify-the-horizontal-pod-autoscaler)
   - [Step 10 — Verify the Deployment](#step-10--verify-the-deployment)
 - [Troubleshooting](#troubleshooting)
+  - [Scan-Result Events Not Reaching the Verification Service](#scan-result-events-not-reaching-the-verification-service)
+  - [GHCR Image Pull Failures](#ghcr-image-pull-failures)
+  - [CD Pipeline Stuck Awaiting Approval](#cd-pipeline-stuck-awaiting-approval)
+  - [Verification Service Cannot Read from `dp-consumer-raw`](#verification-service-cannot-read-from-dp-consumer-raw)
+  - [Verified Files Not Appearing in `dp-consumer-stage`](#verified-files-not-appearing-in-dp-consumer-stage)
+  - [HPA Not Scaling](#hpa-not-scaling)
 - [Review Notes](#review-notes)
 
 ---

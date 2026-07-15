@@ -54,7 +54,7 @@ The DPN platform is designed to run within an organisation’s own infrastructur
 
 Typical deployments use:
 
-### Azure Deployment: 
+### Azure Deployment
 
 - **Azure Kubernetes Service (AKS)** for container orchestration
 - **Azure DevOps CI/CD pipelines** for automated deployment

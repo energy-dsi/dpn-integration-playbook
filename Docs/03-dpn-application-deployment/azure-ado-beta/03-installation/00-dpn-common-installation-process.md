@@ -2,26 +2,31 @@
 
 ---
 
-# Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
-
 - [Installation Prerequisites](#installation-prerequisites)
   - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
   - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
   - [3. Certificate Preparation and CSR Generation](#3-certificate-preparation-and-csr-generation)
-    - [Step-by-Step Certificate Generation](#step-by-step-certificate-generation)
-    - [Certificate Files Received in DPN Package from DSI](#certificate-files-received-in-dpn-package-from-dsi)
+  - [Step-by-Step Certificate Generation](#step-by-step-certificate-generation)
   - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
 - [Component Installation Guides](#component-installation-guides)
-- [Recommended Installation Order](#recommended-installation-order)
-- [Common Troubleshooting](#common-troubleshooting)
+- [Installation Steps](#installation-steps)
+- [Troubleshooting](#troubleshooting)
   - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
   - [Pods Not Starting](#pods-not-starting)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
+  - [Kafka Topic Issues](#kafka-topic-issues)
+  - [Certificate Renewal Job Failing](#certificate-renewal-job-failing)
+  - [Emergency Certificate Rotation Process](#emergency-certificate-rotation-process)
+  - [Certificate Sync Job Failing](#certificate-sync-job-failing)
+  - [Federator Connection Failing](#federator-connection-failing)
+  - [Invalid Client Credential](#invalid-client-credential)
 - [Review Notes](#review-notes)
+
 ---
 
 ## Overview
@@ -352,7 +357,7 @@ kubectl -n <namespace> delete po/<pod_id>
 
 ---
 
-### Emergency certificate rotation process
+### Emergency Certificate Rotation Process
 
 In case we need to rotate/renew the certificate adhoc forcefully using new certificate bundle received from DSI DSM, we need to perform the cleanup and rollback process listed [here](04-rollback-procedures.md#vault-certificate-bundle-rollback) using the new certificate bundle. 
 

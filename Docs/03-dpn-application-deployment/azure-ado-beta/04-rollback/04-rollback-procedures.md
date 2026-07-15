@@ -5,24 +5,17 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Rollback Mechanisms Available Today](#rollback-mechanisms-available-today)
+- [Rollback Strategy](#rollback-strategy)
+- [Rollback Pipeline Availability by Component](#rollback-pipeline-availability-by-component)
 - [Pre-Rollback Checklist](#pre-rollback-checklist)
-
 - [Part 1 — DPN Data Pipeline Rollback](#part-1--dpn-data-pipeline-rollback)
-  - [Pipeline Parameters](#pipeline-parameters)
-  - [How Release/Image Names Are Derived](#how-releaseimage-names-are-derived)
-  - [Mode 1 — Helm Revision Rollback](#mode-1--helm-revision-rollback)
-  - [Mode 2 — Image Tag Rollback](#mode-2--image-tag-rollback)
-  - [Finding a Valid `rollbackRevision` or `imageTag`](#finding-a-valid-rollbackrevision-or-imagetag)
-  - [Scope Limitations of This Pipeline](#scope-limitations-of-this-pipeline)
+  - [Strategy 1 — Redeploy a Previous Build via the Standard CD Pipeline](#strategy-1--redeploy-a-previous-build-via-the-standard-cd-pipeline)
+  - [Strategy 2 — Dedicated Rollback Pipeline (Helm Revision)](#strategy-2--dedicated-rollback-pipeline-helm-revision)
+  - [Which Strategy to Use](#which-strategy-to-use)
   - [Verification](#verification)
-
 - [Part 2 — DPN Federator Gateway Rollback](#part-2--dpn-federator-gateway-rollback)
 - [Part 3 — DPN Federator Certificate Manager Rollback](#part-3--dpn-federator-certificate-manager-rollback)
-- [Part 4 — DPN Vault Rollback](#part-4--dpn-vault-rollback)
-- [Part 5 — DPN File Scanning Service Rollback](#part-5--dpn-file-scanning-service-rollback)
-- [Part 6 — DPN Health Monitoring Service Rollback](#part-6--dpn-health-monitoring-service-rollback)
-
+- [Part 4 — DPN Health Monitoring Service Rollback](#part-4--dpn-health-monitoring-service-rollback)
 - [Kafka Topic Recovery](#kafka-topic-recovery)
 - [Post-Rollback Verification (All Components)](#post-rollback-verification-all-components)
 - [Disaster Recovery Considerations](#disaster-recovery-considerations)
