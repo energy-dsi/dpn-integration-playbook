@@ -1,19 +1,14 @@
 # DPN Deployment Prerequisites
 
-# Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
-- [organisation Prerequisites](#organisation-prerequisites)
+- [Organisation Prerequisites](#organisation-prerequisites)
 - [Software Prerequisites](#software-prerequisites)
   - [Optional Tools](#optional-tools)
 - [Service Prerequisites](#service-prerequisites)
 - [Accessibility Prerequisites](#accessibility-prerequisites)
   - [Access Requirements](#access-requirements)
-    - [GitHub Access](#github-access)
-    - [Azure Service Principal](#azure-service-principal)
-    - [Azure DevOps Service Connection](#azure-devops-service-connection)
-    - [AKS Access](#aks-access)
-    - [Data Pipeline Access](#data-pipeline-access)
 - [Security Prerequisites](#security-prerequisites)
 - [Network Prerequisites](#network-prerequisites)
 - [Certificate Prerequisites](#certificate-prerequisites)
@@ -70,6 +65,8 @@ DPN repositories required:
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
 - [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator)  
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
+- [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
+- [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
 
 ### Optional Tools
 
@@ -125,7 +122,8 @@ A **Service Principal in Azure AD** with the following role permissions:
 - **User Access Administrator** role – to assign required permissions  
 - **Azure Container Registry Push** role – to push container images  
 - **Key Vault Secrets Officer** role – to create and manage secrets  
-- **Key Vault Certificate Officer** role – to create and manage certificates  
+- **Key Vault Certificate Officer** role – to create and manage certificates
+- **Storage Blob Data Contributor** role - to access storage accounts 
 
 #### Azure DevOps Service Connection
 

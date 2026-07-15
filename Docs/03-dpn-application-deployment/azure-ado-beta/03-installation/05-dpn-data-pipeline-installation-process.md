@@ -1,25 +1,21 @@
-- [DPN Data Pipeline Architecture](#dpn-data-pipeline-architecture)
+# DPN Installation Process
 
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
 - [Installation Prerequisites](#installation-prerequisites)
-  - [1. Clone and Prepare Source Repository](#1-clone-and-prepare-source-repository)
+  - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
   - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
   - [3. Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
   - [4. Configure GHCR Image Access](#4-configure-ghcr-image-access)
   - [5. Configure Environment Approval Gates](#5-configure-environment-approval-gates)
-
-- [DPN Data Pipeline Installation](#dpn-data-pipeline-installation)
-  - [Step 1 — Configure Data Pipeline CI Pipeline](#step-1--configure-data-pipeline-ci-pipeline)
-  - [Step 2 — Execute Data Pipeline CI Pipeline](#step-2--execute-data-pipeline-ci-pipeline)
-    - [Common Parameters (Required for Both Producer and Consumer)](#common-parameters-required-for-both-producer-and-consumer)
-    - [Consumer Configuration](#consumer-configuration)
-    - [Producer Configuration](#producer-configuration)
-  - [Step 3 — Validate Data Pipeline CI Pipeline](#step-3--validate-data-pipeline-ci-pipeline)
-  - [Step 4 — Configure Data Pipeline CD Pipeline](#step-4--configure-data-pipeline-cd-pipeline)
-  - [Step 5 — Execute Data Pipeline CD Pipeline](#step-5--execute-data-pipeline-cd-pipeline)
-  - [Step 6 — Verify Data Pipeline CD Pipeline](#step-6--verify-data-pipeline-cd-pipeline)
+- [Installation Steps](#installation-steps)
+  - [DPN Data Pipeline Installation](#dpn-data-pipeline-installation)
   - [Step 7 — Verify Horizontal Pod Autoscalers](#step-7--verify-horizontal-pod-autoscalers)
-  - [Step 8 — (Optional) Deploy the Scheduling Backend](#step-8--optional-deploy-the-scheduling-backend)
-
+  - [Step 8 — (Optional) Deploy the Scheduler Backend](#step-8--optional-deploy-the-scheduler-backend)
 - [Troubleshooting](#troubleshooting)
   - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
@@ -31,7 +27,6 @@
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
   - [HPA Not Scaling](#hpa-not-scaling)
   - [Kafka Topic Issues](#kafka-topic-issues)
-
 - [Review Notes](#review-notes)
 
 ---

@@ -81,7 +81,7 @@ Readers should have working knowledge of the following technologies:
 
 The documentation assumes that the organisation intends to deploy DPN nodes using:
 
-### Azure Platform : 
+### Azure Platform
 
 - Azure DevOps CI/CD pipelines
 - Azure Kubernetes Service (AKS)
