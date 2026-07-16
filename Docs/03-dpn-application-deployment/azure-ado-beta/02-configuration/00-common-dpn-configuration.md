@@ -24,7 +24,7 @@
 
 Data Preparation Node (DPN) consists of the following components in the DSI package:
 
-![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_components.png)
+![DPN Architecture Blocks](../../../04-dpn-architecture/images/dpn_components.png)
 
 - **DPN Security Service**
   - Vault Service — Certificate regeneration for DSM communication and storage.
@@ -224,7 +224,7 @@ The same certificate files are used across all DPN components that require integ
 
 This section describes DPN connectivity requirements for ports and protocols, including agent pool requirements for building DPN code.
 
-![DPN Ports & Protocols](/Docs/04-dpn-architecture/images/DPN_ports_and_protocols.png)
+![DPN Ports & Protocols](../../../04-dpn-architecture/images/DPN_ports_and_protocols.png)
 
 The following firewall rules must be applied by the organisation before installing DPN:
 

@@ -7,21 +7,16 @@
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Installation Steps](#installation-steps)
-  - [1. Create the Corrected Environment Config Files](#1-create-the-corrected-environment-config-files)
-  - [2. Provision the Namespace and Registry Access](#2-provision-the-namespace-and-registry-access)
-  - [3. Remediate the Committed Dashboard Credential](#3-remediate-the-committed-dashboard-credential)
-  - [4. Configure Environment Approval Gates](#4-configure-environment-approval-gates)
-  - [5. Provision the Thanos Object Storage Secret](#5-provision-the-thanos-object-storage-secret)
-  - [6. Configure Alerting](#6-configure-alerting)
-  - [7. Run `monitoring-master-cd.yaml`](#7-run-monitoring-master-cdyaml)
-  - [8. Approve Each Stage's Deployment Gate](#8-approve-each-stages-deployment-gate)
-  - [9. Verify the HPA on the OTEL Collector](#9-verify-the-hpa-on-the-otel-collector)
-  - [10. Verify the Deployment](#10-verify-the-deployment)
-- [Troubleshooting](#troubleshooting)
-  - [Config File Not Found for `pdev`/`ptest`/`puat`](#config-file-not-found-for-pdevptestpuat)
+  - [Step1: Run `monitoring-master-cd.yaml`](#step1-run-monitoring-master-cdyaml)
+    - [Step1a: Prepare runtime parameters](#step1a-prepare-runtime-parameters)
+    - [Step1b: Execute CD Pipeline](#step1b-execute-cd-pipeline)
+    - [Step1c: Approve Stage's Deployment Gate](#step1c-approve-stages-deployment-gate)
+  - [Step2: Post Deployment Verification](#step2-post-deployment-verification)
+- [Step3: Troubleshooting](#step3-troubleshooting)
+  - [Config File Not Found for Specific Environment](#config-file-not-found-for-specific-environment)
   - [Deployed Resources Show the Wrong Environment Label](#deployed-resources-show-the-wrong-environment-label)
   - [Kafka/Zookeeper Image Pull Fails](#kafkazookeeper-image-pull-fails)
-  - [Dashboard Login Still Accepts an Old/Default Credential](#dashboard-login-still-accepts-an-olddefault-credential)
+- [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -57,11 +52,19 @@ The CD Pipeline provided needs to be modified in the following places to point t
 | `environment` | `environment abbreviation` |
 | `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
 
-![Pipeline Parameters](/Docs/04-dpn-architecture/images/dpn_pipeline_parameters.png)
+![Pipeline Parameters](../../../04-dpn-architecture/images/dpn_pipeline_parameters.png)
 
 #### Step1b: Execute CD Pipeline
 
-Run the CD Pipeline for monitoring service
+Create and run CD Pipeline for monitoring service from the following CD pipeline yaml file
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── monitoring-master-cd.yaml
+```
 ---
 
 #### Step1c: Approve Stage's Deployment Gate

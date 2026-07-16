@@ -19,8 +19,7 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
 
 ---
-
-## 0.1.0 - 2026-05-01
+## 1.0.0 - 2026-07-31
 
 ### Added
 
@@ -30,6 +29,7 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - DPN installation procedure on Azure cloud
 - DPN uninstall and decommission procedure on Azure
 - DPN architecture components
+- DPN User Intefaces Guidance
 
 ### Fixed
 

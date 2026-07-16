@@ -222,3 +222,10 @@ Programmatic / deep inspection. Parent–child validation, timestamp analysis, a
 → **Raw JSON** or **Trace Timeline** — check the `tags[]` array or the tag panel on the span.
 
 ---
+
+# Review Notes
+
+| Review Date | Last Reviewed By | Status | Version |
+|-------------|-----------------|--------|---------|
+| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+

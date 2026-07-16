@@ -15,9 +15,14 @@ This installation page is a quick-reference summary that points to that guide.
 ## Table of Contents
 
 - [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Installation Sequence](#installation-sequence)
-- [Verification](#verification)
+- [Step1: Verify Prerequisites](#step1-verify-prerequisites)
+- [Step2: Execute CI/CD Pipelines](#step2-execute-cicd-pipelines)
+  - [Step2a. Execute CI Pipeline](#step2a-execute-ci-pipeline)
+  - [Step2b. Verify CI Pipeline Execution](#step2b-verify-ci-pipeline-execution)
+  - [Step2c. Execute CD Pipeline](#step2c-execute-cd-pipeline)
+  - [Step2d. Verify CD Pipeline](#step2d-verify-cd-pipeline)
+- [Step3: Troubleshooting](#step3-troubleshooting)
+- [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -37,7 +42,7 @@ Root-Repository/
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#prerequisites). 
+Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
 
 In summary the following prerequisites must be met.
 
@@ -95,6 +100,7 @@ Root-Repository/
         └── cd-pipelines/
             └── certificate-manager-cd.yaml
 ```
+
 The CD Pipeline would require the following run time parameters. 
 
 | Parameter | Value |
@@ -139,6 +145,8 @@ kubectl get pvc  -n <namespace>
 
 ## Step3: Troubleshooting
 `<<Anuran>>`
+
+---
 
 ## Step4: Containerized Deployment Using DSI Provided Container Images
 `<<Tamanna to update>>`

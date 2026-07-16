@@ -15,9 +15,16 @@ This installation page is a quick-reference summary that points to that guide.
 ## Table of Contents
 
 - [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Installation Sequence](#installation-sequence)
-- [Verification](#verification)
+- [Step1: Verify Prerequisites](#step1-verify-prerequisites)
+- [Step2: Execute CI/CD Pipelines](#step2-execute-cicd-pipelines)
+  - [Step2a. Execute CI Pipeline](#step2a-execute-ci-pipeline)
+  - [Step2b. Verify CI Pipeline Execution](#step2b-verify-ci-pipeline-execution)
+  - [Step2c. Execute CD Pipeline](#step2c-execute-cd-pipeline)
+  - [Step2d. Verify CD Pipeline](#step2d-verify-cd-pipeline)
+  - [Step2e. Setup Kafka Topics](#step2e-setup-kafka-topics)
+  - [Step2f: Verify Job Runner Interface](#step2f-verify-job-runner-interface)
+- [Step3: Troubleshooting](#step3-troubleshooting)
+- [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -43,7 +50,7 @@ Key points, detailed in the configuration guide:
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#prerequisites). 
+Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
 
 In summary: 
 

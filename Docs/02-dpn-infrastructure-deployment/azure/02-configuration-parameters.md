@@ -17,6 +17,7 @@ This section defines the configuration parameters used during infrastructure dep
   - [7.1 Event Grid Parameters](#71-event-grid-parameters)
   - [7.2 Service Bus Parameters](#72-service-bus-parameters)
   - [7.3 File Scanning Storage Account Parameters](#73-file-scanning-storage-account-parameters)
+    - [File Scanning Service Principal – Role Assignment Summary](#file-scanning-service-principal--role-assignment-summary)
 - [8. Backend Configuration Template](#8-backend-configuration-template)
 - [9. VM Parameters](#9-vm-parameters)
 - [10. Environment tfvars File (Required)](#10-environment-tfvars-file-required)

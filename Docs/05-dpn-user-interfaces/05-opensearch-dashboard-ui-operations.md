@@ -37,6 +37,7 @@
   - ["The failure count has spiked suddenly for one component"](#the-failure-count-has-spiked-suddenly-for-one-component)
   - ["I cannot find logs older than 7 days"](#i-cannot-find-logs-older-than-7-days)
   - ["My filter is not returning the results I expect"](#my-filter-is-not-returning-the-results-i-expect)
+- [Review Notes](#review-notes)
 
 ---
 
@@ -462,3 +463,9 @@ log.body: "timeout"
 ---
 
 *This guide covers the DPN-Monitoring dashboard as provisioned with OpenSearch 2.11.0.*
+
+# Review Notes
+
+| Review Date | Last Reviewed By | Status | Version |
+|-------------|-----------------|--------|---------|
+| 31-July-2026 | DSI Assurance | Final | V1.0.0 |

@@ -6,7 +6,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
 > - the **DPN Vault** is deployed, initialised, and loaded (it supplies the keystore/truststore P12 **passwords** from `node-net/client/keystore-password` and `truststore-password`), and
 > - the **Certificate Manager** has generated the `keystore.p12` / `truststore.p12` files onto the shared file share (`/tls`).
 >
-> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](02-configure-dpn-certificate-manager.md) first.
+> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](03-configure-dpn-certificate-manager.md) first.
 
 > **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
 
