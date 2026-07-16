@@ -2,13 +2,13 @@
 
 This document covers the installation of the **DPN Federator Certificate Manager (CLM)** into a single target environment on Azure Kubernetes Service (AKS).
 
-> **Full instructions live in the configuration guide.** The end-to-end Certificate Manager flow — overview, prerequisites, the values/secrets to populate, deployment, and post-deployment verification — is documented in one place:
->
-> 👉 **[Configure DPN Certificate Manager](../02-configuration/02-configure-dpn-certificate-manager.md)**
->
-> This installation page is a quick-reference summary that points to that guide.
+**Full instructions live in the configuration guide.** The end-to-end Certificate Manager flow — overview, prerequisites, the values/secrets to populate, deployment, and post-deployment verification — is documented in one place:
 
-> **Depends on Vault.** The Certificate Manager cannot run until the DPN HashiCorp Vault service is deployed, initialised, and loaded with the certificate bundle. Complete [Vault installation](01-dpn-vault-installation-process.md) first.
+**[Configure DPN Certificate Manager](../02-configuration/03-configure-dpn-certificate-manager.md)**
+
+This installation page is a quick-reference summary that points to that guide.
+
+**Depends on Vault.** The Certificate Manager cannot run until the DPN HashiCorp Vault service is deployed, initialised, and loaded with the certificate bundle. Complete [Vault installation](01-dpn-vault-installation-process.md) first.
 
 ---
 
@@ -33,45 +33,119 @@ Root-Repository/
         └── cd-pipelines/
             └── certificate-manager-cd.yaml
 ```
+---
 
-> **Note:** On Azure ADO there is no separate Certificate Manager CI pipeline — the container image is built by the DSI CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR), and its tag is supplied to the CD pipeline as `imageTag`.
+## Step1: Verify Prerequisites
+
+Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#prerequisites). 
+
+In summary the following prerequisites must be met.
+
+- Vault deployed/initialised/loaded with bootstrap certificate
+- `cert-manager-truststore` secret present
+- `VAULT-TOKEN`/`VAULT-TRUSTSTORE-PASSWORD` secrets are ready
+- Health monitoring service is running state and OTEL Collector healthy
+- Provisioned Azure File Share
+- `azure-fileshare-secret` secret is created
+- IDP client ID received from DSM
+- Populated `config/<env>.json` and `values-<env>.yaml`
 
 ---
 
-## Prerequisites
+## Step2: Execute CI/CD Pipelines
 
-Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/02-configure-dpn-certificate-manager.md#prerequisites). In summary: Vault deployed/initialised/loaded, the `cert-manager-truststore` secret present, `VAULT-TOKEN`/`VAULT-TRUSTSTORE-PASSWORD` available, a provisioned Azure File Share + `azure-fileshare-secret`, the OAuth2 client credentials and Management Node URL from DSM, a Certificate Manager image tag, and a populated `config/<env>.json` and `values-<env>.yaml`.
+The following steps describe the process of running CI/CD pipelines for DPN Federator Certificate Manager Service Components. 
+
+### Step2a. Execute CI Pipeline
+
+The Federator Certificate Manager CI pipeline yaml file is placed in this location to set up the CI pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── ci-pipelines/
+            └── azure-pipelines-certificate-manager-ci.yaml
+```
+
+The CI pipeline requires the following paramters to be passed.
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+
+### Step2b. Verify CI Pipeline Execution
+
+Once the CI pipeline executes successfully a new image with image tag is pushed in the image registry mentioned in the configuration file. The image tag is mentioned in the pipeline clean up stage with build number numeric value. The image registry to be checked if the following image is pushed. 
+
+```text
+dpn-federator-certificate-manager:`<image tag>`
+```
+
+### Step2c. Execute CD Pipeline
+
+Create a CD pipeline from the following yaml file. 
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── certificate-manager-cd.yaml
+```
+The CD Pipeline would require the following run time parameters. 
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+|`image tag` | The same image tag number with build ID value created in the CI pipeline during pushing the image | 
+
+On success the deployment stage ends with `DPN DEPLOYMENT COMPLETE`.
 
 ---
 
-## Installation Sequence
+### Step2d. Verify CD Pipeline
 
-Run the CD pipeline with your environment as the runtime parameter. Full parameter details are in [Configure DPN Certificate Manager → Deployment](../02-configuration/02-configure-dpn-certificate-manager.md#deployment).
-
-| Pipeline | What it does |
-|----------|--------------|
-| `certificate-manager-cd` | Validate (`helm lint` + dry-run) → Deploy (`helm upgrade --install`, approval-gated, rolling restart) → Verify (rollout + PVC). Parameters: `serviceConnection`, `environment`, `imageTag`, `vaultInitEnabled` |
-
-> **`vaultInitEnabled`:** set `true` only on the first deploy if Vault's KV v2 engine was not already enabled during Vault setup; otherwise leave `false`.
-
----
-
-## Verification
-
-After the pipeline completes, confirm the deployment and the generated P12 files using the checks in [Configure DPN Certificate Manager → Post-Deployment Configuration and Verification](../02-configuration/02-configure-dpn-certificate-manager.md#post-deployment-configuration-and-verification). Quick check:
+After deployment, confirm the following components are running and validate end-to-end connectivity using the container logs. Alternatively, check the logs from DPN health monitoring dashboard. The dashboard starts filling after some time once the heartbit signal flow begin. 
 
 ```bash
-kubectl rollout status deployment/dpn-certificate-manager -n <namespace> --timeout=300s
+kubectl get pods -n <namespace> # check for dpn-certificate-manager-XXXXXX
+kubectl logs -f dpn-certificate-manager-XXXXXXXXX
+```
+The kubectl logs should not showcase any [error] message if the deployment is successful. 
+
+---
+
+**P12 files generated on the shared file share** — confirm both are present:
+
+```bash
 kubectl -n <namespace> exec <pod-name> -- ls -l /tls
 # expect: keystore.p12  truststore.p12
 ```
 
-> **Post-configuration:** the keystore/truststore P12 passwords are managed in Vault by the Certificate Manager (not written to the file share). The Federator Gateway must be configured with the matching P12 passwords in its secret configuration — see [Configure DPN Federator Gateway](../02-configuration/03-configure-dpn-federator-gateway.md).
+**First-run note (Vault):** On the very first start, the log-verification step may show Vault access errors if Vault configuration has not fully completed. Ensure Vault is initialised and the bundle is loaded, then restart the Certificate Manager pod:
+
+```bash
+kubectl rollout status deployment/dpn-certificate-manager -n <namespace> --timeout=300s
+kubectl get pods -n <namespace> -l app=dpn-certificate-manager -o wide
+kubectl get pvc  -n <namespace>
+```
 
 ---
+
+## Step3: Troubleshooting
+`<<Anuran>>`
+
+## Step4: Containerized Deployment Using DSI Provided Container Images
+`<<Tamanna to update>>`
+
 
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| 15-May-2026 | DSI Assurance    | Draft  | V0.1.0 |
+| 31-Jul-2026 | DSI Assurance    | Final  | V1.0.0 |

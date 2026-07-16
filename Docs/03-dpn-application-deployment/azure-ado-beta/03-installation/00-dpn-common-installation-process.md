@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
+- [DPN Deployment Architecture](#dpn-containerized-deployment-architecture)
 - [Installation Prerequisites](#installation-prerequisites)
   - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
   - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
@@ -48,7 +48,7 @@ The deployment process consists of:
 
 ---
 
-## DPN Containerized Deployment Architecture
+## DPN Deployment Architecture
 
 The following diagram illustrates the reference DPN deployment architecture for the **DPN Data Exchange platform**. It consists of the following containerised components:
 
@@ -97,9 +97,10 @@ This is a file share component shared between the Federator Certificate Manager 
 - Only verified-clean files are made available to the DPN Data Pipeline Consumer
 
 **DPN Health Monitoring Service**
-- Hosts the shared OTEL Collector every other DPN component sends traces, metrics, and logs to (`dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317`)
-- Routes each signal type through Kafka to a dedicated storage/dashboard stack: Prometheus + Thanos + Perses (metrics), OpenSearch + Data Prepper (logs), Jaeger (traces)
+- Hosts the shared OTEL Collector every other DPN component sends traces, metrics, and logs
+- Routes each signal type through Kafka to a dedicated storage/dashboard stack: Prometheus + Thanos + Perses (metrics), OpenSearch + Data Prepper (logs), Jaeger (traces). 
 - Fronts all dashboards with a single authenticated reverse proxy
+**Note** - Opensearch is recommended to be used for log monitoring at this moment, prometheus and Jaeger dashboard UI improvements under process for future release.
 
 **DPN Streaming Service — Kafka**
 This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor, mapper, and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
@@ -166,64 +167,7 @@ Ensure the following prerequisites are completed before deployment:
 
 ### 3. Certificate Preparation and CSR Generation
 
-Organisations must provide their own Certificate Signing Request (CSR) file to DSI and have it signed by the DSI Certificate Authority via the DSM before DPN usage. The following CSR generation process uses OpenSSL commands. Organisations may alternatively use their own standard CSR generation process.
-
-The CSR file must contain at minimum the following Subject Alternative Names (SANs):
-
-- A producer endpoint for serving data products — e.g. `producer.xyz.com`
-- A consumer endpoint for consuming data products — e.g. `consumer.xyz.com`
-
-### Step-by-Step Certificate Generation
-
-For development purposes, follow these steps to generate certificates for mTLS. All passwords used are `changeit`. When generating these certficates, for the `Country Name`, you can use the value of 'UK'. All remaining certificate fields can be left to their default values.
-
-move to the docker folder
-```bash
-cd docker
-```
-
-Create a config file `<orgname.cnf>` to include required SANs. 
-
-```text
-[req]
-default_bits       = 2048
-prompt             = no
-distinguished_name = dn
-req_extensions     = req_ext
-
-[dn]
-CN = <organisation specific CN>
-
-[req_ext]
-subjectAltName = @alt_names
-
-[alt_names]
-DNS.1 = producer.xyz.com
-DNS.2 = consumer.xyz.com
-```
-
-Generate an RSA private key for the organisation's DPN:
-
-```text
-openssl genrsa -out <orgname>.key 2048
-```
-
-Generate the CSR for the organisation using the key file above, then submit the CSR to DSI DSM through the UI:
-
-```text
-openssl req -new -key <orgname>.key -out <orgname>.csr -config <orgname>.cnf
-```
-
-Organisations receive a **signed certificate from DSI DSM** based on their submitted CSR.
-
-#### Certificate Files Received in DPN Package from DSI
-
-Organisations receive a certificate package after uploading their CSR file to DSI. The package contains the `certificate.crt` and `ca_chain.crt` files from DSI. The following table lists the files provided to DPNs during DPN connection setup.
-
-| File            | Description |
-|-----------------|-------------|
-| `<orgname>.crt` | Certificate signed by DSI DSM |
-| `ca_chain.crt`  | Intermediate certificate chain provided by DSI DSM |
+Refer (../02-configuration/01-configure-dpn-vault-service.md) for certificate set up and csr generation
 
 ---
 
@@ -247,30 +191,16 @@ The DPN currently comprises the following components. Complete the prerequisites
 
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
-| DPN Vault and Shared File Service | *component installation.md — not yet split out of this document* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Federator Certificate Manager | *component installation.md — not yet split out of this document* | Depends on Vault |
-| DPN Federator Gateway | *component installation.md — not yet split out of this document* | Depends on Vault and Certificate Manager being installed and configured first |
-| DPN Data Pipeline | [`dpn-data-pipelines/installation.md`](../dpn-data-pipelines/installation.md) | Independent of Vault/Certificate Manager/Federator Gateway |
-| DPN File Scanning Service | [`dpn-file-scan-service/installation.md`](../dpn-file-scan-service/installation.md) | **Design stage** — no implementation exists yet; depends on the Data Pipeline Consumer already being installed |
-| DPN Health Monitoring Service | [`dpn-health-monitoring-service/installation.md`](../dpn-health-monitoring-service/installation.md) | ** see that guide for the environment-specific setup (`dev`/`devtest` vs. `pdev`/`ptest`/`puat`) |
-
-## Installation Steps
-
-The DPN currently comprises the following components:
-
-- **DPN Vault and Shared File Service**
-- **DPN Federator Certificate Manager**
-- **DPN Federator Gateway**
-- **DPN Health Monitoring Service**
-- **DPN Data Pipeline**
-- **DPN File Scanning Service** 
-- **DPN Data Store** 
-
-The installation steps for each component are outlined separately below.
+| DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
+| DPN Health Monitoring Service | *02-dpn-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
+| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installation-process.md* | Depends on Vault |
+| DPN Federator Gateway | *04-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
+| DPN Data Pipeline | *05-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
+| DPN File Scanning Service | *06-dpn-file-scan-service-installation-process.md* | Native deployment for Azure Cloud only |
 
 ---
 
-## Troubleshooting
+## Common Troubleshooting Guidance
 
 ### CI Pipeline Failure
 
@@ -287,7 +217,9 @@ Verify pipeline logs and ensure all credentials are correct.
 
 ### Container Image Not Found
 
-Check whether the CI pipeline pushed images to the registry:
+Check whether the CI pipeline pushed images to the registry and check whether the same image tag is used while running the CD Pipeline parameter. 
+
+Compare the digest generated between CI and CD Pipelines.
 
 ```bash
 az acr repository list --name <acr-name>

@@ -1,4 +1,4 @@
-# DPN Installation Process
+# DPN File Scan Service Installation Process
 
 ---
 
@@ -32,23 +32,81 @@
 
 This document describes the planned installation process for the DPN File Scanning Service (the ADR's "DPN File Verification Service"), which inserts a malware-scanning gate in front of the existing DPN Data Pipeline Consumer Extractor. It depends on the DPN Data Pipeline already being installed, since it writes into the same `dp-consumer-stage` container that component already reads from.
 
-The service is **fully containerised**: the only artefact deployed to AKS is the single custom image `ghcr.io/energy-dsi/dpn-file-scan-service:1.0.0`. It has no third-party runtime containers to install alongside it — its dependencies (Defender for Storage, Event Grid, Service Bus) are Azure PaaS services, provisioned in Steps 1–4 below rather than deployed as pods.
+---
+
+## Step1: Validate the Prerequisites
+
+The following prerequisites must be met.
+
+- The source and target storage accounts are provisioned
+- The target storage account contains a container named `dp-consumer-stage` or other names if modifed
+- An AKS cluster with service connection access to deploy new workloads
+- Azure subscription access sufficient to enable Microsoft Defender for Storage
+- Service connection required roles to create an Event Grid System Topic and provision a Service Bus namespace/topic
+- Service Bus user access administrator permission to create and assign Managed Identities and RBAC role assignments
+- DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 
 ---
 
-## Prerequisites
+## Step2: Execute Prerequisite CD Pipeline
 
-- The DPN Data Pipeline Consumer (Extractor + Schema Mapper) is already installed and reading from `dp-consumer-stage` — see the [DPN Data Pipeline Installation Process](../dpn-data-pipelines/installation.md).
-- An AKS cluster with access to deploy new workloads, with the **metrics-server** running (required for HPA — enabled by default on AKS).
-- Azure subscription access sufficient to enable Microsoft Defender for Storage, create an Event Grid System Topic, and provision a Service Bus namespace/topic.
-- Permission to create and assign Managed Identities and RBAC role assignments.
-- An OTEL-compatible log aggregator endpoint to send processing logs to.
-- Access to the `ghcr.io/energy-dsi/dpn-file-scan-service` GHCR package — see [Step 6](#step-6--configure-ghcr-image-access).
-- Confirmation that the target environment's Azure DevOps Environment approval gate is configured — see [Step 7](#step-7--configure-environment-approval-gates).
+The file scan prerequisite pipeline yaml file is placed in this location.
 
----
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-file-scan-service-prerequisites-cd.yaml
+```
+Prepare a new pipeline from this yaml file and run. This pipeline will require a set of runtime parameters as defined in [File Scan Service Prerequisite Pipeline Run Parameters](../02-configuration/06-configure-dpn-file-scan-service.md)
 
-## Installation Steps
+### Step2a: Validate Prerequisite Pipeline Execution
+
+Once the pipeline runs successfully then validate the following. 
+
+- A new service bus topic is created
+- A new container named `dp-consumer-raw` is created in source container storage account unless renamed to something else
+
+## Step3: Execute CI Pipeline
+
+The File Scan service CI pipeline yaml file is placed in this location to set up the CI pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── ci-pipelines/
+            └── dpn-file-scan-service-ci.yaml
+```
+
+The CI pipeline requires the following paramters to be passed.
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+
+
+Execute the CI pipeline to build the image and push to image registry.
+
+### Step3a. Validate CI Pipeline Execution
+
+Once the CI pipeline executes successfully a new image is pushed in the image registry mentioned in the configuration file. 
+
+The image tag is mentioned in the pipeline clean up stage with a random numeric value as build id. The image registry to be checked if the following images are pushed. 
+
+```text
+dpn-file-scan-service:`<image tag>`
+```
+
+### Step3b. Execute CD Pipeline
+
+
+
+
+
 
 ### Step 1 — Provision the Quarantine Container
 

@@ -334,7 +334,7 @@ az keyvault secret set --vault-name <KEY_VAULT_NAME> --name VAULT-TOKEN --value 
 
 ### Step4: Load the certificate bundle
 
-**Step 4a — Load the client key pair, CA chain, and certificate into Vault.** The bundle contains `<orgname>.key`, `ca-chain.crt`, and `certificate.crt`:
+**Step 4a — Load the client key pair, CA chain, and certificate into Vault.** The bundle contains `<orgname>.key`, `ca-chain.pem`, and `certificate.pem`:
 
 ```bash
 kubectl -n <namespace> exec $VPOD -- env VAULT_TOKEN=<RootToken> VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true \
