@@ -9,11 +9,17 @@
 - [Step1: Setup a New Data Product From Blueprint](#step1-setup-a-new-data-product-from-blueprint)
 - [Step2: Setup Data Consumers From Blueprint](#step2-setup-data-consumers-from-blueprint)
 - [Step3: Setup Producer Helm Charts](#step3-setup-producer-helm-charts)
+  - [Step3a: Set Up Producer Helm Charts For File Based Pathways](#step3a-set-up-producer-helm-charts-for-file-based-pathways)
+  - [Step3b: Set Up Producer Helm Charts For Topic Based Pathways](#step3b-set-up-producer-helm-charts-for-topic-based-pathways)
 - [Step4: Setup Consumer Helm Charts](#step4-setup-consumer-helm-charts)
+  - [Step4a: Setup Consumer Helm Charts For File Based Integration Pathway](#step4a-setup-consumer-helm-charts-for-file-based-integration-pathway)
+  - [Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway](#step4b-setup-consumer-helm-charts-for-topic-based-integration-pathway)
 - [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa)
 - [Step6: Configure Scheduling](#step6-configure-scheduling)
-  - [Option A: Helm Configure Automated Scheduling Using Airflow](#option-a-helm-configure-automated-scheduling-using-airflow)
-  - [Option B: Helm Configure Manual Scheduling Without Airflow](#option-b-helm-configure-manual-scheduling-without-airflow)
+  - [Option A (Helm): Configure Scheduling Using Airflow](#option-a-helm-configure-scheduling-using-airflow)
+  - [Scheduler Backend Options](#scheduler-backend-options)
+  - [Behavior](#behavior)
+  - [Option B (Helm): Configure Scheduling Without Airflow](#option-b-helm-configure-scheduling-without-airflow)
 - [Step7: Onboard a New Data Product on Airflow Scheduler](#step7-onboard-a-new-data-product-on-airflow-scheduler)
 - [Step8: Configure Secrets](#step8-configure-secrets)
 - [Step9: Configure DPN Data Store](#step9-configure-dpn-data-store)
@@ -178,7 +184,7 @@ Root-Repository
                           └── values.yaml                
 ```
 
-> **Note:** The `values.yaml` file can be replicated for multiple environments or DPN deployments (e.g. `values-<env>-dpn01.yaml`, `values-<env>-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](#azure-environment-configuration) section.
+> **Note:** The `values.yaml` file can be replicated for multiple environments or DPN deployments (e.g. `values-<env>-dpn01.yaml`, `values-<env>-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration) section.
 
 ## Step3: Setup Producer Helm Charts
 
@@ -316,7 +322,7 @@ Manual scheduler requires Organisations to start pipeline manually and monitor t
 
 ## Step7: Onboard a New Data Product on Airflow Scheduler
 
-Scheduling configuration on Airflow is **not created automatically** — a Direct Acyclic Graph (DAG) must be added alongside every new data product using `SCHEDULER_BACKEND: airflow`, in addition to the steps in [Producer Setup](#producer-setup).
+Scheduling configuration on Airflow is **not created automatically** — a Direct Acyclic Graph (DAG) must be added alongside every new data product using `SCHEDULER_BACKEND: airflow`, in addition to the steps in [Producer Setup](#step1-setup-a-new-data-product-from-blueprint).
 
 ```text
 Root-Repository

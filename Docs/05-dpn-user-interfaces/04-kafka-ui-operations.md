@@ -1,4 +1,4 @@
-# Kafka UI User Playbook for DPN Pipelines
+# Kafka UI User Interface Guidance for DPN Pipelines
 
 ## Purpose
 

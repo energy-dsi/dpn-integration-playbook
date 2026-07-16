@@ -5,28 +5,34 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [DPN Containerized Deployment Architecture](#dpn-containerized-deployment-architecture)
-- [Installation Prerequisites](#installation-prerequisites)
-  - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
-  - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
-  - [3. Identify Pipeline Repository Structure](#3-identify-pipeline-repository-structure)
-  - [4. Configure GHCR Image Access](#4-configure-ghcr-image-access)
-  - [5. Configure Environment Approval Gates](#5-configure-environment-approval-gates)
-- [Installation Steps](#installation-steps)
-  - [DPN Data Pipeline Installation](#dpn-data-pipeline-installation)
-  - [Step 7 — Verify Horizontal Pod Autoscalers](#step-7--verify-horizontal-pod-autoscalers)
-  - [Step 8 — (Optional) Deploy the Scheduler Backend](#step-8--optional-deploy-the-scheduler-backend)
-- [Troubleshooting](#troubleshooting)
+- [Step1: Installation Prerequisites](#step1-installation-prerequisites)
+  - [Step1a. Clone and Prepare Source Repositories](#step1a-clone-and-prepare-source-repositories)
+  - [Step1b. Prepare Infrastructure and Application Prerequisites](#step1b-prepare-infrastructure-and-application-prerequisites)
+  - [Step1c. Identify Pipeline Repository Structure](#step1c-identify-pipeline-repository-structure)
+  - [Step1d. Configure Environment Approval Gates](#step1d-configure-environment-approval-gates)
+- [Step2: Install DPN Data Pipeline](#step2-install-dpn-data-pipeline)
+  - [Step2a. Configure Data Pipeline CI Pipeline](#step2a-configure-data-pipeline-ci-pipeline)
+  - [Step 2b. Execute Data Pipeline CI Pipeline](#step-2b-execute-data-pipeline-ci-pipeline)
+  - [Step2c. Validate Data Pipeline CI Pipeline](#step2c-validate-data-pipeline-ci-pipeline)
+  - [Step2d. Configure Data Pipeline CD Pipeline](#step2d-configure-data-pipeline-cd-pipeline)
+  - [Step2e. Execute Data Pipeline CD Pipeline](#step2e-execute-data-pipeline-cd-pipeline)
+  - [Step2f. Validate Data Pipeline CD Pipeline](#step2f-validate-data-pipeline-cd-pipeline)
+- [Step3: (Optional) Deploy the Scheduler Backend Using Apache Airflow](#step3-optional-deploy-the-scheduler-backend-using-apache-airflow)
+  - [Step3a. Verify Prerequisites](#step3a-verify-prerequisites)
+  - [Step3b. Execute Airflow CD Pipeline](#step3b-execute-airflow-cd-pipeline)
+  - [Step3c. Verify CD Pipeline Execution](#step3c-verify-cd-pipeline-execution)
+- [Step4: Troubleshooting](#step4-troubleshooting)
   - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
-  - [GHCR Image Pull Failures](#ghcr-image-pull-failures)
+  - [Image Pull Failures](#image-pull-failures)
   - [Data Pipeline Image Tag Malformed](#data-pipeline-image-tag-malformed)
-  - [CD Pipeline Stuck Awaiting Approval](#cd-pipeline-stuck-awaiting-approval)
   - [Pods Not Starting](#pods-not-starting)
   - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
   - [HPA Not Scaling](#hpa-not-scaling)
   - [Kafka Topic Issues](#kafka-topic-issues)
+- [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
+  - [Step5a. Configure GHCR Image Access](#step5a-configure-ghcr-image-access)
 - [Review Notes](#review-notes)
 
 ---
@@ -84,14 +90,14 @@ git push -u ado main
 Ensure the following prerequisites are completed before deployment:
 
 - AKS cluster provisioned and accessible, with the **metrics-server** running (required for HPA — enabled by default on AKS)
-- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](02-configuration-parameters.md#dpn-streaming-service-kafka) in the Configuration Guide)
+- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/05-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
 - DPN Health Monitoring Service deployed and OTEL collector container is in running state
-- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](02-configuration-parameters.md#storage-blob--s3-configuration))
-- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](02-configuration-parameters.md#secrets-configuration-data-pipelines))
-- Network and firewall rules applied as described in [Network and Ports Configuration](02-configuration-parameters.md#network-and-ports-configuration), including outbound access to `ghcr.io`
+- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
+- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step8-configure-secrets))
+- Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (Azure DevOps access, GHCR access — see Step 4 below)
 
-[Refer to the **Prerequisites** and **Configuration** documentation for details](01-prerequisites.md)
+[Refer to the **Prerequisites** and **Configuration** documentation for details](../01-prerequisites/01-dpn-prerequisites.md)
 
 ---
 
@@ -121,11 +127,11 @@ The DPN Data Pipeline is a series of data validation stages processed through th
 
 The following diagram represents an overview of DPN Producer Data Pipeline CI/CD architecture. 
 
-![DPN Data Pipeline Producer DevOPS Architecture](/Docs/04-dpn-architecture/images/dpn_data_pipeline_producer.png)
+![DPN Data Pipeline Producer DevOPS Architecture](../../../04-dpn-architecture/images/dpn_data_pipeline_producer.png)
 
 The following diagram represents an overview of DPN Consumer Data Pipeline CI/CD architecture. 
 
-![DPN Data Pipeline Consumer DevOPS Architecture](/Docs/04-dpn-architecture/images/dpn_data_pipeline_consumer.png)
+![DPN Data Pipeline Consumer DevOPS Architecture](../../../04-dpn-architecture/images/dpn_data_pipeline_consumer.png)
 
 
 ---
@@ -243,7 +249,7 @@ Once a successful deployment has completed, the DPN Kubernetes cluster should sh
 - Process type  : file
 ```
 
-![DPN Reference Implementation](/Docs/04-dpn-architecture/images/dpn_ref_implementation.png)
+![DPN Reference Implementation](../../../04-dpn-architecture/images/dpn_ref_implementation.png)
 
 ```bash
 kubectl get pods -n <namespace>
@@ -416,7 +422,7 @@ Check that:
 
 ### Step5a. Configure GHCR Image Access
 
-All custom and third-party images are pulled from `ghcr.io/energy-dsi` — see [Container Image Configuration](02-configuration-parameters.md#container-image-configuration) in the Configuration Guide for the full list.
+All custom and third-party images are pulled from `ghcr.io/energy-dsi` — see [Container Image Configuration](../02-configuration/05-configure-dpn-data-pipelines.md) in the Configuration Guide for the full list.
 
 1. Confirm whether the `energy-dsi` GHCR packages required for this deployment are public or private.
 2. If private, create an `imagePullSecrets`-referenced Kubernetes secret in the target namespace **before** running the CD pipeline:

@@ -30,7 +30,8 @@ This document describes rollback and recovery procedures across **all DPN compon
 
 This document uses that pipeline as the concrete, technical reference for how DPN's rollback strategy actually works, then generalises the same two-mode approach (Helm revision vs. image tag) to every other component via manual `helm rollback`/`helm upgrade` commands, since no equivalent dedicated pipeline was found for them.
 
-All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Mechanisms](#rollback-mechanisms).
+All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Mechanisms](#rollback-strategy).
+
 ---
 
 ## Rollback Strategy
@@ -45,10 +46,12 @@ There are **two separate pipelines**, not two modes of one pipeline — this is 
 The distinction matters for what actually gets reverted:
 
 - **Strategy 1** The standard CD pipeline deploys whatever `values.yaml` currently defines, just with an older `imageTag` substituted in. If the *values* are also wrong (not just the image), Strategy 1 alone won't fix that — it'll faithfully redeploy the bad values with an old image.
+
 - **Strategy 2 reverts everything about that revision** — chart version, values, and therefore whatever image tag was in use at that revision too. It doesn't let you pick an image tag independently of the revision; you get exactly what that revision was.
 
 **On image tags being build numbers:** every component's CI pipeline is assumed to tag images with a numeric Azure DevOps Build ID (e.g. `1042`), pushed to its registry — confirmed for the Data Pipeline. The `imageTag` value you type into Strategy 1 **is a build number**, not a semantic version or a date, unless/until a component has migrated to GHCR with fixed semantic-version tags (see [Config and Installation Guide Cross-References](#config-and-installation-guide-cross-references)).
---
+
+---
 
 ## Rollback Pipeline Availability by Component
 
@@ -179,7 +182,7 @@ helm history dpn-platform -n <namespace>
 helm rollback dpn-certificate-manager <rollbackRevision> -n <namespace>
 ```
 
-**Neither strategy rolls back Vault's contents** — the certificate manager's deployment revision is independent of what's stored in Vault. If the problem is the *certificate bundle itself* rather than the certificate manager's code, see [Part 4 — DPN Vault Rollback](#part-4--dpn-vault-rollback).
+**Neither strategy rolls back Vault's contents** — the certificate manager's deployment revision is independent of what's stored in Vault. If the problem is the *certificate bundle itself* rather than the certificate manager's code, see [Disaster Recovery Considerations](#disaster-recovery-considerations).
 
 **Verification:**
 
@@ -215,7 +218,8 @@ kubectl get hpa -n ns-dpn-health-01
 
 Trigger a known event upstream and confirm it still reaches all three dashboards after the rollback.
 
---
+---
+
 ## Kafka Topic Recovery
 
 Applicable to any component that produces to or consumes from Kafka (Data Pipeline, Federator Gateway, Health Monitoring Service's `otel-metrics`/`otel-logs`/`otel-traces` topics):

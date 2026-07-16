@@ -15,9 +15,22 @@ This installation page is a quick-reference summary that points to that guide.
 ## Table of Contents
 
 - [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Installation Sequence](#installation-sequence)
-- [Verification](#verification)
+- [Step1: Verify Prerequisites](#step1-verify-prerequisites)
+- [Step2: Execute CI/CD Pipelines](#step2-execute-cicd-pipelines)
+  - [Step2a. Execute CI Pipeline](#step2a-execute-ci-pipeline)
+  - [Step2b. Verify CI Pipeline Execution](#step2b-verify-ci-pipeline-execution)
+  - [Step2c. Execute CD Pipeline](#step2c-execute-cd-pipeline)
+  - [Step2d. Verify CD Pipeline](#step2d-verify-cd-pipeline)
+  - [Step2e. Setup Kafka Topics](#step2e-setup-kafka-topics)
+  - [Step2f: Verify Job Runner Interface](#step2f-verify-job-runner-interface)
+- [Step3: Troubleshooting](#step3-troubleshooting)
+  - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
+  - [PKIX Certificate validation error](#pkix-certificate-validation-error)
+  - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
+  - [52x error Due to SSL handshake failure](#52x-error-due-to-ssl-handshake-failure)
+  - [403 OCSP certificate check failure](#403-ocsp-certificate-check-failure)
+  - [Resilience retry due from remote endpoint call.](#resilience-retry-due-from-remote-endpoint-call)
+- [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -43,7 +56,7 @@ Key points, detailed in the configuration guide:
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#prerequisites). 
+Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
 
 In summary: 
 
@@ -166,7 +179,32 @@ For more details on the job runner UI, refer to For more details on kafka-ui int
 ---
 
 ## Step3: Troubleshooting
-`<<Anuran>>`
+
+While working with Federator Gateway Service some known problem could arise. These are given below.
+
+### Invalid Keystore/Trustore Password
+
+This is a common known error occuring due to password mismatch. Please follow the Troubleshooting step for Certificate manager for the same issue.
+
+### PKIX Certificate validation error
+
+Sometimes there could be some sync issue between certificate, ca-chain and key-pair files in the hashicorp vault which can lead to the `PKIX certificate validation` error. Please follow the Troubleshooting step for Certificate manager for the same issue.
+
+### 401 Unauthorised error from DSM Auth endpoint
+
+Sometimes the certificate entries in the management-node could get out of sync with the certificates in vault leading to the 401 error from DSM IDP endpoint. Please follow the Troubleshooting step for Certificate manager for the same issue.
+
+### 52x error Due to SSL handshake failure
+
+Sometimes the certificates in keystore.p12 file could hit expiry or out of sync. This can trigger 52x errors from the DPN of other Organisation when the consumer job tries to connect a producer.
+
+### 403 OCSP certificate check failure
+
+When the Federator client connects to a server whose certificate has expired or revoked, it will hit this error from OCSP endpoint in management node, which will cause the transfer job to fail. In this case unsubscribe to the product from UI or ask the producer of the product to get a valid certificate.
+
+### Resilience retry due from remote endpoint call.
+
+This error most likely is caused due to invalid bearer token used or authentication issue at the IDP. In this most of the time the error should go after restarting both certificate manager and federator consecutively.
 
 ---
 

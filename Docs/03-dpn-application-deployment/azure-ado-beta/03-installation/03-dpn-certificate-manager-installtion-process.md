@@ -15,9 +15,17 @@ This installation page is a quick-reference summary that points to that guide.
 ## Table of Contents
 
 - [Overview](#overview)
-- [Prerequisites](#prerequisites)
-- [Installation Sequence](#installation-sequence)
-- [Verification](#verification)
+- [Step1: Verify Prerequisites](#step1-verify-prerequisites)
+- [Step2: Execute CI/CD Pipelines](#step2-execute-cicd-pipelines)
+  - [Step2a. Execute CI Pipeline](#step2a-execute-ci-pipeline)
+  - [Step2b. Verify CI Pipeline Execution](#step2b-verify-ci-pipeline-execution)
+  - [Step2c. Execute CD Pipeline](#step2c-execute-cd-pipeline)
+  - [Step2d. Verify CD Pipeline](#step2d-verify-cd-pipeline)
+- [Step3: Troubleshooting](#step3-troubleshooting)
+  - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
+  - [PKIX Certificate validation error](#pkix-certificate-validation-error)
+  - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
+- [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -37,7 +45,7 @@ Root-Repository/
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#prerequisites). 
+Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
 
 In summary the following prerequisites must be met.
 
@@ -95,6 +103,7 @@ Root-Repository/
         └── cd-pipelines/
             └── certificate-manager-cd.yaml
 ```
+
 The CD Pipeline would require the following run time parameters. 
 
 | Parameter | Value |
@@ -138,7 +147,22 @@ kubectl get pvc  -n <namespace>
 ---
 
 ## Step3: Troubleshooting
-`<<Anuran>>`
+
+While working with the Federator Certificate Manager some common problem may arise. These are given below.
+
+### Invalid Keystore/Trustore Password
+
+This is a common known error occuring due to password mismatch. Confirm that `/tls/keystore.p12` and `/tls/truststore.p12` files in the dpn-certificate-manager kubernettes container are in sync with the loaded certificates in Hashicorp vault by checking their timestamps. If not delete the files from inside the container.
+
+### PKIX Certificate validation error
+
+Sometimes there could be some sync issue between certificate, ca-chain and key-pair files in the hashicorp vault which can lead to the `PKIX certificate validation` error. In that case please refresh/resync the certificates in vault by downloading a bootstrap bundle from DSM and uploading it again to vault. Also make sure to delete existing contents from vault before uploading the bootstrap certificates.
+
+### 401 Unauthorised error from DSM Auth endpoint
+
+Sometimes the certificate entries in the management-node could get out of sync with the certificates in vault leading to the 401 error from IDP endpoint. In that case please refresh/resync the certificates in vault by downloading a bootstrap bundle from DSM and uploading it again to vault. Also make sure to delete existing contents from vault before uploading the bootstrap certificates.
+
+---
 
 ## Step4: Containerized Deployment Using DSI Provided Container Images
 `<<Tamanna to update>>`

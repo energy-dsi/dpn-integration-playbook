@@ -5,16 +5,14 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [DPN Deployment Architecture](#dpn-containerized-deployment-architecture)
+- [DPN Deployment Architecture](#dpn-deployment-architecture)
 - [Installation Prerequisites](#installation-prerequisites)
   - [1. Clone and Prepare Source Repositories](#1-clone-and-prepare-source-repositories)
   - [2. Prepare Infrastructure and Application Prerequisites](#2-prepare-infrastructure-and-application-prerequisites)
   - [3. Certificate Preparation and CSR Generation](#3-certificate-preparation-and-csr-generation)
-  - [Step-by-Step Certificate Generation](#step-by-step-certificate-generation)
   - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
 - [Component Installation Guides](#component-installation-guides)
-- [Installation Steps](#installation-steps)
-- [Troubleshooting](#troubleshooting)
+- [Common Troubleshooting Guidance](#common-troubleshooting-guidance)
   - [CI Pipeline Failure](#ci-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
   - [Pods Not Starting](#pods-not-starting)
@@ -52,7 +50,7 @@ The deployment process consists of:
 
 The following diagram illustrates the reference DPN deployment architecture for the **DPN Data Exchange platform**. It consists of the following containerised components:
 
-![DPN Architecture Blocks](/Docs/04-dpn-architecture/images/dpn_deployment_architecture.png)
+![DPN Architecture Blocks](../../../04-dpn-architecture/images/dpn_deployment_architecture.png)
 
 **DPN Federator Gateway**
 This component is responsible for file transmission over a gRPC connection, communication with the DSM Keycloak service, and management node services.
@@ -161,13 +159,13 @@ Ensure the following prerequisites are completed before deployment:
 - Security prerequisites
 - Certificate prerequisites
 
-[Refer to the **Prerequisites** and **Configuration** documentation for details](01-prerequisites.md)
+[Refer to the **Prerequisites** and **Configuration** documentation for details](../01-prerequisites/01-dpn-prerequisites.md)
 
 ---
 
 ### 3. Certificate Preparation and CSR Generation
 
-Refer (../02-configuration/01-configure-dpn-vault-service.md) for certificate set up and csr generation
+Refer to [DPN Vault Service Configuration](../02-configuration/01-configure-dpn-vault-service.md) for certificate set up and csr generation
 
 ---
 
@@ -193,7 +191,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
 | DPN Health Monitoring Service | *02-dpn-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
-| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installation-process.md* | Depends on Vault |
+| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installtion-process.md* | Depends on Vault |
 | DPN Federator Gateway | *04-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
 | DPN Data Pipeline | *05-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
 | DPN File Scanning Service | *06-dpn-file-scan-service-installation-process.md* | Native deployment for Azure Cloud only |
@@ -277,7 +275,7 @@ Check that:
 
 When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
 
-Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](02-configuration-parameters.md#vault-configuration).
+Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](../02-configuration/01-configure-dpn-vault-service.md#automated-vault-configuration).
 
 To restart a pod:
 
@@ -285,13 +283,13 @@ To restart a pod:
 kubectl -n <namespace> delete po/<pod_id>
 ```
 
-> **Note:** If the renewal job fails after the pods have been stopped for a period exceeding the renewal frequency (`cert.renewalRateMs`), the organisation's DPN administrator must raise a request with a new CSR to the DSM to obtain a new certificate bundle. Load the new bundle into the DPN Vault using the steps described in [Certificate Load Steps in Vault](02-configuration-parameters.md#certificate-load-steps-in-vault).
+> **Note:** If the renewal job fails after the pods have been stopped for a period exceeding the renewal frequency (`cert.renewalRateMs`), the organisation's DPN administrator must raise a request with a new CSR to the DSM to obtain a new certificate bundle. Load the new bundle into the DPN Vault using the steps described in [Certificate Load Steps in Vault](../02-configuration/01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-vault-load-bundle-cd).
 
 ---
 
 ### Emergency Certificate Rotation Process
 
-In case we need to rotate/renew the certificate adhoc forcefully using new certificate bundle received from DSI DSM, we need to perform the cleanup and rollback process listed [here](04-rollback-procedures.md#vault-certificate-bundle-rollback) using the new certificate bundle. 
+In case we need to rotate/renew the certificate adhoc forcefully using new certificate bundle received from DSI DSM, we need to perform the cleanup and rollback process listed [here](../04-rollback/04-rollback-procedures.md#disaster-recovery-considerations) using the new certificate bundle. 
 
 ---
 

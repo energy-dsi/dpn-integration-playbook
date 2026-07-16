@@ -45,10 +45,10 @@ The architecture consists of two logical environments:
 - Schema validation and transformation performed
 - Data stored within the organisation environment
 
-Refer to the architecture documentation located in:
+Reference architecture diagrams are located in:
 
 ```
-Docs/04-dpn-architecture/
+Docs/04-dpn-architecture/images/
 ```
 
 ---
@@ -71,7 +71,7 @@ This ensures:
 Ensure the organisation satisfies the required infrastructure, security, and access prerequisites.
 
 ```
-Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites/
+Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites.md
 Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
 ```
 
@@ -91,7 +91,7 @@ Topics covered include:
 Understand the configuration required before running deployment pipelines.
 
 ```
-Docs/02-dpn-infrastructure-deployment/azure/02-configuration/
+Docs/02-dpn-infrastructure-deployment/azure/02-configuration-parameters.md
 Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/
 ```
 
@@ -110,8 +110,8 @@ Topics covered include:
 Follow the installation guide to deploy the platform.
 
 ```
-Docs/02-dpn-infrastructure-deployment/azure/03-installation-process/
-Docs/03-dpn-application-deployment/azure-ado-beta/03-installation-process/
+Docs/02-dpn-infrastructure-deployment/azure/03-installation-process.md
+Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/
 ```
 
 The installation process includes:
@@ -140,34 +140,61 @@ To further support the node after installation, the following operational docume
 The repository is organised into structured documentation sections that guide organisations through the **deployment lifecycle of a DPN**.
 
 ```
-Docs/
-│
-├── 01-introduction-scope
-│   ├── 01-introduction.md
-│   ├── 02-purpose-of-document.md
-│   └── 03-intended-audience.md
-│
-├── 02-dpn-infrastructure-deployment
-│   └── azure
-│       ├── 01-prerequisites.md
-│       ├── 02-configuration-parameters.md
-│       ├── 03-installation-process.md
-│       ├── 04-rollback-procedures.md
-│       ├── 05-uninstall-decommissioning.md
-│       └── README.md
-│
-├── 03-dpn-application-deployment
-│   └── azure-ado-beta
-│       ├── 01-prerequisites.md
-│       ├── 02-configuration-parameters.md
-│       ├── 03-installation-process.md
-│       ├── 04-rollback-procedures.md
-│       └── 05-uninstall-decommissioning.md
-│
-├── 04-dpn-architecture
+./
+├── Docs/
+│   ├── 01-introduction-scope
+│   │   ├── 01-introduction.md
+│   │   ├── 02-purpose-of-document.md
+│   │   └── 03-intended-audience.md
+│   │
+│   ├── 02-dpn-infrastructure-deployment
+│   │   └── azure
+│   │       ├── 01-prerequisites.md
+│   │       ├── 02-configuration-parameters.md
+│   │       ├── 03-installation-process.md
+│   │       ├── 04-rollback-procedures.md
+│   │       ├── 05-uninstall-decommissioning.md
+│   │       └── README.md
+│   │
+│   ├── 03-dpn-application-deployment
+│   │   └── azure-ado-beta
+│   │       ├── 01-prerequisites
+│   │       │   └── 01-dpn-prerequisites.md
+│   │       ├── 02-configuration
+│   │       │   ├── 00-common-dpn-configuration.md
+│   │       │   ├── 01-configure-dpn-vault-service.md
+│   │       │   ├── 02-configure-dpn-health-mon-service.md
+│   │       │   ├── 03-configure-dpn-certificate-manager.md
+│   │       │   ├── 04-configure-dpn-federator-gateway.md
+│   │       │   ├── 05-configure-dpn-data-pipelines.md
+│   │       │   └── 06-configure-dpn-file-scan-service.md
+│   │       ├── 03-installation
+│   │       │   ├── 00-dpn-common-installation-process.md
+│   │       │   ├── 01-dpn-vault-installation-process.md
+│   │       │   ├── 02-dpn-monitoring-service-installation-process.md
+│   │       │   ├── 03-dpn-certificate-manager-installtion-process.md
+│   │       │   ├── 04-dpn-federator-gateway-installation-process.md
+│   │       │   ├── 05-dpn-data-pipeline-installation-process.md
+│   │       │   └── 06-dpn-file-scan-service-installation-process.md
+│   │       ├── 04-rollback
+│   │       │   └── 04-rollback-procedures.md
+│   │       └── 05-uninstall
+│   │           └── 05-uninstall-decommissioning.md
+│   │
+│   ├── 04-dpn-architecture
+│   │   └── images
+│   │
+│   └── 05-dpn-user-interfaces
+│       ├── 01-hashicorp-vault-ui-operations.md
+│       ├── 02-apache-airflow-scheduler-ui-operations.md
+│       ├── 03-federator-client-job-runner-ui-operations.md
+│       ├── 04-kafka-ui-operations.md
+│       ├── 05-opensearch-dashboard-ui-operations.md
+│       ├── 06-jaeger-dashboard-ui-operations.md
+│       ├── 07-kafka-health-ui-operations.md
+│       └── images
 │
 ├── CHANGELOG.md
-│
 └── README.md
 ```
 
@@ -256,28 +283,18 @@ The initiative aims to promote **secure, federated, and interoperable data-shari
 This repository contains documentation licensed under the **Open Government Licence v3.0**.
 
 By contributing to this repository, you agree that your contributions will be licensed under these terms.
-Refer to:
-OGL_LICENSE.md
-NOTICE.md
 
 **Security and Responsible Disclosure**
 
-We take security seriously. If you believe you have identified a security vulnerability in this repository, please follow the responsible disclosure process defined in:
-
-SECURITY.md
+We take security seriously. If you believe you have identified a security vulnerability in this repository, please contact the DSI team using the details in the Support and Contact section below.
 
 **Contributing**
 
-We welcome contributions that improve documentation clarity, deployment guidance, or operational procedures.
-
-Before submitting a pull request, please review the contributing guidelines:
-CONTRIBUTING.md
+We welcome contributions that improve documentation clarity, deployment guidance, or operational procedures. Before submitting a pull request, please open an issue to discuss the proposed change.
 
 **Acknowledgements**
 
 This documentation has been developed with collaboration from organisations participating in the NESO Data Sharing Infrastructure ecosystem.
-Refer to:
-ACKNOWLEDGEMENTS.md
 
 # Support and Contact
 

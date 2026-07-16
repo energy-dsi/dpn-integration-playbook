@@ -51,24 +51,13 @@ The goal of the procedure is to ensure that **all components of the DPN node are
 
 ## Uninstallation Scope
 
-The following components are removed during this procedure, grouped by the repository that manages them.
+All the DPN services deployed under DSI Package are part of uninstallation scope. If Organisation choses to have their own component (BYO) then uninstallation part to be managed by Organisations
 
-| Component | Repository | Description |
-|-----------|------------|-------------|
-| Producer Adaptor | dpn-data-pipelines | Data transformation — producer side |
-| Producer Mapper | dpn-data-pipelines | Schema mapping — producer side |
-| Consumer Extractor | dpn-data-pipelines | File extraction — consumer side |
-| Consumer Mapper | dpn-data-pipelines | Schema validation — consumer side |
-| Certificate Manager | dpn-federator-certificate-manager | Certificate lifecycle and P12 keystore management |
-| HashiCorp Vault | dpn-federator-certificate-manager | Secret store for key pair and certificates |
-| Federator Server | dpn-federator | Outgoing data transmission via gRPC |
-| Federator Client | dpn-federator | Incoming data reception via gRPC |
-| Kafka Source | dpn-federator | Source Kafka cluster |
-| Kafka Target | dpn-federator | Target Kafka cluster |
-| Zookeeper Source | dpn-federator | Coordination for source Kafka |
-| Zookeeper Target | dpn-federator | Coordination for target Kafka |
-| Kafka UI | dpn-federator | Kafka monitoring interface |
-| Redis | dpn-federator | Kafka offset and token cache |
+- DPN Federator Gateway
+- DPN Federator Certificate Manager
+- DPN Data Pipelines
+- DPN File Scan Service
+- DPN Health Monitoring Service
 
 ---
 
@@ -107,7 +96,7 @@ Before starting the uninstallation process, confirm the following.
 To verify there are no unprocessed messages, inspect the Kafka topics via the Kafka UI before proceeding:
 
 ```
-http://kafka-ui:8085
+http://`<<kakfa-UI Load balancer IP>>:8086
 ```
 
 ---
