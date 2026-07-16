@@ -1,4 +1,4 @@
-# DPN Installation Process
+# DPN Monitoring Service Installation Process
 
 ---
 
@@ -45,132 +45,64 @@ This describes installation using pipeline structure (`environment`+`cluster` pa
 
 ## Installation Steps
 
-### 1. Create the Corrected Environment Config Files
+### Step1: Run `monitoring-master-cd.yaml`
 
-pipeline expects `values-{environment}-{cluster}.json`. Create three new files using `release-internal`'s values, corrected per [Environment Configuration](./config.md#environment-configuration-pdev--ptest--puat) in the Configuration Guide:
+#### Step1a: Prepare runtime parameters
 
-```
-.pipelines/azure-pipelines/config/values-<env>-<cluster>.json
-```
-
-Each should match the shape of existing `values-<env>-<cluster>.json` (including the `KAFKA_BROKER` field, which `release-internal`'s originals omit), populated with the corrected `pdev`/`ptest`/`puat` values from the Configuration Guide's table — **not** copied directly from `release-internal`'s source JSONs, which still contain the `ENV_NAME` and `BASE_REGISTRY` bugs.
-
----
-
-### 2. Provision the Namespace and Registry Access
-
-```bash
-kubectl create namespace ns-dpn-health-01
-```
-
-Confirm the target environment's AKS node pool can pull from its own ACR (per the corrected `BASE_REGISTRY` value) for Kafka/Zookeeper, and from Docker Hub/Quay.io for everything else.
-
----
-
-### 3. Remediate the Committed Dashboard Credential
-
-Do this before deploying nginx-observability, regardless of environment:
-
-1. Remove `config/nginx/.htpasswd` from `release-internal`'s tree; confirm the `.gitignore` entry exists.
-2. Generate a new credential:
-   ```bash
-   htpasswd -nbB admin "$(openssl rand -base64 24)"
-   ```
-3. Apply it directly as a Secret:
-   ```bash
-   kubectl create secret generic dpn-nginx-basic-auth \
-     --from-literal=.htpasswd="<output from the command above>" \
-     -n ns-dpn-health-01
-   ```
-4. Treat the previously committed credential as compromised regardless of remediation timing.
-
----
-
-### 4. Configure Environment Approval Gates
-
-Confirm the `dsi-ppd` Environment resource (or the `dsi-pdev`/`dsi-ptest`/`dsi-ppd` split recommended in the Configuration Guide) exists and is configured before triggering `monitoring-master-cd.yaml`.
-
----
-
-### 5. Provision the Thanos Object Storage Secret
-
-```bash
-kubectl create secret generic thanos-objstore-config \
-  --from-file=objstore.yml=charts/thanos/thanos-objstore-config.yaml \
-  -n ns-dpn-health-01
-```
-
-Edit that file first to replace the dev placeholder storage account with the real `pdev`/`ptest`/`puat` value and populate `storage_account_key`.
-
----
-
-### 6. Configure Alerting
-
-Copy `config/.env.example` to `.env` (not committed) and set `ALERT_EMAIL`, `SMTP_HOST`/`SMTP_PORT`/`SMTP_FROM`, optional `SMTP_USER`/`SMTP_PASS`, and `ALERT_SEVERITIES`.
-
----
-
-### 7. Run `monitoring-master-cd.yaml`
-
-environment values:
+The CD Pipeline provided needs to be modified in the following places to point to the Organisation's service connection and environment.
 
 | Parameter | Value |
 |-----------|-------|
-| `ServiceConnection` | `sc-dpn-<env>-ppd-001` |
-| `environment` | `pdev` / `ptest` / `puat` |
-| `cluster` | `dpn01` (the only cluster defined for these environments under this reconciliation) |
-| `imageTag` | defaults to `0.95.0` |
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+
+![Pipeline Parameters](/Docs/04-dpn-architecture/images/dpn_pipeline_parameters.png)
+
+#### Step1b: Execute CD Pipeline
+
+Run the CD Pipeline for monitoring service
+---
+
+#### Step1c: Approve Stage's Deployment Gate
+
+Organisations should maintain an approval gate for the deployment. The CD Pipleine prompts for the approval under dsi-ppd environment.The environment needs to be created by Organisation to allow only authorised personnel to perform deployment. 
 
 ---
 
-### 8. Approve Each Stage's Deployment Gate
-
-Approve each of the nine `deployment:` jobs as they come up.
-
----
-
-### 9. Verify the HPA on the OTEL Collector
-
-```bash
-kubectl get hpa -n ns-dpn-health-01
-```
-
-Confirm real CPU/memory percentages, `MINPODS`/`MAXPODS` reading `1`/`10`. For `puat`, confirm the chart's static starting `replicaCount: 3` was honoured before the HPA took over scaling from there.
-
----
-
-### 10. Verify the Deployment
+### Step2: Post Deployment Verification
 
 1. Confirm all pods `Running`.
+2. Confirm the init pods completed the job
 2. Confirm resource labels reflect the correct environment name (not `puat` everywhere, if deploying `pdev`/`ptest` — this is exactly what Step 1's correction prevents).
-3. Confirm Thanos writes successfully to the configured Azure Blob container.
-4. Confirm a test alert reaches the configured `ALERT_EMAIL`.
-5. Confirm the dashboard proxy accepts only the newly generated credential from Step 3.
-6. Trigger a known event upstream and confirm metrics/logs/traces all arrive at their respective dashboards, consistent with the corrected data flow (both logs and traces should show up via their Kafka-backed paths, not the diagram's direct-delivery paths).
+
+**Note: The nginx pod may appear in error state initially as it also grants access to kafka-ui under federator service. Once federator service is up, the nginx will automatically be in run state. If not then the issue to be investigated.
 
 ---
 
-## Troubleshooting
+## Step3: Troubleshooting
 
 Every troubleshooting entry (Kafka naming-regression checks in `kafka-cd.yaml`, the OTel→Kafka dependency check, CrashLoop from a missing `health_check` extension, HPA `<unknown>` targets) applies unchanged, since it's chart-level logic. Additional entries specific to this reconciliation:
 
-### Config File Not Found for `pdev`/`ptest`/`puat`
+### Config File Not Found for Specific Environment
 
-Confirm `values-{pdev,ptest,puat}-dpn01.json` actually exist under this exact naming — they don't ship with either branch as-is; Step 1 creates them.
+Confirm `values-{environment}-{cluster}.json` actually exist under this exact naming — they don't ship with either branch as-is; Step 1 creates them.
 
 ### Deployed Resources Show the Wrong Environment Label
 
-Confirm Step 1 used the **corrected** `ENV_NAME` values, not values copied directly from `release-internal`'s buggy source JSONs.
+Confirm Step 1 used the **corrected** `ENV_NAME` values
 
 ### Kafka/Zookeeper Image Pull Fails
 
-Confirm `BASE_REGISTRY` in the new config file is a fully-resolved hostname, not a literal `$(ACR_NAME)` placeholder — this was the root cause of the same failure mode on `release-internal`'s original `pdev.json`/`ptest.json`.
-
-### Dashboard Login Still Accepts an Old/Default Credential
-
-Confirm Step 3 was completed and the live Secret's content matches the newly generated credential.
+Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder must uses a fully-resolved hostname like `acrdpnXXXX.azurecr.io`,, not a literal like only `acrdpnXXXX` placeholder 
 
 ---
+
+## Step4: Containerized Deployment Using DSI Provided Container Images
+
+<<Tamanna to update>>
+
+
 
 ## Review Notes
 

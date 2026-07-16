@@ -182,7 +182,9 @@ Root-Repository
 
 ## Step3: Setup Producer Helm Charts
 
-The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper.
+### Step3a: Set Up Producer Helm Charts For File Based Pathways
+
+The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper and using **file** based integration pathway.
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
@@ -198,9 +200,28 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
 
+### Step3b: Set Up Producer Helm Charts For Topic Based Pathways
+
+The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper and using **topic** based integration pathway.
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
+| cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
+| imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
+| productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
+| srcTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-stage` |
+| mapperTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-raw` |
+| targetTopicName | Kafka topic name for the target stage | `dpn-producer-eq-sample-1-target` |
+| orgName | Organisation name abbreviation (no spaces) | `orga` |
+| schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
+| srcGroupId | Consumer group | `producer_topic_eq` |
+
 ## Step4: Setup Consumer Helm Charts
 
-The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper.
+### Step4a: Setup Consumer Helm Charts For File Based Integration Pathway
+
+The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper using **file** based integration pathway
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
@@ -213,6 +234,18 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
 
+### Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway
+
+The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper using **topic** based integration pathway
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
+| cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
+| imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
+| srcTopicName | Kafka topic name for the mapper stage | `dpn-consumer-stage` |
+| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-trfm` |
+| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
@@ -244,25 +277,36 @@ Recommended starting point: enable HPA on `adaptor` and `schema_mapper` stages, 
 
 Each data pipeline stage (adaptor, schema mapper, extractor) is triggered in one of two ways: **Automated Scheduling** or **Manual Scheduling**. Which one applies is controlled by the `SCHEDULER_BACKEND` parameter in that stage's `values.yaml`.
 
-#### Option A: Helm Configure Automated Scheduling Using Airflow
+#### Option A: Helm Configure Scheduling Using Airflow
 
-Under automated scheduler, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics. 
+Under automated scheduler, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics:
 
-The scheduler configuration is present under the same values.yaml files defined in step 3 and 4. These configurations to be reviewed for the data product pipeline Producer and Consumer.
+### Scheduler Backend Options
 
-The following parameters to be reviewed by Organisation if they want to use a separate scheduler or scheduling configuration other than automated.
+| Value | Description |
+|---------|---------|
+| `kafka-trigger` | Event-driven execution. The pipeline waits for a trigger message on the configured Kafka control topic before starting a run. Recommended for Kubernetes deployments and orchestrated workflows controlled via Apache Airflow. DSI uses this configuration to automate the pipeline runs |
+| `interval` | Schedule-based execution. The pipeline runs repeatedly according to the configured `scheduleInterval` without airflow |
+
+There are other options available i.e. standalone but not exercised as part of DSI package.
+
+### Behavior
+
+- With **`SCHEDULER_BACKEND=kafka-trigger`**, a message published to `PIPELINE_CONTROL_TOPIC` starts a run, and the pipeline reports progress to `PIPELINE_STATUS_TOPIC`.This message is pushed via Airflow.
+- With **`SCHEDULER_BACKEND=interval`**, the pipeline runs automatically at the configured `scheduleInterval` when `EXECUTION_MODE=automatic`.There is no intervention of Airflow based scheduling
+
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
-| SCHEDULER_BACKEND | Set to `kafka-trigger` to enable software-triggered scheduling | `kafka-trigger` |
+| SCHEDULER_BACKEND | Set to `kafka-trigger` to enable  Airflow triggered scheduling | `kafka-trigger` |
 | PIPELINE_CONTROL_TOPIC | Kafka topic the pipeline stage listens on for a start signal | `dpn-pipeline-control` |
 | PIPELINE_STATUS_TOPIC | Kafka topic the pipeline stage publishes run status/progress to | `dpn-pipeline-status` |
-| EXECUTION_MODE | `automatic` — the stage self-schedules on `scheduleInterval` — or `manual` — the stage only runs when a message arrives on `PIPELINE_CONTROL_TOPIC` | `automatic` / `manual` |
+| EXECUTION_MODE | `automatic` — the stage self-schedules on `scheduleInterval`| `automatic` |
 | scheduleInterval | Polling interval in seconds. Only used when `EXECUTION_MODE: automatic` | `60` |
 
 A message published to `PIPELINE_CONTROL_TOPIC` starts a run; the pipeline stage reports progress back on `PIPELINE_STATUS_TOPIC`. No operator action is required once this is configured — this is why it's referred to as automated.
 
-#### Option B: Helm Configure Manual Scheduling Without Airflow
+#### Option B: Helm Configure Scheduling Without Airflow
 
 Manual scheduler requires Organisations to start pipeline manually and monitor the execution
 
@@ -294,6 +338,32 @@ PIPELINE_ROLE   = "producer"
 
 BOOTSTRAP_SERVER = "dpn-kafka-src:9092"
 SCHEDULE         = '*/3 * * * *'
+```
+
+**Cron Expression Format**
+
+The SCHEDULE field above uses a cron scheduler expression format. The cron expression is evaluated in the following way.
+
+```text
+* * * * *
+│ │ │ │ │
+│ │ │ │ └── Day of Week (0-7) (Sunday = 0 or 7)
+│ │ │ └──── Month (1-12)
+│ │ └────── Day of Month (1-31)
+│ └──────── Hour (0-23)
+└────────── Minute (0-59)
+```
+
+**Example Cron Expression**
+
+```text
+*/3 * * * *
+│   │ │ │ │
+│   │ │ │ └── Every day of the week
+│   │ │ └──── Every month
+│   │ └────── Every day of the month
+│   └──────── Every hour
+└──────────── Every 3 minutes
 ```
 
 To onboard a new product:
