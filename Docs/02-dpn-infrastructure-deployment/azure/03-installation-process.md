@@ -8,6 +8,13 @@ This section describes the end-to-end infrastructure installation process.
 - [Phase 0: Preflight (Required)](#phase-0-preflight-required)
   - [Current ADO Pipeline Stage Sequence (Authoritative)](#current-ado-pipeline-stage-sequence-authoritative)
   - [Step 0.1 Set Deployment Variables](#step-01-set-deployment-variables)
+    - [How to Create the Library Variable Group](#how-to-create-the-library-variable-group)
+    - [A. Azure Subscription & Environment](#a-azure-subscription--environment)
+    - [B. Agent Pool & Service Connection](#b-agent-pool--service-connection)
+    - [C. OpenTofu Backend State Storage](#c-opentofu-backend-state-storage)
+    - [D. Virtual Network](#d-virtual-network)
+    - [E. Private DNS](#e-private-dns)
+    - [F. Pipeline YAML-Defined Variables](#f-pipeline-yaml-defined-variables)
   - [Step 0.2 Authenticate and Select Subscription](#step-02-authenticate-and-select-subscription)
   - [Step 0.3 Validate Tooling and Required Files](#step-03-validate-tooling-and-required-files)
 - [Phase 1: Bootstrap Infrastructure](#phase-1-bootstrap-infrastructure)
@@ -30,6 +37,7 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 5.3 Validate Event Grid Topic (File Scanning Service)](#step-53-validate-event-grid-topic-file-scanning-service)
   - [Step 5.4 Validate Service Bus Namespace (File Scanning Service)](#step-54-validate-service-bus-namespace-file-scanning-service)
   - [Step 5.5 Validate File Scanning Storage Account](#step-55-validate-file-scanning-storage-account)
+  - [Step 5.6 Validate Observability Logging Storage Account](#step-56-validate-observability-logging-storage-account)
 - [Phase 6: Validation and Testing](#phase-6-validation-and-testing)
   - [Step 6.1 Complete Remaining Deployments](#step-61-complete-remaining-deployments)
   - [Step 6.2 Infrastructure Validation](#step-62-infrastructure-validation)
@@ -483,6 +491,25 @@ az role assignment list --scope "$(az storage account show --name "<file-scannin
 
 Expected output: storage account exists with public network access disabled, the blob private endpoint (and file endpoint if enabled) is connected, and the expected `Storage Blob Data Reader` / `Storage Blob Data Contributor` role assignments are present.
 
+### Step 5.6 Validate Observability Logging Storage Account
+
+If the observability logging storage account is part of your stack, verify it and its private endpoint(s) after full apply.
+
+```bash
+az storage account show \
+  --name "<observability-logging-storage-account-name>" \
+  --resource-group "<observability-logging-storage-resource-group>" \
+  --query "{name:name, sku:sku.name, publicNetworkAccess:publicNetworkAccess}" -o table
+
+az network private-endpoint list \
+  --resource-group "<observability-logging-storage-resource-group>" \
+  --query "[?contains(name, 'pe-') || contains(name, '-blob-pe') || contains(name, '-file')].name" -o table
+
+az role assignment list --scope "$(az storage account show --name "<observability-logging-storage-account-name>" --resource-group "<observability-logging-storage-resource-group>" --query id -o tsv)" -o table
+```
+
+Expected output: storage account exists with public network access disabled, the blob private endpoint (and file endpoint if enabled) is connected, and any expected `Storage Blob Data Reader` / `Storage Blob Data Contributor` role assignments (if principal IDs were configured) are present.
+
 ---
 
 ## Phase 6: Validation and Testing
@@ -624,6 +651,7 @@ Create a handoff document for the application deployment team with:
 - RBAC assignments and service principal information
 - Key Vault endpoint and secret naming conventions
 - File Scanning Service endpoints (Event Grid topic endpoint, Service Bus namespace, file scanning storage account) and associated RBAC assignments
+- Observability logging storage account name and associated RBAC assignments
 
 
 **Next Steps:**

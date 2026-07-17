@@ -30,7 +30,12 @@ This installation page is a quick-reference summary that points to that guide.
   - [52x error Due to SSL handshake failure](#52x-error-due-to-ssl-handshake-failure)
   - [403 OCSP certificate check failure](#403-ocsp-certificate-check-failure)
   - [Resilience retry due from remote endpoint call.](#resilience-retry-due-from-remote-endpoint-call)
+  - [File or Streaming Data Not Arriving](#file-or-streaming-data-not-arriving)
+  - [Kafka Pod Failure](#kafka-pod-failure)
 - [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
+  - [Step4a. Configure GHCR Image Access](#step4a-configure-ghcr-image-access)
+  - [Step4b. Execute CD Pipeline](#step4b-execute-cd-pipeline)
+  - [Step4c. Verify CD Pipeline](#step4c-verify-cd-pipeline)
 - [Review Notes](#review-notes)
 
 ---
@@ -245,7 +250,7 @@ The Federator Gateway service 3rd party platform images are found in GHCR with f
 | Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
 
 
-### Step5a. Configure GHCR Image Access
+### Step4a. Configure GHCR Image Access
 
 All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
 
@@ -261,7 +266,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
-### Step5b. Execute CD Pipeline
+### Step4b. Execute CD Pipeline
 
 Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
 
@@ -285,7 +290,7 @@ Execute this CD Pipeline to perform deployment.
 
 ---
 
-### Step5c. Verify CD Pipeline
+### Step4c. Verify CD Pipeline
 
 Follow the same verification steps mentioned in step2c and step2d as above.
 

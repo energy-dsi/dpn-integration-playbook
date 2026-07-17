@@ -26,6 +26,9 @@ This installation page is a quick-reference summary that points to that guide.
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
 - [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
+  - [Step4a. Configure GHCR Image Access](#step4a-configure-ghcr-image-access)
+  - [Step4b. Execute CD Pipeline](#step4b-execute-cd-pipeline)
+  - [Step4c. Verify CD Pipeline](#step4c-verify-cd-pipeline)
 - [Review Notes](#review-notes)
 
 ---
@@ -165,7 +168,61 @@ Sometimes the certificate entries in the management-node could get out of sync w
 ---
 
 ## Step4: Containerized Deployment Using DSI Provided Container Images
-`<<Tamanna to update>>`
+
+This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` image repository. Organisations using this approach pull DSI-provided images directly rather than building container images via CI pipelines.
+
+Federator Certificate Manager custom image is found in GHCR with following name
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| dpn-certificate-manager-service | `ghcr.io/energy-dsi/dpn-certificate-manager` | `e.g. 1.0.0` |
+
+
+### Step4a. Configure GHCR Image Access
+
+All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
+
+Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same.This secret will be used during the image pull.
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+     --docker-server=ghcr.io \
+     --docker-username=<github-username-or-bot-account> \
+     --docker-password=<GitHub PAT with read:packages scope> \
+     -n <namespace>
+```
+
+### Step4b. Execute CD Pipeline
+
+Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── certificate-manager-ghcr-cd.yaml
+```
+The CD Pipeline would require the following run time parameters. 
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `releaseTag` | Provides the release version or image tag to be pulled from GHCR |
+
+Execute this CD Pipeline to perform deployment.
+
+---
+
+### Step4c. Verify CD Pipeline
+
+Follow the same verification steps mentioned in step2c and step2d as above.
+
+---
 
 
 ## Review Notes

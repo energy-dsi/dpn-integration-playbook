@@ -17,6 +17,7 @@ This section explains how to roll back failed or partial infrastructure deployme
   - [Issue: VM Provisioned but Not Reachable](#issue-vm-provisioned-but-not-reachable)
   - [Issue: Pipeline Fails with Authorization Errors](#issue-pipeline-fails-with-authorization-errors)
   - [Issue: File Scanning Service Component Fails to Provision](#issue-file-scanning-service-component-fails-to-provision)
+  - [Issue: Observability Logging Storage Account Fails to Provision](#issue-observability-logging-storage-account-fails-to-provision)
 - [6. Full Environment Rollback (Last Resort)](#6-full-environment-rollback-last-resort)
 - [7. Post-Rollback Validation](#7-post-rollback-validation)
 - [8. Rollback Checklist](#8-rollback-checklist)
@@ -202,6 +203,23 @@ Common causes:
 Mitigation:
 - Roll back the specific module only, following [Section 3](#3-module-level-rollback) (for example `-target=module.event_grid`, `-target=module.service_bus`, or `-target=module.file_scanning_service_storage`).
 - Re-validate subnet and SKU configuration before re-applying.
+
+### Issue: Observability Logging Storage Account Fails to Provision
+
+Use the following checks when the observability logging storage account fails to deploy or its private endpoint does not connect.
+
+```bash
+az storage account show --name <observability-logging-storage-account-name> --resource-group <observability-logging-storage-resource-group> --query "provisioningState"
+az network private-endpoint show --name <private-endpoint-name> --resource-group <observability-logging-storage-resource-group> --query "privateLinkServiceConnections[].privateLinkServiceConnectionState"
+```
+
+Common causes:
+- The subnet referenced by `observability_logging_storage_subnet_name` does not exist yet or has `private_endpoint_network_policies` set incorrectly (the reference dev environment reuses the file scanning storage subnet — confirm this is intentional for your environment).
+- RBAC role assignment principal IDs (`observability_logging_storage_data_receiver_principal_ids` / `observability_logging_storage_data_contributor_principal_ids`) reference an object ID that does not exist in the tenant.
+
+Mitigation:
+- Roll back the module only, following [Section 3](#3-module-level-rollback) (for example `-target=module.observability_logging_storage`).
+- Re-validate subnet configuration before re-applying.
 
 ## 6. Full Environment Rollback (Last Resort)
 

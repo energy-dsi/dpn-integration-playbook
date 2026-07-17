@@ -32,7 +32,10 @@
   - [HPA Not Scaling](#hpa-not-scaling)
   - [Kafka Topic Issues](#kafka-topic-issues)
 - [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
+  - [Platform & Third-Party Images](#platform--third-party-images)
   - [Step5a. Configure GHCR Image Access](#step5a-configure-ghcr-image-access)
+  - [Step5b. Execute CD Pipeline](#step5b-execute-cd-pipeline)
+  - [Step5c. Verify CD Pipeline](#step5c-verify-cd-pipeline)
 - [Review Notes](#review-notes)
 
 ---
