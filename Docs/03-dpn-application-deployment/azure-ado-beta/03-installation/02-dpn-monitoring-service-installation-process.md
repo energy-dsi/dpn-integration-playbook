@@ -17,6 +17,10 @@
   - [Deployed Resources Show the Wrong Environment Label](#deployed-resources-show-the-wrong-environment-label)
   - [Kafka/Zookeeper Image Pull Fails](#kafkazookeeper-image-pull-fails)
 - [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
+  - [Step4a. Configure GHCR Image Access](#step4a-configure-ghcr-image-access)
+  - [Step4b. Verify Image Pull Capability](#step4b-verify-image-pull-capability)
+  - [Step4c. Execute CD Pipeline](#step4c-execute-cd-pipeline)
+  - [Step4d. Verify CD Pipeline](#step4d-verify-cd-pipeline)
 - [Review Notes](#review-notes)
 
 ---
@@ -27,11 +31,11 @@ This describes installation using pipeline structure (`environment`+`cluster` pa
 
 ## Prerequisites
 
-- An AKS cluster matching the target environment's config (see [Step 1](#step-1--create-the-corrected-environment-config-files) for the corrected values), with `ns-dpn-health-01` already created.
+- An AKS cluster matching the target environment's config (see [Step1a: Prepare runtime parameters](#step1a-prepare-runtime-parameters) for the corrected values), with `ns-dpn-health-01` already created.
 - The Azure DevOps Service Connection for the target environment.
 - Access to the environment-specific ACR for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
 - The `dsi-ppd` Environment resource (or the per-environment split recommended in the Configuration Guide) configured with its approval check.
-- A **freshly generated** `.htpasswd` for the dashboard proxy — do not reuse anything currently committed in `release-internal`. See [Step 3](#step-3--remediate-the-committed-dashboard-credential).
+- A **freshly generated** `.htpasswd` for the dashboard proxy — do not reuse anything currently committed in `release-internal`.
 - The real Thanos storage account name/key for the target environment.
 - SMTP relay details and an alert recipient address.
 - The metrics-server running in the cluster (standard on AKS) — required for the OTEL Collector's HPA.
@@ -156,7 +160,7 @@ kubectl run ghcr-pull-test --rm -it \
 
 ---
 
-### Step4b. Execute CD Pipeline
+### Step4c. Execute CD Pipeline
 
 Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
 
@@ -180,7 +184,7 @@ Execute this CD Pipeline to perform deployment.
 
 ---
 
-### Step4c. Verify CD Pipeline
+### Step4d. Verify CD Pipeline
 
 Follow the same verification steps mentioned in step2c and step2d as above.
 

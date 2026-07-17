@@ -26,6 +26,9 @@ This installation page is a quick-reference summary that points to that guide.
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
 - [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
+  - [Step4a. Configure GHCR Image Access](#step4a-configure-ghcr-image-access)
+  - [Step4b. Execute CD Pipeline](#step4b-execute-cd-pipeline)
+  - [Step4c. Verify CD Pipeline](#step4c-verify-cd-pipeline)
 - [Review Notes](#review-notes)
 
 ---
