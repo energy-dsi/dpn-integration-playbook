@@ -105,16 +105,11 @@ Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder m
 
 This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi`. Organisations using this approach pull DSI-provided images directly rather than building from source via CI pipelines.
 
-DPN Health Monitoring service cutsom images are found in GHCR with following names
-
-| Image Name | GHCR Path | Tag |
-|---|---|---|
-| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `<latest or DSI provided stable version>` |
-
 The Health Monitoring service 3rd party platform images are found in GHCR with following names
 
 | Purpose | GHCR Path |
 |---|---|
+| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `<latest or DSI provided stable version>` |
 | Kafka (health) | `ghcr.io/energy-dsi/cp-kafka:<latest or DSI provided stable version>` |
 | Zookeeper (health) | `ghcr.io/energy-dsi/cp-zookeeper:<latest or DSI provided stable version>` |
 | Data Prepper | `ghcr.io/energy-dsi/data-prepper:<latest or DSI provided stable version>` |
@@ -126,7 +121,7 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
 | Nginx (dashboard proxy) | `ghcr.io/energy-dsi/nginx:<latest or DSI provided stable version>` |
 
- **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports (Kafka health: `29092`).
+ **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports.
 
 ---
 
@@ -158,8 +153,6 @@ kubectl run ghcr-pull-test --rm -it \
   --namespace=<namespace> \
   --command -- echo "Image pull successful"
 ```
-
-No `imagePullSecrets` are needed if images are public.
 
 ---
 
