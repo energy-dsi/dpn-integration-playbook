@@ -16,6 +16,8 @@ This section describes how to configure and deploy the **DPN Federator Certifica
 - [Step3: Environment Configuration](#step3-environment-configuration)
   - [Step3a: Set Up Helm Values](#step3a-set-up-helm-values)
   - [Step3b: Configure Secrets](#step3b-configure-secrets)
+    - [Option A — Through Azure Key Vault (`keyvault.enabled: true`)](#option-a--through-azure-key-vault-keyvaultenabled-true)
+    - [Option B - Through Vault truststore (Kubernetes secret)](#option-b---through-vault-truststore-kubernetes-secret)
 - [Step4: Setup Deployment Configuration](#step4-setup-deployment-configuration)
 - [Review Notes](#review-notes)
 

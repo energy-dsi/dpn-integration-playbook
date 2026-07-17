@@ -22,7 +22,6 @@ This section introduces the prerequisites for infrastructure deployment.
   - [9. Access and Authentication](#9-access-and-authentication)
   - [10. Self-Hosted Agent Requirements](#10-self-hosted-agent-requirements)
     - [Self-Hosted Agent Setup](#self-hosted-agent-setup)
-    - [Agent Requirements](#self-hosted-agent-setup)
     - [Agent Pool Configuration](#agent-pool-configuration)
   - [11. Azure File Share Details](#11-azure-file-share-details)
     - [What is created](#what-is-created)
