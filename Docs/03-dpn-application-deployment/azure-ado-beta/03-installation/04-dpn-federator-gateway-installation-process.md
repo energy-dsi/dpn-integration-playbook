@@ -225,7 +225,69 @@ kubectl rollout restart deployment/<deployment-name> -n <namespace>
 ---
 
 ## Step4: Containerized Deployment Using DSI Provided Container Images
-`<<Tamanna to update>>`
+
+This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` image repository. Organisations using this approach pull DSI-provided images directly rather than building container images via CI pipelines.
+
+DPN Federator Gateway service cutsom images are found in GHCR with following names
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| Federator Server | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-server` | `e.g. 1.0.0` |
+| Federator Client | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-client` | `<version>` |
+
+The Federator Gateway service 3rd party platform images are found in GHCR with following names
+
+| Purpose | GHCR Path |
+|---|---|
+| Kafka | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
+| Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
+| Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
+| Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
+
+
+### Step5a. Configure GHCR Image Access
+
+All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
+
+Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same.This secret will be used during the image pull.
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+     --docker-server=ghcr.io \
+     --docker-username=<github-username-or-bot-account> \
+     --docker-password=<GitHub PAT with read:packages scope> \
+     -n <namespace>
+```
+
+### Step5b. Execute CD Pipeline
+
+Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-federator-gateway-pipeline-ghcr-cd.yaml
+```
+The CD Pipeline would require the following run time parameters. 
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `releaseTag` | Provides the release version or image tag to be pulled from GHCR |
+
+Execute this CD Pipeline to perform deployment.
+
+---
+
+### Step5c. Verify CD Pipeline
+
+Follow the same verification steps mentioned in step2c and step2d as above.
 
 ---
 

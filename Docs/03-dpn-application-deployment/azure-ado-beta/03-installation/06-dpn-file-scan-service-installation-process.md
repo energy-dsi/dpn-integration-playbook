@@ -169,23 +169,57 @@ If `kubectl get hpa` shows `<unknown>` under `TARGETS`, confirm metrics-server i
 
 ## Step5: Containerized Deployment Using DSI Provided Container Images
 
-`<<Tamanna to update>>`
+This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` image repository. Organisations using this approach pull DSI-provided images directly rather than building container images via CI pipelines.
+
+File scan service images are found in GHCR with following name
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
 
 
-### Step 6 — Configure GHCR Image Access
+### Step5a. Configure GHCR Image Access
 
-The service pulls a single image, `ghcr.io/energy-dsi/dpn-file-scan-service:1.0.0`, at deploy time. This is the **only** image AKS pulls for this service — the Python build base (`python:3.12.11-slim-bookworm`) used to build it is a build-stage-only dependency pulled directly from Docker Hub by the CI pipeline, never by AKS, and is not mirrored to GHCR (see Third-Party / Build-Base Image — this differs from the DPN Data Pipeline, which does mirror its third-party runtime images).
+All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
 
-1. Confirm whether the `energy-dsi/dpn-file-scan-service` GHCR package is public or private.
-2. If private, create an `imagePullSecrets`-referenced Kubernetes secret in the target namespace **before** running the CD pipeline:
-   ```bash
-   kubectl create secret docker-registry ghcr-pull-secret \
+Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same.This secret will be used during the image pull.
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
      --docker-server=ghcr.io \
      --docker-username=<github-username-or-bot-account> \
      --docker-password=<GitHub PAT with read:packages scope> \
      -n <namespace>
-   ```
-3. Ensure the CI pipeline's service connection/credentials have `write:packages` scope if this deployment will also be building and publishing the image, not just pulling a pre-built one.
+```
+
+### Step5b. Execute CD Pipeline
+
+Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-file-scan-service-ghcr-cd.yaml
+```
+The CD Pipeline would require the following run time parameters. 
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+
+Execute this CD Pipeline to perform deployment.
+
+---
+
+### Step5c. Verify CD Pipeline
+
+Follow the same verification steps mentioned in step3c and step3d as above.
 
 ---
 

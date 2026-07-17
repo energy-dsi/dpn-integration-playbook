@@ -103,8 +103,51 @@ Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder m
 
 ## Step4: Containerized Deployment Using DSI Provided Container Images
 
-<<Tamanna to update>>
+This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi`. Organisations using this approach pull DSI-provided images directly rather than building from source via CI pipelines.
 
+---
+
+### Step 4a. DSI Provided Image Inventory
+
+#### Health Monitoring Service Images
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `<latest or DSI provided stable version>` |
+
+#### Platform & Third-Party Images
+
+| Purpose | GHCR Path |
+|---|---|
+| Kafka (health) | `ghcr.io/energy-dsi/cp-kafka:<latest or DSI provided stable version>` |
+| Zookeeper (health) | `ghcr.io/energy-dsi/cp-zookeeper:<latest or DSI provided stable version>` |
+| Data Prepper | `ghcr.io/energy-dsi/data-prepper:<latest or DSI provided stable version>` |
+| OpenSearch | `ghcr.io/energy-dsi/opensearch:<latest or DSI provided stable version>` |
+| Jaeger (Collector / Ingester / Query) | `ghcr.io/energy-dsi/jaeger:<latest or DSI provided stable version>` |
+| Prometheus | `ghcr.io/energy-dsi/prom-prometheus:<latest or DSI provided stable version>` |
+| Grafana | `ghcr.io/energy-dsi/grafana-grafana:<latest or DSI provided stable version>` |
+| StatsD Exporter | `ghcr.io/energy-dsi/prom-statsd-exporter:<latest or DSI provided stable version>` |
+| Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
+| Nginx (dashboard proxy) | `ghcr.io/energy-dsi/nginx:<latest or DSI provided stable version>` |
+
+> **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports (Kafka health: `29092`).
+
+---
+
+### Step 4b. Verify Image Pull Capability
+
+Confirm the cluster nodes have outbound HTTPS access to `ghcr.io`, then test a pull:
+
+```bash
+kubectl run ghcr-pull-test --rm -it \
+  --image=ghcr.io/energy-dsi/opentelemetry-collector-contrib:<version> \
+  --namespace=<namespace> \
+  --command -- echo "Image pull successful"
+```
+
+No `imagePullSecrets` are needed if images are public.
+
+---
 
 
 ## Review Notes

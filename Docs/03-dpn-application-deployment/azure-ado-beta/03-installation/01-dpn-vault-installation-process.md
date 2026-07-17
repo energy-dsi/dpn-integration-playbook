@@ -11,10 +11,45 @@ This document covers the installation of the **DPN HashiCorp Vault service** int
 ---
 ## Containerized Deployment Using DSI Provided Container Images
 
-<<Tamanna to update>>
 
+This section covers deployment using the **pre-built container image** published by DSI to `ghcr.io/energy-dsi`. Organisations using this approach pull the DSI-provided image directly rather than building from source via CI pipelines. 
 
+---
 
+### DSI Provided Image Inventory
+
+#### Vault Service Image
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| HashiCorp Vault | `ghcr.io/energy-dsi/vault` | `<latest or DSI provided stable version>` |
+
+#### Platform & Third-Party Images
+
+The Vault service depends on the following platform image which should already be available from the DPN Federator Certificate Manager deployment:
+
+| Purpose | GHCR Path |
+|---|---|
+| Certificate Manager | `ghcr.io/energy-dsi/dpn-certificate-manager:<latest or DSI provided stable version>` |
+
+> **Note:** Vault is deployed as a standalone service. The Certificate Manager is a separate component that connects to Vault for certificate lifecycle management — it is not bundled in the Vault image itself.
+
+---
+
+### Verify Image Pull ability
+
+Confirm the cluster nodes have outbound HTTPS access to `ghcr.io`, then test a pull:
+
+```bash
+kubectl run ghcr-pull-test --rm -it \
+  --image=ghcr.io/energy-dsi/vault: \
+  --namespace= \
+  --command -- echo "Image pull successful"
+```
+
+No `imagePullSecrets` are needed if images are public.
+
+---
 
 ## Review Notes
 
