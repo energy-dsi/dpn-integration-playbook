@@ -20,7 +20,7 @@
   - [Authentication Issue to Storage Account](#authentication-issue-to-storage-account)
   - [HPA Not Scaling](#hpa-not-scaling)
 - [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
-  - [Step 6 — Configure GHCR Image Access](#step-6--configure-ghcr-image-access)
+  - [Step 5a — Configure GHCR Image Access](#step-5a--configure-ghcr-image-access)
 - [Review Notes](#review-notes)
 
 ---
