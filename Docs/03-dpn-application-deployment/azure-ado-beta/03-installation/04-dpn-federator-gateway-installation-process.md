@@ -206,6 +206,22 @@ When the Federator client connects to a server whose certificate has expired or 
 
 This error most likely is caused due to invalid bearer token used or authentication issue at the IDP. In this most of the time the error should go after restarting both certificate manager and federator consecutively.
 
+### File or Streaming Data Not Arriving
+
+This error happens if kafka topic offset is out of sync for certain reasons. In this case it is advised to flush redis cache using the following command. 
+
+```text
+kubectl exec -n ns-dpn-01 <redis-pod-name> -- redis-cli FLUSHALL
+```
+
+### Kafka Pod Failure
+
+In case Kafka is failing , please restart using rollout restart command in sequence 1. Kafka src 2. Kafka-target and then kafka-UI.
+
+```text
+kubectl rollout restart deployment/<deployment-name> -n <namespace>
+```
+
 ---
 
 ## Step4: Containerized Deployment Using DSI Provided Container Images
