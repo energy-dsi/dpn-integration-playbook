@@ -13,6 +13,7 @@ This section defines the configuration parameters used during infrastructure dep
 - [6. Storage Parameters](#6-storage-parameters)
   - [6.1 Application Storage Account](#61-application-storage-account)
   - [6.2 State Storage Account (OpenTofu Backend)](#62-state-storage-account-opentofu-backend)
+  - [6.3 Observability Logging Storage Account](#63-observability-logging-storage-account)
 - [7. File Scanning Service Parameters](#7-file-scanning-service-parameters)
   - [7.1 Event Grid Parameters](#71-event-grid-parameters)
   - [7.2 Service Bus Parameters](#72-service-bus-parameters)
@@ -329,6 +330,39 @@ state_container_name             = "tfstate"
 state_key                        = "dpn-{env}.opentofu.tfstate"
 ```
 
+### 6.3 Observability Logging Storage Account
+
+This is a dedicated storage account used to centralize observability logging/diagnostic export, kept separate from the application, developer, and file scanning storage accounts.
+
+```hcl
+observability_logging_storage_account_name                  = "stobsdpn<env><region>01"
+observability_logging_storage_resource_group_name           = "rg-obs-dpn-<env>-<region>-01"
+observability_logging_storage_subnet_name                   = "snet-stfs-dpn-<env>-<region>-01"  # confirm whether your environment should use a dedicated subnet instead
+observability_logging_storage_account_tier                  = "Standard"
+observability_logging_storage_replication_type              = "LRS"
+observability_logging_storage_account_kind                  = "StorageV2"
+observability_logging_storage_access_tier                   = "Hot"
+observability_logging_storage_public_network_access_enabled = false
+observability_logging_storage_min_tls_version                = "TLS1_2"
+observability_logging_storage_versioning_enabled             = true
+observability_logging_storage_blob_retention_days            = 7
+observability_logging_storage_container_retention_days       = 7
+observability_logging_storage_create_blob_endpoint           = true
+observability_logging_storage_file_share_name                = ""    # set to enable an Azure Files share
+observability_logging_storage_file_share_quota_gb            = 1
+observability_logging_storage_create_file_endpoint           = false
+observability_logging_storage_enable_diagnostic_settings     = true
+observability_logging_storage_dev_team_spn_object_id         = "<dev-team-spn-object-id>"
+observability_logging_storage_data_receiver_principal_ids    = []  # e.g. ["<log-consumer-spn-object-id>"] to grant Storage Blob Data Reader
+observability_logging_storage_data_contributor_principal_ids = []  # e.g. ["<log-shipper-spn-object-id>"] to grant Storage Blob Data Contributor
+```
+
+Notes:
+
+- Leave `observability_logging_storage_file_share_name` empty unless the observability workload requires an Azure Files share in addition to blob storage.
+- `observability_logging_storage_create_file_endpoint` only takes effect when a file share name is also set.
+- `observability_logging_storage_data_receiver_principal_ids` / `observability_logging_storage_data_contributor_principal_ids` default to `[]`; populate them once the log shipper/consumer service principal object IDs are known for the target environment.
+
 ## 7. File Scanning Service Parameters
 
 The File Scanning Service is made up of three components: an Event Grid topic, a Service Bus namespace, and a dedicated storage account. Each has its own private endpoint and subnet (see Section 2).
@@ -538,6 +572,9 @@ vm_name                      = "vm-dpn-<env>-<region>-01"
 event_grid_topic_name                      = "evgt-dpn-<env>-<region>-01"
 service_bus_namespace_name                 = "sb-dpn-<env>-<region>-01"
 file_scanning_service_storage_account_name = "stfss<env><region>01"
+
+# Observability logging storage
+observability_logging_storage_account_name = "stobsdpn<env><region>01"
 
 # Observability and tags
 log_analytics_workspace_name = "law-dpn-<env>-<region>-01"

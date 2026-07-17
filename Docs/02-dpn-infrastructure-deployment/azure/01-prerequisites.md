@@ -35,6 +35,11 @@ This section introduces the prerequisites for infrastructure deployment.
     - [Role Assignments](#role-assignments)
     - [Deployment behavior](#deployment-behavior-1)
     - [Why this matters](#why-this-matters-2)
+  - [13. Observability Logging Storage Account](#13-observability-logging-storage-account)
+    - [What is created](#what-is-created-2)
+    - [Key configuration values](#key-configuration-values-2)
+    - [Deployment behavior](#deployment-behavior-2)
+    - [Why this matters](#why-this-matters-3)
 
 ## Purpose
 
@@ -59,6 +64,7 @@ The following core infrastructure components are included in this deployment sco
 - Workload Identity
 - Windows management VM
 - File Scanning Service components (Event Grid topic, Service Bus namespace, dedicated storage account)
+- Observability Logging Storage Account (dedicated storage account for centralized log/diagnostic export)
 - Supporting controls (NSGs, Private Endpoints, RBAC)
 
 
@@ -92,6 +98,7 @@ The following diagram shows the high-level deployment architecture for the targe
 │  │  • Event Grid Topic (file scanning)          │   │
 │  │  • Service Bus Namespace (file scanning)     │   │
 │  │  • File Scanning Storage Account             │   │
+│  │  • Observability Logging Storage Account     │   │
 │  └──────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────┘
 ```
@@ -355,6 +362,37 @@ Important: the same SPN object ID must be supplied consistently across `service_
 - Keeps Service Bus and file scanning storage traffic private inside the VNet, while allowing the Event Grid topic's public endpoint where required by the publishing pattern
 - Separates the file scanning data path from the core application storage and messaging used elsewhere in the platform
 - Supports least-privilege access for producer, consumer, and administrative principals through scoped role assignments, including cross-account access to the existing developer/application storage account
+
+## 13. Observability Logging Storage Account
+
+This deployment includes a dedicated storage account for observability logging, used to centralize log and diagnostic export separately from application and file scanning storage.
+
+### What is created
+
+- **1** new dedicated blob storage account, used to store exported logs/diagnostics
+- A private endpoint for the storage account's `blob` subresource (and optionally `file`, if a file share is configured), in its own subnet
+- Role assignments scoped to the storage account for data-plane access (see [Key configuration values](#key-configuration-values-2) below)
+
+### Key configuration values
+
+The following variables are used in the deployment:
+
+- `observability_logging_storage_account_name` / `observability_logging_storage_resource_group_name` – new storage account identity
+- `observability_logging_storage_subnet_name` – subnet used for the storage account's private endpoint(s)
+- `observability_logging_storage_create_blob_endpoint` / `observability_logging_storage_create_file_endpoint` – toggle blob and Azure Files private endpoints independently
+- `observability_logging_storage_data_receiver_principal_ids` / `observability_logging_storage_data_contributor_principal_ids` – principal IDs granted `Storage Blob Data Reader` and `Storage Blob Data Contributor` respectively on this storage account
+
+### Deployment behavior
+
+- The storage account is deployed with its own dedicated subnet and private endpoint, isolated from the core application and file scanning subnets (the reference dev environment reuses the file scanning storage subnet — confirm whether your environment should instead provision a dedicated subnet).
+- The Azure Files private endpoint is only created when both `observability_logging_storage_create_file_endpoint` is enabled and a file share name is provided.
+- RBAC role assignments follow least-privilege data-plane roles (Reader, Contributor) rather than granting broad control-plane access.
+
+### Why this matters
+
+- Keeps observability/log data separate from application, developer, and file scanning storage, reducing blast radius and simplifying retention/lifecycle policy per data type
+- Keeps log export traffic private inside the VNet via private endpoint
+- Supports least-privilege access for log producers and consumers through scoped role assignments
 
 ---
 
