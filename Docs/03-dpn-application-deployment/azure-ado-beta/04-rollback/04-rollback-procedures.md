@@ -8,6 +8,7 @@
 - [Rollback Strategy](#rollback-strategy)
 - [Rollback Pipeline Availability by Component](#rollback-pipeline-availability-by-component)
 - [Pre-Rollback Checklist](#pre-rollback-checklist)
+- [Rollback Sequence Across Components](#rollback-sequence-across-components)
 - [Part 1 — DPN Data Pipeline Rollback](#part-1--dpn-data-pipeline-rollback)
   - [Strategy 1 — Redeploy a Previous Build via the Standard CD Pipeline](#strategy-1--redeploy-a-previous-build-via-the-standard-cd-pipeline)
   - [Strategy 2 — Dedicated Rollback Pipeline (Helm Revision)](#strategy-2--dedicated-rollback-pipeline-helm-revision)
@@ -15,7 +16,8 @@
   - [Verification](#verification)
 - [Part 2 — DPN Federator Gateway Rollback](#part-2--dpn-federator-gateway-rollback)
 - [Part 3 — DPN Federator Certificate Manager Rollback](#part-3--dpn-federator-certificate-manager-rollback)
-- [Part 4 — DPN Health Monitoring Service Rollback](#part-4--dpn-health-monitoring-service-rollback)
+- [Part 4 — DPN File Scanning Service Rollback](#part-4--dpn-file-scanning-service-rollback)
+- [Part 5 — DPN Health Monitoring Service Rollback](#part-5--dpn-health-monitoring-service-rollback)
 - [Kafka Topic Recovery](#kafka-topic-recovery)
 - [Post-Rollback Verification (All Components)](#post-rollback-verification-all-components)
 - [Disaster Recovery Considerations](#disaster-recovery-considerations)
@@ -28,9 +30,11 @@
 
 This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, Data Pipeline, File Scanning Service, and Health Monitoring Service.
 
-This document uses that pipeline as the concrete, technical reference for how DPN's rollback strategy actually works, then generalises the same two-mode approach (Helm revision vs. image tag) to every other component via manual `helm rollback`/`helm upgrade` commands, since no equivalent dedicated pipeline was found for them.
+This document uses the Data Pipeline's rollback pipelines as the concrete, technical reference for how DPN's rollback strategy actually works, then generalises the same two-mode approach (Helm revision vs. image tag) to every other component via manual `helm rollback`/`helm upgrade` commands, since no equivalent dedicated pipeline was found for them.
 
-All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Mechanisms](#rollback-strategy).
+All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Strategy](#rollback-strategy).
+
+Because several DPN components depend on one another at runtime (certificates, message flow, shared storage), rolling back more than one component at a time is not order-independent — see [Rollback Sequence Across Components](#rollback-sequence-across-components) before acting on more than one Part below.
 
 ---
 
@@ -41,7 +45,7 @@ There are **two separate pipelines**, not two modes of one pipeline — this is 
 | | Pipeline used | What you provide | What it does |
 |---|------------------|----------------------|-------------------|
 | **Strategy 1 — Image tag rollback** | The **same, standard CD pipeline** used for every normal deployment | A previous **image tag** (an Azure DevOps Build ID / build number) | Runs exactly like any other deployment — a fresh `helm upgrade --install` — except pointed at an older, already-built image instead of the latest one |
-| **Strategy 2 — Helm revision rollback** | A **separate, dedicated rollback pipeline** | A **Helm revision number** | Runs `helm rollback <release> <revision>`, reverting the release — chart *and* values — to exactly how it was at that revision |
+| **Strategy 2 — Helm revision rollback** | A **separate, dedicated rollback pipeline** (where one exists) or a manual `helm rollback` command (where one doesn't) | A **Helm revision number** | Runs `helm rollback <release> <revision>`, reverting the release — chart *and* values — to exactly how it was at that revision |
 
 The distinction matters for what actually gets reverted:
 
@@ -55,11 +59,13 @@ The distinction matters for what actually gets reverted:
 
 ## Rollback Pipeline Availability by Component
 
-| Component | Standard CD pipeline (Strategy 1) | Dedicated rollback pipeline (Strategy 2) | Confidence |
-|-----------|--------------------------------------|-----------------------------------------------|--------------|
-| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | 
+| Component | Standard CD pipeline (Strategy 1) | Dedicated rollback pipeline (Strategy 2) | 
+|-----------|--------------------------------------|-----------------------------------------------|
+| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | Confirmed — both pipelines read directly from the `develop-rollback` branch |
 | DPN Federator Gateway | `azure-dpn-cd.yaml` | `federator-gateway-rollback-cd.yaml` |
-| DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `certificate-manager-rollback-cd.yaml`|
+| DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `certificate-manager-rollback-cd.yaml` | 
+| DPN File Scanning Service | `dpn-file-scan-service-cd.yml` | `dpn-file-scan-service-rollback-cd.yml` | 
+| DPN Health Monitoring Service | `monitoring-master-cd.yaml` | `monitoring-master-rollback-cd.yaml` | 
 
 ---
 
@@ -73,6 +79,38 @@ Before initiating any rollback:
 4. For the Data Pipeline specifically: confirm no active file ingestion is mid-flight, and that Kafka topics for the affected product are not actively being written to, where practical.
 5. For Vault/Certificate Manager rollbacks: confirm you have a secure, offline copy of the certificate bundle before touching Vault contents.
 6. Notify anyone actively using the affected component's dashboards/endpoints, especially for Health Monitoring Service, since a rollback there briefly interrupts telemetry collection platform-wide.
+7. If more than one component needs to be rolled back, read [Rollback Sequence Across Components](#rollback-sequence-across-components) first and plan the order before starting any individual Part below.
+
+---
+
+## Rollback Sequence Across Components
+
+**If only one component is broken, there is no sequence to worry about** — follow the relevant Part (1–5) on its own. A sequence only matters when a bad release touched more than one component at once, or when rolling back one component could invalidate what a dependent component is currently using.
+
+The runtime dependency chain across DPN components is:
+
+```
+Vault
+  └─→ Federator Certificate Manager (persists certs to Vault)
+        └─→ Federator Gateway (uses issued certs for mTLS)
+              └─→ Data Pipeline (hands off data via Federator Gateway)
+                    └─→ File Scanning Service (writes into Data Pipeline's dp-consumer-stage container)
+
+Health Monitoring Service — independent of the chain above; every other component sends telemetry to it, but nothing above depends on it to function
+```
+
+When multiple components need rolling back together, work **down the chain, from Vault outward**, for the same reason you'd deploy in that order: a downstream component's current config assumes the upstream one is in a known-good state.
+
+1. **Vault** — only if the certificate bundle itself is suspect (not just the Certificate Manager's code). Restore from a secure offline copy per [Disaster Recovery Considerations](#disaster-recovery-considerations) before touching anything downstream, since every other component's mTLS depends on Vault's contents being valid.
+2. **Federator Certificate Manager** — roll back its deployment (Part 3) if the manager's own code is at fault. This does not affect Vault's stored certificates, so it's safe to do independently of step 1 unless the manager's rollback would reintroduce code that mismanages Vault contents.
+3. **Federator Gateway** — roll back (Part 2) only after Vault/Certificate Manager are confirmed healthy; otherwise the Gateway may roll back into a config that expects certificates Vault no longer has in the expected state.
+4. **Data Pipeline** — roll back (Part 1) once the Federator Gateway is confirmed healthy, since the Data Pipeline hands data off through it.
+5. **File Scanning Service** — roll back (Part 4) last in the chain, since it depends on the Data Pipeline's `dp-consumer-stage` container already existing and being written to correctly.
+6. **Health Monitoring Service** — roll back (Part 5) at any point relative to the above, but do it **after** the others if you still need its dashboards to confirm the other rollbacks succeeded. If Health Monitoring itself is the only thing broken, there's no ordering constraint with the rest of the chain at all.
+
+If you're rolling back the *whole platform* to a prior known-good state (e.g. after a bad multi-component release), apply this same order rather than rolling back whichever component's alert fired first — an out-of-order rollback (e.g. Data Pipeline before Federator Gateway) risks the component you just fixed immediately breaking again once its upstream dependency changes under it.
+
+---
 
 ## Part 1 — DPN Data Pipeline Rollback
 
@@ -193,7 +231,39 @@ kubectl -n <namespace> exec <pod-name> -- ls /tls
 
 ---
 
-## Part 4 — DPN Health Monitoring Service Rollback
+## Part 4 — DPN File Scanning Service Rollback
+
+No dedicated rollback pipeline was found for the File Scanning Service. Both strategies below are the generalised manual equivalent described in [Rollback Strategy](#rollback-strategy), not a confirmed dedicated pipeline — see [Rollback Pipeline Availability by Component](#rollback-pipeline-availability-by-component).
+
+**Strategy 1 — redeploy an older build:**
+
+```bash
+kubectl set image deployment/dpn-file-scan-service \
+  dpn-file-scan-service=<acr-url-or-ghcr>/dpn-file-scan-service:<imageTag> -n <namespace>
+kubectl rollout status deployment/dpn-file-scan-service -n <namespace>
+```
+
+**Strategy 2 — manual Helm revision rollback (if the service is Helm-managed in your environment):**
+
+```bash
+helm history dpn-file-scan-service -n <namespace>
+helm rollback dpn-file-scan-service <rollbackRevision> -n <namespace>
+```
+
+Because the File Scanning Service depends on the Data Pipeline's `dp-consumer-stage` container already existing (see [Rollback Sequence Across Components](#rollback-sequence-across-components)), confirm the Data Pipeline is healthy before or immediately after rolling this component back — rolling this back in isolation while the Data Pipeline is also broken will not resolve end-to-end file flow.
+
+**Verification:**
+
+```bash
+kubectl get pods -n <namespace>
+kubectl logs -f <dpn-file-scan-service-pod> -n <namespace>
+```
+
+Re-run the verification steps from the File Scanning Service's Installation Process (clean file lands in `dp-consumer-stage`; EICAR test file is blocked) to confirm scanning behaviour is intact post-rollback.
+
+---
+
+## Part 5 — DPN Health Monitoring Service Rollback
 
 Every sub-component (`dpn-kafka-health`, `dpn-otel-collector`, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, nginx-observability) has its own standard CD pipeline today (confirmed in code).
 
@@ -205,7 +275,7 @@ Every sub-component (`dpn-kafka-health`, `dpn-otel-collector`, OpenSearch, Prome
 helm rollback <release-name> <rollbackRevision> -n ns-dpn-health-01
 ```
 
-**Rollback order matters here**, mirroring the deployment dependency graph (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper`/`Jaeger → Perses → OTel → NginxObservability`): if rolling back a component others depend on (e.g. Kafka), check whether dependent components also need attention afterward.
+**Rollback order matters here**, mirroring the deployment dependency graph (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper`/`Jaeger → Perses → OTel → NginxObservability`): if rolling back a component others depend on (e.g. Kafka), check whether dependent components also need attention afterward. This is a sequence *within* Health Monitoring Service specifically — separate from, and unaffected by, the cross-component sequence in [Rollback Sequence Across Components](#rollback-sequence-across-components).
 
 **A rollback of the OTEL Collector specifically** interrupts telemetry collection platform-wide during the rollout — factor this into timing per the [Pre-Rollback Checklist](#pre-rollback-checklist).
 
@@ -247,7 +317,10 @@ Component-specific additions:
 |-----------|----------------------|
 | Federator Certificate Manager / Vault | `kubectl -n <namespace> exec <pod-name> -- ls /tls` — confirm P12 keystore/truststore present |
 | Data Pipeline / Federator Gateway | Kafka UI — confirm topics and message flow |
+| File Scanning Service | Upload a clean test file and confirm it still lands in `dp-consumer-stage` post-rollback |
 | Health Monitoring Service | `kubectl get hpa -n ns-dpn-health-01` — confirm the OTEL Collector's HPA is healthy post-rollback |
+
+If more than one component was rolled back, work through this table **in the same order used in [Rollback Sequence Across Components](#rollback-sequence-across-components)** rather than checking them in whatever order is convenient — a downstream check passing doesn't mean much if an upstream component hasn't actually been confirmed healthy yet.
 
 ---
 
