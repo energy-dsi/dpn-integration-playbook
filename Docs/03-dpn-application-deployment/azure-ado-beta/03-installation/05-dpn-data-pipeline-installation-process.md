@@ -418,24 +418,93 @@ Check that:
 
 ## Step5: Containerized Deployment Using DSI Provided Container Images
 
-<<Tamanna to update>>
+This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` image repository. Organisations using this approach pull DSI-provided images directly rather than building container images via CI pipelines.
+
+Data Pipeline service images are found in GHCR with following name
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| producer-file-adaptor-eq | `ghcr.io/energy-dsi/producer-file-adaptor-eq` | `e.g. 1.0.0` |
+| producer-file-mapper-eq | `ghcr.io/energy-dsi/producer-file-mapper-eq` | `<version>` |
+| producer-file-adaptor-eqbd | `ghcr.io/energy-dsi/producer-file-adaptor-eqbd` | `<version>` |
+| producer-file-mapper-eqbd | `ghcr.io/energy-dsi/producer-file-mapper-eqbd` | `<version>` |
+| producer-file-adaptor-dl | `ghcr.io/energy-dsi/producer-file-adaptor-dl` | `<version>` |
+| producer-file-mapper-dl | `ghcr.io/energy-dsi/producer-file-mapper-dl` | `<version>` |
+| producer-file-adaptor-ssh | `ghcr.io/energy-dsi/producer-file-adaptor-ssh` | `<version>` |
+| producer-file-mapper-ssh | `ghcr.io/energy-dsi/producer-file-mapper-ssh` | `<version>` |
+| producer-topic-adaptor-eq | `ghcr.io/energy-dsi/producer-topic-adaptor-eq` | `<version>` |
+| producer-topic-mapper-eq | `ghcr.io/energy-dsi/producer-topic-mapper-eq` | `<version>` |
+| producer-topic-adaptor-eqbd | `ghcr.io/energy-dsi/producer-topic-adaptor-eqbd` | `<version>` |
+| producer-topic-mapper-eqbd | `ghcr.io/energy-dsi/producer-topic-mapper-eqbd` | `<version>` |
+| producer-topic-adaptor-dl | `ghcr.io/energy-dsi/producer-topic-adaptor-dl` | `<version>` |
+| producer-topic-mapper-dl | `ghcr.io/energy-dsi/producer-topic-mapper-dl` | `<version>` |
+| producer-topic-adaptor-ssh | `ghcr.io/energy-dsi/producer-topic-adaptor-ssh` | `<version>` |
+| producer-topic-mapper-ssh | `ghcr.io/energy-dsi/producer-topic-mapper-ssh` | `<version>` |
+| consumer-file-extractor | `ghcr.io/energy-dsi/consumer-file-extractor` | `<version>` |
+| consumer-file-mapper | `ghcr.io/energy-dsi/consumer-file-mapper` | `<version>` |
+| consumer-topic-extractor | `ghcr.io/energy-dsi/consumer-topic-extractor` | `<version>0` |
+| consumer-topic-mapper | `ghcr.io/energy-dsi/consumer-topic-mapper` | `<version>` |
+
+#### Platform & Third-Party Images
+
+| Purpose | GHCR Path |
+|---|---|
+| Pipeline base image | `ghcr.io/energy-dsi/alpine:<latest or DSI provided stable version>` |
+| Airflow | `ghcr.io/energy-dsi/apache-airflow:<latest or DSI provided stable version>` |
+| Airflow Postgres | `ghcr.io/energy-dsi/postgres:<latest or DSI provided stable version>` |
+| Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
+| Zookeeper | `ghcr.io/energy-dsi/cp-zookeeper:<latest or DSI provided stable version>` |
+| Kafka | `ghcr.io/energy-dsi/cp-kafka:<latest or DSI provided stable version>` |
+| Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
+
+---
 
 ### Step5a. Configure GHCR Image Access
 
-All custom and third-party images are pulled from `ghcr.io/energy-dsi` — see [Container Image Configuration](../02-configuration/05-configure-dpn-data-pipelines.md) in the Configuration Guide for the full list.
+All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
 
-1. Confirm whether the `energy-dsi` GHCR packages required for this deployment are public or private.
-2. If private, create an `imagePullSecrets`-referenced Kubernetes secret in the target namespace **before** running the CD pipeline:
-   ```bash
-   kubectl create secret docker-registry ghcr-pull-secret \
+Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same.This secret will be used during the image pull.
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
      --docker-server=ghcr.io \
      --docker-username=<github-username-or-bot-account> \
      --docker-password=<GitHub PAT with read:packages scope> \
      -n <namespace>
-   ```
-3. Ensure the CI pipeline's service connection/credentials have `write:packages` scope if this deployment will also be building and publishing images to GHCR, not just pulling pre-built ones.
+```
 
+### Step5b. Execute CD Pipeline
 
+Create the CD pipelines from the following yaml file. The CD Pipelines are already pointing to GHCR repository. This CD pipelines fetche the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-data-pipelines-ghcr-cd.yaml
+            └── dpn-data-pipeline-airflow-ghcr-cd.yaml            
+```
+The CD Pipeline would require the following run time parameters. 
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `releaseTag` | Provides the release version or image tag to be pulled from GHCR |
+
+Execute this CD Pipeline to perform deployment.
+
+---
+
+### Step5c. Verify CD Pipeline
+
+Follow the same verification steps mentioned in step3c and step3d as above.
+
+---
 
 ## Review Notes
 
