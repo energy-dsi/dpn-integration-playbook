@@ -2,6 +2,45 @@
 
 This section describes the end-to-end infrastructure installation process.
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Phase 0: Preflight (Required)](#phase-0-preflight-required)
+  - [Current ADO Pipeline Stage Sequence (Authoritative)](#current-ado-pipeline-stage-sequence-authoritative)
+  - [Step 0.1 Set Deployment Variables](#step-01-set-deployment-variables)
+  - [Step 0.2 Authenticate and Select Subscription](#step-02-authenticate-and-select-subscription)
+  - [Step 0.3 Validate Tooling and Required Files](#step-03-validate-tooling-and-required-files)
+- [Phase 1: Bootstrap Infrastructure](#phase-1-bootstrap-infrastructure)
+  - [Step 1.0 Use the Bootstrap Pipeline](#step-10-use-the-bootstrap-pipeline)
+  - [Step 1.1 Check Bootstrap State](#step-11-check-bootstrap-state)
+  - [Step 1.2 Deploy Bootstrap via Subscription-Scope Bicep](#step-12-deploy-bootstrap-via-subscription-scope-bicep)
+  - [Step 1.4 Validate Backend Storage Redundancy](#step-14-validate-backend-storage-redundancy)
+- [Phase 2: Initialize and Plan](#phase-2-initialize-and-plan)
+  - [Step 2.1 Prepare Environment tfvars](#step-21-prepare-environment-tfvars)
+  - [Step 2.2 Initialize OpenTofu](#step-22-initialize-opentofu)
+  - [Step 2.3 Plan Infrastructure](#step-23-plan-infrastructure)
+- [Phase 3: Validate Core Services](#phase-3-validate-core-services)
+  - [Step 3.1 Validate Security and Monitoring Components](#step-31-validate-security-and-monitoring-components)
+- [Phase 4: Compute Platform](#phase-4-compute-platform)
+  - [Step 4.1 Validate Compute Components](#step-41-validate-compute-components)
+  - [Step 4.2 VM Validation](#step-42-vm-validation)
+- [Phase 5: Storage & Messaging Services](#phase-5-storage--messaging-services)
+  - [Step 5.1 Deploy Storage Accounts](#step-51-deploy-storage-accounts)
+  - [Step 5.2 Deploy Azure File Share](#step-52-deploy-azure-file-share)
+  - [Step 5.3 Validate Event Grid Topic (File Scanning Service)](#step-53-validate-event-grid-topic-file-scanning-service)
+  - [Step 5.4 Validate Service Bus Namespace (File Scanning Service)](#step-54-validate-service-bus-namespace-file-scanning-service)
+  - [Step 5.5 Validate File Scanning Storage Account](#step-55-validate-file-scanning-storage-account)
+- [Phase 6: Validation and Testing](#phase-6-validation-and-testing)
+  - [Step 6.1 Complete Remaining Deployments](#step-61-complete-remaining-deployments)
+  - [Step 6.2 Infrastructure Validation](#step-62-infrastructure-validation)
+- [Post-Deployment Configuration](#post-deployment-configuration)
+  - [10.1 Configure Monitoring](#101-configure-monitoring)
+  - [10.2 Configure Alerts](#102-configure-alerts)
+  - [10.3 Configure Backup](#103-configure-backup)
+  - [10.4 Document Deployment](#104-document-deployment)
+  - [10.5 Prepare for Application Deployment](#105-prepare-for-application-deployment)
+  - [10.6 Pipeline Execution and Connectivity Validation](#106-pipeline-execution-and-connectivity-validation)
+
 ## Purpose
 
 This document contains the deployment sequence for the DPN participant environment.
@@ -34,10 +73,10 @@ Use this stage sequence to understand the current Azure DevOps deployment flow b
 
 2. **Main infrastructure pipeline** (`azure-pipelines-*.yml`)
   - `Prerequisites`
-  - `TerraformDeployment`
-    - `TerraformPlan`
+  - `OpenTofuDeployment`
+    - `OpenTofuPlan`
     - `ManualApproval` (only when `action=apply` and approval required)
-    - `TerraformApply` (only when `action=apply`)
+    - `OpenTofuApply` (only when `action=apply`)
   - `Verification` (only after successful apply)
 
 ### Step 0.1 Set Deployment Variables
@@ -47,7 +86,6 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 **Variable group naming:**
 
 - DPN-001 pipelines → `dpn-<env>-vars-001`
-- DPN-002 pipelines → `dpn-<env>-vars-002`
 
 > Example for `devtest01`: `dpn-devtest01-vars-001`
 
@@ -86,14 +124,14 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 ---
 
-#### C. Terraform Backend State Storage
+#### C. OpenTofu Backend State Storage
 
 > All three values are created by the **bootstrap pipeline**. Run bootstrap first, then read the values from Azure portal or pipeline logs.
 
-- `BACKEND_RESOURCE_GROUP` — Resource group that holds the Terraform remote state storage account.
+- `BACKEND_RESOURCE_GROUP` — Resource group that holds the OpenTofu remote state storage account.
   - Pattern: `rg-tfstate-dpn-<env>-uks-01`
   - Example: `rg-tfstate-dpn-<env-name>-uks-01`
-- `BACKEND_STORAGE_ACCOUNT` — Storage account name for Terraform remote state 
+- `BACKEND_STORAGE_ACCOUNT` — Storage account name for OpenTofu remote state 
   - Pattern: `sttfdpn<env>uks01`
 - `BACKEND_KEY` — Blob name for the state file inside the `tfstate` container. Must be unique per environment and never change across runs.
   - Pattern: `dpn.<env>.tfstate`
@@ -106,7 +144,7 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 - `VNET_RESOURCE_GROUP` — Resource group of the pre-existing VNet for this environment. Example: `<vnet-resource-group-name>`
 - `VNET_NAME` — Name of the pre-existing VNet. Example: `<vnet-name>`
-- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the Terraform state private endpoint subnet. Example: `<subnet-cidr>/28`
+- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the OpenTofu state private endpoint subnet. Example: `<subnet-cidr>/28`
 
 ---
 
@@ -126,7 +164,7 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 - `TF_WORKING_DIR` — Repo-relative path to the environment folder containing `main.tf` and `environments/`. Use the folder name at the repository root that matches the target environment. Example: `<repo-environment-folder-name>`
 - `TFVARS_FILE` — Exact `.tfvars` filename under `$(TF_WORKING_DIR)/environments/`. The file must exist before the pipeline runs. Example: `<env-name>.tfvars`
-- `TF_VERSION` — Terraform CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.8`
+- `TF_VERSION` — OpenTofu CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.8`
 
 ### Step 0.2 Authenticate and Select Subscription
 
@@ -143,7 +181,7 @@ Use the following pipeline task checks to verify tooling and required files are 
 
 ```bash
 az version
-terraform version
+tofu version
 
 cd $(TF_WORKING_DIR)
 test -f "environments/$(TFVARS_FILE)"
@@ -197,7 +235,7 @@ az deployment sub create \
 
 ### Step 1.4 Validate Backend Storage Redundancy
 
-Confirm the Terraform state storage account uses the bootstrap-configured redundancy.
+Confirm the OpenTofu state storage account uses the bootstrap-configured redundancy.
 
 ```bash
 az storage account show \
@@ -227,12 +265,12 @@ cd $(TF_WORKING_DIR)
 test -f "environments/$(TFVARS_FILE)"
 ```
 
-### Step 2.2 Initialize Terraform
+### Step 2.2 Initialize OpenTofu
 
-Use the following pipeline task command to initialize Terraform with the configured backend.
+Use the following pipeline task command to initialize OpenTofu with the configured backend.
 
 ```bash
-terraform init \
+tofu init \
   -backend-config="resource_group_name=$(BACKEND_RESOURCE_GROUP)" \
   -backend-config="storage_account_name=$(BACKEND_STORAGE_ACCOUNT)" \
   -backend-config="container_name=tfstate" \
@@ -243,21 +281,21 @@ terraform init \
 Expected Output:
 
 ```text
-Terraform has been successfully initialized!
+OpenTofu has been successfully initialized!
 ```
 
 ### Step 2.3 Plan Infrastructure
 
 Main pipeline behavior is controlled by `action` parameter:
 
-- `plan` → runs Terraform plan and publishes plan artifact
+- `plan` → runs OpenTofu plan and publishes plan artifact
 - `apply` → runs plan, optional manual approval, then apply
 - `destroy` → routed through destroy path/pipeline
 
 Plan command in pipeline:
 
 ```bash
-terraform plan \
+tofu plan \
   -var-file=environments/$(TFVARS_FILE) \
   -out=tfplan \
   -parallelism=4
@@ -269,7 +307,7 @@ Optional (advanced): If troubleshooting, you can target a specific module with
 Apply workflow behavior:
 
 - Temporarily removes CanNotDelete lock on `$(VNET_RESOURCE_GROUP)`
-- Runs `terraform apply -var-file=environments/$(TFVARS_FILE) -auto-approve`
+- Runs `tofu apply -var-file=environments/$(TFVARS_FILE) -auto-approve`
 - Restores the CanNotDelete lock after apply (always)
 
 Validation:
@@ -326,15 +364,15 @@ az network nic list --query "[].{NIC:name,RG:resourceGroup,PrivateIP:ipConfigura
 
 ---
 
-## Phase 5: Storage Services
+## Phase 5: Storage & Messaging Services
 
-Use the following step to deploy the required storage services.
+Use the following steps to deploy the required storage and file scanning messaging services.
 
 ### Step 5.1 Deploy Storage Accounts
 
 If storage components are defined in your stack, verify both accounts after full apply:
 
-- state storage account (terraform backend)
+- state storage account (opentofu backend)
 - application storage account (workload data)
 
 ```bash
@@ -355,7 +393,7 @@ Expected output examples:
 
 ```text
 Backend state storage: Standard_RAGRS
-Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organization policy)
+Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organisation policy)
 ```
 
 ### Step 5.2 Deploy Azure File Share
@@ -385,6 +423,66 @@ az storage file list \
 
 Expected output: File share exists and is accessible through private endpoint.
 
+### Step 5.3 Validate Event Grid Topic (File Scanning Service)
+
+If the File Scanning Service is part of your stack, verify the Event Grid topic and its private endpoint after full apply.
+
+```bash
+az eventgrid topic show \
+  --name "<event-grid-topic-name>" \
+  --resource-group "<event-grid-resource-group>" \
+  --query "{name:name, endpoint:endpoint, publicNetworkAccess:publicNetworkAccess}" -o table
+
+az network private-endpoint list \
+  --resource-group "<event-grid-resource-group>" \
+  --query "[?contains(name, 'pe-')].name" -o table
+
+az role assignment list --scope "$(az eventgrid topic show --name "<event-grid-topic-name>" --resource-group "<event-grid-resource-group>" --query id -o tsv)" -o table
+```
+
+Expected output: topic exists, private endpoint is connected, and the expected `EventGrid Data Receiver` / `Data Sender` / `Contributor` role assignments are present.
+
+### Step 5.4 Validate Service Bus Namespace (File Scanning Service)
+
+If the File Scanning Service is part of your stack, verify the Service Bus namespace, queues, and private endpoint after full apply.
+
+```bash
+az servicebus namespace show \
+  --name "<service-bus-namespace-name>" \
+  --resource-group "<service-bus-resource-group>" \
+  --query "{name:name, sku:sku.name, status:status}" -o table
+
+az servicebus queue list \
+  --namespace-name "<service-bus-namespace-name>" \
+  --resource-group "<service-bus-resource-group>" \
+  --query "[].name" -o table
+
+az network private-endpoint list \
+  --resource-group "<service-bus-resource-group>" \
+  --query "[?contains(name, 'pe-')].name" -o table
+```
+
+Expected output: namespace is `Active`, SKU is `Premium`, and the private endpoint is connected.
+
+### Step 5.5 Validate File Scanning Storage Account
+
+If the File Scanning Service is part of your stack, verify the dedicated storage account and its private endpoint(s) after full apply.
+
+```bash
+az storage account show \
+  --name "<file-scanning-storage-account-name>" \
+  --resource-group "<file-scanning-storage-resource-group>" \
+  --query "{name:name, sku:sku.name, publicNetworkAccess:publicNetworkAccess}" -o table
+
+az network private-endpoint list \
+  --resource-group "<file-scanning-storage-resource-group>" \
+  --query "[?contains(name, 'pe-') || contains(name, '-blob-pe') || contains(name, '-file')].name" -o table
+
+az role assignment list --scope "$(az storage account show --name "<file-scanning-storage-account-name>" --resource-group "<file-scanning-storage-resource-group>" --query id -o tsv)" -o table
+```
+
+Expected output: storage account exists with public network access disabled, the blob private endpoint (and file endpoint if enabled) is connected, and the expected `Storage Blob Data Reader` / `Storage Blob Data Contributor` role assignments are present.
+
 ---
 
 ## Phase 6: Validation and Testing
@@ -393,11 +491,11 @@ Use the following steps to validate the completed infrastructure deployment.
 
 ### Step 6.1 Complete Remaining Deployments
 
-Use the following pipeline task commands to apply any remaining unmanaged Terraform changes.
+Use the following pipeline task commands to apply any remaining unmanaged OpenTofu changes.
 
 ```bash
-terraform plan -var-file=environments/$(TFVARS_FILE) -out=tfplan-complete
-terraform apply tfplan-complete
+tofu plan -var-file=environments/$(TFVARS_FILE) -out=tfplan-complete
+tofu apply tfplan-complete
 ```
 
 Expected result: no changes (or only intentional drift remediation).
@@ -423,7 +521,7 @@ az keyvault secret list --vault-name "<keyvault-name>"
 
 Use the following post-deployment steps to complete operational setup.
 These actions are not part of the current base infrastructure deployment pipeline.
-Use them only through a separate operations pipeline or controlled runbook if your organization requires them.
+Use them only through a separate operations pipeline or controlled runbook if your organisation requires them.
 
 ### 10.1 Configure Monitoring
 
@@ -472,7 +570,7 @@ az resource list \
   --resource-group "<infra-resource-group>" \
   --output table > deployment-resources.txt
 
-terraform show -json | jq '.values.root_module.resources[] | {type, name}' > terraform-resources.json
+tofu show -json | jq '.values.root_module.resources[] | {type, name}' > tofu-resources.json
 ```
 
 ### 10.5 Prepare for Application Deployment
@@ -481,16 +579,16 @@ After infrastructure deployment completes successfully, prepare handoff document
 
 **Export Infrastructure Outputs:**
 
-Terraform outputs contain critical information needed for application deployment configuration. Export these values:
+OpenTofu outputs contain critical information needed for application deployment configuration. Export these values:
 
 ```bash
-# Retrieve Terraform outputs for application team
-terraform output -json > infrastructure-outputs.json
+# Retrieve OpenTofu outputs for application team
+tofu output -json > infrastructure-outputs.json
 
 # Extract key values
-AKS_CLUSTER=$(terraform output -raw aks_cluster_name)
-ACR_LOGIN_SERVER=$(terraform output -raw acr_login_server)
-KEYVAULT_URI=$(terraform output -raw keyvault_uri)
+AKS_CLUSTER=$(tofu output -raw aks_cluster_name)
+ACR_LOGIN_SERVER=$(tofu output -raw acr_login_server)
+KEYVAULT_URI=$(tofu output -raw keyvault_uri)
 
 # Set AKS resource group from your tfvars or outputs key naming
 AKS_RESOURCE_GROUP="<aks-resource-group-name>"
@@ -514,7 +612,7 @@ Checklist:
 - Self-hosted agent can access Azure DevOps and fetch repository.
 - Pipeline references the intended service connection.
 - Service principal has required RBAC scope.
-- Terraform operations succeed without interactive login.
+- OpenTofu operations succeed without interactive login.
 
 **Document Infrastructure Details:**
 
@@ -525,6 +623,7 @@ Create a handoff document for the application deployment team with:
 - Network topology and security group rules
 - RBAC assignments and service principal information
 - Key Vault endpoint and secret naming conventions
+- File Scanning Service endpoints (Event Grid topic endpoint, Service Bus namespace, file scanning storage account) and associated RBAC assignments
 
 
 **Next Steps:**

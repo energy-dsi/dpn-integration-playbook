@@ -1,6 +1,6 @@
 # Purpose
 
-The purpose of this documentation is to provide a **comprehensive implementation guide** for organisations deploying a **Data Platform Node (DPN)** as part of the Data Sharing Infrastructure (DSI).
+The purpose of this documentation is to provide a **comprehensive implementation guide** for organisations deploying a **Data Preparation Node (DPN)** as part of the Data Sharing Infrastructure (DSI).
 
 This documentation describes the technical procedures required to:
 
@@ -33,16 +33,9 @@ This documentation focuses on the deployment and operation of DPN nodes using th
 - Helm deployments
 - Kafka messaging platform
 - Redis state management
-- Container-based microservices
+- Container-based services
 
 The documentation assumes that the DPN node will be deployed within an **Azure cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
-
-**Deployment on AWS - Alpha Stage**
-This document provides reference Github Actions pipelines for application deployment on AWS platform. However, infrastructure deployment is not covered in this version.Organizations using AWS still require to develop infrastructure pipelines on their own.
-
-**Deployment on GCP - Upcoming**
-This is not covered in this document yet
-
 
 ---
 

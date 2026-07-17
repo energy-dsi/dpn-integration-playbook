@@ -1,8 +1,8 @@
 # Introduction
 
-The **Data Platform Node (DPN)** enables organisations to securely exchange data following **Data Sharing Infrastructure (DSI)** ecosystem standars with other Organizations participating in the Data Sharing process.
+The **Data Preparation Node (DPN)** enables organisations to securely exchange data with other participating organisations while following **Data Sharing Infrastructure (DSI)** ecosystem standards.
 
-A DPN node is deployed within an organisation’s own infrastructure and provides the capability to publish, receive, and process data in a **federated data-sharing architecture**.
+A DPN is deployed within an organisation’s own infrastructure and provides the capability to publish, receive, and process data in a **federated data-sharing architecture**.
 
 The DPN platform enables organisations to:
 
@@ -11,7 +11,7 @@ The DPN platform enables organisations to:
 - Participate in a **federated data ecosystem**
 - Process and validate datasets before sharing
 
-The architecture follows a **decentralised model**, where each organisation operates its own DPN node while maintaining interoperability with other participating nodes.
+The architecture follows a **federated model**, where each organisation operates its own DPN node while maintaining interoperability with other participating nodes.Federation of identity and access agreements is provided by the Data Sharing Mechanism service.
 
 ---
 
@@ -40,10 +40,9 @@ The **DPN Data Pipeline** performs validation and transformation of datasets bef
 The pipeline includes several processing stages:
 
 - Adaptor (source)
-- Schema assurance (producer/source)
 - Security labelling (producer/source)
-- Schema assurance (consumer/target)
 - Extractor (consumer/target)
+- The mapper component can also be extended for more capabilities for example transformations or schema assurance.
 
 These processing stages ensure that datasets conform to the required **data schemas and governance rules** before being exchanged.
 
@@ -55,20 +54,12 @@ The DPN platform is designed to run within an organisation’s own infrastructur
 
 Typical deployments use:
 
-Multicloud deployment support with Azure, AWS and GCP but to be extended for other clouds in future. 
-
-### Azure Deployment: 
+### Azure Deployment
 
 - **Azure Kubernetes Service (AKS)** for container orchestration
 - **Azure DevOps CI/CD pipelines** for automated deployment
 - **Azure Container Registry (ACR)** for container image management
 - **Helm charts** for Kubernetes deployments
-
-### AWS Deployment: 
-The present DSI playbook provides a guidance on using Github Actions based pipelines for AWS deployment. However, infrastructure and detailed application deployment steps are in alpha testing phase. Orgnizations may use this as prescriptive guidance to deploy DPN in AWS. 
-
-### GCP Deployment: 
-TBD and upcoming
 
 This architecture ensures that deployments are:
 
