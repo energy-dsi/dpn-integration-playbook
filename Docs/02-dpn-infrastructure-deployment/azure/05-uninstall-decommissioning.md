@@ -71,6 +71,7 @@ Also verify all storage accounts are handled as expected:
 - Application/workload storage account
 - Developer storage account (Azure Files)
 - File scanning service storage account
+- Observability logging storage account
 
 Verify Azure File Share cleanup:
 
@@ -97,6 +98,14 @@ az servicebus namespace list --resource-group <service-bus-resource-group>
 # Confirm file scanning storage account and its private endpoints are removed
 az storage account list --query "[?name=='<file-scanning-storage-account-name>']"
 az network private-endpoint list --resource-group <file-scanning-storage-resource-group>
+```
+
+Verify Observability Logging Storage Account cleanup:
+
+```bash
+# Confirm observability logging storage account and its private endpoints are removed
+az storage account list --query "[?name=='<observability-logging-storage-account-name>']"
+az network private-endpoint list --resource-group <observability-logging-storage-resource-group>
 ```
 
 ## 6. Manual Cleanup (If Needed)
