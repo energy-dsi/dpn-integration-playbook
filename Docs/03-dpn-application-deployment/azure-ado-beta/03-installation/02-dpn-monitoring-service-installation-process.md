@@ -77,7 +77,7 @@ Organisations should maintain an approval gate for the deployment. The CD Piplei
 
 1. Confirm all pods `Running`.
 2. Confirm the init pods completed the job
-2. Confirm resource labels reflect the correct environment name (not `puat` everywhere, if deploying `pdev`/`ptest` — this is exactly what Step 1's correction prevents).
+2. Confirm resource labels reflect the correct environment name 
 
 **Note: The nginx pod may appear in error state initially as it also grants access to kafka-ui under federator service. Once federator service is up, the nginx will automatically be in run state. If not then the issue to be investigated.
 
@@ -105,17 +105,13 @@ Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder m
 
 This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi`. Organisations using this approach pull DSI-provided images directly rather than building from source via CI pipelines.
 
----
-
-### Step 4a. DSI Provided Image Inventory
-
-#### Health Monitoring Service Images
+DPN Health Monitoring service cutsom images are found in GHCR with following names
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
 | OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `<latest or DSI provided stable version>` |
 
-#### Platform & Third-Party Images
+The Health Monitoring service 3rd party platform images are found in GHCR with following names
 
 | Purpose | GHCR Path |
 |---|---|
@@ -130,11 +126,29 @@ This section covers deployment using **custom and 3rd party open source containe
 | Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
 | Nginx (dashboard proxy) | `ghcr.io/energy-dsi/nginx:<latest or DSI provided stable version>` |
 
-> **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports (Kafka health: `29092`).
+ **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports (Kafka health: `29092`).
 
 ---
 
-### Step 4b. Verify Image Pull Capability
+### Step4a. Configure GHCR Image Access
+
+All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
+
+Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same.This secret will be used during the image pull.
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+     --docker-server=ghcr.io \
+     --docker-username=<github-username-or-bot-account> \
+     --docker-password=<GitHub PAT with read:packages scope> \
+     -n <namespace>
+```
+
+---
+
+### Step4b. Verify Image Pull Capability
 
 Confirm the cluster nodes have outbound HTTPS access to `ghcr.io`, then test a pull:
 
@@ -146,6 +160,36 @@ kubectl run ghcr-pull-test --rm -it \
 ```
 
 No `imagePullSecrets` are needed if images are public.
+
+---
+
+### Step4b. Execute CD Pipeline
+
+Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── monitoring-master-ghcr-cd.yaml
+```
+The CD Pipeline would require the following run time parameters. 
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `imageTag` | Provides the release version or image tag to be pulled from GHCR , default is 0.95.0 |
+
+Execute this CD Pipeline to perform deployment.
+
+---
+
+### Step4c. Verify CD Pipeline
+
+Follow the same verification steps mentioned in step2c and step2d as above.
 
 ---
 
