@@ -1,5 +1,89 @@
 # Kafka UI User Interface Guidance for DPN Pipelines
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Figure 1: Kafka Broker Monitoring](#figure-1-kafka-broker-monitoring)
+  - [Purpose](#purpose-1)
+  - [Figure 1 - Point 1: Brokers](#figure-1---point-1-brokers)
+  - [Figure 1 - Point 2: Broker Port](#figure-1---point-2-broker-port)
+  - [Figure 1 - Point 3: Broker Host](#figure-1---point-3-broker-host)
+- [Figure 2: Kafka Topics Overview](#figure-2-kafka-topics-overview)
+  - [Purpose](#purpose-2)
+  - [Figure 2 - Point 1: Orchestration Topics](#figure-2---point-1-orchestration-topics)
+  - [Figure 2 - Point 2: Topics](#figure-2---point-2-topics)
+  - [Figure 2 - Point 3: Stream-Based Producer Topics](#figure-2---point-3-stream-based-producer-topics)
+  - [Figure 2 - Point 4: Number of Messages](#figure-2---point-4-number-of-messages)
+  - [Figure 2 - Point 5: Topic Size](#figure-2---point-5-topic-size)
+- [Figure 3: Kafka Topic Categories](#figure-3-kafka-topic-categories)
+  - [Purpose](#purpose-3)
+  - [Figure 3 - Point 1: File Based Producer Topics](#figure-3---point-1-file-based-producer-topics)
+- [Figure 4: Pipeline Control Topic](#figure-4-pipeline-control-topic)
+  - [Purpose](#purpose-4)
+  - [How the DPN Pipeline Works](#how-the-dpn-pipeline-works)
+  - [Figure 4 - Point 1: Pipeline Control Topic](#figure-4---point-1-pipeline-control-topic)
+  - [Figure 4 - Point 2: Control Message Payload](#figure-4---point-2-control-message-payload)
+- [Figure 5: Pipeline Status Topic](#figure-5-pipeline-status-topic)
+  - [Purpose](#purpose-5)
+  - [How the DPN Pipeline Works](#how-the-dpn-pipeline-works-1)
+  - [Figure 5 - Point 1: Pipeline Status Topic](#figure-5---point-1-pipeline-status-topic)
+  - [Figure 5 - Point 2: Status Message](#figure-5---point-2-status-message)
+- [Figure 6: File-Based Producer Pipeline Validation](#figure-6-file-based-producer-pipeline-validation)
+  - [How the DPN File-Based Pipeline Works](#how-the-dpn-file-based-pipeline-works)
+  - [Pipeline Execution](#pipeline-execution)
+  - [Topic Naming Convention](#topic-naming-convention)
+  - [Figure 6 - Point 1: Raw Topic](#figure-6---point-1-raw-topic)
+  - [Figure 6 - Point 2: Raw Topic Message](#figure-6---point-2-raw-topic-message)
+  - [Figure 6 - Point 3: Message Header](#figure-6---point-3-message-header)
+  - [Figure 6 - Point 4: Target Topic](#figure-6---point-4-target-topic)
+- [Figure 7: Stream-Based Producer Pipeline Validation](#figure-7-stream-based-producer-pipeline-validation)
+  - [How the DPN Stream-Based Pipeline Works](#how-the-dpn-stream-based-pipeline-works)
+  - [Pipeline Execution](#pipeline-execution-1)
+  - [Topic Naming Convention](#topic-naming-convention-1)
+  - [Figure 7 - Point 1: Stage Topic](#figure-7---point-1-stage-topic)
+  - [Figure 7 - Point 2: Stage Topic Message](#figure-7---point-2-stage-topic-message)
+  - [Figure 7 - Point 3: Raw Topic](#figure-7---point-3-raw-topic)
+  - [Figure 7 - Point 4: Raw Topic Header](#figure-7---point-4-raw-topic-header)
+  - [Figure 7 - Point 5: Target Topic](#figure-7---point-5-target-topic)
+  - [Figure 7 - Point 6: Target Topic Header](#figure-7---point-6-target-topic-header)
+- [Troubleshooting Workflow](#troubleshooting-workflow)
+  - [Step 1: Verify Kafka Health](#step-1-verify-kafka-health)
+  - [Step 2: Verify Pipeline Trigger](#step-2-verify-pipeline-trigger)
+  - [Step 3: Verify Processing Status](#step-3-verify-processing-status)
+  - [Step 4: Verify Topic Processing](#step-4-verify-topic-processing)
+    - [File-Based Pipeline](#file-based-pipeline)
+    - [Stream-Based Pipeline](#stream-based-pipeline)
+- [Quick Validation Checklist](#quick-validation-checklist)
+- [Consumer Pipeline Validation](#consumer-pipeline-validation)
+  - [Purpose](#purpose-6)
+- [Figure 8: Stream-Based Consumer Pipeline Validation](#figure-8-stream-based-consumer-pipeline-validation)
+  - [Purpose](#purpose-7)
+  - [How the DPN Stream-Based Consumer Pipeline Works](#how-the-dpn-stream-based-consumer-pipeline-works)
+  - [Topic Naming Conventions](#topic-naming-conventions)
+  - [Pipeline Execution](#pipeline-execution-2)
+  - [Figure 8 - Point 1: Topics](#figure-8---point-1-topics)
+  - [Figure 8 - Point 2: Consumer Target Topic](#figure-8---point-2-consumer-target-topic)
+  - [Figure 8 - Point 3: Consumer Stage Topic](#figure-8---point-3-consumer-stage-topic)
+  - [Figure 8 - Point 4: Consumer Stage Topic Details](#figure-8---point-4-consumer-stage-topic-details)
+  - [Figure 8 - Point 5: Consumer Stage Topic Header](#figure-8---point-5-consumer-stage-topic-header)
+  - [Figure 8 - Point 6: Consumer Transformation Topic](#figure-8---point-6-consumer-transformation-topic)
+  - [Figure 8 - Point 7: Consumer Transformation Topic Header](#figure-8---point-7-consumer-transformation-topic-header)
+  - [Figure 8 - Point 8: Dynamically Generated Consumer Target Topic](#figure-8---point-8-dynamically-generated-consumer-target-topic)
+  - [Figure 8 - Point 9: Consumer Target Topic Header](#figure-8---point-9-consumer-target-topic-header)
+- [Figure 9: File-Based Consumer Pipeline Validation](#figure-9-file-based-consumer-pipeline-validation)
+  - [Purpose](#purpose-8)
+  - [How the DPN File-Based Consumer Pipeline Works](#how-the-dpn-file-based-consumer-pipeline-works)
+  - [Pipeline Execution](#pipeline-execution-3)
+  - [Figure 9 - Point 1: Consumer Transformation Topic](#figure-9---point-1-consumer-transformation-topic)
+  - [Figure 9 - Point 2: Consumer Target Topic](#figure-9---point-2-consumer-target-topic)
+  - [Figure 9 - Point 3: Consumer Transformation Topic](#figure-9---point-3-consumer-transformation-topic)
+  - [Figure 9 - Point 4: Consumer Transformation Topic Message](#figure-9---point-4-consumer-transformation-topic-message)
+  - [Figure 9 - Point 5: Consumer Target Topic](#figure-9---point-5-consumer-target-topic)
+  - [Figure 9 - Point 6: Consumer Target Topic Message](#figure-9---point-6-consumer-target-topic-message)
+- [Review Notes](#review-notes)
+
+---
+
 ## Purpose
 
 This playbook explains how to use Kafka UI to:
@@ -12,6 +96,7 @@ This playbook explains how to use Kafka UI to:
 
 In addition to explaining Kafka UI usage, this document also provides high-level context on how DPN pipelines use Kafka topics.
 
+---
 
 # Figure 1: Kafka Broker Monitoring
 
