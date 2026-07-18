@@ -6,6 +6,29 @@
 
 ---
 
+## Table of Contents
+
+- [What is Jaeger?](#what-is-jaeger)
+- [How to Access the Jaeger UI](#how-to-access-the-jaeger-ui)
+- [Trace Header Numbers — What They Mean](#trace-header-numbers--what-they-mean)
+  - [Trace Start](#trace-start)
+  - [Duration](#duration)
+  - [Services](#services)
+  - [Depth](#depth)
+  - [Total Spans](#total-spans)
+  - [Self Time (ST)](#self-time-st)
+- [View-by-View Comparison](#view-by-view-comparison)
+  - [1. Trace Timeline (Default view)](#1-trace-timeline-default-view)
+  - [2. Trace Spans Table](#2-trace-spans-table)
+  - [3. Trace Statistics](#3-trace-statistics)
+  - [4. Trace Flamegraph (Pyroscope-powered)](#4-trace-flamegraph-pyroscope-powered)
+  - [5. Trace Graph (Experimental)](#5-trace-graph-experimental)
+  - [6. Raw JSON (API) (Via URL)](#6-raw-json-api-via-url)
+- [Quick-Pick: Which View for Which Question?](#quick-pick-which-view-for-which-question)
+- [Review Notes](#review-notes)
+
+---
+
 ## What is Jaeger?
 
 Jaeger is an open-source distributed tracing platform originally developed by Uber Technologies and now a graduated project under the Cloud Native Computing Foundation (CNCF). It is used to monitor and troubleshoot microservice-based architectures by tracking requests as they flow through multiple services.
