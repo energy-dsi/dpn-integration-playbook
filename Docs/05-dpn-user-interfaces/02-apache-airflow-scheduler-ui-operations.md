@@ -1,5 +1,49 @@
 # Apache Airflow User Interface Guidance for DPN Pipelines
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Figure 1: Airflow Home Screen](#figure-1-airflow-home-screen)
+  - [Purpose](#purpose-1)
+  - [Figure 1 - Point 1: All DAGs](#figure-1---point-1-all-dags)
+  - [Figure 1 - Point 2: Active DAGs](#figure-1---point-2-active-dags)
+  - [Figure 1 - Point 3: Paused DAGs](#figure-1---point-3-paused-dags)
+  - [Figure 1 - Point 4: Running DAGs](#figure-1---point-4-running-dags)
+  - [Figure 1 - Point 5: Failed DAGs](#figure-1---point-5-failed-dags)
+  - [Figure 1 - Point 6: DAG Name](#figure-1---point-6-dag-name)
+  - [Figure 1 - Point 7: DAG Run Statistics](#figure-1---point-7-dag-run-statistics)
+  - [Figure 1 - Point 8: Schedule Configuration](#figure-1---point-8-schedule-configuration)
+  - [Figure 1 - Point 9: No Schedule Defined](#figure-1---point-9-no-schedule-defined)
+  - [Figure 1 - Point 10: Pause / Unpause Toggle](#figure-1---point-10-pause--unpause-toggle)
+  - [Figure 1 - Point 11: DAG Actions](#figure-1---point-11-dag-actions)
+  - [Figure 1 - Point 12: Latest Run Indicator](#figure-1---point-12-latest-run-indicator)
+  - [Figure 1 - Point 13: Run Count Indicator](#figure-1---point-13-run-count-indicator)
+  - [Additional Information Visible in the Airflow Home Screen](#additional-information-visible-in-the-airflow-home-screen)
+    - [Owner](#owner)
+    - [Last Run](#last-run)
+    - [Next Run](#next-run)
+    - [Recent Tasks](#recent-tasks)
+    - [Tags](#tags)
+- [Figure 2: Airflow DAG Graph](#figure-2-airflow-dag-graph)
+  - [Purpose](#purpose-2)
+  - [How the DPN Producer Pipeline Works](#how-the-dpn-producer-pipeline-works)
+  - [Figure 2 - Point 1: Task Instance History and Status Panel](#figure-2---point-1-task-instance-history-and-status-panel)
+  - [Figure 2 - Point 2: DAG Workflow Graph](#figure-2---point-2-dag-workflow-graph)
+  - [Figure 2 - Point 3: Schedule Information and Next Run Status](#figure-2---point-3-schedule-information-and-next-run-status)
+  - [Figure 2 - Point 4: DAG Control Actions](#figure-2---point-4-dag-control-actions)
+- [Figure 3: Airflow DAG Details View](#figure-3-airflow-dag-details-view)
+  - [Purpose](#purpose-3)
+  - [Figure 3 - Point 1: DAG Run Summary](#figure-3---point-1-dag-run-summary)
+- [Troubleshooting Workflow](#troubleshooting-workflow)
+  - [Step 1: Verify DAG Availability](#step-1-verify-dag-availability)
+  - [Step 2: Verify Workflow Execution](#step-2-verify-workflow-execution)
+  - [Step 3: Verify DAG Statistics](#step-3-verify-dag-statistics)
+  - [Step 4: Review Task Execution](#step-4-review-task-execution)
+- [Quick Validation Checklist](#quick-validation-checklist)
+- [Review Notes](#review-notes)
+
+---
+
 ## Purpose
 
 This playbook explains how to use Apache Airflow to:

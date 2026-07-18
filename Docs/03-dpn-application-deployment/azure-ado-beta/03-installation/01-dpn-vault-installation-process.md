@@ -9,6 +9,17 @@ This installation page is a quick-reference summary that points to that guide.
 
 ---
 
+## Table of Contents
+
+- [Containerized Deployment Using DSI Provided Container Images](#containerized-deployment-using-dsi-provided-container-images)
+  - [Configure GHCR Image Access](#configure-ghcr-image-access)
+  - [Verify Image Pull Capability](#verify-image-pull-capability)
+  - [Execute CD Pipeline](#execute-cd-pipeline)
+  - [Verify CD Pipeline](#verify-cd-pipeline)
+- [Review Notes](#review-notes)
+
+---
+
 ## Containerized Deployment Using DSI Provided Container Images
 
 This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi`. Organisations using this approach pull DSI-provided images directly rather than building from source via CI pipelines.
