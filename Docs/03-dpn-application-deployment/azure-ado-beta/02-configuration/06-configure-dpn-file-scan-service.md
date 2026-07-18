@@ -54,6 +54,7 @@ Once the service principal is available, note the CLIENT_ID and CLIENT_SECRET to
 
 `dpn-file-scan-service-prerequisites-cd.yaml` is a separate, parameterised pipeline that performs following actions. 
 
+- **Note** Organisation must set up softDelete for malicious blob at the storage account level in Defender for Storage settings. Subscription level settings will not work as the prerequisite pipeline overrides the subscription settings to use eventgrid topic for scan result publish
 - Registers Event Grid subscription on Defender for cloud storage
 - Create event grid topic to push events from Defender service to Azure Service Bus
 - Create a new container in the target storage account
