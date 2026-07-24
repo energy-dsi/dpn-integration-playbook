@@ -251,7 +251,7 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
 | srcTopicName | Kafka topic name for the extractor in stage | `dp-consumer-topic-stage` |
 | mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-topic-trfm` |
-| targetTopicName | Kafka topic name for the mapper out and target in stage | `dp-consumer-topic-target` |
+| targetTopicName | Kafka topic name for the mapper out and target in stage | Not Required, Auto Created from metadata |
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
@@ -499,7 +499,7 @@ For streaming based integration pathway, the following convention is recommended
 | adaptor | `dpn-producer-{product_type}-stage` | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
 | producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src:9092` |
 | extractor | `dp-consumer-topic-stage` | `dp-consumer-topic-trfm` | `dpn-kafka-target:9092` |
-| consumer-mapper | `dp-consumer-topic-trfm` | `dp-consumer-topic-target` | `dpn-kafka-target:9092` |
+| consumer-mapper | `dp-consumer-topic-trfm` | Auto created based on data product name in meta data | `dpn-kafka-target:9092` |
 
 
 where **`product_type`** is a value such as `eq-sample-1` as described in previous sections.
