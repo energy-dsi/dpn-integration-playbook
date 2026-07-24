@@ -1,0 +1,15 @@
+# ===== svc/dpn-airflow-postgres =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-airflow-postgres
+  namespace: ns-dpn-01
+spec:
+  ports:
+  - name: postgres
+    port: 5432
+    protocol: TCP
+    targetPort: 5432
+  selector:
+    app: dpn-airflow-postgres
+  type: ClusterIP

@@ -1,0 +1,16 @@
+# ===== pvc/dpn-airflow-postgres-pvc =====
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    volume.beta.kubernetes.io/storage-provisioner: efs.csi.aws.com
+  name: dpn-airflow-postgres-pvc
+  namespace: ns-dpn-01
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: efs-sc
+  volumeMode: Filesystem

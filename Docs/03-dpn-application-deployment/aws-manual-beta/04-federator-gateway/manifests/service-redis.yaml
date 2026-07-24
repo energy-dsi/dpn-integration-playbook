@@ -1,0 +1,15 @@
+# ===== svc/dpn-redis =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-redis
+  namespace: ns-dpn-01
+spec:
+  ports:
+  - name: redis
+    port: 6379
+    protocol: TCP
+    targetPort: 6379
+  selector:
+    app: dpn-redis
+  type: ClusterIP

@@ -1,0 +1,204 @@
+# =============================================================================
+# Vault HTTPS (PVC + ConfigMap + Deployment + Service)
+# Namespace: ns-dpn-01
+#
+# Seal method: NONE — plain Shamir secret sharing, MANUAL unseal.
+# This is NOT AWS KMS auto-unseal. If this pod restarts, Vault comes back
+# SEALED and someone must run `vault operator unseal` 3 times (3 of 5 keys)
+# before certificate-manager can work again. See RUNBOOK.md for a KMS
+# auto-unseal follow-up outline.
+#
+# Prerequisites (see RUNBOOK.md):
+#   1. 00-shared-prerequisites applied (namespace, StorageClass, ServiceAccount)
+#   2. Secret ghcr-pull-secret
+#   3. Secret vault-tls (vault.crt + vault.key — see scripts/create-vault-tls-bootstrap.sh)
+#
+#   kubectl apply -f manifests/01-vault-https.yaml
+#   kubectl rollout status deployment/vault-https -n ns-dpn-01
+# =============================================================================
+
+---
+# ── PersistentVolumeClaim — Vault data ──────────────────────────────────────
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vault-https-data
+  namespace: ns-dpn-01
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: efs-sc
+
+---
+# ── ConfigMap — vault.hcl ───────────────────────────────────────────────────
+# storage "file" backend + no seal stanza => plain Shamir unseal (manual).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vault-https-config
+  namespace: ns-dpn-01
+  labels:
+    app: vault-https
+data:
+  vault.hcl: |
+    ui = true
+
+    listener "tcp" {
+      address       = "0.0.0.0:8200"
+      tls_disable   = 0
+      tls_cert_file = "/vault/tls/vault.crt"
+      tls_key_file  = "/vault/tls/vault.key"
+    }
+
+    storage "file" {
+      path = "/vault/file"
+    }
+
+    disable_mlock = true
+
+    api_addr     = "https://0.0.0.0:8200"
+    cluster_addr = "https://0.0.0.0:8201"
+
+---
+# ── Deployment ──────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vault-https
+  namespace: ns-dpn-01
+  labels:
+    app: vault-https
+spec:
+  replicas: 1    # keep 1 — file storage backend, no clustering
+  selector:
+    matchLabels:
+      app: vault-https
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: vault-https
+      annotations:
+        # Explicit opt-out of cluster auto-instrumentation. If your cluster runs
+        # the amazon-cloudwatch-observability addon (or any OTEL auto-injection
+        # mutating webhook), omitting these lets it default to "true" and inject
+        # CloudWatch/OTEL agents into the Vault pod. Remove this block if you
+        # don't run such a webhook — it is a no-op either way.
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+    spec:
+      serviceAccountName: federator-server
+
+      securityContext:
+        runAsNonRoot: false   # Vault needs root for IPC_LOCK
+        fsGroup: 1000
+
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      containers:
+        - name: vault
+          image: ghcr.io/energy-dsi/vault:1.16
+          imagePullPolicy: IfNotPresent
+          command: ["vault", "server", "-config=/vault/config/vault.hcl"]
+
+          ports:
+            - name: https
+              containerPort: 8200
+              protocol: TCP
+
+          env:
+            - name: VAULT_ADDR
+              value: "https://127.0.0.1:8200"
+            - name: VAULT_API_ADDR
+              value: "https://0.0.0.0:8200"
+            - name: VAULT_SKIP_VERIFY
+              value: "true"
+
+          securityContext:
+            capabilities:
+              add:
+                - IPC_LOCK
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          readinessProbe:
+            httpGet:
+              path: /v1/sys/health
+              port: 8200
+              scheme: HTTPS
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /v1/sys/health?standbyok=true&sealedok=true&uninitok=true
+              port: 8200
+              scheme: HTTPS
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: vault-data
+              mountPath: /vault/file
+            - name: vault-config
+              mountPath: /vault/config
+              readOnly: true
+            - name: vault-tls
+              mountPath: /vault/tls
+              readOnly: true
+
+      volumes:
+        - name: vault-data
+          persistentVolumeClaim:
+            claimName: vault-https-data
+        - name: vault-config
+          configMap:
+            name: vault-https-config
+        - name: vault-tls
+          secret:
+            secretName: vault-tls   # pre-created — see RUNBOOK.md Configuration
+
+---
+# ── Service — ClusterIP ─────────────────────────────────────────────────────
+# DNS name consumed by certificate-manager:
+#   https://vault-https.ns-dpn-01.svc.cluster.local:8200
+# This exact name is the SAN baked into vault.crt by
+# scripts/create-vault-tls-bootstrap.sh — do not rename this Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vault-https
+  namespace: ns-dpn-01
+  labels:
+    app: vault-https
+spec:
+  type: ClusterIP
+  selector:
+    app: vault-https
+  ports:
+    - name: https
+      port: 8200
+      targetPort: 8200
+      protocol: TCP
