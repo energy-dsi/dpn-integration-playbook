@@ -235,9 +235,9 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
 | srcContainerName | Source storage container name | `dp-consumer-stage` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-trfm` |
+| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-file-trfm` |
 | mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
+| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-file-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
 
 ### Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway
@@ -249,9 +249,9 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
-| srcTopicName | Kafka topic name for the mapper stage | `dpn-consumer-stage` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-trfm` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-target` |
+| srcTopicName | Kafka topic name for the mapper stage | `dpn-consumer-topic-stage` |
+| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-topic-trfm` |
+| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-topic-target` |
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
