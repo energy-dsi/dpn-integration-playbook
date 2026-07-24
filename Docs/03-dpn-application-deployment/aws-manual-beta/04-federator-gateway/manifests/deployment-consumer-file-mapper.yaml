@@ -1,0 +1,122 @@
+# ===== deploy/dpn-consumer-file-mapper =====
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dpn-consumer-file-mapper
+  name: dpn-consumer-file-mapper
+  namespace: ns-dpn-01
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: dpn-consumer-file-mapper
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: '2026-07-18T13:37:27Z'
+      labels:
+        app: dpn-consumer-file-mapper
+    spec:
+      automountServiceAccountToken: true
+      containers:
+      - command:
+        - python
+        - main.py
+        env:
+        - name: scheduleInterval
+          value: '60'
+        - name: cloudProviderType
+          value: aws
+        - name: mapperTopicName
+          value: dpn-consumer-trfm
+        - name: targetTopicName
+          value: dpn-consumer-target
+        - name: targetContainerName
+          value: dp-consumer-target
+        - name: mapperContainerName
+          value: dp-consumer-trfm
+        - name: bootstrapServer
+          value: dpn-kafka-target:9092
+        - name: srcContainerName
+          value: dp-consumer-stage
+        - name: AWS_ENDPOINT_URL
+          value: https://s3.<AWS_REGION>.amazonaws.com  # placeholder: AWS region, e.g. eu-west-2
+        - name: AWS_REGION
+          value: <AWS_REGION>  # placeholder: AWS region, e.g. eu-west-2
+        - name: S3_BUCKET_NAME
+          value: <S3_BUCKET_PREFIX>-application  # placeholder: see RUNBOOK Configuration table (bug fix — see note below)
+        - name: SCHEDULER_BACKEND
+          value: kafka-trigger
+        - name: replicaCount
+          value: '1'
+        - name: PIPELINE_CONTROL_TOPIC
+          value: dpn-pipeline-control
+        - name: PIPELINE_STATUS_TOPIC
+          value: dpn-pipeline-status
+        - name: DRAIN_IDLE_SECS
+          value: '15'
+        - name: topicTaskTimeoutSecs
+          value: '60'
+        - name: STATSD_PORT
+          value: '8125'
+        - name: SERVICE_NAME
+          value: dpn data pipeline
+        - name: SERVICE_VERSION
+          value: 1.0.0
+        - name: PRODUCT_NAME
+          value: consumer-file
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317  # cross-namespace soft dependency on 02-health-monitor
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          value: 'true'
+        - name: ENVIRONMENT
+          value: development
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              key: AWS_ACCESS_KEY_ID
+              name: aws-access-secret
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              key: AWS_SECRET_ACCESS_KEY
+              name: aws-access-secret
+        image: ghcr.io/energy-dsi/consumer-file-mapper:1.0.0
+        imagePullPolicy: Always
+        name: dpn-consumer-file-mapper
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 10000
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: federator-server
+      serviceAccountName: federator-server
+      terminationGracePeriodSeconds: 30

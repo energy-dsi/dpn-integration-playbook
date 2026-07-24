@@ -1,0 +1,15 @@
+# ===== svc/dpn-kafka-src =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-kafka-src
+  namespace: ns-dpn-01
+spec:
+  ports:
+  - name: kafka
+    port: 9092
+    protocol: TCP
+    targetPort: 9092
+  selector:
+    app: dpn-kafka-src
+  type: ClusterIP

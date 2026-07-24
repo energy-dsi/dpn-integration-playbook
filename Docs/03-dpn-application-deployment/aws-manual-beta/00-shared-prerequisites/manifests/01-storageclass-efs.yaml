@@ -1,0 +1,33 @@
+# =============================================================================
+# Cluster-scoped StorageClass backed by AWS EFS. Shared by every component in
+# this repo (Vault, Airflow/Postgres, Kafka, OpenSearch, Prometheus, Perses...).
+#
+# Prerequisite: the AWS EFS CSI driver must already be installed on the
+# cluster (as an EKS add-on or Helm chart) and an EFS filesystem must exist
+# with mount targets in the subnets your worker nodes run in.
+#
+# provisioningMode: efs-ap means the CSI driver creates an EFS Access Point
+# automatically per-PVC — you do not need to pre-create access points.
+#
+# Replace <EFS_FILESYSTEM_ID> below with your EFS filesystem's ID
+# (e.g. fs-0123456789abcdef0), then apply once:
+#   kubectl apply -f 01-storageclass-efs.yaml
+# =============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+mountOptions:
+- tls
+parameters:
+  basePath: /dynamic_provisioning
+  directoryPerms: '750'
+  ensureUniqueDirectory: 'true'
+  fileSystemId: <EFS_FILESYSTEM_ID>
+  gidRangeEnd: '2000'
+  gidRangeStart: '1000'
+  provisioningMode: efs-ap
+  reuseAccessPoint: 'false'
+provisioner: efs.csi.aws.com
+reclaimPolicy: Retain
+volumeBindingMode: Immediate

@@ -1,0 +1,15 @@
+# ===== svc/dpn-airflow-webserver =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-airflow-webserver
+  namespace: ns-dpn-01
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: dpn-airflow-webserver
+  type: ClusterIP
