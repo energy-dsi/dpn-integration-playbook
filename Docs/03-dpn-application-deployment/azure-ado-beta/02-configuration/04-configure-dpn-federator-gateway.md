@@ -153,8 +153,9 @@ Root-Repository
 | `federatorClient.config.management_node_base_url` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` |
 | `federatorClient.config.targetTopic` | Target topic for received data | `dp-consumer-topic-stage` |
 | `federatorClient.idp.clientId` | Client ID received from DSM | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
-| `federatorClient.idp.jwksUrl` / `tokenUrl` / `authMode` | IDP endpoints and grant mode (as Server) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` / `private_key_jwt` |
+| `federatorClient.idp.jwksUrl` / `tokenUrl` | IDP endpoints and grant mode (as Server) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` / |
 | `federatorClient.storage.azure.endpoint` | **Blob endpoint of the File Scan Service source storage account** if available else use a separate storage account (not the Server's account) | `https://stfss<env>dpn<region>01.blob.core.windows.net` |
+| `federatorClient.storage.provider` | `AZURE/S3/GCP/LOCAL` | Note. Important to set this value based on cloud provider. This parameter decides which storage provider to be invoked based on cloud type |
 | `federatorClient.storage.azure.container` | Container where inbound files are written (File Scan source container) | `dp-consumer-raw` |
 
 ### Step3c: Configure Key Vault If Used
