@@ -216,9 +216,9 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
-| srcTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-stage` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-raw` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-producer-eq-sample-1-target` |
+| srcTopicName | Kafka topic name for the Adaptor input stage | `dpn-producer-eq-sample-1-stage` |
+| mapperTopicName | Kafka topic name for the adaptor out and mapper in stage | `dpn-producer-eq-sample-1-raw` |
+| targetTopicName | Kafka topic name for the mapper out and target in stage | `dpn-producer-eq-sample-1-target` |
 | orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
 | srcGroupId | Consumer group | `producer_topic_eq` |
@@ -235,9 +235,9 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
 | srcContainerName | Source storage container name | `dp-consumer-stage` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-file-trfm` |
+| mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-file-trfm` |
 | mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-file-target` |
+| targetTopicName | Kafka topic name for the mapper out and target in stage | `dp-consumer-file-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
 
 ### Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway
@@ -249,9 +249,9 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
-| srcTopicName | Kafka topic name for the mapper stage | `dpn-consumer-topic-stage` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-consumer-topic-trfm` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-consumer-topic-target` |
+| srcTopicName | Kafka topic name for the extractor in stage | `dp-consumer-topic-stage` |
+| mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-topic-trfm` |
+| targetTopicName | Kafka topic name for the mapper out and target in stage | `dp-consumer-topic-target` |
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
@@ -483,12 +483,24 @@ The DPN Streaming Service uses Kafka to emit events between DPN components, incl
 
 The DPN data pipeline processes files by pushing streaming messages onto predefined Kafka topics. The proposed topic names are listed below. Organisations may customise the naming convention if required, but any topic name changes must be reflected in the CD pipeline configuration.
 
+For file based integration pathway, the following convention is recommended
+
 | Process | Source Topic Name | Target Topic Name | Bootstrap Server |
 |---------|-------------------|-------------------|------------------|
 | adaptor | N/A | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
 | producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src:9092` |
-| extractor | N/A | `dpn-consumer-trfm` | `dpn-kafka-target:9092` |
-| consumer-mapper | `dpn-consumer-trfm` | `dpn-consumer-target` | `dpn-kafka-target:9092` |
+| extractor | N/A | `dp-consumer-topic-trfm` | `dpn-kafka-target:9092` |
+| consumer-mapper | `dp-consumer-topic-trfm` | `dp-consumer-topic-target` | `dpn-kafka-target:9092` |
+
+For streaming based integration pathway, the following convention is recommended
+
+| Process | Source Topic Name | Target Topic Name | Bootstrap Server |
+|---------|-------------------|-------------------|------------------|
+| adaptor | `dpn-producer-{product_type}-stage` | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
+| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src:9092` |
+| extractor | `dp-consumer-topic-stage` | `dp-consumer-topic-trfm` | `dpn-kafka-target:9092` |
+| consumer-mapper | `dp-consumer-topic-trfm` | `dp-consumer-topic-target` | `dpn-kafka-target:9092` |
+
 
 where **`product_type`** is a value such as `eq-sample-1` as described in previous sections.
 
