@@ -1,0 +1,518 @@
+# Data Prepper. Apply AFTER manifests/02-kafka-stack.yaml and
+# manifests/03-opensearch.yaml — it hard-depends on both
+# dpn-kafka-health:9092 and dpn-opensearch-health:9200 already being up.
+# Pipelines below are copied verbatim (full field-extraction fidelity, not
+# trimmed) from charts/data-prepper/templates/configmap.yaml in this repo,
+# with the Helm {{ }} loops resolved to our actual namespace values (which
+# happen to already match ns-dpn-health-01 in the source chart).
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dpn-data-prepper-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-data-prepper-health
+data:
+  data-prepper-config.yaml: |
+    ssl: false
+    serverPort: 4900
+
+  pipelines.yaml: |
+    otel-logs-pipeline:
+      source:
+        kafka:
+          encryption:
+            type: none
+          bootstrap_servers:
+            - "dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092"
+          topics:
+            - name: otel-logs
+              group_id: data-prepper-logs-group-v2
+              auto_offset_reset: earliest
+          acknowledgments: true
+      processor:
+        - parse_json: {}
+        # Extract scalar leaf values from the OTLP array structure into flat top-level
+        # fields so that OpenSearch Dashboards Discover columns can display them.
+        # ── Step 1: extract fields that have a fixed position ────────────────────
+        - add_entries:
+            entries:
+              - key: "log.severity"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/severityText"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/severityText != null"
+              - key: "log.body"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/body/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/body/stringValue != null"
+              - key: "log.event_name"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/value/stringValue != null"
+              - key: "log.trace_id"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/traceId"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/traceId != null"
+              - key: "log.span_id"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/spanId"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/spanId != null"
+              - key: "log.scope"
+                value_expression: "/resourceLogs/0/scopeLogs/0/scope/name"
+                add_when: "/resourceLogs/0/scopeLogs/0/scope/name != null"
+        # ── Step 2: find service.name in resource.attributes (position varies) ───
+        - add_entries:
+            entries:
+              - key: "log.service"
+                value_expression: "/resourceLogs/0/resource/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/0/key == \"service.name\""
+              - key: "log.service"
+                value_expression: "/resourceLogs/0/resource/attributes/1/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/1/key == \"service.name\""
+                overwrite_if_key_exists: false
+              - key: "log.service"
+                value_expression: "/resourceLogs/0/resource/attributes/2/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/2/key == \"service.name\""
+                overwrite_if_key_exists: false
+              - key: "log.service"
+                value_expression: "/resourceLogs/0/resource/attributes/3/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/3/key == \"service.name\""
+                overwrite_if_key_exists: false
+              - key: "log.service"
+                value_expression: "/resourceLogs/0/resource/attributes/4/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/4/key == \"service.name\""
+                overwrite_if_key_exists: false
+              - key: "log.service"
+                value_expression: "/resourceLogs/0/resource/attributes/5/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/5/key == \"service.name\""
+                overwrite_if_key_exists: false
+        # ── Step 3: find component.name / pipeline.role / pipeline.type /
+        # pipeline.stage across attribute positions 0-14, first match wins.
+        - add_entries:
+            entries:
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/0/key == \"component.name\" or /resourceLogs/0/resource/attributes/0/key == \"component\""
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/1/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/1/key == \"component.name\" or /resourceLogs/0/resource/attributes/1/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/2/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/2/key == \"component.name\" or /resourceLogs/0/resource/attributes/2/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/3/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/3/key == \"component.name\" or /resourceLogs/0/resource/attributes/3/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/4/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/4/key == \"component.name\" or /resourceLogs/0/resource/attributes/4/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/5/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/5/key == \"component.name\" or /resourceLogs/0/resource/attributes/5/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/6/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/6/key == \"component.name\" or /resourceLogs/0/resource/attributes/6/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/7/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/7/key == \"component.name\" or /resourceLogs/0/resource/attributes/7/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/resource/attributes/8/value/stringValue"
+                add_when: "/resourceLogs/0/resource/attributes/8/key == \"component.name\" or /resourceLogs/0/resource/attributes/8/key == \"component\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/key == \"component.name\""
+                overwrite_if_key_exists: false
+              - key: "log.component"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/key == \"component.name\""
+                overwrite_if_key_exists: false
+        - add_entries:
+            entries:
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/key == \"pipeline.stage\""
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+              - key: "log._stage"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/key == \"pipeline.stage\""
+                overwrite_if_key_exists: false
+        - add_entries:
+            entries:
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/key == \"pipeline.type\""
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+              - key: "log._type"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/key == \"pipeline.type\""
+                overwrite_if_key_exists: false
+        - add_entries:
+            entries:
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/0/key == \"pipeline.role\""
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/1/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/2/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/3/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/4/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/5/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/6/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/7/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/8/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/9/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/10/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/11/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/12/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/13/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+              - key: "log._role"
+                value_expression: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/value/stringValue"
+                add_when: "/resourceLogs/0/scopeLogs/0/logRecords/0/attributes/14/key == \"pipeline.role\""
+                overwrite_if_key_exists: false
+        # ── Step 4: reconstruct the heartbeat-style compound component name
+        - add_entries:
+            entries:
+              - key: "log.component"
+                value_expression: "/log/_role + \"-\" + /log/_type + \"-\" + /log/_stage"
+                add_when: "/log/_stage != null and /log/_type != null and /log/_role != null"
+                overwrite_if_key_exists: false
+        # ── Step 5: fall back log.component to log.service when still not set ────
+        - add_entries:
+            entries:
+              - key: "log.component"
+                value_expression: "/log/service"
+                add_when: "/log/service != null"
+                overwrite_if_key_exists: false
+        # Drop the raw OTLP envelope now that its useful fields have been
+        # flattened into log.* — prevents field-type mapping conflicts.
+        - delete_entries:
+            with_keys: ["resourceLogs"]
+        - date:
+            from_time_received: true
+            destination: "@timestamp"
+      sink:
+        - opensearch:
+            hosts:
+              - "http://dpn-opensearch-health.ns-dpn-health-01.svc.cluster.local:9200"
+            index: otel-logs-%{yyyy.MM.dd}
+            index_type: custom
+            bulk_size: 4
+
+    otel-metrics-pipeline:
+      source:
+        kafka:
+          encryption:
+            type: none
+          bootstrap_servers:
+            - "dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092"
+          topics:
+            - name: otel-metrics
+              group_id: data-prepper-metrics
+      processor:
+        - parse_json: {}
+      sink:
+        - opensearch:
+            hosts:
+              - "http://dpn-opensearch-health.ns-dpn-health-01.svc.cluster.local:9200"
+            index: otel-metrics-%{yyyy.MM.dd}
+            index_type: custom
+            bulk_size: 4
+
+    otel-traces-pipeline:
+      source:
+        kafka:
+          encryption:
+            type: none
+          bootstrap_servers:
+            - "dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092"
+          topics:
+            - name: otel-traces
+              group_id: data-prepper-traces
+      processor:
+        - parse_json: {}
+      sink:
+        - opensearch:
+            hosts:
+              - "http://dpn-opensearch-health.ns-dpn-health-01.svc.cluster.local:9200"
+            index: otel-traces-%{yyyy.MM.dd}
+            index_type: custom
+            bulk_size: 4
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-data-prepper-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-data-prepper-health
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpn-data-prepper-health
+  template:
+    metadata:
+      labels:
+        app: dpn-data-prepper-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: data-prepper
+          image: "opensearchproject/data-prepper:2.6.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: http
+              containerPort: 4900
+          volumeMounts:
+            - name: config
+              mountPath: /usr/share/data-prepper/pipelines/pipelines.yaml
+              subPath: pipelines.yaml
+            - name: config
+              mountPath: /usr/share/data-prepper/config/data-prepper-config.yaml
+              subPath: data-prepper-config.yaml
+          resources:
+            requests:
+              cpu: 150m
+              memory: 384Mi
+            limits:
+              cpu: 600m
+              memory: 768Mi
+      volumes:
+        - name: config
+          configMap:
+            name: dpn-data-prepper-health
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-data-prepper-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-data-prepper-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-data-prepper-health
+  ports:
+    - name: http
+      port: 4900
+      targetPort: 4900
+      protocol: TCP

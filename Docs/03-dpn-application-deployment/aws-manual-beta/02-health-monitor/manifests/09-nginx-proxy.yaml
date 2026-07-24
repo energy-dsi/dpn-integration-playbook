@@ -1,0 +1,299 @@
+# Nginx observability proxy. Apply LAST — it fronts every backend Service
+# deployed by manifests/02 through manifests/08. PREREQUISITE: the
+# dpn-nginx-basic-auth Secret must exist before this rolls out (readOnly
+# volume mount — pod won't start without it). See RUNBOOK.md section 3.10
+# for the exact generation command (never checked in).
+#
+# NOTE: two backends (dpn-kafka-ui.ns-dpn-01.svc.cluster.local:8086 and
+# dpn-airflow-webserver.ns-dpn-01.svc.cluster.local:8080) live in ns-dpn-01
+# and are owned by the 03-data-pipeline / 04-federator-gateway components,
+# which may be deployed after or independently of this one. This is a SOFT
+# dependency only — see the note below on why.
+#
+# NOTE: every proxy_pass below resolves via a `set $var` + variable, NOT a
+# literal hostname. This is required — nginx resolves a literal hostname in
+# proxy_pass once at config-parse time, and will refuse to start the entire
+# container if even one of the 8 backends isn't resolvable yet (e.g.
+# dpn-opensearch-dashboard-health, which is out of scope / never deployed
+# here — see RUNBOOK.md troubleshooting). The `resolver` directive only takes
+# effect when the upstream is a variable. Because of this, nginx defers DNS
+# resolution to request time — if a backend (including the two ns-dpn-01
+# Services above) isn't up yet, that location degrades to a 502 at request
+# time rather than preventing the proxy from starting.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dpn-nginx-observability-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-nginx-observability-health
+data:
+  nginx.conf: |
+    events {
+      worker_connections 1024;
+    }
+
+    http {
+      resolver kube-dns.kube-system.svc.cluster.local valid=10s ipv6=off;
+
+      server {
+        listen 8082;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend1 dpn-kafka-health-ui.ns-dpn-health-01.svc.cluster.local:8082;
+          proxy_pass http://$backend1;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 5601;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend2 dpn-opensearch-dashboard-health.ns-dpn-health-01.svc.cluster.local:5601;
+          proxy_pass http://$backend2;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 16686;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend3 dpn-jaeger-query-health.ns-dpn-health-01.svc.cluster.local:16686;
+          proxy_pass http://$backend3;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 9081;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend4 dpn-prometheus-health-ui.ns-dpn-health-01.svc.cluster.local:9090;
+          proxy_pass http://$backend4;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 9091;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend5 dpn-thanos-query-health.ns-dpn-health-01.svc.cluster.local:9091;
+          proxy_pass http://$backend5;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 8083;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend6 dpn-perses-health.ns-dpn-health-01.svc.cluster.local:8083;
+          proxy_pass http://$backend6;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 8086;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend7 dpn-kafka-ui.ns-dpn-01.svc.cluster.local:8086;
+          proxy_pass http://$backend7;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+
+      server {
+        listen 8084;
+        server_name _;
+        auth_basic           "DPN Nginx Observability";
+        auth_basic_user_file /etc/nginx/auth/.htpasswd;
+        location / {
+          set $backend8 dpn-airflow-webserver.ns-dpn-01.svc.cluster.local:8080;
+          proxy_pass http://$backend8;
+          proxy_http_version 1.1;
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 300s;
+          proxy_send_timeout 300s;
+        }
+      }
+    }
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-nginx-observability-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-nginx-observability-health
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpn-nginx-observability-health
+  template:
+    metadata:
+      labels:
+        app: dpn-nginx-observability-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      containers:
+        - name: nginx
+          image: "nginx:1.27-alpine"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: kafka-ui
+              containerPort: 8082
+            - name: opensearch
+              containerPort: 5601
+            - name: jaeger
+              containerPort: 16686
+            - name: prometheus
+              containerPort: 9081
+            - name: thanos
+              containerPort: 9091
+            - name: perses
+              containerPort: 8083
+            - name: airflow
+              containerPort: 8084
+            - name: kafka-ui-2
+              containerPort: 8086
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: nginx-basic-auth
+              mountPath: /etc/nginx/auth
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: dpn-nginx-observability-health
+        - name: nginx-basic-auth
+          secret:
+            secretName: dpn-nginx-basic-auth
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-nginx-observability-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-nginx-observability-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-nginx-observability-health
+  ports:
+    - name: kafka-ui
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
+    - name: opensearch
+      port: 5601
+      targetPort: 5601
+      protocol: TCP
+    - name: jaeger
+      port: 16686
+      targetPort: 16686
+      protocol: TCP
+    - name: prometheus
+      port: 9081
+      targetPort: 9081
+      protocol: TCP
+    - name: thanos
+      port: 9091
+      targetPort: 9091
+      protocol: TCP
+    - name: perses
+      port: 8083
+      targetPort: 8083
+      protocol: TCP
+    - name: airflow
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
+    - name: kafka-ui-2
+      port: 8086
+      targetPort: 8086
+      protocol: TCP

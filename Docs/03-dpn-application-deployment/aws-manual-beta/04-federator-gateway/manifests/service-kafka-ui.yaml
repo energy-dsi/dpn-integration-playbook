@@ -1,0 +1,15 @@
+# ===== svc/dpn-kafka-ui =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-kafka-ui
+  namespace: ns-dpn-01
+spec:
+  ports:
+  - name: http
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: dpn-kafka-ui
+  type: ClusterIP
