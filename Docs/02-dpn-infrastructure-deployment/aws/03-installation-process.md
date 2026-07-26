@@ -9,13 +9,13 @@ This section describes the end-to-end infrastructure installation process.
   - [Current ADO Pipeline Stage Sequence (Authoritative)](#current-ado-pipeline-stage-sequence-authoritative)
   - [Step 0.1 Set Deployment Variables](#step-01-set-deployment-variables)
     - [How to Create the Library Variable Group](#how-to-create-the-library-variable-group)
-    - [A. Azure Subscription & Environment](#a-azure-subscription--environment)
+    - [A. AWS Account & Environment](#a-aws-account--environment)
     - [B. Agent Pool & Service Connection](#b-agent-pool--service-connection)
     - [C. OpenTofu Backend State Storage](#c-opentofu-backend-state-storage)
-    - [D. Virtual Network](#d-virtual-network)
+    - [D. VPC](#d-vpc)
     - [E. Private DNS](#e-private-dns)
     - [F. Pipeline YAML-Defined Variables](#f-pipeline-yaml-defined-variables)
-  - [Step 0.2 Authenticate and Select Subscription](#step-02-authenticate-and-select-subscription)
+  - [Step 0.2 Authenticate and Select Account](#step-02-authenticate-and-select-account)
   - [Step 0.3 Validate Tooling and Required Files](#step-03-validate-tooling-and-required-files)
 - [Phase 1: Bootstrap Infrastructure](#phase-1-bootstrap-infrastructure)
   - [Step 1.0 Use the Bootstrap Pipeline](#step-10-use-the-bootstrap-pipeline)
@@ -71,7 +71,7 @@ Complete the following preflight steps before starting any deployment activity.
 
 ### Current ADO Pipeline Stage Sequence (Authoritative)
 
-Use this stage sequence to understand the current Azure DevOps deployment flow before triggering any pipeline run.
+Use this stage sequence to understand the current Azure DevOps deployment flow before triggering any pipeline run. GitHub Actions Workflows and Azure DevOps Pipelines are provided. 
 
 1. **Bootstrap pipeline** (`aws-pipeline-bootstrap-*.yml`)
   - `CheckBootstrap`
@@ -83,8 +83,8 @@ Use this stage sequence to understand the current Azure DevOps deployment flow b
   - `Plan`
   - `Deploy`
     - `OpenTofuPlan`
-    - `ManualApproval` (only when `action=apply` and approval required)
-    - `OpenTofuApply` (only when `action=apply`)
+    - `ManualApproval` (only when `-auto-approve` is not used and approval required)
+    - `OpenTofuApply` (only when `-auto-approve` is used)
   - `Verification` (only after successful apply)
 
 ### Step 0.1 Set Deployment Variables
@@ -111,14 +111,13 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 ---
 
-#### A. Azure Subscription & Environment
+#### A. AWS Account & Environment
 
-> Get `ARM_SUBSCRIPTION_ID` and `ARM_TENANT_ID` from **Azure portal > Azure Active Directory > Overview**. `ENVIRONMENT` must match the prefix of the tfvars filename (e.g. `devtest01`).
+> Get `AWS_ACCOUNT_ID` from **AWS Console**. `ENVIRONMENT` must match the prefix of the tfvars filename (e.g. `devtest01`).
 
-- `ARM_SUBSCRIPTION_ID` — Azure subscription ID where DPN infrastructure will be deployed. Example: `<your-azure-subscription-id>`
-- `ARM_TENANT_ID` — Azure AD tenant ID for your organisation. Example: `<your-azure-tenant-id>`
-- `AZURE_LOCATION` — Azure region agreed with DSI for this environment. Example: `<azure-region>` (e.g. `UK South`)
-- `ENVIRONMENT` — Short label matching the tfvars filename prefix. Example: `<env-name>` (e.g. `devtest01`)
+- `AWS_ACCOUNT_ID` — AWS Account ID where DPN infrastructure will be deployed. Example: `<your-aws-account-id>`
+- `AWS_REGION` — AWS region agreed with DSI for this environment. Example: `<aws-region>` (e.g. `eu-central-1`)
+- `ENVIRONMENT` — Short label matching the tfvars filename prefix. Example: `<env-name>` (e.g. `test01`)
 
 ---
 
@@ -134,19 +133,17 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 #### C. OpenTofu Backend State Storage
 
-> All three values are created by the **bootstrap pipeline**. Run bootstrap first, then read the values from Azure portal or pipeline logs.
+> All values below are created by the **bootstrap pipeline**. Run bootstrap first, then read the values from AWS Console or pipeline logs.
 
-- `BACKEND_RESOURCE_GROUP` — Resource group that holds the OpenTofu remote state storage account.
-  - Pattern: `rg-tfstate-dpn-<env>-uks-01`
-  - Example: `rg-tfstate-dpn-<env-name>-uks-01`
-- `BACKEND_STORAGE_ACCOUNT` — Storage account name for OpenTofu remote state 
-  - Pattern: `sttfdpn<env>uks01`
-- `BACKEND_KEY` — Blob name for the state file inside the `tfstate` container. Must be unique per environment and never change across runs.
+- `TFSTATE_BUCKET_NAME` — S3 Bucket name for OpenTofu remote state 
+  - Pattern: `dpn-tfstate-part-001`
+- `TFSTATE_KEY` — Name for the state file inside the `tfstate` S3 key. Must be unique per environment and never change across runs.
   - Pattern: `dpn.<env>.tfstate`
+- `TFSTATE_DYNAMODB_TABLE`
 
 ---
 
-#### D. Virtual Network
+#### D. VPC
 
 > Obtain from the connectivity/networking team. These resources must exist before the bootstrap pipeline runs.
 
@@ -174,13 +171,13 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 - `TFVARS_FILE` — Exact `.tfvars` filename under `$(TF_WORKING_DIR)/environments/`. The file must exist before the pipeline runs. Example: `<env-name>.tfvars`
 - `TF_VERSION` — OpenTofu CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.8`
 
-### Step 0.2 Authenticate and Select Subscription
+### Step 0.2 Authenticate and Select Account
 
 Authentication is provided by the Azure DevOps service connection.
-Use this pipeline task command to validate the active subscription context.
+Use this pipeline task command to validate the AWS Identity and Account. 
 
 ```bash
-az account show --output table
+aws sts get-caller-identity
 ```
 
 ### Step 0.3 Validate Tooling and Required Files
@@ -188,7 +185,7 @@ az account show --output table
 Use the following pipeline task checks to verify tooling and required files are available.
 
 ```bash
-az version
+aws --version
 tofu version
 
 cd $(TF_WORKING_DIR)
@@ -199,66 +196,169 @@ If the tfvars file check fails, create `environments/$(TFVARS_FILE)` before runn
 
 ---
 
-## Phase 1: Bootstrap Infrastructure
+## Phase 1: AWS Deployment Pipelines 
+This section contains CICD pipeline definitions for deploying AWS Infrastructure
 
-This phase is executed by the bootstrap pipeline.
+- GitHub Actions Workflows
+  Located in .github/workflows/
+    - bootstrap-aws-001.yml - Bootstrap pipeline for AWS S3/DynamoDB setup
+    - part-aws-001.yml - Main infrastructure deployment pipeline
+  
+- Azure DevOps Pipelines
+  Located in .azure-pipelines
+    - aws-pipeline-bootstrap-001.yml - Bootstrap pipeline for Azure DevOps
+    - aws-pipeline-part-001.yml - Main infrastructure deployment for Azure DevOps
+
+### GitHub Actions Setup
+
+1. Create GitHub Secrets
+
+  Add the following secrets to your GitHub repository:
+  ```bash
+  AWS_ACCOUNT_ID           - Your AWS account ID
+  AWS_ACCESS_KEY_ID        - AWS IAM user access key
+  AWS_SECRET_ACCESS_KEY    - AWS IAM user secret key
+  AWS_REGION               - Target AWS region (e.g., eu-west-2)
+
+2. Create GitHub Environments
+    Create two environments in your GitHub repository:
+
+    bootstrap-aws-001 (for bootstrap workflow)
+    - No additional configuration needed
+
+    part-aws-001-deploy (for main infrastructure)
+    - Add required reviewers for manual approval
+    - Set deployment branches to: main, development
+
+3. Create GitHub Variables
+    Add the following repository or environment variables:
+
+    ```bash
+    OPENTOFU_VERSION         - OpenTofu version (e.g., 1.9.0)
+    TFSTATE_BUCKET_NAME      - S3 bucket name (e.g., dpn-tfstate-part-001)
+    TFSTATE_DYNAMODB_TABLE   - DynamoDB table name (e.g., dpn-tfstate-lock)
+    TFSTATE_KEY              - State file key (e.g., part/terraform.tfstate)
+    PROJECT_NAME             - Project name (e.g., dpn)
+    ENVIRONMENT              - Environment name (e.g., part)
+
+
 
 ### Step 1.0 Use the Bootstrap Pipeline
 
-Run the bootstrap pipeline first for a new environment, or whenever backend/state prerequisites are missing.
+Always run the bootstrap pipeline first for a new environment, or whenever backend/state prerequisites are missing.
 
 Bootstrap pipeline usage:
 
-- Use `azure-pipeline-bootstrap-*.yml` for the target environment.
-- Run it before the main `azure-pipelines-*.yml` deployment pipeline.
-- Use it to create or validate the backend storage account, tfstate container, private endpoint path, and required bootstrap RBAC.
+- Use `aws-pipeline-bootstrap-*.yml` pipeline if using Azure DevOps and `aws-pipeline-bootstrap-*.yml` workflow if using GitHub Actions for the target environment.
+- Use it to create or validate the backend S3 state bucket, DynamoDB state lock table, kms key, CloudTrail and CloudWatch Logs. 
+- Bootstrap is only required once per AWS environment.
 - If bootstrap resources already exist, the pipeline should complete through the bootstrap check/skip path.
 
 ### Step 1.1 Check Bootstrap State
 
-Verify backend storage account and private endpoint existence first.
+The pipeline automatically handles bootsrap deployment
 
-- If both exist, bootstrap is skipped.
-- If missing/incomplete, bootstrap deployment runs.
+- Check if bootstrap already exists ( S3 state bucket + DynamoDB state lock table ).
+- Skips deployment if resources are present.
+- Deploys bootstrap if resources are missing. 
 
-### Step 1.2 Deploy Bootstrap via Subscription-Scope Bicep
+### Step 1.2 State Management
 
-When bootstrap is required, use this pipeline task command with pipeline variables:
+- During the initial bootstrap, state is stored locally in bootstrap.tfstate file (chicken-and-egg problem). This ensures bootstrap can create the S3 state backend without circular dependencies.
 
+- After the initial bootstrap is deployed:
+    1. Verify S3 state bucket and DynamoDB lock table are created.
+    2. Uncomment the below s3 backend code block in backend-bootstrap-tf
+        ```
+        # terraform {
+        #   backend "s3" {
+        #     bucket         = "dpn-tfstate-bootstrap"
+        #     key            = "bootstrap/terraform.tfstate"
+        #     region         = "eu-west-2"
+        #     dynamodb_table = "dpn-tfstate-lock"
+        #     encrypt        = true
+        #   }
+        # }
+    3. Run terraform init to migrate
+      ```
+      cd infrastructure/Tofu/bootstrap
+      tofu init  # Select "yes" to migrate state
+    4. Verify state migration to S3
+      ```
+      tofu state list       
+
+- Migrating bootstrap state to S3 provides
+  - Centralized state management
+  - Automated backups via S3 versioning
+  - Remote backup
+  - Team collaboration
+  - Audit trail via CloudTrail
+
+### Step 1.3 Deploy Bootstrap from command line
+
+- Navigate to Bootstrap
 ```bash
-az deployment sub create \
-  --location "$(AZURE_LOCATION)" \
-  --template-file "$(TF_WORKING_DIR)/bootstrap/main.bicep" \
-  --parameters \
-    envConfig="$(ENVIRONMENT)" \
-    region="$(AZURE_LOCATION)" \
-    bootstrapResourceGroupName="$(BACKEND_RESOURCE_GROUP)" \
-    backendStorageAccountName="$(BACKEND_STORAGE_ACCOUNT)" \
-    infraResourceGroupName="$(VNET_RESOURCE_GROUP)" \
-    vnetName="$(VNET_NAME)" \
-    vnetResourceGroupName="$(VNET_RESOURCE_GROUP)" \
-    tfstateSubnetPrefix="$(TFSTATE_SUBNET_PREFIX)" \
-    privateDnsZoneId="/subscriptions/$(DNS_SUBSCRIPTION_ID)/resourceGroups/$(DNS_RESOURCE_GROUP)/providers/Microsoft.Network/privateDnsZones/$(DNS_ZONE_NAME)"
-```
+cd infrastructure/Tofu/bootstrap
+pwd  # Verify: .../infrastructure/Tofu/bootstrap
 
-### Step 1.4 Validate Backend Storage Redundancy
-
-Confirm the OpenTofu state storage account uses the bootstrap-configured redundancy.
-
+- Initialize Bootstrap
 ```bash
-az storage account show \
-  --name "$(BACKEND_STORAGE_ACCOUNT)" \
-  --resource-group "$(BACKEND_RESOURCE_GROUP)" \
-  --query "sku.name" -o tsv
-```
+# Initialize OpenTofu (uses local backend initially)
+tofu init
 
-Expected output:
+# Output should show:
+# Initializing the backend...
+# Terraform has been successfully configured!
 
-```text
-Standard_RAGRS
-```
+- Review Bootstrap Plan
+```bash
+  # Review what will be created
+  tofu plan -var-file=environments/part.tfvars
 
----
+  # Output shows:
+  #   aws_s3_bucket (state bucket)
+  #   aws_dynamodb_table (lock table)
+  #   aws_kms_key (encryption key)
+  #   aws_cloudtrail (audit logging)
+  #   ~15 resources total
+
+- Apply Bootstrap
+```bash
+  # Create S3 bucket, DynamoDB table, KMS key
+  tofu apply -var-file=environments/part.tfvars
+
+  # Type: yes to confirm
+
+  # Output shows:
+  #   Outputs:
+  #   state_bucket_name = "dpn-state-{account-id}"
+  #   lock_table_name = "dpn-lock-{account-id}"
+  #   backend_config = "..."
+
+- Save Bootstrap Outputs
+```bash
+  # Save outputs for next phase
+  tofu output -raw backend_config > backend_config.txt
+
+  # Display backend config
+  cat backend_config.txt
+  # Output:
+  #   bucket="dpn-state-..."
+  #   dynamodb_table="dpn-lock-..."
+  #   key="part"
+  #   region="eu-west-2"
+
+- (Optional) Bootstrap Validation
+```bash
+  # Verify S3 bucket was created
+  aws s3 ls | grep dpn-state
+
+  # Verify DynamoDB table was created
+  aws dynamodb list-tables | grep dpn-lock
+
+  # Verify KMS key was created
+  aws kms describe-key --key-id alias/dpn-state
+
 
 ## Phase 2: Initialize and Plan
 
