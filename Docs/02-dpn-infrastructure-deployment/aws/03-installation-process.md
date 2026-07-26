@@ -5,8 +5,16 @@ This section describes the end-to-end infrastructure installation process.
 ## Table of Contents
 
 - [Purpose](#purpose)
+- [GitHub Action Workflows](#github-action-workflows)
 - [Phase 0: Preflight (Required)](#phase-0-preflight-required)
-  - [Current ADO Pipeline Stage Sequence (Authoritative)](#current-ado-pipeline-stage-sequence-authoritative)
+- [GitHub Actions Workflow Stage Sequence](#github-actions-workflow-stage-sequence)
+  - [Step 0.1 GitHub Actions Setup](#github-actions-setup)
+    - [A. Create GitHub Deployment Variables](#create-github-deployment-variables)
+    - [B. Create GitHub Secrets](#create-github-secrets)
+    - [C. Create GitHub Environments](#create-github-environments)
+- [Azure DevOps Pipelines](#azure-devops-pipelines)
+- [Phase 0: Preflight](#phase-0-preflight-required-1)
+- [Current ADO Pipeline Stage Sequence](#current-ado-pipeline-stage-sequence-authoritative)
   - [Step 0.1 Set Deployment Variables](#step-01-set-deployment-variables)
     - [How to Create the Library Variable Group](#how-to-create-the-library-variable-group)
     - [A. AWS Account & Environment](#a-aws-account--environment)
@@ -54,16 +62,297 @@ This section describes the end-to-end infrastructure installation process.
 This document contains the deployment sequence for the DPN participant environment.
 
 This guide assumes a Bash-compatible shell (Linux/macOS terminal or WSL).
-It is written for Azure DevOps pipeline execution (not manual/local runs).
+It is written for GitHub actions Workflows and Azure DevOps pipeline execution (not manual/local runs).
 Replace all placeholder values before running commands.
 
 > ⚠️ **EXECUTION RULE FOR THIS DOCUMENT**
 >
-> - **Commands shown below are pipeline task commands executed by Azure DevOps agents.**
+> - **Commands shown below are pipeline task commands executed by GitHub runners or Azure DevOps agents.**
 > - **Do not run these commands manually unless a step explicitly says manual troubleshooting or marks the command as an optional operational example.**
 > - **Ensure variables/service connections are configured in pipeline/library settings before command execution.**
 
 ---
+
+## GitHub Action Workflows
+
+## Phase 0: Preflight (Required)
+
+Complete the following preflight steps before starting any deployment activity.
+
+### GitHub Actions workflow stage Sequence
+
+Use this stage sequence to understand the current GitHub Actions deployment workflow before triggering any workflow run.  
+
+1. **Bootstrap workflow** (`bootstrap-aws-*.yml`)
+  - `check-bootstrap`
+  - `deploy-bootstrap` (runs only when bootstrap resources are missing)
+
+2. **Main infrastructure pipeline** (`part-aws-*.yml`)
+  - `validate-bootstrap`
+  - `quality-checks`
+  - `plan`
+  - `apply`
+    - `OpenTofu Apply` (only when `-auto-approve` is used, otherwise manual approval is needed)
+    - `OpenTofu Destroy` (only when `-auto-approve` is used, otherwise manual approval is needed)
+
+### Step 0.1 GitHub Actions Setup
+
+#### A. Set GitHub Deployment Variables
+Add the following repository or environment variables:
+
+```bash
+OPENTOFU_VERSION         - OpenTofu version (e.g., 1.9.0)
+TFSTATE_BUCKET_NAME      - S3 bucket name (e.g., dpn-tfstate-part-001)
+TFSTATE_DYNAMODB_TABLE   - DynamoDB table name (e.g., dpn-tfstate-lock)
+TFSTATE_KEY              - State file key (e.g., part/terraform.tfstate)
+PROJECT_NAME             - Project name (e.g., dpn)
+ENVIRONMENT              - Environment name (e.g., part)
+```
+
+#### B. Create GitHub Secrets
+Add the following secrets to your GitHub repository:
+
+```bash
+AWS_ACCOUNT_ID           - Your AWS account ID
+AWS_ACCESS_KEY_ID        - AWS IAM user access key
+AWS_SECRET_ACCESS_KEY    - AWS IAM user secret key
+AWS_REGION               - Target AWS region (e.g., eu-west-2)
+Recommended: Use AWS IAM roles with OIDC instead of access keys for better security.
+```
+
+#### C. Create GitHub Environments
+Create two environments in your GitHub repository:
+
+bootstrap-aws-001 (for bootstrap workflow)
+  - No additional configuration needed
+
+part-aws-001-deploy (for main infrastructure)
+ - Add required reviewers for manual approval
+ - Set deployment branches to: main, development
+
+### Step 0.2 Authenticate and Select Account
+
+Authentication is provided by the AWS Credentials configured as GitHub Secrets
+Use this command to validate the AWS Identity and Account. 
+
+```bash
+aws sts get-caller-identity
+```
+
+### Step 0.3 Validate Tooling and Required Files
+
+Use the following task checks to verify tooling and required files are available.
+
+```bash
+aws --version
+tofu version
+
+cd $(TF_WORKING_DIR)
+test -f "environments/$(TFVARS_FILE)"
+```
+
+If the tfvars file check fails, create `environments/$(TFVARS_FILE)` before running the deployment pipeline.
+
+## Phase 1: Bootstrap Infrastructure
+This section contains CICD pipeline definitions for deploying AWS Bootstrap Infrastructure
+
+- GitHub Actions Workflow
+  Located in .github/workflows
+    - bootstrap-aws-001.yml - GitHub actions workflow for Bootstrap
+
+### Step 1.0 Use the Bootstrap Pipeline
+
+Always run the bootstrap pipeline first for a new environment, or whenever backend/state prerequisites are missing.
+
+Bootstrap pipeline usage:
+
+- Use `aws-pipeline-bootstrap-*.yml` workflow if using GitHub Actions for the target environment.
+- Use it to create or validate the backend S3 state bucket, DynamoDB state lock table, kms key, CloudTrail and CloudWatch Logs. 
+- Bootstrap is only required once per AWS environment.
+- If bootstrap resources already exist, the pipeline should complete through the bootstrap check/skip path.
+
+### Step 1.1 Check Bootstrap State
+
+The pipeline automatically handles bootsrap deployment
+
+- Check if bootstrap already exists ( S3 state bucket + DynamoDB state lock table ).
+- Skips deployment if resources are present.
+- Deploys bootstrap if resources are missing. 
+
+### Step 1.2 Running Bootstrap Workflow
+
+  Go to Actions → Bootstrap Infrastructure (bootstrap-aws-001)
+  Click Run workflow
+  Choose what_if: true for preview (default)
+    - This runs tofu plan from infrastructure/Tofu/bootstrap/
+  Re-run with what_if: false to actually deploy
+    - This runs tofu apply with environments/part.tfvars
+  Copy backend output from workflow logs
+  Update infrastructure/Tofu/backend.tf with the backend configuration
+
+### Step 1.3 State Management
+
+- During the initial bootstrap, state is stored locally in bootstrap.tfstate file (chicken-and-egg problem). This ensures bootstrap can create the S3 state backend without circular dependencies.
+
+- After the initial bootstrap is deployed:
+    1. Verify S3 state bucket and DynamoDB lock table are created.
+    2. Uncomment the below s3 backend code block in backend-bootstrap-tf
+        ```
+        # terraform {
+        #   backend "s3" {
+        #     bucket         = "dpn-tfstate-bootstrap"
+        #     key            = "bootstrap/terraform.tfstate"
+        #     region         = "eu-west-2"
+        #     dynamodb_table = "dpn-tfstate-lock"
+        #     encrypt        = true
+        #   }
+        # }
+    3. Run terraform init to migrate
+      ```
+      cd infrastructure/Tofu/bootstrap
+      tofu init  # Select "yes" to migrate state
+    4. Verify state migration to S3
+      ```
+      tofu state list       
+
+- Migrating bootstrap state to S3 provides
+  - Centralized state management
+  - Automated backups via S3 versioning
+  - Remote backup
+  - Team collaboration
+  - Audit trail via CloudTrail
+
+### Step 1.4 Deploy Bootstrap from command line
+
+- Navigate to Bootstrap
+```bash
+cd infrastructure/Tofu/bootstrap
+pwd  # Verify: .../infrastructure/Tofu/bootstrap
+
+- Initialize Bootstrap
+```bash
+# Initialize OpenTofu (uses local backend initially)
+tofu init
+
+# Output should show:
+# Initializing the backend...
+# Terraform has been successfully configured!
+
+- Review Bootstrap Plan
+```bash
+  # Review what will be created
+  tofu plan -var-file=environments/part.tfvars
+
+  # Output shows:
+  #   aws_s3_bucket (state bucket)
+  #   aws_dynamodb_table (lock table)
+  #   aws_kms_key (encryption key)
+  #   aws_cloudtrail (audit logging)
+  #   ~15 resources total
+
+- Apply Bootstrap
+```bash
+  # Create S3 bucket, DynamoDB table, KMS key
+  tofu apply -var-file=environments/part.tfvars
+
+  # Type: yes to confirm
+
+  # Output shows:
+  #   Outputs:
+  #   state_bucket_name = "dpn-state-{account-id}"
+  #   lock_table_name = "dpn-lock-{account-id}"
+  #   backend_config = "..."
+
+- Save Bootstrap Outputs
+```bash
+  # Save outputs for next phase
+  tofu output -raw backend_config > backend_config.txt
+
+  # Display backend config
+  cat backend_config.txt
+  # Output:
+  #   bucket="dpn-state-..."
+  #   dynamodb_table="dpn-lock-..."
+  #   key="part"
+  #   region="eu-west-2"
+
+- (Optional) Bootstrap Validation
+```bash
+  # Verify S3 bucket was created
+  aws s3 ls | grep dpn-state
+
+  # Verify DynamoDB table was created
+  aws dynamodb list-tables | grep dpn-lock
+
+  # Verify KMS key was created
+  aws kms describe-key --key-id alias/dpn-state
+
+## Phase 2: Initialize and Plan
+
+This phase is executed in the main infrastructure workflow.
+
+### Step 2.1 Prepare Environment tfvars
+
+Verify tfvars file existence in pipeline working directory.
+
+```bash
+cd $(TF_WORKING_DIR)
+test -f "environments/$(TFVARS_FILE)"
+```
+
+### Step 2.2 Initialize OpenTofu
+
+Use the following pipeline task command to initialize OpenTofu with the configured backend.
+
+```
+Get backend configuration from outputs:
+
+  tofu output backend_config_hcl
+Then copy the output and update infrastructure/Tofu/backend.tf.
+
+# Initialize with remote backend
+Create infrastructure/Tofu/backend.tf:
+
+Uncomment the S3 backend block in backend-bootstrap.tf
+
+terraform {
+  backend "s3" {
+    bucket         = "dpn-tfstate-part-001"
+    key            = "part/terraform.tfstate"
+    region         = "eu-west-2"
+    dynamodb_table = "dpn-tfstate-lock"
+    encrypt        = true
+  }
+}
+
+Run terraform init to migrate:
+  cd infrastructure/Tofu/bootstrap
+  tofu init  # Select "yes" to migrate state
+Verify migration:
+  tofu state list
+
+# Type: yes to confirm backend migration
+# Output: Successfully configured backend
+```
+
+### Step 2.3 Plan Infrastructure
+
+Main pipeline behavior is controlled by `action` parameter:
+
+- `plan` → runs OpenTofu plan and publishes plan artifact
+- `apply` → runs plan, optional manual approval, then apply
+- `destroy` → routed through destroy path/pipeline
+
+- Main Infrastructure:
+
+  Go to Actions → Infrastructure Deployment (part-aws-001)
+  Click Run workflow
+  Choose action: plan, apply, or destroy
+  For PRs: Automatically runs plan on changes to infrastructure/
+
+-----------------------
+
+## Azure DevOps Pipelines
 
 ## Phase 0: Preflight (Required)
 
@@ -71,7 +360,7 @@ Complete the following preflight steps before starting any deployment activity.
 
 ### Current ADO Pipeline Stage Sequence (Authoritative)
 
-Use this stage sequence to understand the current Azure DevOps deployment flow before triggering any pipeline run. GitHub Actions Workflows and Azure DevOps Pipelines are provided. 
+Use this stage sequence to understand the current Azure DevOps deployment flow before triggering any pipeline run.  
 
 1. **Bootstrap pipeline** (`aws-pipeline-bootstrap-*.yml`)
   - `CheckBootstrap`
@@ -82,9 +371,8 @@ Use this stage sequence to understand the current Azure DevOps deployment flow b
   - `QualityChecks`
   - `Plan`
   - `Deploy`
-    - `OpenTofuPlan`
-    - `ManualApproval` (only when `-auto-approve` is not used and approval required)
-    - `OpenTofuApply` (only when `-auto-approve` is used)
+    - `OpenTofuApply` (only when `-auto-approve` is used, otherwise manual approval is needed)
+    - `OpenTofuDestroy` (only when `-auto-approve` is used, otherwise manual approval is needed)
   - `Verification` (only after successful apply)
 
 ### Step 0.1 Set Deployment Variables
@@ -139,27 +427,15 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
   - Pattern: `dpn-tfstate-part-001`
 - `TFSTATE_KEY` — Name for the state file inside the `tfstate` S3 key. Must be unique per environment and never change across runs.
   - Pattern: `dpn.<env>.tfstate`
-- `TFSTATE_DYNAMODB_TABLE`
-
+- `TFSTATE_DYNAMODB_TABLE` — DynamoDB Lock table used for locking the state.
+  - Pattern: `dpn.tfstate.lock`
 ---
 
-#### D. VPC
+#### D. Virtual Private Cloud (VPC)
 
 > Obtain from the connectivity/networking team. These resources must exist before the bootstrap pipeline runs.
 
-- `VNET_RESOURCE_GROUP` — Resource group of the pre-existing VNet for this environment. Example: `<vnet-resource-group-name>`
-- `VNET_NAME` — Name of the pre-existing VNet. Example: `<vnet-name>`
-- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the OpenTofu state private endpoint subnet. Example: `<subnet-cidr>/28`
-
----
-
-#### E. Private DNS
-
-> Obtain from the DNS/networking team. `DNS_SUBSCRIPTION_ID` may differ from `ARM_SUBSCRIPTION_ID` when DNS is centrally managed in a separate subscription.
-
-- `DNS_SUBSCRIPTION_ID` — Subscription ID hosting the shared private DNS zone. Example: `<dns-subscription-id>`
-- `DNS_RESOURCE_GROUP` — Resource group containing the private DNS zone. Example: `<dns-resource-group-name>`
-- `DNS_ZONE_NAME` — Private DNS zone for Azure Blob Storage private endpoints. Fixed value across all environments: `privatelink.blob.core.windows.net`
+- `EXISTING_VPC_ID` — Id of the pre-existing VPC. Example: `<vpc-xxxxxxxxxxxxxx>`
 
 ---
 
@@ -169,7 +445,8 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 - `TF_WORKING_DIR` — Repo-relative path to the environment folder containing `main.tf` and `environments/`. Use the folder name at the repository root that matches the target environment. Example: `<repo-environment-folder-name>`
 - `TFVARS_FILE` — Exact `.tfvars` filename under `$(TF_WORKING_DIR)/environments/`. The file must exist before the pipeline runs. Example: `<env-name>.tfvars`
-- `TF_VERSION` — OpenTofu CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.8`
+- `OPENTOFU_VERSION` — OpenTofu CLI version pinned for all pipeline tasks. Do not change without regression testing. Recommended: `1.9.0`
+- `Environment.Name` — This is the environment value. Example  `part-001`
 
 ### Step 0.2 Authenticate and Select Account
 
@@ -196,52 +473,12 @@ If the tfvars file check fails, create `environments/$(TFVARS_FILE)` before runn
 
 ---
 
-## Phase 1: AWS Deployment Pipelines 
-This section contains CICD pipeline definitions for deploying AWS Infrastructure
+## Phase 1: Bootstrap Infrastructure
+This section contains CICD pipeline definitions for deploying AWS Bootstrap Infrastructure
 
-- GitHub Actions Workflows
-  Located in .github/workflows/
-    - bootstrap-aws-001.yml - Bootstrap pipeline for AWS S3/DynamoDB setup
-    - part-aws-001.yml - Main infrastructure deployment pipeline
-  
 - Azure DevOps Pipelines
   Located in .azure-pipelines
     - aws-pipeline-bootstrap-001.yml - Bootstrap pipeline for Azure DevOps
-    - aws-pipeline-part-001.yml - Main infrastructure deployment for Azure DevOps
-
-### GitHub Actions Setup
-
-1. Create GitHub Secrets
-
-  Add the following secrets to your GitHub repository:
-  ```bash
-  AWS_ACCOUNT_ID           - Your AWS account ID
-  AWS_ACCESS_KEY_ID        - AWS IAM user access key
-  AWS_SECRET_ACCESS_KEY    - AWS IAM user secret key
-  AWS_REGION               - Target AWS region (e.g., eu-west-2)
-
-2. Create GitHub Environments
-    Create two environments in your GitHub repository:
-
-    bootstrap-aws-001 (for bootstrap workflow)
-    - No additional configuration needed
-
-    part-aws-001-deploy (for main infrastructure)
-    - Add required reviewers for manual approval
-    - Set deployment branches to: main, development
-
-3. Create GitHub Variables
-    Add the following repository or environment variables:
-
-    ```bash
-    OPENTOFU_VERSION         - OpenTofu version (e.g., 1.9.0)
-    TFSTATE_BUCKET_NAME      - S3 bucket name (e.g., dpn-tfstate-part-001)
-    TFSTATE_DYNAMODB_TABLE   - DynamoDB table name (e.g., dpn-tfstate-lock)
-    TFSTATE_KEY              - State file key (e.g., part/terraform.tfstate)
-    PROJECT_NAME             - Project name (e.g., dpn)
-    ENVIRONMENT              - Environment name (e.g., part)
-
-
 
 ### Step 1.0 Use the Bootstrap Pipeline
 
@@ -377,19 +614,24 @@ test -f "environments/$(TFVARS_FILE)"
 
 Use the following pipeline task command to initialize OpenTofu with the configured backend.
 
-```bash
-tofu init \
-  -backend-config="resource_group_name=$(BACKEND_RESOURCE_GROUP)" \
-  -backend-config="storage_account_name=$(BACKEND_STORAGE_ACCOUNT)" \
-  -backend-config="container_name=tfstate" \
-  -backend-config="key=$(BACKEND_KEY)" \
-  -backend-config="use_azuread_auth=true"
 ```
+# Read bootstrap outputs
+cat bootstrap/backend_config.txt
 
-Expected Output:
+# Extract values (or copy from bootstrap output)
+# Example:
+export BUCKET="dpn-state-123456789012"
+export TABLE="dpn-lock-123456789012"
 
-```text
-OpenTofu has been successfully initialized!
+# Initialize with remote backend
+tofu init \
+  -backend-config="bucket=${BUCKET}" \
+  -backend-config="dynamodb_table=${TABLE}" \
+  -backend-config="key=part" \
+  -backend-config="region=eu-west-2"
+
+# Type: yes to confirm backend migration
+# Output: Successfully configured backend
 ```
 
 ### Step 2.3 Plan Infrastructure
@@ -432,15 +674,17 @@ az network nsg list -g "$(VNET_RESOURCE_GROUP)" --output table
 
 Use the following steps to deploy the shared security services.
 
-### Step 3.1 Validate Security and Monitoring Components
+### Step 3.1 Validate Security Module Components
 
-If your deployment completed successfully in Phase 2, verify key shared services are present and healthy.
+If your deployment completed successfully in Phase 2, verify key security services are present and healthy.
 
 Validation:
 
 ```bash
-az monitor log-analytics workspace show --resource-group "<log-analytics-resource-group>" --workspace-name "<log-analytics-workspace>" --output table
-az keyvault show --name "<keyvault-name>" --output table
+aws kms describe-key --key-id <your-key-id-or-arn-or-alias>
+aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_cluster_role" | awk -F'/' '{print $NF}')
+aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_node_role" | awk -F'/' '{print $NF}')
+
 ```
 
 ---
@@ -451,14 +695,17 @@ Use the following steps to deploy the compute platform components.
 
 ### Step 4.1 Validate Compute Components
 
-If ACR and AKS are part of your stack, validate cluster access and node readiness.
+If ECR and EKS are part of your stack, validate cluster access and node readiness.
 
 Validation:
 
 ```bash
-az aks get-credentials --resource-group "<aks-resource-group>" --name "<aks-name>"
+# Get kubeconfig
+aws eks update-kubeconfig --name dpn-part --region eu-west-2
+
+# Verify connection
+kubectl cluster-info
 kubectl get nodes
-kubectl get namespaces
 ```
 
 ### Step 4.2 VM Validation
@@ -466,8 +713,9 @@ kubectl get namespaces
 Validate provisioning and access posture for the management/jump VM.
 
 ```bash
-az vm list --query "[].{Name:name,RG:resourceGroup,Size:hardwareProfile.vmSize}" -o table
-az network nic list --query "[].{NIC:name,RG:resourceGroup,PrivateIP:ipConfigurations[0].privateIPAddress}" -o table
+aws ec2 describe-instances --instance-ids <management-host-id>
+aws ec2 describe-instances --instance-ids <management-host-id> --query "Reservations[*].Instances[*].<${var.project_name}-mgmt-host-${var.environment}>"
+
 ```
 
 ---
@@ -476,32 +724,32 @@ az network nic list --query "[].{NIC:name,RG:resourceGroup,PrivateIP:ipConfigura
 
 Use the following steps to deploy the required storage and file scanning messaging services.
 
-### Step 5.1 Deploy Storage Accounts
+### Step 5.1 Deploy S3 Buckets
 
-If storage components are defined in your stack, verify both accounts after full apply:
+If application s3 buckets are defined in your stack, verify after full apply:
 
-- state storage account (opentofu backend)
-- application storage account (workload data)
+- application s3 bucket (workload data)
 
 ```bash
-az storage account list --query "[].name" -o table
+BUCKET=<application_bucket_arn>
+echo "--- Region ---"
+aws s3api get-bucket-location --bucket $BUCKET --output text
+echo "--- Versioning ---"
+aws s3api get-bucket-versioning --bucket $BUCKET --query "Status" --output text 2>/dev/null || echo "Disabled"
+echo "--- Encryption ---"
+aws s3api get-bucket-encryption --bucket $BUCKET --query "ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm" --output text 2>/dev/null || echo "None"
 
-az storage account show \
-  --name "$(BACKEND_STORAGE_ACCOUNT)" \
-  --resource-group "$(BACKEND_RESOURCE_GROUP)" \
-  --query "sku.name" -o tsv
-
-az storage account show \
-  --name "<application-storage-account-name>" \
-  --resource-group "<app-storage-resource-group-name>" \
-  --query "sku.name" -o tsv
 ```
 
 Expected output examples:
 
 ```text
-Backend state storage: Standard_RAGRS
-Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organisation policy)
+--- Region ---
+us-east-2
+--- Versioning ---
+Enabled
+--- Encryption ---
+AES256
 ```
 
 ### Step 5.2 Deploy Azure File Share
@@ -530,66 +778,6 @@ az storage file list \
 ```
 
 Expected output: File share exists and is accessible through private endpoint.
-
-### Step 5.3 Validate Event Grid Topic (File Scanning Service)
-
-If the File Scanning Service is part of your stack, verify the Event Grid topic and its private endpoint after full apply.
-
-```bash
-az eventgrid topic show \
-  --name "<event-grid-topic-name>" \
-  --resource-group "<event-grid-resource-group>" \
-  --query "{name:name, endpoint:endpoint, publicNetworkAccess:publicNetworkAccess}" -o table
-
-az network private-endpoint list \
-  --resource-group "<event-grid-resource-group>" \
-  --query "[?contains(name, 'pe-')].name" -o table
-
-az role assignment list --scope "$(az eventgrid topic show --name "<event-grid-topic-name>" --resource-group "<event-grid-resource-group>" --query id -o tsv)" -o table
-```
-
-Expected output: topic exists, private endpoint is connected, and the expected `EventGrid Data Receiver` / `Data Sender` / `Contributor` role assignments are present.
-
-### Step 5.4 Validate Service Bus Namespace (File Scanning Service)
-
-If the File Scanning Service is part of your stack, verify the Service Bus namespace, queues, and private endpoint after full apply.
-
-```bash
-az servicebus namespace show \
-  --name "<service-bus-namespace-name>" \
-  --resource-group "<service-bus-resource-group>" \
-  --query "{name:name, sku:sku.name, status:status}" -o table
-
-az servicebus queue list \
-  --namespace-name "<service-bus-namespace-name>" \
-  --resource-group "<service-bus-resource-group>" \
-  --query "[].name" -o table
-
-az network private-endpoint list \
-  --resource-group "<service-bus-resource-group>" \
-  --query "[?contains(name, 'pe-')].name" -o table
-```
-
-Expected output: namespace is `Active`, SKU is `Premium`, and the private endpoint is connected.
-
-### Step 5.5 Validate File Scanning Storage Account
-
-If the File Scanning Service is part of your stack, verify the dedicated storage account and its private endpoint(s) after full apply.
-
-```bash
-az storage account show \
-  --name "<file-scanning-storage-account-name>" \
-  --resource-group "<file-scanning-storage-resource-group>" \
-  --query "{name:name, sku:sku.name, publicNetworkAccess:publicNetworkAccess}" -o table
-
-az network private-endpoint list \
-  --resource-group "<file-scanning-storage-resource-group>" \
-  --query "[?contains(name, 'pe-') || contains(name, '-blob-pe') || contains(name, '-file')].name" -o table
-
-az role assignment list --scope "$(az storage account show --name "<file-scanning-storage-account-name>" --resource-group "<file-scanning-storage-resource-group>" --query id -o tsv)" -o table
-```
-
-Expected output: storage account exists with public network access disabled, the blob private endpoint (and file endpoint if enabled) is connected, and the expected `Storage Blob Data Reader` / `Storage Blob Data Contributor` role assignments are present.
 
 ### Step 5.6 Validate Observability Logging Storage Account
 
@@ -693,10 +881,7 @@ az backup vault create \
 Example commands to capture the deployed resource inventory for operational handover.
 
 ```bash
-az resource list \
-  --resource-group "<infra-resource-group>" \
-  --output table > deployment-resources.txt
-
+aws resource-explorer-2 search --query-string "arn" --query "Resources[*].Arn" --output text
 tofu show -json | jq '.values.root_module.resources[] | {type, name}' > tofu-resources.json
 ```
 
@@ -711,19 +896,6 @@ OpenTofu outputs contain critical information needed for application deployment 
 ```bash
 # Retrieve OpenTofu outputs for application team
 tofu output -json > infrastructure-outputs.json
-
-# Extract key values
-AKS_CLUSTER=$(tofu output -raw aks_cluster_name)
-ACR_LOGIN_SERVER=$(tofu output -raw acr_login_server)
-KEYVAULT_URI=$(tofu output -raw keyvault_uri)
-
-# Set AKS resource group from your tfvars or outputs key naming
-AKS_RESOURCE_GROUP="<aks-resource-group-name>"
-
-# Verify connectivity to deployed resources
-az aks get-credentials --resource-group "$AKS_RESOURCE_GROUP" --name "$AKS_CLUSTER"
-kubectl get nodes -o wide
-kubectl get namespaces
 ```
 
 ### 10.6 Pipeline Execution and Connectivity Validation
@@ -731,13 +903,14 @@ kubectl get namespaces
 Validate that deployment connectivity works as expected:
 
 ```text
-Agent --> ADO Repo --> Pipeline --> Service Principal --> Azure
+Agent --> ADO Repo --> Pipeline --> Service Principal --> AWS
+Agent --> GitHub repo -> Workflow --> AWS Credentials --> AWS
 ```
 
 Checklist:
 
-- Self-hosted agent can access Azure DevOps and fetch repository.
-- Pipeline references the intended service connection.
+- Self-hosted agent can access Azure DevOps/GitHub repository and fetch repository.
+- Pipeline/workflow references the intended service connection
 - Service principal has required RBAC scope.
 - OpenTofu operations succeed without interactive login.
 
@@ -745,13 +918,12 @@ Checklist:
 
 Create a handoff document for the application deployment team with:
 
-- Deployed resource names (AKS cluster, ACR, Key Vault, Storage accounts)
+- Deployed resource names (EKS cluster, ECR, Keys, S3 Buckets)
 - Node pool configurations and capacity
 - Network topology and security group rules
-- RBAC assignments and service principal information
+- IAM roles and service principal information
 - Key Vault endpoint and secret naming conventions
-- File Scanning Service endpoints (Event Grid topic endpoint, Service Bus namespace, file scanning storage account) and associated RBAC assignments
-- Observability logging storage account name and associated RBAC assignments
+- Observability logging S3 Buckets and Cloudwatch log groups.
 
 
 **Next Steps:**
@@ -760,10 +932,10 @@ Transition to your application deployment guide or platform runbook.
 
 The application deployment guide references:
 
-- Azure DevOps pipeline setup for CI/CD
+- Azure DevOps pipeline/GitHub actions workflows setup for CI/CD
 - Self-hosted agent configuration for application builds
 - Container registry configuration for image storage
-- Helm chart customization for deployment to AKS
+- Helm chart customization for deployment to EKS
 
 ---
 
