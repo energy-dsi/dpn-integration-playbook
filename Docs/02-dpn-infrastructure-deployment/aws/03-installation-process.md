@@ -12,6 +12,18 @@ This section describes the end-to-end infrastructure installation process.
     - [A. Create GitHub Deployment Variables](#create-github-deployment-variables)
     - [B. Create GitHub Secrets](#create-github-secrets)
     - [C. Create GitHub Environments](#create-github-environments)
+  - [Step 0.2 Authenticate and Select Account](#step-02-authenticate-and-select-account)
+  - [Step 0.3 Validate Tooling and Required Files](#step-03-validate-tooling-and-required-files)
+- [Phase 1: Bootstrap Infrastructure GitHub](#phase-1-bootstrap-infrastructure-github)
+  - [Step 1.0 Use the Bootstrap Pipeline](#step-10-use-the-bootstrap-pipeline)
+  - [Step 1.1 Check Bootstrap State](#step-11-check-bootstrap-state)
+  - [Step 1.2 Running Bootstrap Workflow](#step-12-running-bootstrap-workflow)
+  - [Step 1.3 State Management](#step-13-state-management)
+  - [Step 1.4 Step 1.4 Deploy Bootstrap from command line](#step-14-deploy-bootstrap-from-command-line)
+- [Phase 2: Initialize and Plan](#phase-2-initialize-and-plan)
+  - [Step 2.1 Prepare Environment tfvars](#step-21-prepare-environment-tfvars)
+  - [Step 2.2 Initialize OpenTofu](#step-22-initialize-opentofu)
+  - [Step 2.3 Plan Infrastructure](#step-23-plan-infrastructure)
 - [Azure DevOps Pipelines](#azure-devops-pipelines)
 - [Phase 0: Preflight](#phase-0-preflight-required-1)
 - [Current ADO Pipeline Stage Sequence](#current-ado-pipeline-stage-sequence-authoritative)
@@ -153,7 +165,7 @@ test -f "environments/$(TFVARS_FILE)"
 
 If the tfvars file check fails, create `environments/$(TFVARS_FILE)` before running the deployment pipeline.
 
-## Phase 1: Bootstrap Infrastructure
+## Phase 1: Bootstrap Infrastructure (GitHub)
 This section contains CICD pipeline definitions for deploying AWS Bootstrap Infrastructure
 
 - GitHub Actions Workflow
@@ -237,6 +249,7 @@ tofu init
 # Output should show:
 # Initializing the backend...
 # Terraform has been successfully configured!
+```
 
 - Review Bootstrap Plan
 ```bash
@@ -249,6 +262,7 @@ tofu init
   #   aws_kms_key (encryption key)
   #   aws_cloudtrail (audit logging)
   #   ~15 resources total
+```
 
 - Apply Bootstrap
 ```bash
@@ -262,6 +276,7 @@ tofu init
   #   state_bucket_name = "dpn-state-{account-id}"
   #   lock_table_name = "dpn-lock-{account-id}"
   #   backend_config = "..."
+```
 
 - Save Bootstrap Outputs
 ```bash
@@ -275,6 +290,7 @@ tofu init
   #   dynamodb_table="dpn-lock-..."
   #   key="part"
   #   region="eu-west-2"
+```
 
 - (Optional) Bootstrap Validation
 ```bash
@@ -286,6 +302,9 @@ tofu init
 
   # Verify KMS key was created
   aws kms describe-key --key-id alias/dpn-state
+```
+
+---
 
 ## Phase 2: Initialize and Plan
 
@@ -660,19 +679,11 @@ Apply workflow behavior:
 - Runs `tofu apply -var-file=environments/$(TFVARS_FILE) -auto-approve`
 - Restores the CanNotDelete lock after apply (always)
 
-Validation:
-
-```bash
-az network vnet show -g "$(VNET_RESOURCE_GROUP)" -n "$(VNET_NAME)" --output table
-az network vnet subnet list -g "$(VNET_RESOURCE_GROUP)" --vnet-name "$(VNET_NAME)" --output table
-az network nsg list -g "$(VNET_RESOURCE_GROUP)" --output table
-```
-
 ---
 
-## Phase 3: Validate Core Services
+## Phase 3: Validate Services
 
-Use the following steps to deploy the shared security services.
+Use the following steps to verify the deployed services.
 
 ### Step 3.1 Validate Security Module Components
 
@@ -689,26 +700,33 @@ aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_node_rol
 
 ---
 
-## Phase 4: Compute Platform
+### Step 3.2 Validate Compute Components
 
-Use the following steps to deploy the compute platform components.
-
-### Step 4.1 Validate Compute Components
-
-If ECR and EKS are part of your stack, validate cluster access and node readiness.
+Validate cluster access and node readiness.
 
 Validation:
 
 ```bash
-# Get kubeconfig
-aws eks update-kubeconfig --name dpn-part --region eu-west-2
+# EKS Cluster
+kubectl get cluster-info
+kubectl get nodes -o wide
+kubectl get namespaces
 
-# Verify connection
-kubectl cluster-info
-kubectl get nodes
+# Database
+psql -h {database-endpoint} -U admin -d postgres -c "SELECT version();"
+
+# Container Registry
+aws ecr describe-repositories
+
+# Load Balancer
+aws elbv2 describe-load-balancers \
+  --names dpn-alb-part
+
+# WAF
+aws wafv2 list-web-acls --region eu-west-2
 ```
 
-### Step 4.2 VM Validation
+### Step 3.3 ManagementHost Validation
 
 Validate provisioning and access posture for the management/jump VM.
 
@@ -718,13 +736,7 @@ aws ec2 describe-instances --instance-ids <management-host-id> --query "Reservat
 
 ```
 
----
-
-## Phase 5: Storage & Messaging Services
-
-Use the following steps to deploy the required storage and file scanning messaging services.
-
-### Step 5.1 Deploy S3 Buckets
+### Step 3.4 S3 Buckets
 
 If application s3 buckets are defined in your stack, verify after full apply:
 
@@ -752,7 +764,7 @@ Enabled
 AES256
 ```
 
-### Step 5.2 Deploy Azure File Share
+### Step 3.5 Deploy Azure File Share
 
 If developer storage components are defined in your stack, verify the Azure Files share is created and accessible via private endpoint.
 
@@ -779,7 +791,7 @@ az storage file list \
 
 Expected output: File share exists and is accessible through private endpoint.
 
-### Step 5.6 Validate Observability Logging Storage Account
+### Step 3.6 Validate Observability Logging Storage Account
 
 If the observability logging storage account is part of your stack, verify it and its private endpoint(s) after full apply.
 
@@ -838,45 +850,56 @@ Use the following post-deployment steps to complete operational setup.
 These actions are not part of the current base infrastructure deployment pipeline.
 Use them only through a separate operations pipeline or controlled runbook if your organisation requires them.
 
-### 10.1 Configure Monitoring
+### 10.1 Configure Monitoring Alerts
 
-Example Azure CLI command to enable monitoring for the AKS cluster.
-
-```bash
-az aks enable-addons \
-  --resource-group "<aks-resource-group>" \
-  --name "<aks-name>" \
-  --addons monitoring \
-  --workspace-resource-id "/subscriptions/$(ARM_SUBSCRIPTION_ID)/resourceGroups/<log-analytics-resource-group>/providers/Microsoft.OperationalInsights/workspaces/<log-analytics-workspace>"
-```
-
-### 10.2 Configure Alerts
-
-Example Azure CLI command to create a baseline operational alert.
+Create required CloudWatch alerts for monitoring
 
 ```bash
-az monitor metrics alert create \
-  --name "AKS-High-CPU" \
-  --resource-group "<aks-resource-group>" \
-  --scopes "/subscriptions/$(ARM_SUBSCRIPTION_ID)/resourceGroups/<aks-resource-group>/providers/Microsoft.ContainerService/managedClusters/<aks-name>" \
-  --condition "avg Percentage CPU > 80" \
-  --window-size 5m \
-  --evaluation-frequency 1m \
-  --description "Alert when AKS CPU exceeds 80%"
+# Create CloudWatch alarm for high CPU
+aws cloudwatch put-metric-alarm \
+  --alarm-name dpn-high-cpu \
+  --metric-name CPUUtilization \
+  --namespace AWS/EC2 \
+  --statistic Average \
+  --period 300 \
+  --threshold 80 \
+  --comparison-operator GreaterThanThreshold
+
+# Create alarm for RDS connections
+aws cloudwatch put-metric-alarm \
+  --alarm-name dpn-db-connections \
+  --metric-name DatabaseConnections \
+  --namespace AWS/RDS \
+  --threshold 80
 ```
 
-### 10.3 Configure Backup
+### 10.2 Maintainance Operations
 
-Example Azure CLI command to provision the recovery services vault.
+Perform maintainance operations as required.
 
 ```bash
-az backup vault create \
-  --resource-group "<infra-resource-group>" \
-  --name "<recovery-services-vault-name>" \
-  --location "$(AZURE_LOCATION)"
+# Update EKS cluster version (monthly)
+aws eks update-cluster-version \
+  --name dpn-eks-part \
+  --kubernetes-version 1.34
+
+# Update node AMI (monthly)
+aws eks update-nodegroup-version \
+  --cluster-name dpn-eks-part \
+  --nodegroup-name system
+
+# Rotate RDS master password (quarterly)
+aws secretsmanager rotate-secret \
+  --secret-id dpn/part/rds/password
+
+# Review Security Hub findings (weekly)
+aws securityhub get-insights
+
+# Analyze costs (monthly)
+# AWS Cost Management Console
 ```
 
-### 10.4 Document Deployment
+### 10.3 Document Deployment
 
 Example commands to capture the deployed resource inventory for operational handover.
 
@@ -885,7 +908,7 @@ aws resource-explorer-2 search --query-string "arn" --query "Resources[*].Arn" -
 tofu show -json | jq '.values.root_module.resources[] | {type, name}' > tofu-resources.json
 ```
 
-### 10.5 Prepare for Application Deployment
+### 10.4 Prepare for Application Deployment
 
 After infrastructure deployment completes successfully, prepare handoff documentation for the application deployment team.
 
@@ -898,7 +921,7 @@ OpenTofu outputs contain critical information needed for application deployment 
 tofu output -json > infrastructure-outputs.json
 ```
 
-### 10.6 Pipeline Execution and Connectivity Validation
+### 10.5 Pipeline Execution and Connectivity Validation
 
 Validate that deployment connectivity works as expected:
 
@@ -911,7 +934,7 @@ Checklist:
 
 - Self-hosted agent can access Azure DevOps/GitHub repository and fetch repository.
 - Pipeline/workflow references the intended service connection
-- Service principal has required RBAC scope.
+- Service principal/IAM entity has required RBAC scope/permissions
 - OpenTofu operations succeed without interactive login.
 
 **Document Infrastructure Details:**
@@ -929,13 +952,6 @@ Create a handoff document for the application deployment team with:
 **Next Steps:**
 
 Transition to your application deployment guide or platform runbook.
-
-The application deployment guide references:
-
-- Azure DevOps pipeline/GitHub actions workflows setup for CI/CD
-- Self-hosted agent configuration for application builds
-- Container registry configuration for image storage
-- Helm chart customization for deployment to EKS
 
 ---
 
