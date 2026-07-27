@@ -211,7 +211,7 @@ aks_private_dns_zone_id = "<private-dns-zone-resource-id>"
 aks_admin_group         = ["<admin-group-object-id>"]
 
 # Node pool
-aks_vm_size                   = "Standard_D4s_v3"
+aks_vm_size                   = "Standard_D16lds_v6"
 aks_node_count                = 3
 aks_enable_auto_scaling       = true
 aks_min_count                 = 3
@@ -225,7 +225,7 @@ aks_node_soak_duration_in_minutes = 0
 # Workload node pool
 aks_enable_workload_node_pool                    = false
 aks_workload_node_pool_count                     = 3
-aks_workload_node_pool_vm_size                   = "Standard_D4s_v3"
+aks_workload_node_pool_vm_size                   = "Standard_D16lds_v6"
 aks_workload_node_pool_name                      = "workload"
 aks_workload_node_pool_taints                    = []
 aks_workload_node_pool_host_encryption_enabled   = true
