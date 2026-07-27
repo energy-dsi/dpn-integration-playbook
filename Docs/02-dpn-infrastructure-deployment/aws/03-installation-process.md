@@ -46,32 +46,25 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 2.1 Prepare Environment tfvars](#step-21-prepare-environment-tfvars)
   - [Step 2.2 Initialize OpenTofu](#step-22-initialize-opentofu)
   - [Step 2.3 Plan Infrastructure](#step-23-plan-infrastructure)
-- [Phase 3: Validate Core Services](#phase-3-validate-core-services)
-  - [Step 3.1 Validate Security and Monitoring Components](#step-31-validate-security-and-monitoring-components)
-- [Phase 4: Compute Platform](#phase-4-compute-platform)
-  - [Step 4.1 Validate Compute Components](#step-41-validate-compute-components)
-  - [Step 4.2 VM Validation](#step-42-vm-validation)
-- [Phase 5: Storage & Messaging Services](#phase-5-storage--messaging-services)
-  - [Step 5.1 Deploy Storage Accounts](#step-51-deploy-storage-accounts)
-  - [Step 5.2 Deploy Azure File Share](#step-52-deploy-azure-file-share)
-  - [Step 5.3 Validate Event Grid Topic (File Scanning Service)](#step-53-validate-event-grid-topic-file-scanning-service)
-  - [Step 5.4 Validate Service Bus Namespace (File Scanning Service)](#step-54-validate-service-bus-namespace-file-scanning-service)
-  - [Step 5.5 Validate File Scanning Storage Account](#step-55-validate-file-scanning-storage-account)
-  - [Step 5.6 Validate Observability Logging Storage Account](#step-56-validate-observability-logging-storage-account)
-- [Phase 6: Validation and Testing](#phase-6-validation-and-testing)
-  - [Step 6.1 Complete Remaining Deployments](#step-61-complete-remaining-deployments)
-  - [Step 6.2 Infrastructure Validation](#step-62-infrastructure-validation)
+- [Phase 3: Validate Services](#phase-3-validate-services)
+  - [Step 3.1 Validate Security Module Components](#step-31-validate-security-module-components)
+  - [Step 3.2 Validate Compute Components](#step-32-validate-compute-components)
+  - [Step 3.3 ManagementHost Validation](#step-33-managementhost-validation)
+  - [Step 3.4 S3 Buckets](#step-34-s3-buckets)
+  - [Step 3.5 EFS Validation](#step-35-efs-validation)
+  - [Step 3.6 Validate Observability Logging Storage Account](#step-36-validate-observability-logging-storage-account)
+  - [Step 3.7 Complete Remaining Deployments](#step-37-complete-remaining-deployments)
+  - [Step 3.8 Infrastructure Validation](#step-38-infrastructure-validation)
 - [Post-Deployment Configuration](#post-deployment-configuration)
-  - [10.1 Configure Monitoring](#101-configure-monitoring)
-  - [10.2 Configure Alerts](#102-configure-alerts)
-  - [10.3 Configure Backup](#103-configure-backup)
-  - [10.4 Document Deployment](#104-document-deployment)
-  - [10.5 Prepare for Application Deployment](#105-prepare-for-application-deployment)
-  - [10.6 Pipeline Execution and Connectivity Validation](#106-pipeline-execution-and-connectivity-validation)
+  - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
+  - [10.2 Maintainance Operations](#102-maintainance-operations)
+  - [10.3 Document Deployment](#103-document-deployment)
+  - [10.4 Prepare for Application Deployment](#104-prepare-for-application-deployment)
+  - [10.5 Pipeline Execution and Connectivity Validation](#105-pipeline-execution-and-connectivity-validation)
 
 ## Purpose
 
-This document contains the deployment sequence for the DPN participant environment.
+This document contains the deployment sequence for the DPN participant AWS environment.
 
 This guide assumes a Bash-compatible shell (Linux/macOS terminal or WSL).
 It is written for GitHub actions Workflows and Azure DevOps pipeline execution (not manual/local runs).
@@ -812,11 +805,7 @@ Expected output: storage account exists with public network access disabled, the
 
 ---
 
-## Phase 6: Validation and Testing
-
-Use the following steps to validate the completed infrastructure deployment.
-
-### Step 6.1 Complete Remaining Deployments
+### Step 3.7 Complete Remaining Deployments
 
 Use the following pipeline task commands to apply any remaining unmanaged OpenTofu changes.
 
@@ -827,7 +816,7 @@ tofu apply tfplan-complete
 
 Expected result: no changes (or only intentional drift remediation).
 
-### Step 6.2 Infrastructure Validation
+### Step 3.8 Infrastructure Validation
 
 Use the following pipeline validation task commands to confirm the deployed services are healthy.
 
