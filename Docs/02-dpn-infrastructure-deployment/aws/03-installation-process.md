@@ -75,6 +75,7 @@ Replace all placeholder values before running commands.
 > - **Commands shown below are pipeline task commands executed by GitHub runners or Azure DevOps agents.**
 > - **Do not run these commands manually unless a step explicitly says manual troubleshooting or marks the command as an optional operational example.**
 > - **Ensure variables/service connections are configured in pipeline/library settings before command execution.**
+> - **Phase 0, 1 and 2 are depicted separately for GitHub action workflows and Aure DevOps based on what the customer is using.**
 
 ---
 
@@ -125,8 +126,8 @@ AWS_REGION               - Target AWS region (e.g., eu-west-2)
 Recommended: Use AWS IAM roles with OIDC instead of access keys for better security.
 ```
 
-#### C. Create GitHub Environments
-Create two environments in your GitHub repository:
+#### C. GitHub Environments
+Two GitHub action workflows are used to deploy the environment:
 
 bootstrap-aws-001 (for bootstrap workflow)
   - No additional configuration needed
@@ -167,11 +168,11 @@ This section contains CICD pipeline definitions for deploying AWS Bootstrap Infr
 
 ### Step 1.0 Use the Bootstrap Pipeline
 
-Always run the bootstrap pipeline first for a new environment, or whenever backend/state prerequisites are missing.
+Always run the bootstrap pipeline first for a new environment, or whenever backend/state pre-requisites are missing.
 
 Bootstrap pipeline usage:
 
-- Use `aws-pipeline-bootstrap-*.yml` workflow if using GitHub Actions for the target environment.
+- Use `bootstrap-aws-*.yml` workflow to bootstrap the target environment.
 - Use it to create or validate the backend S3 state bucket, DynamoDB state lock table, kms key, CloudTrail and CloudWatch Logs. 
 - Bootstrap is only required once per AWS environment.
 - If bootstrap resources already exist, the pipeline should complete through the bootstrap check/skip path.
@@ -186,18 +187,18 @@ The pipeline automatically handles bootsrap deployment
 
 ### Step 1.2 Running Bootstrap Workflow
 
-  Go to Actions → Bootstrap Infrastructure (bootstrap-aws-001)
-  Click Run workflow
-  Choose what_if: true for preview (default)
+  Go to `Actions` → Bootstrap Infrastructure (bootstrap-aws-001)
+  Click `Run workflow`
+  Choose `what_if`: true for preview (default)
     - This runs tofu plan from infrastructure/Tofu/bootstrap/
-  Re-run with what_if: false to actually deploy
+  Re-run with `what_if`: false to actually deploy
     - This runs tofu apply with environments/part.tfvars
   Copy backend output from workflow logs
   Update infrastructure/Tofu/backend.tf with the backend configuration
 
 ### Step 1.3 State Management
 
-- During the initial bootstrap, state is stored locally in bootstrap.tfstate file (chicken-and-egg problem). This ensures bootstrap can create the S3 state backend without circular dependencies.
+- During the initial bootstrap, state is stored locally in bootstrap.tfstate file. This ensures bootstrap can create the S3 state backend without circular dependencies.
 
 - After the initial bootstrap is deployed:
     1. Verify S3 state bucket and DynamoDB lock table are created.
@@ -357,12 +358,12 @@ Main pipeline behavior is controlled by `action` parameter:
 
 - Main Infrastructure:
 
-  Go to Actions → Infrastructure Deployment (part-aws-001)
-  Click Run workflow
-  Choose action: plan, apply, or destroy
+  Go to `Actions` → Infrastructure Deployment (part-aws-001)
+  Click `Run workflow`
+  Choose `action`: plan, apply, or destroy
   For PRs: Automatically runs plan on changes to infrastructure/
 
------------------------
+---
 
 ## Azure DevOps Pipelines
 
@@ -490,7 +491,7 @@ This section contains CICD pipeline definitions for deploying AWS Bootstrap Infr
 
 - Azure DevOps Pipelines
   Located in .azure-pipelines
-    - aws-pipeline-bootstrap-001.yml - Bootstrap pipeline for Azure DevOps
+    - `aws-pipeline-bootstrap-001.yml` - Bootstrap pipeline for Azure DevOps
 
 ### Step 1.0 Use the Bootstrap Pipeline
 
@@ -513,7 +514,7 @@ The pipeline automatically handles bootsrap deployment
 
 ### Step 1.2 State Management
 
-- During the initial bootstrap, state is stored locally in bootstrap.tfstate file (chicken-and-egg problem). This ensures bootstrap can create the S3 state backend without circular dependencies.
+- During the initial bootstrap, state is stored locally in bootstrap.tfstate file. This ensures bootstrap can create the S3 state backend without circular dependencies.
 
 - After the initial bootstrap is deployed:
     1. Verify S3 state bucket and DynamoDB lock table are created.
@@ -607,6 +608,7 @@ tofu init
 
   # Verify KMS key was created
   aws kms describe-key --key-id alias/dpn-state
+```
 
 
 ## Phase 2: Initialize and Plan
@@ -653,24 +655,6 @@ Main pipeline behavior is controlled by `action` parameter:
 - `plan` → runs OpenTofu plan and publishes plan artifact
 - `apply` → runs plan, optional manual approval, then apply
 - `destroy` → routed through destroy path/pipeline
-
-Plan command in pipeline:
-
-```bash
-tofu plan \
-  -var-file=environments/$(TFVARS_FILE) \
-  -out=tfplan \
-  -parallelism=4
-```
-
-Optional (advanced): If troubleshooting, you can target a specific module with
-`-target=module.<module_name>` only after you confirm the module name in your root `main.tf`.
-
-Apply workflow behavior:
-
-- Temporarily removes CanNotDelete lock on `$(VNET_RESOURCE_GROUP)`
-- Runs `tofu apply -var-file=environments/$(TFVARS_FILE) -auto-approve`
-- Restores the CanNotDelete lock after apply (always)
 
 ---
 
