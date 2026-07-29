@@ -5,35 +5,31 @@ This section describes the end-to-end infrastructure installation process.
 ## Table of Contents
 
 - [Purpose](#purpose)
-- [Authentication](#authentication)
 - [Phase 0: Preflight (Required)](#phase-0-preflight-required)
   - [Step 0.1 AWS Account and Environment](#step-01-aws-account-and-environment)
   - [Step 0.2 Authenticate and Select Account](#step-02-authenticate-and-select-account)  
   - [Step 0.3 Validate Tooling and Required Files](#step-03-validate-tooling-and-required-files)
 - [Phase 1: Bootstrap Infrastructure](#phase-1-bootstrap-infrastructure)
-  - [Step 1.0 Check Bootstrap State](#step-10-check-bootstrap-state)
-  - [Step 1.1 State Management](#step-11-state-management)
-  - [Step 1.2 Deploy Bootstrap](#step-12-deploy-bootstrap)
+  - [Step 1.0 Check Bootstrap State](#step-10-check-bootstrap-state)  
+  - [Step 1.1 Deploy Bootstrap](#step-11-deploy-bootstrap)
+  - [Step 1.2 State Management](#step-12-state-management)
 - [Phase 2: Infrastructure Deployment](#phase-2-infrastructure-deployment)
   - [Step 2.1 Prepare Environment tfvars](#step-21-prepare-environment-tfvars)
   - [Step 2.2 Initialize OpenTofu](#step-22-initialize-opentofu)
   - [Step 2.3 Deploy Infrastructure](#step-23-deploy-infrastructure)
-  - [Step 2.4 Deploy Infrastructure (Manual Deployment)](#step-24-deploy-infrastructure-manual-deployment)
-- [Phase 3: Validate Services](#phase-3-validate-services)
-  - [Step 3.1 Validate Security Module Components](#step-31-validate-security-module-components)
+  - [Step 2.4 Manual Deployment](#step-24-manual-deployment)
+- [Phase 3: Infrastructure Validation](#phase-3-infrastructure-validation)  
+  - [Step 3.1 Management Host](#step-31-management-host)
   - [Step 3.2 Validate Compute Components](#step-32-validate-compute-components)
-  - [Step 3.3 ManagementHost Validation](#step-33-managementhost-validation)
-  - [Step 3.4 S3 Buckets](#step-34-s3-buckets)
-  - [Step 3.5 EFS Validation](#step-35-efs-validation)
-  - [Step 3.6 Validate Observability Logging Storage Account](#step-36-validate-observability-logging-storage-account)
-  - [Step 3.7 Complete Remaining Deployments](#step-37-complete-remaining-deployments)
-  - [Step 3.8 Infrastructure Validation](#step-38-infrastructure-validation)
+  - [Step 3.3 S3 Buckets](#step-33-s3-buckets)
+  - [Step 3.4 Validate Security Module Components](#step-34-validate-security-module-components)
+  - [Step 3.5 AWS EFS Details](#step-35-aws-efs-details)
+  - [Step 3.6 Observability Logging resources](#step-36-observability-logging-resources)
 - [Post-Deployment Configuration](#post-deployment-configuration)
   - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
   - [10.2 Maintainance Operations](#102-maintainance-operations)
   - [10.3 Document Deployment](#103-document-deployment)
   - [10.4 Prepare for Application Deployment](#104-prepare-for-application-deployment)
-  - [10.5 Pipeline Execution and Connectivity Validation](#105-pipeline-execution-and-connectivity-validation)
 
 ## Purpose
 
@@ -255,7 +251,7 @@ Then copy the output and update infrastructure/Tofu/backend.tf.
 Create infrastructure/Tofu/backend.tf:
 
 Uncomment the S3 backend block in backend-bootstrap.tf and update it with correct values
-
+```bash
 terraform {
   backend "s3" {
     bucket         = "dpn-tfstate-part-001"
@@ -265,18 +261,23 @@ terraform {
     encrypt        = true
   }
 }
+```
 
 Run terraform init to migrate:
+```bash
   cd infrastructure/Tofu/bootstrap
   tofu init
 
-# Type: yes to confirm backend migration
-# Output: Successfully configured backend
+  Type: yes to confirm backend migration
+  Output: Successfully configured backend
+```
 
 Verify migration:
+```bash
   tofu state list
-
 ```
+
+---
 
 ### Step 2.3 Deploy Infrastructure
 
@@ -335,7 +336,7 @@ The deployment script automatically:
 - stores the execution plan in an environment-specific .tfplan file
 - prevents accidental deployment to the wrong AWS account
 
-### Step 2.4 Deploy Infrastructure (Manual Deployment)
+### Step 2.4 Manual Deployment
 
 For troubleshooting or advanced scenarios, deployments can also be performed manually.
 
@@ -433,19 +434,7 @@ aws wafv2 list-web-acls --region eu-west-2
 ```
 ---
 
-### Step 3.3 ManagementHost Validation
-
-Validate provisioning and access posture for the management/jump VM.
-
-```bash
-aws ec2 describe-instances --instance-ids <management-host-id>
-aws ec2 describe-instances --instance-ids <management-host-id> --query "Reservations[*].Instances[*].<${var.project_name}-mgmt-host-${var.environment}>"
-
-```
-
----
-
-### Step 3.4 S3 Buckets
+### Step 3.3 S3 Buckets
 
 If application s3 buckets are defined in your stack, verify after full apply:
 
@@ -474,7 +463,7 @@ AES256
 ```
 ---
 
-### Step 3.5 Validate Security Module Components
+### Step 3.4 Validate Security Module Components
 
 If your deployment completed successfully in Phase 2, verify key security services are present and healthy.
 
@@ -486,6 +475,54 @@ aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_cluster_
 aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_node_role" | awk -F'/' '{print $NF}')
 ```
 ---
+
+### Step 3.5 AWS EFS Details
+
+This deployment uses AWS EFS storage for application storage, with the file share secured through a private endpoint.
+
+### What is created
+
+- AWS EFS
+
+### Key configuration values
+
+The following variables are used in the deployment:
+
+- `enable_efs_csi_driver` – The Amazon EFS Container Storage Interface (CSI) driver allows Kubernetes clusters running on AWS to mount Amazon EFS file systems as persistent volumes.
+
+### Why this matters
+
+- Ensures developer storage is provided as a managed EFS file system
+- Keeps the EFS traffic private inside the VPC
+- Supports secure access to developer storage without exposing the file share over the public internet
+
+---
+
+### Step 3.6. Observability Logging resources 
+
+This deployment includes Cloudwatch log groups and dedicated S3 buckets for observability logging, used to centralize log and diagnostic export separately from application and file scanning storage.
+
+### What is created
+
+- New S3 buckets for alb_logs, firewall_logs and ssm_logs used to store exported logs/diagnostics
+- New CloudWatch log groups created for waf, ssm_sessions, eks_control_plane, firewall_alert, firewall_flowlog and vpc_flow_logs.
+- A private endpoint to access the s3 service privately from VPC.
+
+### Key configuration values
+
+The following variables are used in the deployment:
+
+- `create_log_s3_buckets` – new storage account identity
+- `kms_key_arn` – key used for encryption
+- `log_retention_in_days` – number of days logs should be stored
+- `environment` – dev or test or preprod or prod etc.
+- `project_name` - Project Name
+
+### Deployment behavior
+
+- The Observability S3 buckets are deployed isolated from the core application and file scanning subnets (the reference dev environment reuses the file scanning storage subnet — confirm whether your environment should instead provision a dedicated subnet). The S3 log buckets are accessed through private endpoints, provided the s3 endpoints are in place, isolated from the core application and file scanning subnets 
+- RBAC role assignments follow least-privilege data-plane roles (Reader, Contributor) rather than granting broad control-plane access.
+
 
 ## Post-Deployment Configuration
 

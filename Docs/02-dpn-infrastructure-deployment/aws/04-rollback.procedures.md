@@ -11,10 +11,9 @@ This section explains how to roll back failed or partial infrastructure deployme
 - [4. Commit-Based Rollback (Recommended for Bad IaC Changes)](#4-commit-based-rollback-recommended-for-bad-iac-changes)
 - [5. Common Issues](#5-common-issues)
   - [Issue: OpenTofu State Lock](#issue-opentofu-state-lock)
-  - [Issue: AKS Deployment Fails](#issue-aks-deployment-fails)
-  - [Issue: Private Endpoint DNS Not Resolving](#issue-private-endpoint-dns-not-resolving)
-  - [Issue: Workload Identity Not Working](#issue-workload-identity-not-working)
-  - [Issue: VM Provisioned but Not Reachable](#issue-vm-provisioned-but-not-reachable)
+  - [Issue: EKS Deployment Fails](#issue-eks-deployment-fails)
+  - [Issue: S3 Bucket Already Exists](#issue-s3-bucket-already-exists)
+  - [Issue: Nodes Not Joining Cluster](#issue-nodes-not-joining-cluster)
   - [Issue: Pipeline Fails with Authorization Errors](#issue-pipeline-fails-with-authorization-errors)
   - [Issue: File Scanning Service Component Fails to Provision](#issue-file-scanning-service-component-fails-to-provision)
   - [Issue: Observability Logging Storage Account Fails to Provision](#issue-observability-logging-storage-account-fails-to-provision)
@@ -37,6 +36,8 @@ Use the following principles to guide safe and controlled rollback decisions.
 - Capture current state and plan output before remediation.
 - Use maintenance windows for production rollback.
 
+---
+
 ## 2. Immediate Safety Actions
 
 Take the following immediate actions as soon as a deployment issue is detected.
@@ -46,9 +47,9 @@ Take the following immediate actions as soon as a deployment issue is detected.
 - Save current `tofu plan` output for audit trail.
 
 ```bash
-cd infrastructure/opentofu
+cd infrastructure/Tofu
 tofu state pull > opentofu.tfstate.rollback.backup
-tofu plan -var-file="environments/my-deployment.tfvars" -out=tfplan-investigation
+tofu plan -var-file="environments/<env>.tfvars" -out=tfplan-investigation
 ```
 
 ## 3. Module-Level Rollback
@@ -59,7 +60,7 @@ If a specific module introduces invalid resources, perform a targeted destroy fo
 
 ```bash
 tofu plan \
-  -var-file="environments/my-deployment.tfvars" \
+  -var-file="environments/<env>.tfvars" \
   -destroy \
   -target=module.<module_name> \
   -out=tfplan-rollback-module
@@ -70,7 +71,7 @@ tofu apply tfplan-rollback-module
 Re-apply with corrected parameters:
 
 ```bash
-tofu plan -var-file="environments/my-deployment.tfvars" -target=module.<module_name> -out=tfplan-redeploy-module
+tofu plan -var-file="environments/<env>.tfvars" -target=module.<module_name> -out=tfplan-redeploy-module
 tofu apply tfplan-redeploy-module
 ```
 
@@ -101,6 +102,8 @@ Important:
 - To roll back infrastructure behavior, the desired state in Git must first be rolled back.
 - Always review the rollback `plan` output before `apply`.
 
+---
+
 ## 5. Common Issues
 
 Review the following common issues and their suggested remediation steps.
@@ -119,9 +122,9 @@ Use the following commands if OpenTofu reports a locked state file.
 tofu force-unlock <LOCK-ID>
 ```
 
-### Issue: AKS Deployment Fails
+### Issue: EKS Deployment Fails
 
-Use the following checks when AKS deployment fails because of quota or timeout issues.
+Use the following checks when EKS deployment fails because of quota or timeout issues.
 
 Symptom: `InsufficientQuota` or timeout errors
 
@@ -137,25 +140,12 @@ Mitigation:
 - Request quota increase.
 - Temporarily reduce node count / VM SKU.
 
-### Issue: Private Endpoint DNS Not Resolving
-
-Use the following commands to troubleshoot private endpoint DNS resolution.
-
-```bash
-aws route53 get-hosted-zone \
-  --id <HOSTED_ZONE_ID> \
-  --query "VPCs"
-
-kubectl run -it --rm debug --image=curlimages/curl --restart=Never -- \
-  nslookup kv-dpn-<env>-<instance>.vault.azure.net
-```
-
 ### Issue: S3 Bucket Already Exists
 
 If you get an error that the bucket name is taken:
 
 Error: Error creating S3 bucket: BucketAlreadyOwnedByYou
-1. Update tfstate_bucket_name in environments/part.tfvars
+1. Update tfstate_bucket_name in environments/<env>.tfvars
 2. Use a globally unique name (S3 bucket names must be globally unique)
 
 
@@ -175,16 +165,6 @@ aws ssm start-session --target {instance-id}
 tail -f /var/log/cloud-init-output.log
 ```
 
-### Issue: API Endpoint Not Accessible
-
-```bash
-# Verify endpoint is accessible
-kubectl cluster-info
-
-# Check security group rules
-aws ec2 describe-security-groups --group-ids sg-xxxxx
-```
-
 ## 6. Full Environment Rollback (Last Resort)
 
 Use the following steps only when targeted rollback is not sufficient.
@@ -192,7 +172,7 @@ Use the following steps only when targeted rollback is not sufficient.
 Use only when module rollback is not sufficient.
 
 ```bash
-tofu plan -destroy -var-file="environments/my-deployment.tfvars" -out=tfplan-destroy-all
+tofu plan -destroy -var-file="environments/<env>.tfvars" -out=tfplan-destroy-all
 tofu apply tfplan-destroy-all
 ```
 
@@ -206,7 +186,7 @@ Perform the following checks to confirm the environment is stable after rollback
 
 ```bash
 aws resource-explorer-2 search --query-string "arn" --query "Resources[*].Arn" --output text
-tofu plan -var-file="environments/my-deployment.tfvars"
+tofu plan -var-file="environments/<env>.tfvars"
 ```
 
 ## 8. Rollback Checklist

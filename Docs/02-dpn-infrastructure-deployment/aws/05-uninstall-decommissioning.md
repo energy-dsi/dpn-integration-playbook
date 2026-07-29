@@ -10,10 +10,9 @@ This section explains how to uninstall and decommission the deployed infrastruct
 - [3. Review Destroy Plan](#3-review-destroy-plan)
 - [4. Destroy Managed Infrastructure](#4-destroy-managed-infrastructure)
 - [5. Verify Cleanup](#5-verify-cleanup)
-- [6. Manual Cleanup (If Needed)](#6-manual-cleanup-if-needed)
-- [7. Restore Previous State (If Required)](#7-restore-previous-state-if-required)
-- [8. Decommissioning Checklist](#8-decommissioning-checklist)
-- [9. References](#9-references)
+- [6. Restore Previous State (If Required)](#6-restore-previous-state-if-required)
+- [7. Decommissioning Checklist](#7-decommissioning-checklist)
+- [8. References](#8-references)
 
 ## Purpose
 
@@ -79,38 +78,13 @@ aws efs describe-file-systems \
   --query "FileSystems[?Name=='<efs-name>'].FileSystemId" \
   --output table
 
-# Confirm storage account is removed (if not retained)
+# Confirm all specific S3 buckets are removed (if not retained) including observability S3 buckets.
 aws s3 ls s3://<bucket-name>
 ```
 
-Verify Observability Logging Storage Account cleanup:
+perform manual cleanup if needed. 
 
-```bash
-# Confirm observability logging storage account and its private endpoints are removed
-az storage account list --query "[?name=='<observability-logging-storage-account-name>']"
-az network private-endpoint list --resource-group <observability-logging-storage-resource-group>
-```
-
-## 6. Manual Cleanup (If Needed)
-
-Use the following steps to remove any remaining resources not handled automatically.
-
-If resources were created outside OpenTofu or are retained by policies:
-
-- Resource group deletion:
-   ```bash
-   az group delete --name <resource-group-name>
-   ```
-- Backend storage account deletion:
-   ```bash
-   az storage account delete --name <storage-account-name> --resource-group <rg-name>
-   ```
-- Key Vault deletion:
-   ```bash
-   az keyvault delete --name <keyvault-name>
-   ```
-
-## 7. Restore Previous State (If Required)
+## 6. Restore Previous State (If Required)
 
 Run the following command only if the previous OpenTofu state must be restored.
 
@@ -118,23 +92,22 @@ Run the following command only if the previous OpenTofu state must be restored.
 tofu state push opentofu.tfstate.backup
 ```
 
-## 8. Decommissioning Checklist
+## 7. Decommissioning Checklist
 
 Use the following checklist to verify the decommissioning process is fully complete.
 
 - Resources reviewed and approved for removal
 - OpenTofu state backup captured
 - `tofu destroy` completed successfully
-- Azure resource groups verified as removed
 - Backend and residual manual resources removed
 - Access roles, service principals, and secrets rotated or retired
 - Internal documentation and CMDB/asset records updated
 
-## 9. References
+## 8. References
 
 Refer to the following documentation for detailed product guidance.
 
 - [OpenTofu Destroy Documentation](https://opentofu.org/docs/cli/commands/destroy/)
-- [Azure CLI Documentation](https://learn.microsoft.com/en-us/cli/azure/)
+- [AWS CLI Documentation](//https://docs.aws.amazon.com/cli/)
 
 Deployment Complete! 🎉
