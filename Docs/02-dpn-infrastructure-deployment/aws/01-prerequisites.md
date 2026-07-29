@@ -44,27 +44,35 @@ This document lists the prerequisites and pre-deployment checks for DPN particip
 
 You will deploy the DPN reference architecture in phases to reduce deployment risk and simplify validation.
 
+Infrastructure as Code (IaC) repository for the DPN platform running on AWS.
+
+The platform is implemented using OpenTofu and provides a repeatable, secure deployment of Kubernetes infrastructure across multiple AWS accounts. All environments are deployed using the same codebase and follow a consistent architecture and security baseline.
+
 ### What You'll Deploy
 
 The following core infrastructure components are included in this deployment scope.
 
-- Virtual Private Network (VPC) with segmented subnets
-- Elastic Kubernetes Service (EKS) Clusters
-- Elastic Container Registry (ECR)
-- Private worker nodes (optional)
-- Management Host
+- Amazon VPC networking
+- Public, private and Transit Gateway subnets
+- Amazon EKS clusters
+- Private worker nodes
+- Management host
 - AWS Load Balancer Controller
-- NLB support with static public IPs
-- S3 buckets for tf state storage and application use
-- IAM roles and IRSA for kubernetes workloads
-- Secrets Manager secrets
-- GuardDuty findings integration
-- GuardDuty Malware protection for S3
-- EventBridge and SNS Notifications
-- VPC Flowlogs
-- CloudWatch Log Groups
-- Dev and Test backend state configuration
-- Observability Logging S3 buckets (dedicated S3 buckets for centralized log/diagnostic export)
+- Network Load Balancer (NLB) support with static public IPs
+- Amazon ECR repositories
+- Amazon S3 buckets
+- AWS IAM roles and IRSA for Kubernetes workloads
+- AWS Secrets Manager integration
+- Amazon CloudTrail with KMS encryption
+- AWS Config
+- Amazon GuardDuty
+- AWS Security Hub
+- GuardDuty Malware Protection for S3
+- Amazon EventBridge
+- Amazon SNS notifications
+- Amazon CloudWatch log groups
+- VPC Flow Logs
+- Bootstrap infrastructure for remote OpenTofu state
 
 
 ### Deployment Architecture
@@ -110,7 +118,6 @@ The following diagram shows the high-level deployment architecture for the targe
 
 Ensure the AWS Account is ready and validated against the following requirements.
 
-- Target AWS Account
 - IAM Permissions: Administrator or equivalent permissions
 - Account ID captured (`xxxxxxxxxxxx`)
 - Regional quota available:
@@ -129,8 +136,12 @@ Confirm the required identity and access capabilities are available before deplo
 - Infrastructure deployments use AWS IAM Identity Center (AWS SSO)
 - No long-lived IAM users or access keys are required. 
 - Make sure required profiles are created. Expected AWS CLI profiles
-  - dpn-dev
-  - dpn-test
+```bash
+  dev-01
+  dev-02
+  test-01
+  test-02
+```
 - Verify the active identity using get-caller-identity.
 
 ## 4. Tooling Requirements
@@ -156,23 +167,17 @@ Capture the following planning inputs before deployment begins.
 
 | Parameter                      | Your Value        | Example                                    |
 |--------------------------------|-------------------|--------------------------------------------|
-| AWS Account ID                | _________________ | `000000000000`     |
-| Environment Name               | _________________ | `dev`, `test`, `preprod`, `prod`           |
+| AWS Account ID                 | _________________ | `xxxxxxxxxxxx`                             |
+| Environment Name               | _________________ | `dev-01`, `dev-02`,`test-01`,`test-02`     |
 | Instance Number                | _________________ | `01`, `02`, `03`                           |
-| VPC CIDR                      | _________________ | `10.x.x.x/27`                              |
+| VPC CIDR                       | _________________ | `10.x.x.x/20`                              |
 | Connectivity Sub ID (optional) | _________________ | For Private DNS zones                      |
 
 ## 6. Naming Convention
 
 Use the following naming patterns to keep deployed resources consistent.
 
-Common pattern used is: `{resource-type-abbreviation}-dpn-{env}-{instance}`. Following table is the example.
-
-| Resource Type   | Pattern                     | Example                |
-|-----------------|-----------------------------|------------------------|
-| VPC             | `vpc-dpn-{env}-{instance}`  | `vpc-dpn-preprod-01`   |
-| EKS Cluster     | `eks-dpn-{env}-{instance}`  | `eks-dpn-preprod-01`   |
-| Key Vault       | `kv-dpn-{env}-{instance}`   | `kv-dpn-preprod-01`    |
+<Place Holder>
 
 ## 7. Pre-Deployment Decisions
 
@@ -180,22 +185,7 @@ Agree the following deployment choices with stakeholders before proceeding.
 
 - Target AWS region and naming standard for the environment
 - organisation network architecture and private DNS ownership model
-- Whether service mesh / Istio is required for the platform
 - Change approval, deployment window, and rollback ownership
-
-## 8. Service Principal and Pipeline Trust Model ( check if this is required )
-
-Define how deployment identity and pipeline execution are connected before first run.
-
-### Recommended Model
-
-```text
-Self-Hosted Agent
-  → Azure DevOps Repo
-  → Azure DevOps Pipeline
-  → Service Connection (Service Principal)
-  → AWS Account (target AWS Account)
-```
 
 ### Minimum Identity Requirements
 
@@ -216,19 +206,6 @@ The security module establishes the foundational security infrastructure for the
 
 Complete the following access and authentication steps before running deployment commands.
 
-- create a GitHub account user id and PAT token with minimal capability to pull from repo
-
-- Clone repo:
-   ```bash
-  git clone https://github.com/energy-dsi/dpn-infrastructure-aws
-  cd NESO-DSI-DPN-INFRA-PART_AWS
-  ls -la
-  # You should see:
-    #   infrastructure/
-    #   README.md (this file)
-    #   .github/
-    #   .azure-pipelines/
-   ```
 - Configure AWS Credentials:
    ```bash
     # Method 1: AWS CLI (interactive)
@@ -257,71 +234,6 @@ Complete the following access and authentication steps before running deployment
    ```
 
 
-## 10. Bootstrap AWS State Management
-
-The bootstrap phase creates S3 bucket and DynamoDB table for managing OpenTofu state remotely.
-
-### Navigate to Bootstrap
-  cd infrastructure/Tofu/bootstrap
-  pwd  # Verify: .../infrastructure/Tofu/bootstrap
-
-### Initialize Bootstrap
-
-- Initialize OpenTofu (uses local backend initially)
-  ```bash
-  tofu init
-  # Output should show:
-  # Initializing the backend...
-  # Terraform has been successfully configured!
-
-- Review Bootstrap Plan
-  ```bash
-  # Review what will be created
-  tofu plan -var-file=environments/part.tfvars
-
-  # Output shows:
-  #   aws_s3_bucket (state bucket)
-  #   aws_dynamodb_table (lock table)
-  #   aws_kms_key (encryption key)
-  #   aws_cloudtrail (audit logging)
-  #   ~15 resources total
-
-- Apply Bootstrap
-  ```bash
-  # Create S3 bucket, DynamoDB table, KMS key
-  tofu apply -var-file=environments/part.tfvars
-
-  # Type: yes to confirm
-
-  # Output shows:
-  #   Outputs:
-  #   state_bucket_name = "dpn-state-{account-id}"
-  #   lock_table_name = "dpn-lock-{account-id}"
-  #   backend_config = "..."
-
-- Save Bootstrap Outputs
-  ```bash
-  # Save outputs for next phase
-  tofu output -raw backend_config > backend_config.txt
-
-  # Display backend config
-  cat backend_config.txt
-  # Output:
-  #   bucket="dpn-state-..."
-  #   dynamodb_table="dpn-lock-..."
-  #   key="part"
-  #   region="eu-west-2"
-
-- (Optional) Bootstrap Validation
-  ```bash
-  # Verify S3 bucket was created
-  aws s3 ls | grep dpn-state
-
-  # Verify DynamoDB table was created
-  aws dynamodb list-tables | grep dpn-lock
-
-  # Verify KMS key was created
-  aws kms describe-key --key-id alias/dpn-state
 
 ## 11. AWS EFS Details
 
