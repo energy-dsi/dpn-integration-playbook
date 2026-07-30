@@ -24,10 +24,13 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 ### Added
 
 - DPN application deployment process.
-- DPN prerequisites for Azure cloud specific installation
+- DPN prerequisites for Azure cloud specific installation using ADO
 - DPN configuration parameter for azure cloud specific installation
 - DPN installation procedure on Azure cloud
 - DPN uninstall and decommission procedure on Azure
+- DPN prerequisite for AWS cloud specific installation manually
+- DPN configuration parameter for AWS cloud specific installation
+- DPN installation procedure on AWS cloud
 - DPN architecture components
 - DPN User Intefaces Guidance
 
