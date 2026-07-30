@@ -72,7 +72,9 @@ Ensure the organisation satisfies the required infrastructure, security, and acc
 
 ```
 Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites.md
+Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md
 Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
+Docs/03-dpn-application-deployment/aws-manual-beta/00-shared-prerequisites/
 ```
 
 Topics covered include:
@@ -148,6 +150,13 @@ The repository is organised into structured documentation sections that guide or
 │   │   └── 03-intended-audience.md
 │   │
 │   ├── 02-dpn-infrastructure-deployment
+│   │   ├── aws
+│   │   │   ├── 01-prerequisites.md
+│   │   │   ├── 02-configuration-parameters.md
+│   │   │   ├── 03-installation-process.md
+│   │   │   ├── 04-rollback.procedures.md
+│   │   │   ├── 05-uninstall-decommissioning.md
+│   │   │   └── README.md
 │   │   └── azure
 │   │       ├── 01-prerequisites.md
 │   │       ├── 02-configuration-parameters.md
@@ -157,6 +166,26 @@ The repository is organised into structured documentation sections that guide or
 │   │       └── README.md
 │   │
 │   ├── 03-dpn-application-deployment
+│   │   ├── aws-manual-beta
+│   │   │   ├── 00-shared-prerequisites
+│   │   │   │   ├── manifests/
+│   │   │   │   └── RUNBOOK.md
+│   │   │   ├── 01-vault-certificate-manager
+│   │   │   │   ├── manifests/
+│   │   │   │   ├── scripts/
+│   │   │   │   └── RUNBOOK.md
+│   │   │   ├── 02-health-monitor
+│   │   │   │   ├── manifests/
+│   │   │   │   ├── scripts/
+│   │   │   │   └── RUNBOOK.md
+│   │   │   ├── 03-data-pipeline
+│   │   │   │   ├── manifests/
+│   │   │   │   └── RUNBOOK.md
+│   │   │   └── 04-federator-gateway
+│   │   │       ├── manifests/
+│   │   │       ├── scripts/
+│   │   │       └── RUNBOOK.md
+│   │   │
 │   │   └── azure-ado-beta
 │   │       ├── 01-prerequisites
 │   │       │   └── 01-dpn-prerequisites.md
