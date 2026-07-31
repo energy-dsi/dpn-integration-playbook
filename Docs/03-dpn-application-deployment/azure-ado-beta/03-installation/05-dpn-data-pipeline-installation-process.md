@@ -102,6 +102,17 @@ Ensure the following prerequisites are completed before deployment:
 
 [Refer to the **Prerequisites** and **Configuration** documentation for details](../01-prerequisites/01-dpn-prerequisites.md)
 
+**Note:** Organisations must review the CI/CD Pipeline codes for the following. 
+
+- DSI Package contains certain tool usage recommendations to run CI pipeline. For example CheckMarx, SonarQube, JfrogXray etc. These steps should be carefully removed by Organisations and keep only relevant build, unit test and image push step using Helm before running the CI pipeline
+- The agent pool name has been modified to Organisation required agent pool name
+- There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
+- The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
+- The environment parameters are pointing to correct deployment environment
+- The DSM endpoints are correctly pointing to respective pdev, ptest or puat environments
+- Required Firewall rules are applied
+- Both CI and CD pipelines to be verified for the above prerequisites before execution
+
 ---
 
 ### Step1c. Identify Pipeline Repository Structure

@@ -30,6 +30,8 @@ Key functions include:
 - Message streaming using **Apache Kafka**
 - Coordination using **Zookeeper**
 - Offset and transmission tracking using **Redis**
+- File storage as **Azure Storage Account blob service** or **S3 bucket in AWS**
+- Hashicorp Vault service for **Certificate files** storage
 
 ---
 
@@ -54,12 +56,23 @@ The DPN platform is designed to run within an organisation’s own infrastructur
 
 Typical deployments use:
 
-### Azure Deployment
+### Azure Deployment Using Azure DevOPS `(ADO)`
 
 - **Azure Kubernetes Service (AKS)** for container orchestration
 - **Azure DevOps CI/CD pipelines** for automated deployment
 - **Azure Container Registry (ACR)** for container image management
 - **Helm charts** for Kubernetes deployments
+
+### AWS Deployment with Manual Execution
+
+DPN integration playbook at this moment does not cover GitHub Actions based flows and pipelines for AWS deployment of application. The manual deployment runbook and deployment yaml files provided with kubectl run commands to perform AWS deployment. 
+
+_**Note** This is an interim instruction and future release of playbook to contain the AWS deployment instruction using GitHub Actions and GitHub Runners based flows._ 
+
+- **Elastic Kubernetes Service (EKS)** for container orchestration
+- **GitHub Container Registry (GHCR)** for container image management
+- **kubectl utility** for Kubernetes deployments
+
 
 This architecture ensures that deployments are:
 

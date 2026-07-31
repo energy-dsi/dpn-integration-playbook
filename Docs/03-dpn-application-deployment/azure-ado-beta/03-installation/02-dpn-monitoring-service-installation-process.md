@@ -58,6 +58,15 @@ The CD Pipeline provided needs to be modified in the following places to point t
 
 ![Pipeline Parameters](../../../04-dpn-architecture/images/dpn_pipeline_parameters.png)
 
+**Note:** Organisations must review the CD Pipeline code for the following. 
+
+- The agent pool name has been modified to Organisation required agent pool name
+- There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
+- The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
+- The environment parameters are pointing to correct deployment environment
+- The DSM endpoints are correctly pointing to respective pdev, ptest or puat environments
+- Required Firewall rules are applied
+
 #### Step1b: Execute CD Pipeline
 
 Create and run CD Pipeline for monitoring service from the following CD pipeline yaml file
