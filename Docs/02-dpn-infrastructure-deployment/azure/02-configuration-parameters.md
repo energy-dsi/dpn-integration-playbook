@@ -661,7 +661,7 @@ The example below is a common pattern based on the current repository layout.
 
 Reference repository:
 
-- https://github.com/energy-dsi/dpn-infra-deployment
+- https://github.com/energy-dsi/dpn-infrastructure-azure
 
 ```
 INFRA-REPO/

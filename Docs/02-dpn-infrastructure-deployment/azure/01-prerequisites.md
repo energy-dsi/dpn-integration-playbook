@@ -226,7 +226,7 @@ Complete the following access and authentication steps before running deployment
 
 - Clone repo:
    ```bash
-  git clone https://github.com/energy-dsi/dpn-infra-deployment
+  git clone https://github.com/energy-dsi/dpn-infrastructure-azure
   cd dpn-infra-deployment
    ```
 - Authenticate and set subscription:

@@ -81,10 +81,21 @@ Readers should have working knowledge of the following technologies:
 
 The documentation assumes that the organisation intends to deploy DPN nodes using:
 
-### Azure Platform
+### Azure Platform Using Azure DevOPS `(ADO)` Tool
 
 - Azure DevOps CI/CD pipelines
 - Azure Kubernetes Service (AKS)
 - Azure Container Registry (ACR)
+
+### AWS Platform with Manual Execution
+
+DPN integration playbook at this moment does not cover GitHub Actions based flows and pipelines for AWS deployment of application. The manual deployment runbook and deployment yaml files provided with kubectl run commands to perform AWS deployment.
+
+_**Note** This is an interim instruction and future release of playbook to contain the AWS deployment instruction using GitHub Actions and GitHub Runners based flows._ 
+
+
+- Elastic Kubernetes Service (EKS)
+- GitHub Container Registry (GHCR)
+- Kubectl utility
 
 However, organisations may adapt the deployment architecture to other environments if required.
