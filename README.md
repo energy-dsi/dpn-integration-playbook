@@ -381,4 +381,11 @@ For questions, feedback, or support requests:
 - Contact the DSI team using **[dsi@neso.energy]**. 
 
 ---
-**Maintained by Data Sharing Infrastructure Coordinator operated by NESO.**
+
+## Maintained by the National Energy System Operator (NESO)
+
+Copyright 2026 NESO and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
+ 
+Licensed under the Open Government Licence v3.0.
+
+For full licensing terms, [OGL_LICENSE.md](./OGL_LICENSE.md)

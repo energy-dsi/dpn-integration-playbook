@@ -19,7 +19,7 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
 
 ---
-## 1.0.0 - 2026-07-31
+## Release 1.0.0 - 2026-07-31
 
 ### Added
 
@@ -48,3 +48,10 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - None
 ---
 
+## Maintained by the National Energy System Operator (NESO)
+
+Copyright 2026 NESO and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
+ 
+Licensed under the Open Government Licence v3.0.
+
+For full licensing terms, [OGL_LICENSE.md](./OGL_LICENSE.md)
