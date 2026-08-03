@@ -70,18 +70,27 @@ This ensures:
 
 Ensure the organisation satisfies the required infrastructure, security, and access prerequisites.
 
+For Azure Deployment refer
+
 ```
 Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites.md
-Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md
 Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
+```
+
+For AWS Deployment refer
+
+```
+Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md
 Docs/03-dpn-application-deployment/aws-manual-beta/00-shared-prerequisites/
 ```
+
 
 Topics covered include:
 
 - Organisation readiness
 - Software dependencies
 - Azure infrastructure requirements
+- AWS infrastructure requirements
 - Network and firewall requirements
 - Certificate requirements
 - Skills and operational requirements
@@ -92,10 +101,20 @@ Topics covered include:
 
 Understand the configuration required before running deployment pipelines.
 
+For Azure Deployment refer
+
 ```
 Docs/02-dpn-infrastructure-deployment/azure/02-configuration-parameters.md
 Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/
 ```
+
+For AWS Deployment refer
+
+```
+Docs/02-dpn-infrastructure-deployment/aws/02-configuration-parameters.md
+Docs/03-dpn-application-deployment/aws-manual-beta/ and individual component runbook files under this folder
+```
+
 
 Topics covered include:
 
@@ -111,9 +130,18 @@ Topics covered include:
 
 Follow the installation guide to deploy the platform.
 
+For Azure Deployment refer
+
 ```
 Docs/02-dpn-infrastructure-deployment/azure/03-installation-process.md
 Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/
+```
+
+For AWS deployment refer
+
+```
+Docs/02-dpn-infrastructure-deployment/aws/03-installation-process.md
+Docs/03-dpn-application-deployment/aws-manual-beta/ and individual component runbook files under this folder
 ```
 
 The installation process includes:
@@ -246,6 +274,7 @@ The DPN platform is composed of multiple containerised services.
 | Federator Client | Handles inbound data reception |
 | Vault | Secrets manager |
 | Cert manager | Certificate life cycle management |
+| File scan service | Scan files in consumer side. Azure only as of today |
 
 ---
 
@@ -268,6 +297,8 @@ The mapper component can also be extended for more capabilities for example tran
 
 The DPN platform is deployed using the following technologies:
 
+## Azure Platform
+
 | Technology | Purpose |
 |-----------|--------|
 | Azure DevOps | CI/CD pipelines |
@@ -278,6 +309,23 @@ The DPN platform is deployed using the following technologies:
 | Redis | Offset tracking and state management |
 | Vault | Hashicorp Vault |
 | Docker | Container packaging |
+| Azure Service Bus | Service Bus Message Orchestration |
+| Azure Event Grid | Event emission from Azure Defender for Storage |
+| Azure Storage Account | Blob storage and SMB file share |
+| Azure Defender for Storage | Defender file scan service |
+
+## AWS Platform
+
+| Technology | Purpose |
+|-----------|--------|
+| Elastic Kubernetes Service (EKS) | Container orchestration |
+| GitHub Container Registry (GHCR) | Container image repository |
+| Kubectl | Kubernetes deployment management |
+| Kafka | Message streaming platform |
+| Redis | Offset tracking and state management |
+| Vault | Hashicorp Vault |
+| Docker | Container packaging |
+| S3 Bucket | Data Store |
 
 ---
 
@@ -329,10 +377,15 @@ This documentation has been developed with collaboration from organisations part
 
 For questions, feedback, or support requests:
 
-- Open an issue in this repository
-- Contact the DSI team using dsi@neso.energy
-
-**TBD**
+- Open an issue in this repository using [Issues](https://github.com/energy-dsi/dpn-integration-playbook/issues)
+- Contact the DSI team using **[dsi@neso.energy]**. 
 
 ---
-**Maintained by Data Sharing Infrastructure Coordinator operated by NESO.**
+
+## Maintained by the National Energy System Operator (NESO)
+
+Copyright 2026 NESO and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
+ 
+Licensed under the Open Government Licence v3.0.
+
+For full licensing terms, [OGL_LICENSE.md](./OGL_LICENSE.md)

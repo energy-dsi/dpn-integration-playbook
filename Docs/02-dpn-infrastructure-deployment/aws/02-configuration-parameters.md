@@ -40,19 +40,7 @@ The example below is a common pattern based on the current repository layout.
 
 Reference repository:
 
-- https://github.com/energy-dsi/dpn-infra-deployment
-
-```
-INFRA-REPO/
-├──docs/
-├── infrastructure/
-│   └── opentofu/
-│       ├── environments/
-│       └── modules/
-└── scripts/
-```
-
-This is a common reference structure. Your exact environment folder names and YAML file names can vary, but the same pattern should be followed.
+- https://github.com/energy-dsi/dpn-infrastructure-aws
 
 ---
 

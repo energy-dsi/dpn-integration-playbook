@@ -117,15 +117,9 @@ Ensure the AWS Account is ready and validated against the following requirements
 Confirm the required identity and access capabilities are available before deployment.
 
 - Infrastructure deployments use AWS IAM Identity Center (AWS SSO)
-- No long-lived IAM users or access keys are required. 
-- Make sure required profiles are created. Expected AWS CLI profiles
-```bash
-  dev-01
-  dev-02
-  test-01
-  test-02
-```
-- Verify the active identity using get-caller-identity.
+- No long-lived IAM users or access keys are required 
+- Make sure required AWS SSO profiles are created
+- Verify the active identity using get-caller-identity
 
 ## 4. Tooling Requirements
 
@@ -151,7 +145,7 @@ Capture the following planning inputs before deployment begins.
 | Parameter                      | Your Value        | Example                                    |
 |--------------------------------|-------------------|--------------------------------------------|
 | AWS Account ID                 | _________________ | `xxxxxxxxxxxx`                             |
-| Environment Name               | _________________ | `dev-01`, `dev-02`,`test-01`,`test-02`     |
+| Environment Name               | _________________ | `dev-01`, `dev-02`,`prod-01`,`prod-02`     |
 | Instance Number                | _________________ | `01`, `02`, `03`                           |
 | VPC CIDR                       | _________________ | `10.x.x.x/20`                              |
 | Connectivity Sub ID (optional) | _________________ | For Private DNS zones                      |
