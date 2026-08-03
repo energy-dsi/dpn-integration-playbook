@@ -12,6 +12,8 @@ Over time, the following organisations have provided technical expertise, develo
 - [IBM](https://www.ibm.com/)
 - [Baringa](https://Baringa.com/)
 - [Nordcloud](https://Nordcloud.com)
+- [Arup](https://www.arup.com/)
+- [KPMG](https://kpmg.com/)
 
 ---
 

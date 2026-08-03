@@ -1,14 +1,21 @@
 # License 
 
-## Copyright Notice  
+## Licence Notice
 
-Copyright 2026 National Energy System Operator (NESO) and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
-
-This work is licensed under the Apache License, Version 2.0.  
-
-**Note:** All documentation in this repository is licensed under the Open Government Licence v3.0 (OGL-3.0). See [OGL_LICENSE.md](OGL_LICENSE.md) for full terms.
+This repository contains software developed under a multi licence model. Unless otherwise stated, all code authored by the developers is licensed under the terms of the Apache License, Version 2.0 (the "Apache 2.0 Licence"), a copy of which is included below. To the extent legally possible, the Apache 2.0 Licence is intended to govern the software package as a whole. However, this repository also incorporates certain third-party open source components. Each such third-party component remains subject to its own original licence terms and notices, which are unaffected by, and take precedence over, the Apache 2.0 Licence with respect to that component. 
+ 
+Attributions, licence texts, and notices for these third-party components are provided within the repository (including, where applicable, in accompanying NOTICE or THIRD-PARTY-LICENSES files) and should be reviewed prior to use, modification, or distribution of the software.
+ 
+If and to the extent that this repository contains documentation including without limitation supporting documentation related to code or software, all such documentation is licensed under the Open Government Licence v3.0 (OGL-3.0). See OGL LICENSE.md for full terms.
 
 ---
+
+## Copyright Notice
+
+In relation to the work licensed under the terms detailed above (but not extending to the text of any such licences);
+
+Copyright 2026 NESO and the Crown. This work has been developed by NESO using content licensed by the Department for Business and Trade(UK) under the Open Government Licence 3.0.
+
 
                                  Apache License
                            Version 2.0, January 2004
@@ -200,11 +207,7 @@ This work is licensed under the Apache License, Version 2.0.
 
    Copyright [yyyy] [name of copyright owner]
 
-   Copyright (C) 2022-2024 Telicent Ltd
-   
-   Copyright 2025 Crown Copyright, National Digital Twin Programme, legally attributed to the Department for Business and Trade (UK)
-
-   Copyright 2026 Crown Copyright, National Energy System Operator, legally attributed to the Department for Business and Trade (UK)
+   Copyright 2026 Crown Copyright, National Energy System Operator,legally attributed to the Department for Business and Trade (UK)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
