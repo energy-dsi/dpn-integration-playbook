@@ -65,6 +65,7 @@ The nginx proxy authentication acts as a basic authentication gateway for the fo
 - Apache Perses
 - Kafka-health-UI
 - Kafka-UI
+- Thanos
 
 ---
 

@@ -36,7 +36,7 @@ This describes installation using pipeline structure (`environment`+`cluster` pa
 - Access to the environment-specific ACR for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
 - The `dsi-ppd` Environment resource (or the per-environment split recommended in the Configuration Guide) configured with its approval check.
 - A **freshly generated** `.htpasswd` for the dashboard proxy — do not reuse anything currently committed in `release-internal`.
-- The real Thanos storage account name/key for the target environment.
+- The real Thanos storage account name/SAS Token for the target environment.
 - SMTP relay details and an alert recipient address.
 - The metrics-server running in the cluster (standard on AKS) — required for the OTEL Collector's HPA.
 
