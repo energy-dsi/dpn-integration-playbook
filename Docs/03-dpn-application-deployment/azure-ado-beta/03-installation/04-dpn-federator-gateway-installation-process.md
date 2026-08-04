@@ -8,7 +8,7 @@ This document covers the installation of the **DPN Federator Gateway** (Server, 
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installtion-process.md) first — the gateway reads the P12 passwords from Vault and the P12 files from the Certificate Manager's shared file share.
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads the P12 passwords from Vault and the P12 files from the Certificate Manager's shared file share.
 
 ---
 

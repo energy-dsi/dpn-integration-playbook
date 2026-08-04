@@ -38,16 +38,16 @@ The architecture consists of two logical processes:
 
 ### Producer Process
 
-- Producer process is responsible to fetch Data from organisational internal data sources
+- Producer process is responsible for fetching data from organisational internal data sources
 - Processed through adaptor and producer mapper components
-- Published data or location of data to Kafka topics
+- Publishes the data, or its location, to Kafka topics
 - Transmitted to external organisations via the DPN Federator Server
 
 ### Consumer Process
 
 - DPN Federator Client receives transmitted data
-- Performs file scans via cloud native solution as applicable
-- Data is published to Kafka topics or moved to a storage container depending upon the integration pattern is either stream based or file based
+- Performs file scans via a cloud-native solution as applicable
+- Data is published to Kafka topics or moved to a storage container, depending on whether the integration pattern is stream-based or file-based
 - Data stored within the organisation environment and ready to be consumed by internal data destination process
 
 ---
@@ -89,7 +89,7 @@ Ensure the organisation satisfies the required infrastructure, security, and acc
 | Cluster sizing | 16+ vCPUs (e.g. `Standard_D16lds_v6`) | Equivalent EKS managed node group sizing |
 | Secrets management | Azure Key Vault/Kubernetes Secrets | Hashicorp Vault/Kubernetes Secrets |
 | Ingress / networking | Requires GRPC/HTTP2 traffic supported ingress/Layer 4 Network load balancer for Federator Server ingress | Same as Azure |
-| Container registry | Github Container Registry/Azure Container Registry (ACR) | GitHub Container Registry (GHCR) |
+| Container registry | GitHub Container Registry (GHCR) for DSI-provided pre-built images, or Azure Container Registry (ACR) if the organisation runs its own CI pipeline | GitHub Container Registry (GHCR) |
 
 Full detail is in the platform-specific prerequisites documents linked below.
 
@@ -122,7 +122,7 @@ Understand the configuration required before running deployment pipelines.
 For Azure Deployment refer:
 
 - [Azure Infrastructure Configuration Parameters](Docs/02-dpn-infrastructure-deployment/azure/02-configuration-parameters.md)
-- [Azure Application Configuration Guides](Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/) — Vault, Certificate Manager, Health Monitoring, Federator Gateway, Data Pipelines, File Scan Service
+- [Azure Application Configuration Guides](Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/) — Vault, Health Monitoring, Certificate Manager, Federator Gateway, Data Pipelines, File Scan Service
 
 For AWS Deployment refer:
 
@@ -157,7 +157,7 @@ The installation process includes:
 
 - Provisioning infrastructure (cluster, networking, secrets store, registry)
 - Building container images
-- Configuring Continuous Integration (CI) pipelines (Azure) or applying manifests directly (AWS) as interim till Github runner based deployment instruction is published
+- Configuring Continuous Integration (CI) pipelines (Azure) or applying manifests directly (AWS) as interim till GitHub Actions runner-based deployment instructions are published
 - Deploying containers
 - Verifying deployment health
 
@@ -171,7 +171,7 @@ To further support the node after installation, the following operational docume
 |--------|--------|
 | [Azure Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/azure/04-rollback-procedures.md) / [Azure Application Rollback Guide](Docs/03-dpn-application-deployment/azure-ado-beta/04-rollback/04-rollback-procedures.md) | Restore a previous stable deployment |
 | [Azure Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/azure/05-uninstall-decommissioning.md) / [Azure Application Uninstallation Guide](Docs/03-dpn-application-deployment/azure-ado-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from the environment |
-| [AWS Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/aws/04-rollback.procedures.md) | Restore a previous stable deployment on AWS |
+| [AWS Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/aws/04-rollback-procedures.md) | Restore a previous stable deployment on AWS |
 | [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
@@ -186,7 +186,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 
 - [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
 - [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
-- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-certificate-manager-installtion-process.md#step3-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
 - [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
@@ -218,7 +218,7 @@ The repository is organised into structured documentation sections that guide or
 │   │   │   ├── 01-prerequisites.md
 │   │   │   ├── 02-configuration-parameters.md
 │   │   │   ├── 03-installation-process.md
-│   │   │   ├── 04-rollback.procedures.md
+│   │   │   ├── 04-rollback-procedures.md
 │   │   │   ├── 05-uninstall-decommissioning.md
 │   │   │   └── README.md
 │   │   └── azure
@@ -265,7 +265,7 @@ The repository is organised into structured documentation sections that guide or
 │   │       │   ├── 00-dpn-common-installation-process.md
 │   │       │   ├── 01-dpn-vault-installation-process.md
 │   │       │   ├── 02-dpn-monitoring-service-installation-process.md
-│   │       │   ├── 03-dpn-certificate-manager-installtion-process.md
+│   │       │   ├── 03-dpn-certificate-manager-installation-process.md
 │   │       │   ├── 04-dpn-federator-gateway-installation-process.md
 │   │       │   ├── 05-dpn-data-pipeline-installation-process.md
 │   │       │   └── 06-dpn-file-scan-service-installation-process.md
@@ -388,7 +388,7 @@ The DPN platform is deployed in two layers — infrastructure and application �
 | Helm | Kubernetes deployment management |
 | Kafka | Message streaming platform |
 | Redis | Offset tracking and state management |
-| Vault | Hashicorp Vault |
+| Vault | Secrets manager for certificate material and mTLS keystore/truststore passwords |
 | Docker | Container packaging |
 | Azure Service Bus | Service Bus message orchestration |
 | Azure Event Grid | Event emission from Azure Defender for Storage |
@@ -404,7 +404,7 @@ The DPN platform is deployed in two layers — infrastructure and application �
 | kubectl | Kubernetes deployment management (manual manifests, no CI/CD pipeline yet) |
 | Kafka | Message streaming platform |
 | Redis | Offset tracking and state management |
-| Vault | Hashicorp Vault |
+| Vault | Secrets manager for certificate material and mTLS keystore/truststore passwords |
 | Docker | Container packaging |
 | S3 Bucket | Data store |
 
@@ -458,8 +458,8 @@ This documentation has been developed with collaboration from organisations part
 
 For questions, feedback, or support requests:
 
-- Open an issue in this repository using [Issues](https://github.com/energy-dsi/dpn-integration-playbook/issues)
-- Contact the DSI team using **[dsi@neso.energy]**. 
+- Raise a work item against this repository in [Azure DevOps](https://dev.azure.com/NationalEnergySO/VirtualES%20-%20Data%20Sharing%20Infrastructure/_git/dpn-integration-playbook)
+- Contact the DSI team using [dsi@neso.energy](mailto:dsi@neso.energy)
 
 ---
 
