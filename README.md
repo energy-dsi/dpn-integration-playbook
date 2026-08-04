@@ -458,7 +458,6 @@ This documentation has been developed with collaboration from organisations part
 
 For questions, feedback, or support requests:
 
-- Raise a work item against this repository in [Issues](https://github.com/energy-dsi/dpn-integration-playbook/issues)
 - Contact the DSI team using [dsi@neso.energy](mailto:dsi@neso.energy)
 
 ---
