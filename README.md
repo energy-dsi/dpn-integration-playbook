@@ -458,7 +458,7 @@ This documentation has been developed with collaboration from organisations part
 
 For questions, feedback, or support requests:
 
-- Contact the DSI team using [dsi@neso.energy](mailto:dsi@neso.energy)
+- Contact DSI team via email to [dsi@neso.energy](mailto:dsi@neso.energy)
 
 ---
 
