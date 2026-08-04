@@ -19,7 +19,7 @@ Over time, the following organisations have provided technical expertise, develo
 
 **Note:** This acknowledgment does not confer any legal rights, ownership, or imply ongoing involvement by any of the named organisations or individuals. All contributions are made in accordance with the repository’s licensing terms.
 
-Copyright 2026 NESO and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
+Copyright 2026 National Energy System Operator (NESO).  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
  
 Licensed under the Open Government Licence v3.0.
 
