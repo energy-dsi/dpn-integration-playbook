@@ -101,7 +101,7 @@ By submitting feedback, documentation suggestions, or issue reports, you acknowl
 - Code contributions (if ever accepted) will be licensed under Apache 2.0.  
 - Documentation updates will be licensed under OGL v3.0.  
 
-For supplier-contracted development, NESO ensures that all contributions align with Crown Copyright and public sector open-source standards.  
+For supplier-contracted development, NESO ensures that all contributions align with public sector open-source standards.  
 
 ---
 
@@ -115,7 +115,7 @@ NESO repository maintainers review reported issues, evaluate documentation sugge
 
 ## Maintained by the National Energy System Operator (NESO)
 
-Copyright 2026 NESO and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
+Copyright 2026 NESO.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
  
 Licensed under the Open Government Licence v3.0.
 
