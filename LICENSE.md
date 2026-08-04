@@ -207,7 +207,7 @@ Copyright 2026 National Energy System Operator (NESO). This work has been develo
 
    Copyright [yyyy] [name of copyright owner]
 
-   Copyright 2026, National Energy System Operator,legally attributed to the Department for Business and Trade (UK)
+   Copyright 2026, National Energy System Operator, legally attributed to the Department for Business and Trade (UK)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

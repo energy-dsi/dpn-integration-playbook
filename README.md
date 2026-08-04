@@ -1,7 +1,7 @@
 # README
 
 **Repository:** `dpn-integration-playbook`  
-**Description:** Documentation for installing, configuring, operating, and maintaining **Data Preparation Nodes (DPN)** within the DSI Data Sharing Infrastructure.
+**Description:** Documentation for installing, configuring, operating, and maintaining **Data Preparation Nodes (DPN)** — covering both **infrastructure provisioning** and **application deployment**, on both **Azure** and **AWS** — within the DSI Data Sharing Infrastructure.
 
 <!-- SPDX-License-Identifier: OGL-UK-3.0 -->
 
@@ -11,7 +11,12 @@
 
 This repository provides documentation to support organisations to **install, configure, deploy, and operate a Data Preparation Node (DPN)** within their own infrastructure environment.
 
-The documentation describes how to deploy the **DPN Federator** and **DPN Data Pipeline** components using **Azure DevOps CI/CD pipelines** and **Azure Kubernetes Service (AKS)** with reference implementation. 
+The documentation is organised around **Multiple deployment layers**, each of which is documented for **Azure and AWS**:
+
+| Layer | Purpose | Azure | AWS |
+|---|---|---|---|
+| **Infrastructure** | Provision the underlying cloud infrastructure (Kubernetes cluster, networking, secrets store, registry) | OpenTofu, with optional Bicep bootstrap | OpenTofu |
+| **Application** | Deploy the DPN components (Federator, Data Pipeline, Vault, Certificate Manager, Health Monitoring, File Scan) on top of that infrastructure | Azure DevOps (ADO) CI/CD pipelines — fully automated | Manual `kubectl apply` runbooks — interim, pending future GitHub Actions support |
 
 The objective of this repository is to provide organisations with a **clear and structured implementation guide** to deploy a DPN that can securely exchange data with other participating organisations in the **Data Sharing Infrastructure (DSI)**.
 
@@ -29,36 +34,43 @@ The DPN architecture enables:
 
 The DPN working with the Data Sharing Mechanism enables secure data exchange between organisations using a federated architecture.
 
-The architecture consists of two logical environments:
+The architecture consists of two logical processes:
 
-### Producer Environment
+### Producer Process
 
-- Data extracted from organisational storage
-- Processed through adaptor and mapper components
-- Published to Kafka topics
+- Producer process is responsible to fetch Data from organisational internal data sources
+- Processed through adaptor and producer mapper components
+- Published data or location of data to Kafka topics
 - Transmitted to external organisations via the DPN Federator Server
 
-### Consumer Environment
+### Consumer Process
 
 - DPN Federator Client receives transmitted data
-- Data is published to Kafka topics
-- Schema validation and transformation performed
-- Data stored within the organisation environment
+- Performs file scans via cloud native solution as applicable
+- Data is published to Kafka topics or moved to a storage container depending upon the integration pattern is either stream based or file based
+- Data stored within the organisation environment and ready to be consumed by internal data destination process
 
-Reference architecture diagrams are located in:
+---
 
-```
-Docs/04-dpn-architecture/images/
-```
+# Partner Onboarding & Governance
+
+Before a DPN can exchange data with another organisation, it must complete the following onboarding sequence with the Data Sharing Mechanism (DSM):
+
+1. **Organisation registration** — submit organisation accreditation and Technical Sharing Agreement (TSA) to DSM; receive a DPN Connection ID / Client ID. See [Organisation Prerequisites](Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/01-dpn-prerequisites.md#organisation-prerequisites).
+2. **Certificate issuance** — generate and submit a Certificate Signing Request (CSR) through the DSM user interface; DSM signs the CSR and returns a bootstrap certificate bundle. See [Certificate Lifecycle and Management](Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/01-dpn-prerequisites.md#certificate-lifecycle-and-management).
+3. **Infrastructure and DPN deployment** — provision the underlying infrastructure, then install the bootstrap certificate bundle into Vault and deploy the DPN Federator components (see Quick Start below).
+4. **mTLS trust verification** — confirm the DPN can establish mutual TLS connections with DSM and with counterpart organisation DPNs before going live.
+
+Organisations should factor certificate renewal and expiry recovery into their operational runbooks, as described in the Certificate Lifecycle section linked above.
 
 ---
 
 # Quick Start
 
-Follow the documentation sections below to deploy and operate a DPN node.
-
+Follow the documentation sections below to deploy and operate a DPN node. Each phase below has a separate path for the **infrastructure layer** and the **application layer**, and for **Azure** and **AWS**.
 
 # Explanation for Numbering
+
 The numbering convention (01, 02, 03, etc.) is used to maintain a clear logical sequence and structured flow of the documentation.
 
 This ensures:
@@ -70,20 +82,26 @@ This ensures:
 
 Ensure the organisation satisfies the required infrastructure, security, and access prerequisites.
 
-For Azure Deployment refer
+**Infrastructure prerequisites summary:**
 
-```
-Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites.md
-Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/
-```
+| Requirement | Azure (AKS) | AWS (EKS) |
+|---|---|---|
+| Cluster sizing | 16+ vCPUs (e.g. `Standard_D16lds_v6`) | Equivalent EKS managed node group sizing |
+| Secrets management | Azure Key Vault/Kubernetes Secrets | Hashicorp Vault/Kubernetes Secrets |
+| Ingress / networking | Requires GRPC/HTTP2 traffic supported ingress/Layer 4 Network load balancer for Federator Server ingress | Same as Azure |
+| Container registry | Github Container Registry/Azure Container Registry (ACR) | GitHub Container Registry (GHCR) |
 
-For AWS Deployment refer
+Full detail is in the platform-specific prerequisites documents linked below.
 
-```
-Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md
-Docs/03-dpn-application-deployment/aws-manual-beta/00-shared-prerequisites/
-```
+For Azure Deployment refer:
 
+- [Azure Infrastructure Prerequisites](Docs/02-dpn-infrastructure-deployment/azure/01-prerequisites.md)
+- [Azure Application Deployment Prerequisites](Docs/03-dpn-application-deployment/azure-ado-beta/01-prerequisites/01-dpn-prerequisites.md)
+
+For AWS Deployment refer:
+
+- [AWS Infrastructure Prerequisites](Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md)
+- [AWS Shared Prerequisites RUNBOOK](Docs/03-dpn-application-deployment/aws-manual-beta/00-shared-prerequisites/RUNBOOK.md)
 
 Topics covered include:
 
@@ -101,20 +119,15 @@ Topics covered include:
 
 Understand the configuration required before running deployment pipelines.
 
-For Azure Deployment refer
+For Azure Deployment refer:
 
-```
-Docs/02-dpn-infrastructure-deployment/azure/02-configuration-parameters.md
-Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/
-```
+- [Azure Infrastructure Configuration Parameters](Docs/02-dpn-infrastructure-deployment/azure/02-configuration-parameters.md)
+- [Azure Application Configuration Guides](Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/) — Vault, Certificate Manager, Health Monitoring, Federator Gateway, Data Pipelines, File Scan Service
 
-For AWS Deployment refer
+For AWS Deployment refer:
 
-```
-Docs/02-dpn-infrastructure-deployment/aws/02-configuration-parameters.md
-Docs/03-dpn-application-deployment/aws-manual-beta/ and individual component runbook files under this folder
-```
-
+- [AWS Infrastructure Configuration Parameters](Docs/02-dpn-infrastructure-deployment/aws/02-configuration-parameters.md)
+- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-manual-beta/) — see the `RUNBOOK.md` under each component folder as per numbering order
 
 Topics covered include:
 
@@ -126,28 +139,25 @@ Topics covered include:
 
 ---
 
-### 3. Deploy the DPN Application
+### 3. Deploy the DPN Infrastructure and Application
 
-Follow the installation guide to deploy the platform.
+Follow the installation guides to provision infrastructure and deploy the platform.
 
-For Azure Deployment refer
+For Azure Deployment refer:
 
-```
-Docs/02-dpn-infrastructure-deployment/azure/03-installation-process.md
-Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/
-```
+- [Azure Infrastructure Installation Process](Docs/02-dpn-infrastructure-deployment/azure/03-installation-process.md)
+- [Azure Application Installation Guides](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/) — Vault, Health Monitoring, Certificate Manager, Federator Gateway, Data Pipelines, File Scan Service
 
-For AWS deployment refer
+For AWS deployment refer:
 
-```
-Docs/02-dpn-infrastructure-deployment/aws/03-installation-process.md
-Docs/03-dpn-application-deployment/aws-manual-beta/ and individual component runbook files under this folder
-```
+- [AWS Infrastructure Installation Process](Docs/02-dpn-infrastructure-deployment/aws/03-installation-process.md)
+- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-manual-beta/) — applied in order: `00-shared-prerequisites` → `01-vault-certificate-manager` → `02-health-monitor` → `03-data-pipeline` → `04-federator-gateway`
 
 The installation process includes:
 
+- Provisioning infrastructure (cluster, networking, secrets store, registry)
 - Building container images
-- Configuring Continuous Integration(CI) pipelines
+- Configuring Continuous Integration (CI) pipelines (Azure) or applying manifests directly (AWS) as interim till Github runner based deployment instruction is published
 - Deploying containers
 - Verifying deployment health
 
@@ -159,15 +169,41 @@ To further support the node after installation, the following operational docume
 
 | Document | Purpose |
 |--------|--------|
-| Rollback Guide | Restore a previous stable deployment |
-| Uninstallation Guide | Remove DPN components from the environment |
-| Troubleshooting Guide | Diagnose deployment and runtime issues |
+| [Azure Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/azure/04-rollback-procedures.md) / [Azure Application Rollback Guide](Docs/03-dpn-application-deployment/azure-ado-beta/04-rollback/04-rollback-procedures.md) | Restore a previous stable deployment |
+| [Azure Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/azure/05-uninstall-decommissioning.md) / [Azure Application Uninstallation Guide](Docs/03-dpn-application-deployment/azure-ado-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from the environment |
+| [AWS Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/aws/04-rollback.procedures.md) | Restore a previous stable deployment on AWS |
+| [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
+| [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
+| [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
+
+---
+
+### Troubleshooting
+
+Each component's installation/RUNBOOK document includes a troubleshooting section for issues specific to that component:
+
+**Azure (ADO) components:**
+
+- [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
+- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-certificate-manager-installtion-process.md#step3-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
+
+**AWS (manual-beta) components:**
+
+- [Shared Prerequisites Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/00-shared-prerequisites/RUNBOOK.md#troubleshooting)
+- [Vault + Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/01-vault-certificate-manager/RUNBOOK.md#35-troubleshooting)
+- [Health Monitor Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/02-health-monitor/RUNBOOK.md#312-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/03-data-pipeline/RUNBOOK.md#34-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/04-federator-gateway/RUNBOOK.md#37-troubleshooting)
 
 ---
 
 # Repository Structure
 
-The repository is organised into structured documentation sections that guide organisations through the **deployment lifecycle of a DPN**.
+The repository is organised into structured documentation sections that guide organisations through the **deployment lifecycle of a DPN**, covering both the infrastructure layer and the application layer, for both Azure and AWS.
 
 ```
 ./
@@ -177,7 +213,7 @@ The repository is organised into structured documentation sections that guide or
 │   │   ├── 02-purpose-of-document.md
 │   │   └── 03-intended-audience.md
 │   │
-│   ├── 02-dpn-infrastructure-deployment
+│   ├── 02-dpn-infrastructure-deployment        # Infrastructure layer (OpenTofu)
 │   │   ├── aws
 │   │   │   ├── 01-prerequisites.md
 │   │   │   ├── 02-configuration-parameters.md
@@ -193,8 +229,8 @@ The repository is organised into structured documentation sections that guide or
 │   │       ├── 05-uninstall-decommissioning.md
 │   │       └── README.md
 │   │
-│   ├── 03-dpn-application-deployment
-│   │   ├── aws-manual-beta
+│   ├── 03-dpn-application-deployment           # Application layer (DPN components)
+│   │   ├── aws-manual-beta                     # AWS: manual kubectl RUNBOOKs (interim)
 │   │   │   ├── 00-shared-prerequisites
 │   │   │   │   ├── manifests/
 │   │   │   │   └── RUNBOOK.md
@@ -214,7 +250,7 @@ The repository is organised into structured documentation sections that guide or
 │   │   │       ├── scripts/
 │   │   │       └── RUNBOOK.md
 │   │   │
-│   │   └── azure-ado-beta
+│   │   └── azure-ado-beta                      # Azure: automated ADO CI/CD pipelines
 │   │       ├── 01-prerequisites
 │   │       │   └── 01-dpn-prerequisites.md
 │   │       ├── 02-configuration
@@ -241,7 +277,7 @@ The repository is organised into structured documentation sections that guide or
 │   ├── 04-dpn-architecture
 │   │   └── images
 │   │
-│   └── 05-dpn-user-interfaces
+│   └── 05-dpn-user-interfaces                  # Day-2 operations UIs
 │       ├── 01-hashicorp-vault-ui-operations.md
 │       ├── 02-apache-airflow-scheduler-ui-operations.md
 │       ├── 03-federator-client-job-runner-ui-operations.md
@@ -259,24 +295,27 @@ The repository is organised into structured documentation sections that guide or
 
 # Key Platform Components
 
-The DPN platform is composed of multiple containerised services.
+The DPN platform is composed of multiple containerised services, grouped as follows.
 
-## Federator Platform
+## Security Service
 
 | Component | Purpose |
 |----------|---------|
-| Zookeeper | Coordination service for Kafka clusters |
-| Kafka Source | Source message broker |
-| Kafka Target | Target message broker |
-| Kafka UI | Kafka monitoring interface |
-| Redis | Offset and transmission management |
-| Federator Server | Handles outbound data transmission |
-| Federator Client | Handles inbound data reception |
-| Vault | Secrets manager |
-| Cert manager | Certificate life cycle management |
-| File scan service | Scan files in consumer side. Azure only as of today |
+| Vault | Secrets manager — stores certificate material and keystore/truststore passwords used for mTLS |
+| Certificate Manager | Automates X.509 certificate lifecycle management — renews the DSM-signed certificate and builds keystore/truststore P12 files |
+| Shared File Service | SMB-based (Azure) or shared-volume (AWS) storage between the Certificate Manager and Federator Gateway for certificate P12 files |
+| File Scan Service | Cloud-native file scan for files arriving on the Federator Gateway (Azure Defender for Cloud Storage). **Azure only, as of today** |
 
----
+## Federator Gateway
+
+| Component | Purpose |
+|----------|---------|
+| Zookeeper (Source / Target) | Coordination service for Kafka clusters |
+| Kafka (Source / Target) | Message broker for producer and consumer environments |
+| Kafka UI | Kafka monitoring interface |
+| Redis | Offset and transmission tracking |
+| Federator Server | Handles outbound data transmission to other DPNs |
+| Federator Client | Handles inbound data reception from other DPNs |
 
 ## Data Processing Pipelines
 
@@ -284,20 +323,62 @@ Data pipelines perform validation and transformation of exchanged datasets.
 
 | Component | Purpose |
 |----------|---------|
-| Adaptor | Initial data ingestion |
-| Produer Mapper| Producer-side schema validation |
-| Extractor | Data extraction and storage |
+| Adaptor | Initial data ingestion (producer/source side) |
+| Producer Mapper | Producer-side schema validation |
+| Extractor | Data extraction and storage (consumer/target side) |
 | Consumer Mapper | Consumer-side schema validation |
+| Apache Airflow | Orchestration layer scheduling the pipeline stages (webserver, scheduler, worker, triggerer, Postgres metadata DB) |
 
-The mapper component can also be extended for more capabilities for example transformations or schema assurance.
+The mapper component can also be extended for more capabilities, for example transformations or schema assurance.
+
+## Health Monitoring Stack
+
+| Component | Purpose |
+|----------|---------|
+| OpenTelemetry Collector | Aggregates traces, metrics, and logs from DPN components |
+| OpenSearch + Data Prepper | Log storage, indexing, and dashboarding |
+| Prometheus + Thanos | Metrics collection and long-term storage |
+| Jaeger | Distributed tracing UI |
+| Perses | Dashboarding |
+| Nginx proxy | Observability stack ingress/reverse proxy |
+
+## Data Store
+
+| Component | Purpose |
+|----------|---------|
+| Storage (Azure Storage Account / S3 bucket) | Stores files produced by DPN data pipelines, certificate P12 files |
+| Kafka | Streaming service for managing events and topics during data transmission |
+
+---
+
+# User Interfaces & Operations
+
+Day-to-day monitoring and operation of a running DPN node is performed through the following component user interfaces:
+
+| Interface | Purpose | Guide |
+|---|---|---|
+| Hashicorp Vault UI | Certificate and secrets management | [Guide](Docs/05-dpn-user-interfaces/01-hashicorp-vault-ui-operations.md) |
+| Apache Airflow UI | Data pipeline scheduling and monitoring | [Guide](Docs/05-dpn-user-interfaces/02-apache-airflow-scheduler-ui-operations.md) |
+| Federator Client JobRunr Dashboard | Monitor, trigger, and troubleshoot consumer jobs | [Guide](Docs/05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) |
+| Kafka UI | Kafka topic and broker monitoring | [Guide](Docs/05-dpn-user-interfaces/04-kafka-ui-operations.md) |
+| OpenSearch Dashboard | Pipeline health monitoring and log investigation | [Guide](Docs/05-dpn-user-interfaces/05-opensearch-dashboard-ui-operations.md) |
+| Jaeger UI | Distributed trace inspection | [Guide](Docs/05-dpn-user-interfaces/06-jaeger-dashboard-ui-operations.md) |
+| Kafka Health UI | Health monitoring service Kafka view | [Guide](Docs/05-dpn-user-interfaces/07-kafka-health-ui-operations.md) |
 
 ---
 
 # Deployment Platform
 
-The DPN platform is deployed using the following technologies:
+The DPN platform is deployed in two layers — infrastructure and application — using the following technologies.
 
-## Azure Platform
+## Infrastructure Layer (both clouds)
+
+| Technology | Purpose |
+|-----------|--------|
+| OpenTofu | Infrastructure-as-code provisioning for both Azure and AWS |
+| Bicep (optional) | Azure-only bootstrap for initial landing zone resources |
+
+## Azure Application Layer
 
 | Technology | Purpose |
 |-----------|--------|
@@ -309,23 +390,23 @@ The DPN platform is deployed using the following technologies:
 | Redis | Offset tracking and state management |
 | Vault | Hashicorp Vault |
 | Docker | Container packaging |
-| Azure Service Bus | Service Bus Message Orchestration |
+| Azure Service Bus | Service Bus message orchestration |
 | Azure Event Grid | Event emission from Azure Defender for Storage |
 | Azure Storage Account | Blob storage and SMB file share |
 | Azure Defender for Storage | Defender file scan service |
 
-## AWS Platform
+## AWS Application Layer
 
 | Technology | Purpose |
 |-----------|--------|
 | Elastic Kubernetes Service (EKS) | Container orchestration |
 | GitHub Container Registry (GHCR) | Container image repository |
-| Kubectl | Kubernetes deployment management |
+| kubectl | Kubernetes deployment management (manual manifests, no CI/CD pipeline yet) |
 | Kafka | Message streaming platform |
 | Redis | Offset tracking and state management |
 | Vault | Hashicorp Vault |
 | Docker | Container packaging |
-| S3 Bucket | Data Store |
+| S3 Bucket | Data store |
 
 ---
 
@@ -336,7 +417,7 @@ The platform follows several core security principles:
 - **Zero Trust architecture**
 - **Mutual TLS (mTLS) communication between nodes**
 - **Role-Based Access Control (RBAC)**
-- **Secure secret storage using Azure Key Vault**
+- **Secure secret storage using Azure Key Vault (Azure) or Hashicorp Vault (AWS)**
 - **Secure container image repositories**
 
 Code provided by DSI is security scanned using tools including:
