@@ -14,7 +14,7 @@ If and to the extent that this repository contains documentation including witho
 
 In relation to the work licensed under the terms detailed above (but not extending to the text of any such licences);
 
-Copyright 2026 NESO and the Crown. This work has been developed by NESO using content licensed by the Department for Business and Trade(UK) under the Open Government Licence 3.0.
+Copyright 2026 National Energy System Operator (NESO). This work has been developed by NESO using content licensed by the Department for Business and Trade(UK) under the Open Government Licence 3.0.
 
 
                                  Apache License
@@ -207,7 +207,7 @@ Copyright 2026 NESO and the Crown. This work has been developed by NESO using co
 
    Copyright [yyyy] [name of copyright owner]
 
-   Copyright 2026 Crown Copyright, National Energy System Operator,legally attributed to the Department for Business and Trade (UK)
+   Copyright 2026, National Energy System Operator,legally attributed to the Department for Business and Trade (UK)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

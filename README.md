@@ -384,7 +384,7 @@ For questions, feedback, or support requests:
 
 ## Maintained by the National Energy System Operator (NESO)
 
-Copyright 2026 NESO and the Crown.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
+Copyright 2026 NESO.  This work is licensed under the Open Government Licence 3.0 (OGL). This work has been developed by NESO using content licensed by the Department for Business and Trade (UK) under the OGL.   
  
 Licensed under the Open Government Licence v3.0.
 
