@@ -458,7 +458,7 @@ This documentation has been developed with collaboration from organisations part
 
 For questions, feedback, or support requests:
 
-- Raise a work item against this repository in [Azure DevOps](https://dev.azure.com/NationalEnergySO/VirtualES%20-%20Data%20Sharing%20Infrastructure/_git/dpn-integration-playbook)
+- Raise a work item against this repository in [Issues](https://github.com/energy-dsi/dpn-integration-playbook/issues)
 - Contact the DSI team using [dsi@neso.energy](mailto:dsi@neso.energy)
 
 ---
