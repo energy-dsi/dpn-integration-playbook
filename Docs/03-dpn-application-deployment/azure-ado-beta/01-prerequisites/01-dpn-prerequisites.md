@@ -143,7 +143,7 @@ A **Service Principal or Azure AD group** used for managing **Azure Kubernetes S
 
 #### Data Pipeline Access
 
-- A **Blob Storage / S3 SAS Token (TBD)** with **read and write permissions** for file passthrough used by the data pipeline.
+- A **Blob Storage / S3 SAS Token** with **read and write permissions** for file passthrough used by the data pipeline.
 
 ---
 ## Security Prerequisites

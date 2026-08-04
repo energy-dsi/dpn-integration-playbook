@@ -191,7 +191,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
 | DPN Health Monitoring Service | *02-dpn-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
-| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installtion-process.md* | Depends on Vault |
+| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installation-process.md* | Depends on Vault |
 | DPN Federator Gateway | *04-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
 | DPN Data Pipeline | *05-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
 | DPN File Scanning Service | *06-dpn-file-scan-service-installation-process.md* | Native deployment for Azure Cloud only |
