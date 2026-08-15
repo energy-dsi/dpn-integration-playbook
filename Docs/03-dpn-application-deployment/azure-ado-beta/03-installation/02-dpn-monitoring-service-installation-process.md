@@ -122,15 +122,17 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 
 | Purpose | GHCR Path |
 |---|---|
-| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `<latest or DSI provided stable version>` |
-| Kafka (health) | `ghcr.io/energy-dsi/cp-kafka:<latest or DSI provided stable version>` |
-| Zookeeper (health) | `ghcr.io/energy-dsi/cp-zookeeper:<latest or DSI provided stable version>` |
+| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib:<latest or DSI provided stable version>` |
+| Kafka (health) | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
+| Zookeeper (health) | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
 | Data Prepper | `ghcr.io/energy-dsi/data-prepper:<latest or DSI provided stable version>` |
 | OpenSearch | `ghcr.io/energy-dsi/opensearch:<latest or DSI provided stable version>` |
-| Jaeger (Collector / Ingester / Query) | `ghcr.io/energy-dsi/jaeger:<latest or DSI provided stable version>` |
-| Prometheus | `ghcr.io/energy-dsi/prom-prometheus:<latest or DSI provided stable version>` |
-| Grafana | `ghcr.io/energy-dsi/grafana-grafana:<latest or DSI provided stable version>` |
-| StatsD Exporter | `ghcr.io/energy-dsi/prom-statsd-exporter:<latest or DSI provided stable version>` |
+| Jaeger Collector | `ghcr.io/energy-dsi/jaeger-collector:<latest or DSI provided stable version>` |
+| Jaeger Ingester | `ghcr.io/energy-dsi/jaeger-ingester:<latest or DSI provided stable version>` |
+| Jaeger Query | `ghcr.io/energy-dsi/jaeger-query:<latest or DSI provided stable version>` |
+| Prometheus | `ghcr.io/energy-dsi/prometheus:<latest or DSI provided stable version>` |
+| Grafana | `ghcr.io/energy-dsi/grafana:<latest or DSI provided stable version>` |
+| StatsD Exporter | `ghcr.io/energy-dsi/statsd-exporter:<latest or DSI provided stable version>` |
 | Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
 | Nginx (dashboard proxy) | `ghcr.io/energy-dsi/nginx:<latest or DSI provided stable version>` |
 

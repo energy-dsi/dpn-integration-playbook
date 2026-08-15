@@ -129,12 +129,14 @@ Root-Repository
 
 The following steps are required when an organisation produces a data product:
 
-1. Define the **`product_type`** name — the identifier for the data product being published. Each product type must conform to one of the schema types available in the blueprints.
+1. Define the **`product_type`** name — the identifier/name of the data product being published. Each product type must conform to one of the schema types available in the blueprints.
 2. Define the **`process_type`** - file/topic for the data product.
 3. Copy the relevant schema folder (e.g. `eq`, `eqbd`, `dl`, or `ssh`) from `Root-Repository/blueprints/producer/file/{schema_type}` to `Root-Repository/producer/file/{schema_type}` if **process_type is file**.
 4. Copy the relevant schema folder (e.g. `eq`, `eqbd`, `dl`, or `ssh`) from `Root-Repository/blueprints/producer/topic/{schema_type}` to `Root-Repository/producer/topic/{schema_type}` if **process_type is topic**.
 5. Rename the copied `{schema_type}` folder to `{product_type}` (e.g. rename `eq` to `eq-dp-01`). Only hyphens are permitted as special characters; **all other special characters are disallowed**.
-6. Ensure the `product_type` value is passed consistently during the CI pipeline run.
+6. Ensure the `product_type` value is passed consistently during the CI pipeline run. This `product_type` defines the name of the data product being published. In some cases the term `product_name` is used which has the same value. 
+
+**Note** The `product_type` value needs to exactly match the folder name of the data product in the dpn-data-pipelines repository otherwise pipeline execution will fail. 
 
 ```text
 Root-Repository
@@ -218,7 +220,7 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
 | srcTopicName | Kafka topic name for the Adaptor input stage | `dpn-producer-eq-sample-1-stage` |
 | mapperTopicName | Kafka topic name for the adaptor out and mapper in stage | `dpn-producer-eq-sample-1-raw` |
-| targetTopicName | Kafka topic name for the mapper out and target in stage | `dpn-producer-eq-sample-1-target` |
+| targetTopicName | Kafka topic name for the mapper out and target in stage | `dpn-producer-orga-eq-eq-sample-1-target` {Automatically created} |
 | orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
 | srcGroupId | Consumer group | `producer_topic_eq` |
@@ -497,12 +499,12 @@ For streaming based integration pathway, the following convention is recommended
 | Process | Source Topic Name | Target Topic Name | Bootstrap Server |
 |---------|-------------------|-------------------|------------------|
 | adaptor | `dpn-producer-{product_type}-stage` | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
-| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src:9092` |
+| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{orgname}-{schema_type}-{product_type}-target` | `dpn-kafka-src:9092` |
 | extractor | `dp-consumer-topic-stage` | `dp-consumer-topic-trfm` | `dpn-kafka-target:9092` |
 | consumer-mapper | `dp-consumer-topic-trfm` | Auto created based on data product name in meta data | `dpn-kafka-target:9092` |
 
 
-where **`product_type`** is a value such as `eq-sample-1` as described in previous sections.
+where **`product_type`** is the name of the data product name such as `eq-sample-1` as described in previous sections.
 
 These topics must be pre-created via the Kafka UI before the `dpn-data-pipeline` CI and CD tasks are executed.
 
