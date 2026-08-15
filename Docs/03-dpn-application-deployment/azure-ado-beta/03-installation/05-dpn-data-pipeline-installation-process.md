@@ -459,17 +459,6 @@ Data Pipeline service images are found in GHCR with following name
 | consumer-topic-extractor | `ghcr.io/energy-dsi/consumer-topic-extractor` | `<version>0` |
 | consumer-topic-mapper | `ghcr.io/energy-dsi/consumer-topic-mapper` | `<version>` |
 
-#### Platform & Third-Party Images
-
-| Purpose | GHCR Path |
-|---|---|
-| Pipeline base image | `ghcr.io/energy-dsi/alpine:<latest or DSI provided stable version>` |
-| Airflow | `ghcr.io/energy-dsi/apache-airflow:<latest or DSI provided stable version>` |
-| Airflow Postgres | `ghcr.io/energy-dsi/postgres:<latest or DSI provided stable version>` |
-| Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
-| Zookeeper | `ghcr.io/energy-dsi/cp-zookeeper:<latest or DSI provided stable version>` |
-| Kafka | `ghcr.io/energy-dsi/cp-kafka:<latest or DSI provided stable version>` |
-| Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
 
 ---
 
