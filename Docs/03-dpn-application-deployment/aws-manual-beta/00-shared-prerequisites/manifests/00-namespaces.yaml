@@ -1,0 +1,20 @@
+# =============================================================================
+# Namespaces used across the whole DPN AWS deployment.
+#
+# ns-dpn-01          — Vault, certificate-manager, data pipeline (Airflow),
+#                       federator gateway (Kafka/Zookeeper/producer/consumer pods)
+# ns-dpn-health-01    — Health-monitor observability stack
+#
+# Apply this before anything else in this repo. Safe to re-apply (idempotent).
+# =============================================================================
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-dpn-01
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-dpn-health-01

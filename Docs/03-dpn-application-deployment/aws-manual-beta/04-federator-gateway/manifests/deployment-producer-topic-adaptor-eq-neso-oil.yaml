@@ -1,0 +1,116 @@
+# ===== deploy/dpn-producer-topic-adaptor-eq-neso-oil =====
+# Captured from live cluster state 2026-07-23 — exists but scaled to 0 replicas
+# (intentionally disabled; images ARE present in GHCR, confirmed via manifest API).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dpn-producer-topic-adaptor-eq-neso-oil
+  name: dpn-producer-topic-adaptor-eq-neso-oil
+  namespace: ns-dpn-01
+spec:
+  replicas: 0
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: dpn-producer-topic-adaptor-eq-neso-oil
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: dpn-producer-topic-adaptor-eq-neso-oil
+    spec:
+      automountServiceAccountToken: true
+      containers:
+      - command:
+        - python
+        - main.py
+        env:
+        - name: bootstrapServer
+          value: dpn-kafka-src:9092
+        - name: mapperTopicName
+          value: dpn-producer-eq-neso-oil-raw
+        - name: srcTopicName
+          value: dpn-producer-eq-neso-oil-stage
+        - name: srcGroupId
+          value: producer_topic_eq_neso_oil
+        - name: orgName
+          value: neso
+        - name: schemaType
+          value: eq
+        - name: productType
+          value: eq-neso-oil
+        - name: namespace
+          value: ns-dpn-01
+        - name: name
+          value: dpn-producer-topic-adaptor-eq-neso-oil
+        - name: imageName
+          value: producer-topic-adaptor-eq
+        - name: PRODUCT_NAME
+          value: eq-neso-oil
+        - name: SCHEDULER_BACKEND
+          value: kafka-trigger
+        - name: EXECUTION_MODE
+          value: automatic
+        - name: scheduleInterval
+          value: '240'
+        - name: replicaCount
+          value: '1'
+        - name: PIPELINE_CONTROL_TOPIC
+          value: dpn-pipeline-control
+        - name: PIPELINE_STATUS_TOPIC
+          value: dpn-pipeline-status
+        - name: DRAIN_IDLE_SECS
+          value: '15'
+        - name: TOPIC_TASK_TIMEOUT_SECS
+          value: '45'
+        - name: statsdPort
+          value: '8125'
+        - name: SERVICE_NAME
+          value: dpn data pipeline
+        - name: SERVICE_VERSION
+          value: 1.0.0
+        - name: consumerRetryDelaySecs
+          value: '5'
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: grpc
+        - name: OTEL_EXPORTER_OTLP_INSECURE
+          value: 'true'
+        - name: ENVIRONMENT
+          value: development
+        image: ghcr.io/energy-dsi/producer-topic-adaptor-eq:1.0.0
+        imagePullPolicy: Always
+        name: dpn-producer-topic-adaptor-eq-neso-oil
+        resources:
+          limits:
+            cpu: 200m
+            memory: 128Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 10000
+          seccompProfile:
+            type: RuntimeDefault
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      serviceAccount: federator-server
+      serviceAccountName: federator-server
+      terminationGracePeriodSeconds: 30

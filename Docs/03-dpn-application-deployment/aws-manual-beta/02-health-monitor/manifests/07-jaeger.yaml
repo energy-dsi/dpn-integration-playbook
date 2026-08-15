@@ -1,0 +1,193 @@
+# Jaeger ingester + query. Collector is intentionally omitted — disabled in
+# charts/jaeger/values.yaml upstream too (traces flow Kafka -> ingester -> ES,
+# not through a collector). Apply AFTER manifests/02-kafka-stack.yaml and
+# manifests/03-opensearch.yaml.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-jaeger-ingester-health
+  namespace: ns-dpn-health-01
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: ingester
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/component: ingester
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: ingester
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: jaeger
+              app.kubernetes.io/component: ingester
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: ingester
+          image: "jaegertracing/jaeger-ingester:1.57.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: SPAN_STORAGE_TYPE
+              value: elasticsearch
+            - name: ES_SERVER_URLS
+              value: "http://dpn-opensearch-health.ns-dpn-health-01.svc.cluster.local:9200"
+            - name: ES_USERNAME
+              value: ""
+            - name: ES_PASSWORD
+              value: ""
+            - name: ES_INDEX_PREFIX
+              value: "jaeger"
+            - name: KAFKA_CONSUMER_BROKERS
+              value: "dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092"
+            - name: KAFKA_CONSUMER_TOPIC
+              value: "otel-traces"
+            - name: KAFKA_CONSUMER_GROUP_ID
+              value: "jaeger-ingester"
+            - name: KAFKA_CONSUMER_ENCODING
+              value: "protobuf"
+          resources:
+            requests:
+              cpu: 150m
+              memory: 384Mi
+            limits:
+              cpu: 600m
+              memory: 768Mi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-jaeger-query-health
+  namespace: ns-dpn-health-01
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+      app.kubernetes.io/component: query
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: jaeger
+        app.kubernetes.io/component: query
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+        instrumentation.opentelemetry.io/inject-nodejs: "true"
+        instrumentation.opentelemetry.io/inject-python: "true"
+        instrumentation.opentelemetry.io/inject-dotnet: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "true"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: jaeger
+              app.kubernetes.io/component: query
+      securityContext:
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+      containers:
+        - name: query
+          image: "jaegertracing/jaeger-query:1.57.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: SPAN_STORAGE_TYPE
+              value: elasticsearch
+            - name: ES_SERVER_URLS
+              value: "http://dpn-opensearch-health.ns-dpn-health-01.svc.cluster.local:9200"
+            - name: ES_USERNAME
+              value: ""
+            - name: ES_PASSWORD
+              value: ""
+            - name: ES_INDEX_PREFIX
+              value: "jaeger"
+          ports:
+            - name: query
+              containerPort: 16686
+          resources:
+            # Trimmed hard from a prior source chart's defaults (250m/1000m) —
+            # see RUNBOOK.md capacity notes. Raise toward those originals if
+            # your cluster has more CPU headroom than the source cluster did.
+            requests:
+              cpu: 60m
+              memory: 256Mi
+            limits:
+              cpu: 400m
+              memory: 512Mi
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dpn-jaeger-health
+  namespace: ns-dpn-health-01
+  labels:
+    app.kubernetes.io/name: jaeger
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: jaeger
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-jaeger-query-health
+  namespace: ns-dpn-health-01
+  labels:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: jaeger
+    app.kubernetes.io/component: query
+  ports:
+    - name: query
+      port: 16686
+      targetPort: 16686
+      protocol: TCP

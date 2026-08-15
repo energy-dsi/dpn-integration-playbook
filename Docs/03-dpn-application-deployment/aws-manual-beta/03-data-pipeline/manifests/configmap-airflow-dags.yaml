@@ -1,0 +1,508 @@
+# ===== configmap/dpn-airflow-dags =====
+apiVersion: v1
+data:
+  dpn_consumer_file.py: "# Copyright DSI Project \u2014 Apache 2.0\n# v1.0.0 2026-05-26 \u2014 Kafka trigger\
+    \ pattern \u2014 no new pods created\n\"\"\"\nAirflow DAG: consumer_file\n\nOrchestrates the already-running\
+    \ Kubernetes pods for consumer-file via Kafka.\nNo new pods are created. Existing deployments receive\
+    \ trigger messages on\ndpn-pipeline-control and publish completion to dpn-pipeline-status.\n\nTask\
+    \ chain:\n  trigger_extractor \u2192 wait_extractor_done \u2192 trigger_schema_mapper \u2192 wait_schema_mapper_done\n\
+    \"\"\"\nfrom __future__ import annotations\nimport os, sys\nfrom datetime import timedelta\nfrom airflow\
+    \ import DAG\nfrom airflow.operators.python import PythonOperator\nfrom airflow.sensors.base import\
+    \ BaseSensorOperator\nfrom airflow.utils.dates import days_ago\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\
+    from utils.kafka_trigger import (build_trigger_message, get_status_start_offset,\n               \
+    \                   poll_for_status, publish_trigger)\nfrom dotenv import load_dotenv\n\nload_dotenv()\n\
+    \n\nPRODUCT  = \"consumer-file\"\nP_TYPE   = \"file\"\nP_ROLE   = \"consumer\"\nSTAGE1   = \"extractor\"\
+    \nBOOTSTRAP = \"dpn-kafka-target:9092\"\nSCHEDULE  = \"*/3 * * * *\"\nSENSOR_TIMEOUT   = int(os.getenv(\"\
+    SENSOR_TIMEOUT_SECS\",\"600\"))\nSENSOR_POKE_SECS = int(os.getenv(\"SENSOR_POKE_SECS\",\"20\"))\n\
+    SENSOR_POKE_INT  = int(os.getenv(\"SENSOR_POKE_INTERVAL\",\"30\"))\n\n\nclass PipelineStatusSensor(BaseSensorOperator):\n\
+    \    template_fields = (\"run_id\",)\n    def __init__(self,*,expected_stage,xcom_task_id,run_id=\"\
+    {{ run_id }}\",\n                 bootstrap_server,product,poke_timeout=20.0,**kwargs):\n        super().__init__(**kwargs)\n\
+    \        self.expected_stage=expected_stage; self.xcom_task_id=xcom_task_id\n        self.run_id=run_id;\
+    \ self.bootstrap_server=bootstrap_server\n        self.product=product; self.poke_timeout=poke_timeout\n\
+    \    def poke(self,context):\n        offset=context[\"ti\"].xcom_pull(task_ids=self.xcom_task_id,key=\"\
+    status_start_offset\") or 0\n        self.log.info(\"poke stage=%s run_id=%s offset=%d\",self.expected_stage,self.run_id[:20],offset)\n\
+    \        result=poll_for_status(expected_run_id=self.run_id,expected_stage=self.expected_stage,\n\
+    \            expected_product=self.product,bootstrap_server=self.bootstrap_server,\n            start_offset=offset,timeout_secs=self.poke_timeout)\n\
+    \        if result is None: return False\n        status=result.get(\"status\",\"unknown\")\n    \
+    \    if status==\"failed\": raise RuntimeError(f\"{self.expected_stage} FAILED: {result.get('error')}\"\
+    )\n        return True\n\n\ndef _trigger(stage):\n    def _callable(**kwargs):\n        dag_run=kwargs[\"\
+    dag_run\"]; dag=kwargs[\"dag\"]; run_id=dag_run.run_id\n        offset=get_status_start_offset(BOOTSTRAP)\n\
+    \        kwargs[\"ti\"].xcom_push(key=\"status_start_offset\",value=offset)\n        publish_trigger(build_trigger_message(stage=stage,pipeline_type=P_TYPE,\n\
+    \            pipeline_role=P_ROLE,product=PRODUCT,run_id=run_id,dag_run_id=run_id,\n            dag_id=dag.dag_id,execution_mode=\"\
+    automatic\"),BOOTSTRAP)\n        kwargs[\"ti\"].log.info(\"trigger published stage=%s product=%s run_id=%s\"\
+    ,stage,PRODUCT,run_id[:20])\n    return _callable\n\n\n_DEFAULT = {\"owner\":\"dpn\",\"depends_on_past\"\
+    :False,\"retries\":2,\n            \"retry_delay\":timedelta(minutes=3),\"email_on_failure\":False}\n\
+    \nwith DAG(dag_id=\"consumer_file\",default_args=_DEFAULT,\n         description=\"consumer-file \u2014\
+    \ Kafka trigger, existing pods, no new K8s pods\",\n         schedule_interval=SCHEDULE,start_date=days_ago(1),\n\
+    \         catchup=False,max_active_runs=1,\n         tags=[\"dpn\",\"consumer\",\"file\",\"consumer-file\"\
+    ,\"kafka-trigger\"]) as dag:\n\n    t1=PythonOperator(task_id=f\"trigger_{STAGE1}\",python_callable=_trigger(STAGE1),provide_context=True)\n\
+    \    t2=PipelineStatusSensor(task_id=f\"wait_{STAGE1}_done\",expected_stage=STAGE1,\n        xcom_task_id=f\"\
+    trigger_{STAGE1}\",bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n    t3=PythonOperator(task_id=\"trigger_schema_mapper\"\
+    ,\n        python_callable=_trigger(\"schema_mapper\"),provide_context=True)\n    t4=PipelineStatusSensor(task_id=\"\
+    wait_schema_mapper_done\",expected_stage=\"schema_mapper\",\n        xcom_task_id=\"trigger_schema_mapper\"\
+    ,bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n\n    t1 >> t2 >> t3 >> t4\n"
+  dpn_consumer_topic.py: "# Copyright DSI Project \u2014 Apache 2.0\n# v1.0.0 2026-05-26 \u2014 Kafka\
+    \ trigger pattern \u2014 no new pods created\n\"\"\"\nAirflow DAG: consumer_topic\n\nOrchestrates\
+    \ the already-running Kubernetes pods for consumer-topic via Kafka.\nNo new pods are created. Existing\
+    \ deployments receive trigger messages on\ndpn-pipeline-control and publish completion to dpn-pipeline-status.\n\
+    \nTask chain:\n  trigger_extractor \u2192 wait_extractor_done \u2192 trigger_schema_mapper \u2192\
+    \ wait_schema_mapper_done\n\"\"\"\nfrom __future__ import annotations\nimport os, sys\nfrom datetime\
+    \ import timedelta\nfrom airflow import DAG\nfrom airflow.operators.python import PythonOperator\n\
+    from airflow.sensors.base import BaseSensorOperator\nfrom airflow.utils.dates import days_ago\nsys.path.insert(0,\
+    \ os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\nfrom utils.kafka_trigger import (build_trigger_message,\
+    \ get_status_start_offset,\n                                  poll_for_status, publish_trigger)\n\
+    from dotenv import load_dotenv\n\nload_dotenv()\n\n\nPRODUCT  = \"consumer-topic\"\nP_TYPE   = \"\
+    topic\"\nP_ROLE   = \"consumer\"\nSTAGE1   = \"extractor\"\n# BOOTSTRAP = os.getenv(\"bootstrapServer\"\
+    ,\"\")\nBOOTSTRAP = \"dpn-kafka-target:9092\"\n# SCHEDULE  = os.getenv(\"CONSUMER_TOPIC_SCHEDULE\"\
+    ,\"@hourly\")\n# SCHEDULE  = \"*/3 * * * *\"\nSCHEDULE  = '*/3 * * * *'\nSENSOR_TIMEOUT   = int(os.getenv(\"\
+    SENSOR_TIMEOUT_SECS\",\"600\"))\nSENSOR_POKE_SECS = int(os.getenv(\"SENSOR_POKE_SECS\",\"20\"))\n\
+    SENSOR_POKE_INT  = int(os.getenv(\"SENSOR_POKE_INTERVAL\",\"30\"))\n\n\nclass PipelineStatusSensor(BaseSensorOperator):\n\
+    \    template_fields = (\"run_id\",)\n    def __init__(self,*,expected_stage,xcom_task_id,run_id=\"\
+    {{ run_id }}\",\n                 bootstrap_server,product,poke_timeout=20.0,**kwargs):\n        super().__init__(**kwargs)\n\
+    \        self.expected_stage=expected_stage; self.xcom_task_id=xcom_task_id\n        self.run_id=run_id;\
+    \ self.bootstrap_server=bootstrap_server\n        self.product=product; self.poke_timeout=poke_timeout\n\
+    \    def poke(self,context):\n        offset=context[\"ti\"].xcom_pull(task_ids=self.xcom_task_id,key=\"\
+    status_start_offset\") or 0\n        self.log.info(\"poke stage=%s run_id=%s offset=%d\",self.expected_stage,self.run_id[:20],offset)\n\
+    \        result=poll_for_status(expected_run_id=self.run_id,expected_stage=self.expected_stage,\n\
+    \            expected_product=self.product,bootstrap_server=self.bootstrap_server,\n            start_offset=offset,timeout_secs=self.poke_timeout)\n\
+    \        if result is None: return False\n        status=result.get(\"status\",\"unknown\")\n    \
+    \    if status==\"failed\": raise RuntimeError(f\"{self.expected_stage} FAILED: {result.get('error')}\"\
+    )\n        return True\n\n\ndef _trigger(stage):\n    def _callable(**kwargs):\n        dag_run=kwargs[\"\
+    dag_run\"]; dag=kwargs[\"dag\"]; run_id=dag_run.run_id\n        offset=get_status_start_offset(BOOTSTRAP)\n\
+    \        kwargs[\"ti\"].xcom_push(key=\"status_start_offset\",value=offset)\n        publish_trigger(build_trigger_message(stage=stage,pipeline_type=P_TYPE,\n\
+    \            pipeline_role=P_ROLE,product=PRODUCT,run_id=run_id,dag_run_id=run_id,\n            dag_id=dag.dag_id,execution_mode=\"\
+    automatic\"),BOOTSTRAP)\n        kwargs[\"ti\"].log.info(\"trigger published stage=%s product=%s run_id=%s\"\
+    ,stage,PRODUCT,run_id[:20])\n    return _callable\n\n\n_DEFAULT = {\"owner\":\"dpn\",\"depends_on_past\"\
+    :False,\"retries\":2,\n            \"retry_delay\":timedelta(minutes=3),\"email_on_failure\":False}\n\
+    \nwith DAG(dag_id=\"consumer_topic\",default_args=_DEFAULT,\n         description=\"consumer-topic\
+    \ \u2014 Kafka trigger, existing pods, no new K8s pods\",\n         schedule_interval=SCHEDULE,start_date=days_ago(1),\n\
+    \         catchup=False,max_active_runs=1,\n         tags=[\"dpn\",\"consumer\",\"topic\",\"consumer-topic\"\
+    ,\"kafka-trigger\"]) as dag:\n\n    t1=PythonOperator(task_id=f\"trigger_{STAGE1}\",python_callable=_trigger(STAGE1),provide_context=True)\n\
+    \    t2=PipelineStatusSensor(task_id=f\"wait_{STAGE1}_done\",expected_stage=STAGE1,\n        xcom_task_id=f\"\
+    trigger_{STAGE1}\",bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n    t3=PythonOperator(task_id=\"trigger_schema_mapper\"\
+    ,\n        python_callable=_trigger(\"schema_mapper\"),provide_context=True)\n    t4=PipelineStatusSensor(task_id=\"\
+    wait_schema_mapper_done\",expected_stage=\"schema_mapper\",\n        xcom_task_id=\"trigger_schema_mapper\"\
+    ,bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n\n    t1 >> t2 >> t3 >> t4\n"
+  dpn_producer_file_bp_natural_gas.py: "# Copyright DSI Project\n#\n# Licensed under the Apache License,\
+    \ Version 2.0 (the \"License\");\n# +---------+----------------------------------------------------------+---------------+-------------+\n\
+    # | Version | Description                                              | Change Owner  | Change Date\
+    \ |\n# +---------+----------------------------------------------------------+---------------+-------------+\n\
+    # | 1.0.0   | Initial version \u2014 Kafka trigger pattern                  | DSI Team      | 2026-05-26\
+    \  |\n# +---------+----------------------------------------------------------+---------------+-------------+\n\
+    \"\"\"\nAirflow DAG \u2014 Producer \xB7 File \xB7 BP Natural Gas (Kafka trigger pattern)\n\nHOW THIS\
+    \ DAG WORKS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\nThe pipeline pods (adaptor, schema mapper) are already running in Kubernetes\n\
+    as long-lived Deployments. This DAG does NOT create new pods. Instead it\norchestrates the existing\
+    \ pods by publishing trigger messages to Kafka.\n\n  Task 1: trigger_adaptor\n    Publishes a JSON\
+    \ trigger to dpn-pipeline-control.\n    The bp-natural-gas adaptor pod receives it, runs one cycle\
+    \ (list files\n    \u2192 copy to staging \u2192 publish file-ready events), then publishes a\n  \
+    \  completion status to dpn-pipeline-status.\n\n  Task 2: wait_adaptor_done\n    Polls dpn-pipeline-status\
+    \ until it finds a \"completed\" message matching\n    this DAG run's run_id and stage=\"adaptor\"\
+    .\n    Only then moves to task 3.\n\n  Task 3: trigger_schema_mapper\n    Publishes a trigger to dpn-pipeline-control\
+    \ for stage=\"schema_mapper\".\n    The schema mapper pod enters \"drain mode\": processes all file-ready\n\
+    \    events the adaptor just published, then signals completion.\n    (Without this explicit trigger\
+    \ the schema mapper would process the\n    events eventually on its own, but Airflow would have no\
+    \ way to know\n    when it finished.)\n\n  Task 4: wait_schema_mapper_done\n    Polls dpn-pipeline-status\
+    \ until it finds a \"completed\" message matching\n    this run_id and stage=\"schema_mapper\".\n\
+    \    DAG succeeds when this task completes.\n\nDEPENDENCY CHAIN\n\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  trigger_adaptor\n       \u2193\n \
+    \ wait_adaptor_done          (Airflow waits here \u2014 no new pods)\n       \u2193\n  trigger_schema_mapper\n\
+    \       \u2193\n  wait_schema_mapper_done    (Airflow waits here \u2014 no new pods)\n\nWHY NOT KubernetesPodOperator?\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nKubernetesPodOperator\
+    \ creates a NEW pod per task run.\nThat would leave us with two adaptor pods running simultaneously:\n\
+    \  - the existing always-on Kubernetes Deployment\n  - plus the new Airflow-created temporary pod\n\
+    This DAG avoids that entirely. The existing pods do all the work.\n\nWHAT CHANGES PER PRODUCT\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\nTo add eq-neso-oil, copy this file and change:\n  PRODUCT =\
+    \ \"eq-neso-oil\"\n  dag_id  = \"producer_topic_eq_neso_oil\"   (also change file and pipeline type)\n\
+    \  SCHEDULE env var name\n  import   (from producer.topic.eq_neso_oil...)\nEverything else is identical.\n\
+    \"\"\"\nfrom __future__ import annotations\n\nimport json\nimport os\nimport sys\nfrom datetime import\
+    \ timedelta\n\nfrom airflow import DAG\nfrom airflow.models import BaseOperator\nfrom airflow.operators.python\
+    \ import PythonOperator\nfrom airflow.sensors.base import BaseSensorOperator\nfrom airflow.utils.context\
+    \ import Context\nfrom airflow.utils.dates import days_ago\n\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\
+    \n# Kafka trigger helpers \u2014 no pipeline business logic imported here\nfrom utils.kafka_trigger\
+    \ import (\n    build_trigger_message,\n    get_status_start_offset,\n    poll_for_status,\n    publish_trigger,\n\
+    )\n\nfrom dotenv import load_dotenv\n\nload_dotenv()\n\n# \u2500\u2500 Product identity \u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\n# These are the only three lines that change when you copy this DAG\
+    \ for another product.\nPRODUCT         = \"bp-natural-gas\"\nPIPELINE_TYPE   = \"file\"\nPIPELINE_ROLE\
+    \   = \"producer\" \n\nBOOTSTRAP_SERVER = \"dpn-kafka-src:9092\"\nSCHEDULE         = '*/3 * * * *'\n\
+    \n# How long the sensor polls before timing out the whole task (and triggering retry)\nSENSOR_TIMEOUT_SECS\
+    \    = int(os.getenv(\"SENSOR_TIMEOUT_SECS\",    \"600\"))\n# How long each individual poke looks\
+    \ in the status topic before returning False\nSENSOR_POKE_SECS       = int(os.getenv(\"SENSOR_POKE_SECS\"\
+    ,       \"20\"))\n# How often (seconds) Airflow calls poke()\nSENSOR_POKE_INTERVAL   = int(os.getenv(\"\
+    SENSOR_POKE_INTERVAL\",   \"30\"))\n\n\n# ---------------------------------------------------------------------------\n\
+    # Custom sensor: waits for a pipeline status message on dpn-pipeline-status\n# ---------------------------------------------------------------------------\n\
+    \nclass PipelineStatusSensor(BaseSensorOperator):\n    \"\"\"\n    Polls dpn-pipeline-status until\
+    \ a matching completion message arrives.\n\n    Parameters\n    ----------\n    expected_stage:\n\
+    \        \"adaptor\" or \"schema_mapper\" \u2014 so the adaptor sensor does not\n        accidentally\
+    \ match the schema mapper's completion message.\n    status_start_offset_xcom_key:\n        XCom key\
+    \ where the trigger task stored the Kafka start offset.\n        The sensor seeks to this offset so\
+    \ it never misses a message\n        published between the trigger and the first poke.\n    \"\"\"\
+    \n\n    template_fields = (\"run_id\",)\n\n    def __init__(\n        self,\n        *,\n        expected_stage:\
+    \ str,\n        status_start_offset_xcom_task_id: str,\n        run_id: str = \"{{ run_id }}\",\n\
+    \        bootstrap_server: str,\n        product: str,\n        poke_timeout_secs: float = 20.0,\n\
+    \        **kwargs,\n    ) -> None:\n        super().__init__(**kwargs)\n        self.expected_stage\
+    \                  = expected_stage\n        self.status_start_offset_xcom_task_id = status_start_offset_xcom_task_id\n\
+    \        self.run_id                          = run_id\n        self.bootstrap_server            \
+    \    = bootstrap_server\n        self.product                         = product\n        self.poke_timeout_secs\
+    \               = poke_timeout_secs\n\n    def poke(self, context: Context) -> bool:\n        # Read\
+    \ the Kafka start offset that the trigger task recorded in XCom.\n        # This tells us where to\
+    \ start scanning the status topic.\n        start_offset: int = context[\"ti\"].xcom_pull(\n     \
+    \       task_ids=self.status_start_offset_xcom_task_id,\n            key=\"status_start_offset\",\n\
+    \        ) or 0\n\n        self.log.info(\n            \"PipelineStatusSensor poke \u2014 run_id=%s\
+    \ stage=%s product=%s start_offset=%d\",\n            self.run_id[:20], self.expected_stage, self.product,\
+    \ start_offset,\n        )\n\n        result = poll_for_status(\n            expected_run_id  = self.run_id,\n\
+    \            expected_stage   = self.expected_stage,\n            expected_product = self.product,\n\
+    \            bootstrap_server = self.bootstrap_server,\n            start_offset     = start_offset,\n\
+    \            timeout_secs     = self.poke_timeout_secs,\n        )\n\n        if result is None:\n\
+    \            self.log.info(\n                \"Status not yet available \u2014 will poke again in\
+    \ %ds\",\n                self.poke_interval,\n            )\n            return False\n\n       \
+    \ # Got a result \u2014 check if it was a success or failure\n        status = result.get(\"status\"\
+    , \"unknown\")\n        self.log.info(\n            \"Pipeline status received \u2014 stage=%s status=%s\
+    \ duration_ms=%.0f\",\n            self.expected_stage, status, result.get(\"duration_ms\", 0),\n\
+    \        )\n\n        if status == \"failed\":\n            raise RuntimeError(\n                f\"\
+    Pipeline {self.expected_stage} for {self.product} FAILED \"\n                f\"(run_id={self.run_id}):\
+    \ {result.get('error', 'unknown error')}\"\n            )\n\n        if status == \"skipped\":\n \
+    \           self.log.warning(\n                \"Pipeline %s was skipped (EXECUTION_MODE=manual) \u2014\
+    \ \"\n                \"treating as success, downstream tasks will run\",\n                self.expected_stage,\n\
+    \            )\n\n        return True   # \"completed\" or \"skipped\" \u2192 task SUCCESS\n\n\n#\
+    \ ---------------------------------------------------------------------------\n# Task callables\n\
+    # ---------------------------------------------------------------------------\n\ndef _trigger_adaptor(**kwargs)\
+    \ -> None:\n    \"\"\"\n    Publish a trigger to dpn-pipeline-control for the adaptor stage.\n\n \
+    \   Also records the current end offset of dpn-pipeline-status in XCom\n    BEFORE publishing the\
+    \ trigger. The sensor uses this offset to seek\n    to the right position and never miss a completion\
+    \ message.\n    \"\"\"\n    dag_run = kwargs[\"dag_run\"]\n    dag     = kwargs[\"dag\"]\n    run_id\
+    \  = dag_run.run_id\n    ti      = kwargs[\"ti\"]\n\n    # Step 1: record current status topic offset\
+    \ BEFORE triggering\n    # (in case the adaptor is very fast and completes before the sensor's first\
+    \ poke)\n    start_offset = get_status_start_offset(BOOTSTRAP_SERVER)\n    ti.xcom_push(key=\"status_start_offset\"\
+    , value=start_offset)\n\n    # Step 2: build and publish the trigger message\n    message = build_trigger_message(\n\
+    \        stage          = \"adaptor\",\n        pipeline_type  = PIPELINE_TYPE,\n        pipeline_role\
+    \  = PIPELINE_ROLE,\n        product        = PRODUCT,\n        run_id         = run_id,\n       \
+    \ dag_run_id     = run_id,\n        dag_id         = dag.dag_id,\n        execution_mode = \"automatic\"\
+    ,\n    )\n\n    publish_trigger(message, BOOTSTRAP_SERVER)\n\n    kwargs[\"ti\"].log.info(\n     \
+    \   \"Adaptor trigger published \u2014 product=%s run_id=%s start_offset=%d\",\n        PRODUCT, run_id[:20],\
+    \ start_offset,\n    )\n\n\ndef _trigger_schema_mapper(**kwargs) -> None:\n    \"\"\"\n    Publish\
+    \ a trigger to dpn-pipeline-control for the schema_mapper stage.\n\n    The schema mapper enters drain\
+    \ mode: processes all file-ready events\n    the adaptor just published, then signals completion.\n\
+    \    \"\"\"\n    dag_run = kwargs[\"dag_run\"]\n    dag     = kwargs[\"dag\"]\n    run_id  = dag_run.run_id\n\
+    \    ti      = kwargs[\"ti\"]\n\n    # Record status offset before triggering (same reason as adaptor\
+    \ trigger)\n    start_offset = get_status_start_offset(BOOTSTRAP_SERVER)\n    ti.xcom_push(key=\"\
+    status_start_offset\", value=start_offset)\n\n    message = build_trigger_message(\n        stage\
+    \          = \"schema_mapper\",\n        pipeline_type  = PIPELINE_TYPE,\n        pipeline_role  =\
+    \ PIPELINE_ROLE,\n        product        = PRODUCT,\n        run_id         = run_id,\n        dag_run_id\
+    \     = run_id,\n        dag_id         = dag.dag_id,\n        execution_mode = \"automatic\",\n \
+    \   )\n\n    publish_trigger(message, BOOTSTRAP_SERVER)\n\n    kwargs[\"ti\"].log.info(\n        \"\
+    Schema mapper trigger published \u2014 product=%s run_id=%s start_offset=%d\",\n        PRODUCT, run_id[:20],\
+    \ start_offset,\n    )\n\n\n# ---------------------------------------------------------------------------\n\
+    # DAG definition\n# ---------------------------------------------------------------------------\n\n\
+    _DEFAULT_ARGS = {\n    \"owner\":            \"dpn\",\n    \"depends_on_past\":  False,\n    \"retries\"\
+    :          2,\n    \"retry_delay\":      timedelta(minutes=3),\n    \"email_on_failure\": False,\n\
+    }\n\nwith DAG(\n    dag_id          = \"producer_file_bp_natural_gas\",\n    default_args    = _DEFAULT_ARGS,\n\
+    \    description     = \"BP Natural Gas file pipeline \u2014 Kafka trigger, no new pods\",\n    schedule_interval\
+    \ = SCHEDULE,\n    start_date      = days_ago(1),\n    catchup         = False,\n    max_active_runs\
+    \ = 1,\n    tags            = [\"dpn\", \"producer\", \"file\", \"bp-natural-gas\", \"kafka-trigger\"\
+    ],\n) as dag:\n\n    # \u2500\u2500 Task 1: publish trigger to adaptor \u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    trigger_adaptor\
+    \ = PythonOperator(\n        task_id         = \"trigger_adaptor\",\n        python_callable = _trigger_adaptor,\n\
+    \        provide_context = True,\n        doc_md = (\n            \"Publishes a trigger message to\
+    \ dpn-pipeline-control for the bp-natural-gas adaptor. \"\n            \"The already-running adaptor\
+    \ pod receives it and executes one file-ingestion cycle.\"\n        ),\n    )\n\n    # \u2500\u2500\
+    \ Task 2: wait for adaptor completion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    wait_adaptor_done = PipelineStatusSensor(\n      \
+    \  task_id                           = \"wait_adaptor_done\",\n        expected_stage            \
+    \        = \"adaptor\",\n        status_start_offset_xcom_task_id  = \"trigger_adaptor\",\n      \
+    \  bootstrap_server                  = BOOTSTRAP_SERVER,\n        product                        \
+    \   = PRODUCT,\n        poke_timeout_secs                 = SENSOR_POKE_SECS,\n        poke_interval\
+    \                     = SENSOR_POKE_INTERVAL,\n        timeout                           = SENSOR_TIMEOUT_SECS,\n\
+    \        mode                              = \"reschedule\",  # frees the worker slot while waiting\n\
+    \        doc_md = (\n            \"Polls dpn-pipeline-status until the adaptor publishes a 'completed'\
+    \ message \"\n            \"matching this DAG run's run_id. Fails the DAG if the adaptor reports failure.\"\
+    \n        ),\n    )\n\n    # \u2500\u2500 Task 3: publish trigger to schema mapper \u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    trigger_schema_mapper = PythonOperator(\n\
+    \        task_id         = \"trigger_schema_mapper\",\n        python_callable = _trigger_schema_mapper,\n\
+    \        provide_context = True,\n        doc_md = (\n            \"Publishes a trigger to the schema\
+    \ mapper pod. \"\n            \"The pod drains its queue (file-ready events from the adaptor) \"\n\
+    \            \"and publishes completion when idle.\"\n        ),\n    )\n\n    # \u2500\u2500 Task\
+    \ 4: wait for schema mapper completion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\n    wait_schema_mapper_done = PipelineStatusSensor(\n        task_id                     \
+    \      = \"wait_schema_mapper_done\",\n        expected_stage                    = \"schema_mapper\"\
+    ,\n        status_start_offset_xcom_task_id  = \"trigger_schema_mapper\",\n        bootstrap_server\
+    \                  = BOOTSTRAP_SERVER,\n        product                           = PRODUCT,\n   \
+    \     poke_timeout_secs                 = SENSOR_POKE_SECS,\n        poke_interval               \
+    \      = SENSOR_POKE_INTERVAL,\n        timeout                           = SENSOR_TIMEOUT_SECS,\n\
+    \        mode                              = \"reschedule\",\n        doc_md = (\n            \"Polls\
+    \ dpn-pipeline-status until the schema mapper publishes a 'completed' message. \"\n            \"\
+    DAG succeeds when this task completes.\"\n        ),\n    )\n\n    # \u2500\u2500 Dependency chain\
+    \ \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\n    # trigger_adaptor \u2192 wait_adaptor_done \u2192 trigger_schema_mapper \u2192\
+    \ wait_schema_mapper_done\n    trigger_adaptor >> wait_adaptor_done >> trigger_schema_mapper >> wait_schema_mapper_done\n"
+  dpn_producer_file_hp_natural_oil.py: "# Copyright DSI Project\n#\n# Licensed under the Apache License,\
+    \ Version 2.0 (the \"License\");\n# +---------+----------------------------------------------------------+---------------+-------------+\n\
+    # | Version | Description                                              | Change Owner  | Change Date\
+    \ |\n# +---------+----------------------------------------------------------+---------------+-------------+\n\
+    # | 1.0.0   | Initial version \u2014 Kafka trigger pattern                  | DSI Team      | 2026-05-26\
+    \  |\n# +---------+----------------------------------------------------------+---------------+-------------+\n\
+    \"\"\"\nAirflow DAG \u2014 Producer \xB7 File \xB7 HP Natural Oil (Kafka trigger pattern)\n\nHOW THIS\
+    \ DAG WORKS\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\nThe pipeline pods (adaptor, schema mapper) are already running in Kubernetes\n\
+    as long-lived Deployments. This DAG does NOT create new pods. Instead it\norchestrates the existing\
+    \ pods by publishing trigger messages to Kafka.\n\n  Task 1: trigger_adaptor\n    Publishes a JSON\
+    \ trigger to dpn-pipeline-control.\n    The hp-natural-oil adaptor pod receives it, runs one cycle\
+    \ (list files\n    \u2192 copy to staging \u2192 publish file-ready events), then publishes a\n  \
+    \  completion status to dpn-pipeline-status.\n\n  Task 2: wait_adaptor_done\n    Polls dpn-pipeline-status\
+    \ until it finds a \"completed\" message matching\n    this DAG run's run_id and stage=\"adaptor\"\
+    .\n    Only then moves to task 3.\n\n  Task 3: trigger_schema_mapper\n    Publishes a trigger to dpn-pipeline-control\
+    \ for stage=\"schema_mapper\".\n    The schema mapper pod enters \"drain mode\": processes all file-ready\n\
+    \    events the adaptor just published, then signals completion.\n    (Without this explicit trigger\
+    \ the schema mapper would process the\n    events eventually on its own, but Airflow would have no\
+    \ way to know\n    when it finished.)\n\n  Task 4: wait_schema_mapper_done\n    Polls dpn-pipeline-status\
+    \ until it finds a \"completed\" message matching\n    this run_id and stage=\"schema_mapper\".\n\
+    \    DAG succeeds when this task completes.\n\nDEPENDENCY CHAIN\n\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n  trigger_adaptor\n       \u2193\n \
+    \ wait_adaptor_done          (Airflow waits here \u2014 no new pods)\n       \u2193\n  trigger_schema_mapper\n\
+    \       \u2193\n  wait_schema_mapper_done    (Airflow waits here \u2014 no new pods)\n\nWHY NOT KubernetesPodOperator?\n\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\nKubernetesPodOperator\
+    \ creates a NEW pod per task run.\nThat would leave us with two adaptor pods running simultaneously:\n\
+    \  - the existing always-on Kubernetes Deployment\n  - plus the new Airflow-created temporary pod\n\
+    This DAG avoids that entirely. The existing pods do all the work.\n\nWHAT CHANGES PER PRODUCT\n\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\nTo add eq-neso-oil, copy this file and change:\n  PRODUCT =\
+    \ \"eq-neso-oil\"\n  dag_id  = \"producer_topic_eq_neso_oil\"   (also change file and pipeline type)\n\
+    \  SCHEDULE env var name\n  import   (from producer.topic.eq_neso_oil...)\nEverything else is identical.\n\
+    \"\"\"\nfrom __future__ import annotations\n\nimport json\nimport os\nimport sys\nfrom datetime import\
+    \ timedelta\n\nfrom airflow import DAG\nfrom airflow.models import BaseOperator\nfrom airflow.operators.python\
+    \ import PythonOperator\nfrom airflow.sensors.base import BaseSensorOperator\nfrom airflow.utils.context\
+    \ import Context\nfrom airflow.utils.dates import days_ago\n\nsys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\n\
+    \n# Kafka trigger helpers \u2014 no pipeline business logic imported here\nfrom utils.kafka_trigger\
+    \ import (\n    build_trigger_message,\n    get_status_start_offset,\n    poll_for_status,\n    publish_trigger,\n\
+    )\n\nfrom dotenv import load_dotenv\n\nload_dotenv()\n\n# \u2500\u2500 Product identity \u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\n# These are the only three lines that change when you copy this DAG\
+    \ for another product.\nPRODUCT         = \"hp-natural-oil\"\nPIPELINE_TYPE   = \"file\"\nPIPELINE_ROLE\
+    \   = \"producer\"\n\nBOOTSTRAP_SERVER = \"dpn-kafka-src:9092\"\n# SCHEDULE         = os.getenv(\"\
+    BP_NATURAL_GAS_SCHEDULE\", \"@hourly\")\nSCHEDULE  = None\n# How long the sensor polls before timing\
+    \ out the whole task (and triggering retry)\nSENSOR_TIMEOUT_SECS    = int(os.getenv(\"SENSOR_TIMEOUT_SECS\"\
+    ,    \"600\"))\n# How long each individual poke looks in the status topic before returning False\n\
+    SENSOR_POKE_SECS       = int(os.getenv(\"SENSOR_POKE_SECS\",       \"20\"))\n# How often (seconds)\
+    \ Airflow calls poke()\nSENSOR_POKE_INTERVAL   = int(os.getenv(\"SENSOR_POKE_INTERVAL\",   \"30\"\
+    ))\n\n\n# ---------------------------------------------------------------------------\n# Custom sensor:\
+    \ waits for a pipeline status message on dpn-pipeline-status\n# ---------------------------------------------------------------------------\n\
+    \nclass PipelineStatusSensor(BaseSensorOperator):\n    \"\"\"\n    Polls dpn-pipeline-status until\
+    \ a matching completion message arrives.\n\n    Parameters\n    ----------\n    expected_stage:\n\
+    \        \"adaptor\" or \"schema_mapper\" \u2014 so the adaptor sensor does not\n        accidentally\
+    \ match the schema mapper's completion message.\n    status_start_offset_xcom_key:\n        XCom key\
+    \ where the trigger task stored the Kafka start offset.\n        The sensor seeks to this offset so\
+    \ it never misses a message\n        published between the trigger and the first poke.\n    \"\"\"\
+    \n\n    template_fields = (\"run_id\",)\n\n    def __init__(\n        self,\n        *,\n        expected_stage:\
+    \ str,\n        status_start_offset_xcom_task_id: str,\n        run_id: str = \"{{ run_id }}\",\n\
+    \        bootstrap_server: str,\n        product: str,\n        poke_timeout_secs: float = 20.0,\n\
+    \        **kwargs,\n    ) -> None:\n        super().__init__(**kwargs)\n        self.expected_stage\
+    \                  = expected_stage\n        self.status_start_offset_xcom_task_id = status_start_offset_xcom_task_id\n\
+    \        self.run_id                          = run_id\n        self.bootstrap_server            \
+    \    = bootstrap_server\n        self.product                         = product\n        self.poke_timeout_secs\
+    \               = poke_timeout_secs\n\n    def poke(self, context: Context) -> bool:\n        # Read\
+    \ the Kafka start offset that the trigger task recorded in XCom.\n        # This tells us where to\
+    \ start scanning the status topic.\n        start_offset: int = context[\"ti\"].xcom_pull(\n     \
+    \       task_ids=self.status_start_offset_xcom_task_id,\n            key=\"status_start_offset\",\n\
+    \        ) or 0\n\n        self.log.info(\n            \"PipelineStatusSensor poke \u2014 run_id=%s\
+    \ stage=%s product=%s start_offset=%d\",\n            self.run_id[:20], self.expected_stage, self.product,\
+    \ start_offset,\n        )\n\n        result = poll_for_status(\n            expected_run_id  = self.run_id,\n\
+    \            expected_stage   = self.expected_stage,\n            expected_product = self.product,\n\
+    \            bootstrap_server = self.bootstrap_server,\n            start_offset     = start_offset,\n\
+    \            timeout_secs     = self.poke_timeout_secs,\n        )\n\n        if result is None:\n\
+    \            self.log.info(\n                \"Status not yet available \u2014 will poke again in\
+    \ %ds\",\n                self.poke_interval,\n            )\n            return False\n\n       \
+    \ # Got a result \u2014 check if it was a success or failure\n        status = result.get(\"status\"\
+    , \"unknown\")\n        self.log.info(\n            \"Pipeline status received \u2014 stage=%s status=%s\
+    \ duration_ms=%.0f\",\n            self.expected_stage, status, result.get(\"duration_ms\", 0),\n\
+    \        )\n\n        if status == \"failed\":\n            raise RuntimeError(\n                f\"\
+    Pipeline {self.expected_stage} for {self.product} FAILED \"\n                f\"(run_id={self.run_id}):\
+    \ {result.get('error', 'unknown error')}\"\n            )\n\n        if status == \"skipped\":\n \
+    \           self.log.warning(\n                \"Pipeline %s was skipped (EXECUTION_MODE=manual) \u2014\
+    \ \"\n                \"treating as success, downstream tasks will run\",\n                self.expected_stage,\n\
+    \            )\n\n        return True   # \"completed\" or \"skipped\" \u2192 task SUCCESS\n\n\n#\
+    \ ---------------------------------------------------------------------------\n# Task callables\n\
+    # ---------------------------------------------------------------------------\n\ndef _trigger_adaptor(**kwargs)\
+    \ -> None:\n    \"\"\"\n    Publish a trigger to dpn-pipeline-control for the adaptor stage.\n\n \
+    \   Also records the current end offset of dpn-pipeline-status in XCom\n    BEFORE publishing the\
+    \ trigger. The sensor uses this offset to seek\n    to the right position and never miss a completion\
+    \ message.\n    \"\"\"\n    dag_run = kwargs[\"dag_run\"]\n    dag     = kwargs[\"dag\"]\n    run_id\
+    \  = dag_run.run_id\n    ti      = kwargs[\"ti\"]\n\n    # Step 1: record current status topic offset\
+    \ BEFORE triggering\n    # (in case the adaptor is very fast and completes before the sensor's first\
+    \ poke)\n    start_offset = get_status_start_offset(BOOTSTRAP_SERVER)\n    ti.xcom_push(key=\"status_start_offset\"\
+    , value=start_offset)\n\n    # Step 2: build and publish the trigger message\n    message = build_trigger_message(\n\
+    \        stage          = \"adaptor\",\n        pipeline_type  = PIPELINE_TYPE,\n        pipeline_role\
+    \  = PIPELINE_ROLE,\n        product        = PRODUCT,\n        run_id         = run_id,\n       \
+    \ dag_run_id     = run_id,\n        dag_id         = dag.dag_id,\n        execution_mode = \"automatic\"\
+    ,\n    )\n\n    publish_trigger(message, BOOTSTRAP_SERVER)\n\n    kwargs[\"ti\"].log.info(\n     \
+    \   \"Adaptor trigger published \u2014 product=%s run_id=%s start_offset=%d\",\n        PRODUCT, run_id[:20],\
+    \ start_offset,\n    )\n\n\ndef _trigger_schema_mapper(**kwargs) -> None:\n    \"\"\"\n    Publish\
+    \ a trigger to dpn-pipeline-control for the schema_mapper stage.\n\n    The schema mapper enters drain\
+    \ mode: processes all file-ready events\n    the adaptor just published, then signals completion.\n\
+    \    \"\"\"\n    dag_run = kwargs[\"dag_run\"]\n    dag     = kwargs[\"dag\"]\n    run_id  = dag_run.run_id\n\
+    \    ti      = kwargs[\"ti\"]\n\n    # Record status offset before triggering (same reason as adaptor\
+    \ trigger)\n    start_offset = get_status_start_offset(BOOTSTRAP_SERVER)\n    ti.xcom_push(key=\"\
+    status_start_offset\", value=start_offset)\n\n    message = build_trigger_message(\n        stage\
+    \          = \"schema_mapper\",\n        pipeline_type  = PIPELINE_TYPE,\n        pipeline_role  =\
+    \ PIPELINE_ROLE,\n        product        = PRODUCT,\n        run_id         = run_id,\n        dag_run_id\
+    \     = run_id,\n        dag_id         = dag.dag_id,\n        execution_mode = \"automatic\",\n \
+    \   )\n\n    publish_trigger(message, BOOTSTRAP_SERVER)\n\n    kwargs[\"ti\"].log.info(\n        \"\
+    Schema mapper trigger published \u2014 product=%s run_id=%s start_offset=%d\",\n        PRODUCT, run_id[:20],\
+    \ start_offset,\n    )\n\n\n# ---------------------------------------------------------------------------\n\
+    # DAG definition\n# ---------------------------------------------------------------------------\n\n\
+    _DEFAULT_ARGS = {\n    \"owner\":            \"dpn\",\n    \"depends_on_past\":  False,\n    \"retries\"\
+    :          2,\n    \"retry_delay\":      timedelta(minutes=3),\n    \"email_on_failure\": False,\n\
+    }\n\nwith DAG(\n    dag_id          = \"producer_file_hp_natural_oil\",\n    default_args    = _DEFAULT_ARGS,\n\
+    \    description     = \"HP Natural Oil file pipeline \u2014 Kafka trigger, no new pods\",\n    schedule_interval\
+    \ = SCHEDULE,\n    start_date      = days_ago(1),\n    catchup         = False,\n    max_active_runs\
+    \ = 1,\n    tags            = [\"dpn\", \"producer\", \"file\", \"hp-natural-oil\", \"kafka-trigger\"\
+    ],\n) as dag:\n\n    # \u2500\u2500 Task 1: publish trigger to adaptor \u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    trigger_adaptor\
+    \ = PythonOperator(\n        task_id         = \"trigger_adaptor\",\n        python_callable = _trigger_adaptor,\n\
+    \        provide_context = True,\n        doc_md = (\n            \"Publishes a trigger message to\
+    \ dpn-pipeline-control for the hp-natural-oil adaptor. \"\n            \"The already-running adaptor\
+    \ pod receives it and executes one file-ingestion cycle.\"\n        ),\n    )\n\n    # \u2500\u2500\
+    \ Task 2: wait for adaptor completion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    wait_adaptor_done = PipelineStatusSensor(\n      \
+    \  task_id                           = \"wait_adaptor_done\",\n        expected_stage            \
+    \        = \"adaptor\",\n        status_start_offset_xcom_task_id  = \"trigger_adaptor\",\n      \
+    \  bootstrap_server                  = BOOTSTRAP_SERVER,\n        product                        \
+    \   = PRODUCT,\n        poke_timeout_secs                 = SENSOR_POKE_SECS,\n        poke_interval\
+    \                     = SENSOR_POKE_INTERVAL,\n        timeout                           = SENSOR_TIMEOUT_SECS,\n\
+    \        mode                              = \"reschedule\",  # frees the worker slot while waiting\n\
+    \        doc_md = (\n            \"Polls dpn-pipeline-status until the adaptor publishes a 'completed'\
+    \ message \"\n            \"matching this DAG run's run_id. Fails the DAG if the adaptor reports failure.\"\
+    \n        ),\n    )\n\n    # \u2500\u2500 Task 3: publish trigger to schema mapper \u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n    trigger_schema_mapper = PythonOperator(\n\
+    \        task_id         = \"trigger_schema_mapper\",\n        python_callable = _trigger_schema_mapper,\n\
+    \        provide_context = True,\n        doc_md = (\n            \"Publishes a trigger to the schema\
+    \ mapper pod. \"\n            \"The pod drains its queue (file-ready events from the adaptor) \"\n\
+    \            \"and publishes completion when idle.\"\n        ),\n    )\n\n    # \u2500\u2500 Task\
+    \ 4: wait for schema mapper completion \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\n    wait_schema_mapper_done = PipelineStatusSensor(\n        task_id                     \
+    \      = \"wait_schema_mapper_done\",\n        expected_stage                    = \"schema_mapper\"\
+    ,\n        status_start_offset_xcom_task_id  = \"trigger_schema_mapper\",\n        bootstrap_server\
+    \                  = BOOTSTRAP_SERVER,\n        product                           = PRODUCT,\n   \
+    \     poke_timeout_secs                 = SENSOR_POKE_SECS,\n        poke_interval               \
+    \      = SENSOR_POKE_INTERVAL,\n        timeout                           = SENSOR_TIMEOUT_SECS,\n\
+    \        mode                              = \"reschedule\",\n        doc_md = (\n            \"Polls\
+    \ dpn-pipeline-status until the schema mapper publishes a 'completed' message. \"\n            \"\
+    DAG succeeds when this task completes.\"\n        ),\n    )\n\n    # \u2500\u2500 Dependency chain\
+    \ \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\
+    \u2500\u2500\u2500\n    # trigger_adaptor \u2192 wait_adaptor_done \u2192 trigger_schema_mapper \u2192\
+    \ wait_schema_mapper_done\n    trigger_adaptor >> wait_adaptor_done >> trigger_schema_mapper >> wait_schema_mapper_done\n"
+  dpn_producer_topic_eq_neso_oil.py: "# Copyright DSI Project \u2014 Apache 2.0\n# v1.0.0 2026-05-26 \u2014\
+    \ Kafka trigger pattern \u2014 no new pods created\n\"\"\"\nAirflow DAG: producer_topic_eq_neso_oil\n\
+    \nOrchestrates the already-running Kubernetes pods for eq-neso-oil via Kafka.\nNo new pods are created.\
+    \ Existing deployments receive trigger messages on\ndpn-pipeline-control and publish completion to\
+    \ dpn-pipeline-status.\n\nTask chain:\n  trigger_adaptor \u2192 wait_adaptor_done \u2192 trigger_schema_mapper\
+    \ \u2192 wait_schema_mapper_done\n\"\"\"\nfrom __future__ import annotations\nimport os, sys\nfrom\
+    \ datetime import timedelta\nfrom airflow import DAG\nfrom airflow.operators.python import PythonOperator\n\
+    from airflow.sensors.base import BaseSensorOperator\nfrom airflow.utils.dates import days_ago\nsys.path.insert(0,\
+    \ os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\nfrom utils.kafka_trigger import (build_trigger_message,\
+    \ get_status_start_offset,\n                                  poll_for_status, publish_trigger)\n\
+    from dotenv import load_dotenv\n\nload_dotenv()\n\nPRODUCT  = \"eq-neso-oil\"\nP_TYPE   = \"topic\"\
+    \nP_ROLE   = \"producer\"\nSTAGE1   = \"adaptor\"\n# BOOTSTRAP = os.getenv(\"bootstrapServer\",\"\"\
+    )\nBOOTSTRAP = \"dpn-kafka-src:9092\"\n# SCHEDULE  = os.getenv(\"EQ_NESO_OIL_SCHEDULE\",\"@hourly\"\
+    )\nSCHEDULE  = '*/3 * * * *'\nSENSOR_TIMEOUT   = int(os.getenv(\"SENSOR_TIMEOUT_SECS\",\"600\"))\n\
+    SENSOR_POKE_SECS = int(os.getenv(\"SENSOR_POKE_SECS\",\"20\"))\nSENSOR_POKE_INT  = int(os.getenv(\"\
+    SENSOR_POKE_INTERVAL\",\"30\"))\n\n\nclass PipelineStatusSensor(BaseSensorOperator):\n    template_fields\
+    \ = (\"run_id\",)\n    def __init__(self,*,expected_stage,xcom_task_id,run_id=\"{{ run_id }}\",\n\
+    \                 bootstrap_server,product,poke_timeout=20.0,**kwargs):\n        super().__init__(**kwargs)\n\
+    \        self.expected_stage=expected_stage; self.xcom_task_id=xcom_task_id\n        self.run_id=run_id;\
+    \ self.bootstrap_server=bootstrap_server\n        self.product=product; self.poke_timeout=poke_timeout\n\
+    \    def poke(self,context):\n        offset=context[\"ti\"].xcom_pull(task_ids=self.xcom_task_id,key=\"\
+    status_start_offset\") or 0\n        self.log.info(\"poke stage=%s run_id=%s offset=%d\",self.expected_stage,self.run_id[:20],offset)\n\
+    \        result=poll_for_status(expected_run_id=self.run_id,expected_stage=self.expected_stage,\n\
+    \            expected_product=self.product,bootstrap_server=self.bootstrap_server,\n            start_offset=offset,timeout_secs=self.poke_timeout)\n\
+    \        if result is None: return False\n        status=result.get(\"status\",\"unknown\")\n    \
+    \    if status==\"failed\": raise RuntimeError(f\"{self.expected_stage} FAILED: {result.get('error')}\"\
+    )\n        return True\n\n\ndef _trigger(stage):\n    def _callable(**kwargs):\n        dag_run=kwargs[\"\
+    dag_run\"]; dag=kwargs[\"dag\"]; run_id=dag_run.run_id\n        offset=get_status_start_offset(BOOTSTRAP)\n\
+    \        kwargs[\"ti\"].xcom_push(key=\"status_start_offset\",value=offset)\n        publish_trigger(build_trigger_message(stage=stage,pipeline_type=P_TYPE,\n\
+    \            pipeline_role=P_ROLE,product=PRODUCT,run_id=run_id,dag_run_id=run_id,\n            dag_id=dag.dag_id,execution_mode=\"\
+    automatic\"),BOOTSTRAP)\n        kwargs[\"ti\"].log.info(\"trigger published stage=%s product=%s run_id=%s\"\
+    ,stage,PRODUCT,run_id[:20])\n    return _callable\n\n\n_DEFAULT = {\"owner\":\"dpn\",\"depends_on_past\"\
+    :False,\"retries\":2,\n            \"retry_delay\":timedelta(minutes=3),\"email_on_failure\":False}\n\
+    \nwith DAG(dag_id=\"producer_topic_eq_neso_oil\",default_args=_DEFAULT,\n         description=\"eq-neso-oil\
+    \ \u2014 Kafka trigger, existing pods, no new K8s pods\",\n         schedule_interval=SCHEDULE,start_date=days_ago(1),\n\
+    \         catchup=False,max_active_runs=1,\n         tags=[\"dpn\",\"producer\",\"topic\",\"eq-neso-oil\"\
+    ,\"kafka-trigger\"]) as dag:\n\n    t1=PythonOperator(task_id=f\"trigger_{STAGE1}\",python_callable=_trigger(STAGE1),provide_context=True)\n\
+    \    t2=PipelineStatusSensor(task_id=f\"wait_{STAGE1}_done\",expected_stage=STAGE1,\n        xcom_task_id=f\"\
+    trigger_{STAGE1}\",bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n    t3=PythonOperator(task_id=\"trigger_schema_mapper\"\
+    ,\n        python_callable=_trigger(\"schema_mapper\"),provide_context=True)\n    t4=PipelineStatusSensor(task_id=\"\
+    wait_schema_mapper_done\",expected_stage=\"schema_mapper\",\n        xcom_task_id=\"trigger_schema_mapper\"\
+    ,bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n\n    t1 >> t2 >> t3 >> t4\n"
+  dpn_producer_topic_eqbd_pg_gas.py: "# Copyright DSI Project \u2014 Apache 2.0\n# v1.0.0 2026-05-26 \u2014\
+    \ Kafka trigger pattern \u2014 no new pods created\n\"\"\"\nAirflow DAG: producer_topic_eqbd_pg_gas\n\
+    \nOrchestrates the already-running Kubernetes pods for eqbd-pg-gas via Kafka.\nNo new pods are created.\
+    \ Existing deployments receive trigger messages on\ndpn-pipeline-control and publish completion to\
+    \ dpn-pipeline-status.\n\nTask chain:\n  trigger_adaptor \u2192 wait_adaptor_done \u2192 trigger_schema_mapper\
+    \ \u2192 wait_schema_mapper_done\n\"\"\"\nfrom __future__ import annotations\nimport os, sys\nfrom\
+    \ datetime import timedelta\nfrom airflow import DAG\nfrom airflow.operators.python import PythonOperator\n\
+    from airflow.sensors.base import BaseSensorOperator\nfrom airflow.utils.dates import days_ago\nsys.path.insert(0,\
+    \ os.path.dirname(os.path.dirname(os.path.abspath(__file__))))\nfrom utils.kafka_trigger import (build_trigger_message,\
+    \ get_status_start_offset,\n                                  poll_for_status, publish_trigger)\n\n\
+    from dotenv import load_dotenv\n\nload_dotenv()\n\n\nPRODUCT  = \"eqbd-pg-gas\"\nP_TYPE   = \"topic\"\
+    \nP_ROLE   = \"producer\"\nSTAGE1   = \"adaptor\"\n# BOOTSTRAP = os.getenv(\"bootstrapServer\",\"\"\
+    )\nBOOTSTRAP = \"dpn-kafka-src:9092\"\n# SCHEDULE  = os.getenv(\"EQBD_PG_GAS_SCHEDULE\",\"@hourly\"\
+    )\n# SCHEDULE  = '*/3 * * * *'\nSCHEDULE  = '*/3 * * * *'\nSENSOR_TIMEOUT   = int(os.getenv(\"SENSOR_TIMEOUT_SECS\"\
+    ,\"600\"))\nSENSOR_POKE_SECS = int(os.getenv(\"SENSOR_POKE_SECS\",\"20\"))\nSENSOR_POKE_INT  = int(os.getenv(\"\
+    SENSOR_POKE_INTERVAL\",\"30\"))\n\n\nclass PipelineStatusSensor(BaseSensorOperator):\n    template_fields\
+    \ = (\"run_id\",)\n    def __init__(self,*,expected_stage,xcom_task_id,run_id=\"{{ run_id }}\",\n\
+    \                 bootstrap_server,product,poke_timeout=20.0,**kwargs):\n        super().__init__(**kwargs)\n\
+    \        self.expected_stage=expected_stage; self.xcom_task_id=xcom_task_id\n        self.run_id=run_id;\
+    \ self.bootstrap_server=bootstrap_server\n        self.product=product; self.poke_timeout=poke_timeout\n\
+    \    def poke(self,context):\n        offset=context[\"ti\"].xcom_pull(task_ids=self.xcom_task_id,key=\"\
+    status_start_offset\") or 0\n        self.log.info(\"poke stage=%s run_id=%s offset=%d\",self.expected_stage,self.run_id[:20],offset)\n\
+    \        result=poll_for_status(expected_run_id=self.run_id,expected_stage=self.expected_stage,\n\
+    \            expected_product=self.product,bootstrap_server=self.bootstrap_server,\n            start_offset=offset,timeout_secs=self.poke_timeout)\n\
+    \        if result is None: return False\n        status=result.get(\"status\",\"unknown\")\n    \
+    \    if status==\"failed\": raise RuntimeError(f\"{self.expected_stage} FAILED: {result.get('error')}\"\
+    )\n        return True\n\n\ndef _trigger(stage):\n    def _callable(**kwargs):\n        dag_run=kwargs[\"\
+    dag_run\"]; dag=kwargs[\"dag\"]; run_id=dag_run.run_id\n        offset=get_status_start_offset(BOOTSTRAP)\n\
+    \        kwargs[\"ti\"].xcom_push(key=\"status_start_offset\",value=offset)\n        publish_trigger(build_trigger_message(stage=stage,pipeline_type=P_TYPE,\n\
+    \            pipeline_role=P_ROLE,product=PRODUCT,run_id=run_id,dag_run_id=run_id,\n            dag_id=dag.dag_id,execution_mode=\"\
+    automatic\"),BOOTSTRAP)\n        kwargs[\"ti\"].log.info(\"trigger published stage=%s product=%s run_id=%s\"\
+    ,stage,PRODUCT,run_id[:20])\n    return _callable\n\n\n_DEFAULT = {\"owner\":\"dpn\",\"depends_on_past\"\
+    :False,\"retries\":2,\n            \"retry_delay\":timedelta(minutes=3),\"email_on_failure\":False}\n\
+    \nwith DAG(dag_id=\"producer_topic_eqbd_pg_gas\",default_args=_DEFAULT,\n         description=\"eqbd-pg-gas\
+    \ \u2014 Kafka trigger, existing pods, no new K8s pods\",\n         schedule_interval=SCHEDULE,start_date=days_ago(1),\n\
+    \         catchup=False,max_active_runs=1,\n         tags=[\"dpn\",\"producer\",\"topic\",\"eqbd-pg-gas\"\
+    ,\"kafka-trigger\"]) as dag:\n\n    t1=PythonOperator(task_id=f\"trigger_{STAGE1}\",python_callable=_trigger(STAGE1),provide_context=True)\n\
+    \    t2=PipelineStatusSensor(task_id=f\"wait_{STAGE1}_done\",expected_stage=STAGE1,\n        xcom_task_id=f\"\
+    trigger_{STAGE1}\",bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n    t3=PythonOperator(task_id=\"trigger_schema_mapper\"\
+    ,\n        python_callable=_trigger(\"schema_mapper\"),provide_context=True)\n    t4=PipelineStatusSensor(task_id=\"\
+    wait_schema_mapper_done\",expected_stage=\"schema_mapper\",\n        xcom_task_id=\"trigger_schema_mapper\"\
+    ,bootstrap_server=BOOTSTRAP,product=PRODUCT,\n        poke_timeout=SENSOR_POKE_SECS,poke_interval=SENSOR_POKE_INT,\n\
+    \        timeout=SENSOR_TIMEOUT,mode=\"reschedule\")\n\n    t1 >> t2 >> t3 >> t4\n"
+kind: ConfigMap
+metadata:
+  name: dpn-airflow-dags
+  namespace: ns-dpn-01

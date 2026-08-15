@@ -1,0 +1,217 @@
+# =============================================================================
+# Certificate Manager (PVC + ConfigMap + Deployment)
+# Namespace: ns-dpn-01
+#
+# Prerequisites (see RUNBOOK.md):
+#   1. vault-https deployed, initialised, UNSEALED, kv-v2 enabled at pki-client,
+#      and the bootstrap identity bundle loaded at pki-client/node-net/client/*
+#   2. Secret ghcr-pull-secret
+#   3. Secret cert-manager-truststore     (truststore.jks)
+#   4. Secret certificate-manager-secrets (VAULT_TOKEN + 4 other keys — see RUNBOOK.md)
+#
+#   kubectl apply -f manifests/02-certificate-manager.yaml
+#   kubectl rollout status deployment/dpn-certificate-manager -n ns-dpn-01
+# =============================================================================
+
+---
+# ── PersistentVolumeClaim — shared /tls (EFS, RWX) ──────────────────────────
+# Written by certificate-manager, read by the federator-gateway server/client
+# pods in 04-federator-gateway.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cert-manager-tls
+  namespace: ns-dpn-01
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: efs-sc
+
+---
+# ── ConfigMap — non-sensitive runtime config ────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dpn-certificate-manager-config
+  namespace: ns-dpn-01
+  labels:
+    app: dpn-certificate-manager
+data:
+  SPRING_APPLICATION_NAME: "certificate-manager"
+
+  # ---- Vault ----------------------------------------------------------------
+  VAULT_URI:              "https://vault-https.ns-dpn-01.svc.cluster.local:8200"
+  VAULT_AUTHENTICATION:   "TOKEN"
+  VAULT_AUTH_ROLE:        "certificate-manager"
+  VAULT_PKI_MOUNT:        "pki-client"
+  VAULT_SECRET_PATH:      "pki-client/node-net/client"
+
+  SPRING_CLOUD_VAULT_SSL_TRUST_STORE:          "file:/app/truststore/truststore.jks"
+  # Must match the password used to build truststore.jks (see scripts/create-vault-tls-bootstrap.sh).
+  # NOTE: the Secret certificate-manager-secrets also defines this key and takes
+  # precedence via envFrom — change it there, not here, to avoid a silent no-op.
+  SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD: "<TRUSTSTORE_PASSWORD>"
+
+  # ---- mTLS keystores (written by cert-manager to /tls) ---------------------
+  MTLS_KEYSTORE_PATH:   "/tls/keystore.p12"
+  MTLS_TRUSTSTORE_PATH: "/tls/truststore.p12"
+  MTLS_KEYSTORE_TYPE:   "PKCS12"
+
+  # ---- Certificate destination (output files) -------------------------------
+  CERT_DEST_PATH:            "/tls/"
+  CERT_DEST_KEYSTORE_FILE:   "keystore.p12"
+  CERT_DEST_TRUSTSTORE_FILE: "truststore.p12"
+  CERT_DEST_KEYSTORE_ALIAS:  "federator"
+
+  # ---- OAuth2 (private_key_jwt — no client secret needed) -------------------
+  OAUTH2_TOKEN_URI:     "<DSM_OAUTH2_TOKEN_URI>"          # e.g. https://auth-mtls.<your-dsm-domain>/realms/management-node/protocol/openid-connect/token
+  OAUTH2_CLIENT_ID:     "<DSM_OAUTH2_CLIENT_ID>"
+  OAUTH2_AUTH_MODE:     "private_key_jwt"
+  OAUTH2_JWT_ALGORITHM: "RS256"
+
+  # ---- Management Node ------------------------------------------------------
+  MANAGEMENT_NODE_BASE_URL: "<DSM_MANAGEMENT_NODE_BASE_URL>"  # e.g. https://management.<your-dsm-domain>
+
+  # ---- Certificate scheduling -----------------------------------------------
+  CERT_RENEWAL_RATE: "3600000"   # 1 hour in ms
+  CERT_SYNC_RATE:    "60000"     # 1 minute in ms
+
+  # ---- Certificate subject --------------------------------------------------
+  CERT_RENEWAL_THRESHOLD:           "100"
+  CERT_KEY_SIZE:                    "2048"
+  CERT_SUBJECT_COUNTRY:             "<CERT_SUBJECT_COUNTRY>"     # e.g. GB
+  CERT_SUBJECT_STATE:               ""
+  CERT_SUBJECT_LOCALITY:            ""
+  CERT_SUBJECT_ORG:                 "<CERT_SUBJECT_ORG>"         # e.g. Example Corp
+  CERT_SUBJECT_OU:                  ""
+  CERT_SUBJECT_CN:                  "<CERT_SUBJECT_CN>"          # e.g. dpn-client-01
+  CERT_SUBJECT_ALT_NAMES:           "<CERT_SUBJECT_ALT_NAMES>"   # e.g. producer.dpn01.example.com,consumer.dpn01.example.com
+  BOOTSTRAP_OID:                    "1.3.6.1.4.1.32473.1.1"
+  CERT_INTERMEDIATE_MIN_VALID_DAYS: "14"
+
+  # ---- Logging --------------------------------------------------------------
+  LOG_LEVEL_SPRING_SECURITY: "INFO"
+  LOG_LEVEL_APP:             "INFO"
+  LOG_LEVEL_RESILIENCE4J:    "INFO"
+
+  # ---- OTEL -------------------------------------------------------------------
+  # Sends telemetry to the otel-collector deployed by 02-health-monitor. Non-fatal
+  # if that component isn't deployed yet — export attempts just fail silently.
+  OTEL_SERVICE_NAME:           "dpn-certificate-manager"
+  OTEL_TRACES_ENABLED:         "true"
+  OTEL_TRACES_SAMPLER_ARG:     "1.0"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318"
+
+---
+# ── Deployment ──────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-certificate-manager
+  namespace: ns-dpn-01
+  labels:
+    app: dpn-certificate-manager
+spec:
+  replicas: 1   # keep 1 — writes to shared /tls; multiple replicas would conflict
+  selector:
+    matchLabels:
+      app: dpn-certificate-manager
+  template:
+    metadata:
+      labels:
+        app: dpn-certificate-manager
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+
+      containers:
+        - name: certificate-manager
+          image: ghcr.io/energy-dsi/dpn-federator-certificate-manager:211017
+          imagePullPolicy: Always
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+
+          env:
+            - name: JAVA_OPTS
+              value: >-
+                -Djava.security.egd=file:/dev/./urandom
+                -XX:MaxRAMPercentage=75.0
+                -Djava.io.tmpdir=/app/tmp
+                -Djava.net.preferIPv4Stack=true
+                -Dnetworkaddress.cache.negative.ttl=0
+
+          envFrom:
+            - configMapRef:
+                name: dpn-certificate-manager-config
+            - secretRef:
+                name: certificate-manager-secrets
+
+          # Sized to fit a CPU-constrained node pool — raise if headroom allows.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "pgrep -f app.jar > /dev/null"
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "pgrep -f app.jar > /dev/null"
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
+
+          volumeMounts:
+            - name: tls-fileshare
+              mountPath: /tls
+            - name: vault-truststore
+              mountPath: /app/truststore
+              readOnly: true
+            - name: tmp
+              mountPath: /app/tmp
+            - name: logs
+              mountPath: /app/logs
+
+      volumes:
+        - name: tls-fileshare
+          persistentVolumeClaim:
+            claimName: cert-manager-tls
+        - name: vault-truststore
+          secret:
+            secretName: cert-manager-truststore
+        - name: tmp
+          emptyDir: {}
+        - name: logs
+          emptyDir: {}

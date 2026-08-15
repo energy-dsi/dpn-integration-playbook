@@ -1,0 +1,29 @@
+# ===== configmap/dpn-airflow-config =====
+apiVersion: v1
+data:
+  AIRFLOW__CELERY__BROKER_CONNECTION_RETRY_ON_STARTUP: 'true'
+  # dpn-airflow-redis is owned by 04-federator-gateway (soft dependency, not deployed by this
+  # component) — the celery worker/scheduler/triggerer pods will CrashLoop on broker connection
+  # errors until that Service exists. See RUNBOOK.md Prerequisites.
+  AIRFLOW__CELERY__BROKER_URL: redis://dpn-airflow-redis:6379/0
+  AIRFLOW__CELERY__TASK_TRACK_STARTED: 'true'
+  AIRFLOW__CELERY__WORKER_CONCURRENCY: '4'
+  AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+  AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+  AIRFLOW__CORE__DAGS_IGNORE_FILE_SYNTAX: regexp
+  AIRFLOW__CORE__DAG_DISCOVERY_SAFE_MODE: 'false'
+  AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+  AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+  AIRFLOW__LOGGING__LOGGING_LEVEL: INFO
+  AIRFLOW__LOGGING__REMOTE_LOGGING: 'false'
+  AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: '30'
+  AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_TIMEOUT: '120'
+  AIRFLOW__SCHEDULER__MIN_FILE_PROCESS_INTERVAL: '20'
+  AIRFLOW__SCHEDULER__ZOMBIE_TASK_THRESHOLD: '300'
+  AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+kind: ConfigMap
+metadata:
+  labels:
+    app: dpn-airflow
+  name: dpn-airflow-config
+  namespace: ns-dpn-01

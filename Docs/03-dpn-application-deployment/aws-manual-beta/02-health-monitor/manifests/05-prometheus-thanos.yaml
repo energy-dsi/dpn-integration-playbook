@@ -1,0 +1,313 @@
+# Prometheus (with Thanos sidecar) + Thanos Query.
+#
+# PREREQUISITE: the ServiceAccount below (dpn-thanos-health) must be annotated
+# with a real IAM role ARN before applying — see scripts/10-iam-thanos-irsa.sh,
+# which creates that role and prints the exact annotation to use. Replace
+# <THANOS_IRSA_ROLE_ARN> below with that value first.
+#
+# PREREQUISITE: the thanos-objstore-config Secret's bucket name must match a
+# real S3 bucket you control — replace <THANOS_S3_BUCKET> below.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dpn-thanos-health
+  namespace: ns-dpn-health-01
+  annotations:
+    eks.amazonaws.com/role-arn: <THANOS_IRSA_ROLE_ARN>
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: thanos-objstore-config
+  namespace: ns-dpn-health-01
+type: Opaque
+stringData:
+  objstore.yml: |
+    type: S3
+    config:
+      bucket: <THANOS_S3_BUCKET>
+      endpoint: s3.<AWS_REGION>.amazonaws.com
+      region: <AWS_REGION>
+    # No access_key/secret_key — IRSA injects credentials via the AWS SDK
+    # default chain through the ServiceAccount above. Do not add static keys.
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dpn-prometheus-health-config
+  namespace: ns-dpn-health-01
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: '<EKS_CLUSTER_NAME>'
+        environment: 'dev'
+
+    scrape_configs:
+      - job_name: 'otel-collector'
+        static_configs:
+          - targets: ['dpn-otel-collector:8888']
+            labels:
+              component: 'otel-collector'
+
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dpn-prometheus-health-pvc
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-prometheus-health
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-prometheus-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-prometheus-health
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dpn-prometheus-health
+  template:
+    metadata:
+      labels:
+        app: dpn-prometheus-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      serviceAccountName: dpn-thanos-health
+      securityContext:
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: prometheus
+          image: "prom/prometheus:v2.53.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config.file=/etc/prometheus/prometheus.yml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--storage.tsdb.retention.time=15d"
+            - "--storage.tsdb.min-block-duration=2h"
+            - "--storage.tsdb.max-block-duration=2h"
+          ports:
+            - name: http
+              containerPort: 9090
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 800m
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+            - name: data
+              mountPath: /prometheus
+        - name: thanos-sidecar
+          image: "thanosio/thanos:v0.34.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - sidecar
+            - --tsdb.path=/prometheus
+            - --prometheus.url=http://localhost:9090
+            - --objstore.config-file=/etc/thanos/objstore.yml
+            - --grpc-address=0.0.0.0:10901
+            - --http-address=0.0.0.0:10902
+          ports:
+            - name: grpc
+              containerPort: 10901
+            - name: http-sidecar
+              containerPort: 10902
+          resources:
+            requests:
+              cpu: 60m
+              memory: 128Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+          volumeMounts:
+            - name: data
+              mountPath: /prometheus
+            - name: objstore-config
+              mountPath: /etc/thanos
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: dpn-prometheus-health-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: dpn-prometheus-health-pvc
+        - name: objstore-config
+          secret:
+            secretName: thanos-objstore-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-prometheus-health-ui
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-prometheus-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-prometheus-health
+  ports:
+    - name: http
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-thanos-sidecar-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-thanos-sidecar-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-prometheus-health
+  ports:
+    - name: grpc
+      port: 10901
+      targetPort: 10901
+      protocol: TCP
+    - name: http
+      port: 10902
+      targetPort: 10902
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-thanos-query-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-thanos-query-health
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpn-thanos-query-health
+  template:
+    metadata:
+      labels:
+        app: dpn-thanos-query-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        fsGroup: 65534
+      containers:
+        - name: thanos-query
+          image: "thanosio/thanos:v0.34.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - query
+            - --http-address=0.0.0.0:9091
+            - --grpc-address=0.0.0.0:10903
+            - --store=dpn-thanos-sidecar-health:10901
+          ports:
+            - name: http
+              containerPort: 9091
+            - name: grpc
+              containerPort: 10903
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 65534
+            runAsGroup: 65534
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /-/ready
+              port: 9091
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /-/healthy
+              port: 9091
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 60m
+              memory: 192Mi
+            limits:
+              cpu: 300m
+              memory: 384Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-thanos-query-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-thanos-query-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-thanos-query-health
+  ports:
+    - name: http
+      port: 9091
+      targetPort: 9091
+      protocol: TCP
+    - name: grpc
+      port: 10903
+      targetPort: 10903
+      protocol: TCP

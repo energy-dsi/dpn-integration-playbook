@@ -1,0 +1,95 @@
+# ===== deploy/dpn-kafka-ui =====
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dpn-kafka-ui
+  name: dpn-kafka-ui
+  namespace: ns-dpn-01
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: dpn-kafka-ui
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: 'false'
+        cloudwatch.aws.amazon.com/auto-annotate-java: 'false'
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: 'false'
+        cloudwatch.aws.amazon.com/auto-annotate-python: 'false'
+        instrumentation.opentelemetry.io/inject-dotnet: 'false'
+        instrumentation.opentelemetry.io/inject-java: 'false'
+        instrumentation.opentelemetry.io/inject-nodejs: 'false'
+        instrumentation.opentelemetry.io/inject-python: 'false'
+      labels:
+        app: dpn-kafka-ui
+    spec:
+      containers:
+      - env:
+        - name: KAFKA_CLUSTERS_0_NAME
+          value: source
+        - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+          value: dpn-kafka-src:9092
+        - name: KAFKA_CLUSTERS_0_ZOOKEEPER
+          value: dpn-zookeeper-src:2181
+        - name: KAFKA_CLUSTERS_1_NAME
+          value: target
+        - name: KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS
+          value: dpn-kafka-target:9092
+        - name: KAFKA_CLUSTERS_1_ZOOKEEPER
+          value: dpn-zookeeper-target:2181
+        - name: SERVER_PORT
+          value: '8080'
+        - name: AUTH_TYPE
+          value: DISABLED
+        image: provectuslabs/kafka-ui:latest
+        imagePullPolicy: Always
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: dpn-kafka-ui
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /
+            port: 8080
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30

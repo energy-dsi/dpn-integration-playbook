@@ -1,0 +1,104 @@
+# ===== deploy/dpn-airflow-postgres =====
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dpn-airflow-postgres
+  name: dpn-airflow-postgres
+  namespace: ns-dpn-01
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: dpn-airflow-postgres
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: 'true'
+        cloudwatch.aws.amazon.com/auto-annotate-java: 'true'
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: 'true'
+        cloudwatch.aws.amazon.com/auto-annotate-python: 'true'
+        instrumentation.opentelemetry.io/inject-dotnet: 'true'
+        instrumentation.opentelemetry.io/inject-java: 'true'
+        instrumentation.opentelemetry.io/inject-nodejs: 'true'
+        instrumentation.opentelemetry.io/inject-python: 'true'
+      labels:
+        app: dpn-airflow-postgres
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_USER
+          value: airflow
+        - name: POSTGRES_DB
+          value: airflow
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: dpn-airflow-secrets
+        image: ghcr.io/energy-dsi/postgres:16-alpine
+        imagePullPolicy: Always
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - airflow
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: dpn-airflow-postgres
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - airflow
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 2Gi
+          requests:
+            cpu: 250m
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsGroup: 1005
+          runAsNonRoot: true
+          runAsUser: 1005  # CLUSTER-SPECIFIC: set to THIS PVC's EFS access-point uid (see runbook 3.1)
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgres-data
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext:
+        fsGroup: 1005
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: dpn-airflow-postgres-pvc

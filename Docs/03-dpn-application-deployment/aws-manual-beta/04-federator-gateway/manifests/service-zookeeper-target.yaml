@@ -1,0 +1,15 @@
+# ===== svc/dpn-zookeeper-target =====
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-zookeeper-target
+  namespace: ns-dpn-01
+spec:
+  ports:
+  - name: client
+    port: 2181
+    protocol: TCP
+    targetPort: 2181
+  selector:
+    app: dpn-zookeeper-target
+  type: ClusterIP

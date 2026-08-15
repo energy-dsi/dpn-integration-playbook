@@ -1,0 +1,312 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dpn-kafka-health-pvc
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-kafka-health
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 256Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-zookeeper-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-zookeeper-health
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpn-zookeeper-health
+  template:
+    metadata:
+      labels:
+        app: dpn-zookeeper-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      containers:
+        - name: zookeeper
+          image: "confluentinc/cp-zookeeper:7.5.3"
+          imagePullPolicy: Always
+          ports:
+            - name: client
+              containerPort: 2181
+              protocol: TCP
+          env:
+            - name: ZOOKEEPER_CLIENT_PORT
+              value: "2181"
+            - name: ZOOKEEPER_SERVER_ID
+              value: "1"
+            - name: ZOOKEEPER_SERVERS
+              value: "dpn-zookeeper-health:2888:3888"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-zookeeper-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-zookeeper-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-zookeeper-health
+  ports:
+    - name: client
+      port: 2181
+      targetPort: 2181
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-kafka-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-kafka-health
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dpn-kafka-health
+  template:
+    metadata:
+      labels:
+        app: dpn-kafka-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "false"
+        instrumentation.opentelemetry.io/inject-nodejs: "false"
+        instrumentation.opentelemetry.io/inject-python: "false"
+        instrumentation.opentelemetry.io/inject-dotnet: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "false"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "false"
+    spec:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        fsGroupChangePolicy: Always
+      initContainers:
+        - name: seed-kafka-config
+          image: "confluentinc/cp-kafka:7.5.3"
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          command:
+            - sh
+            - -ec
+            - |
+              echo "Seeding /etc/kafka into writable volume..."
+              mkdir -p /kafka-config
+              if [ -d /etc/kafka ]; then
+                cp -R /etc/kafka/* /kafka-config/ 2>/dev/null || true
+              fi
+              echo "Kafka config seeded successfully."
+              ls -la /kafka-config
+          volumeMounts:
+            - name: kafka-config
+              mountPath: /kafka-config
+      containers:
+        - name: kafka
+          image: "confluentinc/cp-kafka:7.5.3"
+          imagePullPolicy: Always
+          terminationMessagePolicy: FallbackToLogsOnError
+          command:
+            - sh
+            - -c
+            - |
+              echo "Starting Kafka using Confluent entrypoint..."
+              mkdir -p /tmp/kafka-data
+              chmod -R 0775 /tmp/kafka-data || true
+              /etc/confluent/docker/run 2>&1 | tee /tmp/kafka-startup.log
+              EXIT_CODE=$?
+              echo "Kafka exited with code ${EXIT_CODE}"
+              sleep 300
+              exit ${EXIT_CODE}
+          securityContext:
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: kafka
+              containerPort: 9092
+              protocol: TCP
+            - name: internal
+              containerPort: 9093
+              protocol: TCP
+          env:
+            - name: KAFKA_BROKER_ID
+              value: "1"
+            - name: KAFKA_ZOOKEEPER_CONNECT
+              value: "dpn-zookeeper-health:2181"
+            - name: KAFKA_LISTENERS
+              value: "INTERNAL://0.0.0.0:9093,INTERNAL_FQDN://0.0.0.0:9092"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "INTERNAL://dpn-kafka-health:9093,INTERNAL_FQDN://dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "INTERNAL:PLAINTEXT,INTERNAL_FQDN:PLAINTEXT"
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: "INTERNAL"
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "true"
+            - name: KAFKA_MESSAGE_MAX_BYTES
+              value: "10485760"
+            - name: KAFKA_REPLICA_FETCH_MAX_BYTES
+              value: "10485760"
+            - name: KAFKA_LOG_DIRS
+              value: "/tmp/kafka-data/data"
+            - name: KAFKA_DATA_DIRS
+              value: "/tmp/kafka-data"
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: "4320"
+            - name: KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS
+              value: "300000"
+            - name: KAFKA_LOG_SEGMENT_BYTES
+              value: "1073741824"
+            - name: KAFKA_LOG_CLEANUP_POLICY
+              value: "delete"
+          resources:
+            requests:
+              cpu: 150m
+              memory: 512Mi
+            limits:
+              cpu: 600m
+              memory: 1Gi
+          volumeMounts:
+            - name: kafka-config
+              mountPath: /etc/kafka
+            - name: kafka-logs
+              mountPath: /var/log/kafka
+            - name: tmp
+              mountPath: /tmp
+            - name: kafka-data
+              mountPath: /tmp/kafka-data
+      volumes:
+        - name: kafka-config
+          emptyDir: {}
+        - name: kafka-logs
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+        - name: kafka-data
+          persistentVolumeClaim:
+            claimName: dpn-kafka-health-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-kafka-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-kafka-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-kafka-health
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: 9092
+      protocol: TCP
+    - name: internal
+      port: 9093
+      targetPort: 9093
+      protocol: TCP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-kafka-health-ui
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-kafka-health-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dpn-kafka-health-ui
+  template:
+    metadata:
+      labels:
+        app: dpn-kafka-health-ui
+    spec:
+      containers:
+        - name: kafka-ui
+          image: "provectuslabs/kafka-ui:latest"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: "dpn-kafka-health"
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: "dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092"
+            - name: KAFKA_CLUSTERS_0_ZOOKEEPER
+              value: "dpn-zookeeper-health.ns-dpn-health-01.svc.cluster.local:2181"
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "true"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-kafka-health-ui
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-kafka-health-ui
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-kafka-health-ui
+  ports:
+    - name: http
+      port: 8082
+      targetPort: 8080
+      protocol: TCP

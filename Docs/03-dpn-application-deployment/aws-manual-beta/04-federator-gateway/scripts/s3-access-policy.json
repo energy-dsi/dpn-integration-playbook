@@ -1,0 +1,31 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3Access",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Sid": "S3ListAccess",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": [
+        "arn:aws:s3:::bp-natural-gas-stage",
+        "arn:aws:s3:::bp-natural-gas-raw",
+        "arn:aws:s3:::bp-natural-gas-target",
+        "arn:aws:s3:::dp-consumer-stage",
+        "arn:aws:s3:::dp-consumer-trfm",
+        "arn:aws:s3:::dp-consumer-target",
+        "arn:aws:s3:::<S3_BUCKET_PREFIX>-application"
+      ]
+    }
+  ]
+}

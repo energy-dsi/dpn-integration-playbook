@@ -1,0 +1,83 @@
+# ===== deploy/dpn-redis =====
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dpn-redis
+  name: dpn-redis
+  namespace: ns-dpn-01
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: dpn-redis
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: 'true'
+        cloudwatch.aws.amazon.com/auto-annotate-java: 'true'
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: 'true'
+        cloudwatch.aws.amazon.com/auto-annotate-python: 'true'
+        instrumentation.opentelemetry.io/inject-dotnet: 'true'
+        instrumentation.opentelemetry.io/inject-java: 'true'
+        instrumentation.opentelemetry.io/inject-nodejs: 'true'
+        instrumentation.opentelemetry.io/inject-python: 'true'
+      labels:
+        app: dpn-redis
+    spec:
+      containers:
+      - args:
+        - --save
+        - ''
+        - --appendonly
+        - 'no'
+        image: ghcr.io/energy-dsi/redis:7.2
+        imagePullPolicy: Always
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        name: dpn-redis
+        ports:
+        - containerPort: 6379
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          failureThreshold: 3
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30

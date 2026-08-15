@@ -1,0 +1,103 @@
+# ===== deploy/dpn-airflow-worker =====
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: dpn-airflow-worker
+  name: dpn-airflow-worker
+  namespace: ns-dpn-01
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app: dpn-airflow-worker
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: dpn-airflow-worker
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - airflow
+        - celery
+        - worker
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: POSTGRES_PASSWORD
+              name: dpn-airflow-secrets
+        - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+          value: postgresql+psycopg2://airflow:${POSTGRES_PASSWORD}@dpn-airflow-postgres:5432/airflow
+        - name: AIRFLOW__CELERY__RESULT_BACKEND
+          value: db+postgresql://airflow:${POSTGRES_PASSWORD}@dpn-airflow-postgres:5432/airflow
+        - name: AIRFLOW__CORE__FERNET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: FERNET_KEY
+              name: dpn-airflow-secrets
+        - name: AIRFLOW__WEBSERVER__SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              key: WEB_SECRET_KEY
+              name: dpn-airflow-secrets
+        envFrom:
+        - configMapRef:
+            name: dpn-airflow-config
+        - secretRef:
+            name: dpn-airflow-secrets
+        image: ghcr.io/energy-dsi/dpn-airflow:1.0.0
+        imagePullPolicy: Always
+        name: dpn-airflow-worker
+        resources:
+          limits:
+            cpu: '2'
+            memory: 6Gi
+          requests:
+            cpu: '1'
+            memory: 4Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsGroup: 50000
+          runAsNonRoot: true
+          runAsUser: 50000
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /opt/airflow/dags/dpn_consumer_file.py
+          name: dpn-airflow-dags
+          subPath: dpn_consumer_file.py
+        - mountPath: /opt/airflow/dags/dpn_consumer_topic.py
+          name: dpn-airflow-dags
+          subPath: dpn_consumer_topic.py
+        - mountPath: /opt/airflow/dags/dpn_producer_file_bp_natural_gas.py
+          name: dpn-airflow-dags
+          subPath: dpn_producer_file_bp_natural_gas.py
+        - mountPath: /opt/airflow/dags/dpn_producer_file_hp_natural_oil.py
+          name: dpn-airflow-dags
+          subPath: dpn_producer_file_hp_natural_oil.py
+        - mountPath: /opt/airflow/dags/dpn_producer_topic_eq_neso_oil.py
+          name: dpn-airflow-dags
+          subPath: dpn_producer_topic_eq_neso_oil.py
+        - mountPath: /opt/airflow/dags/dpn_producer_topic_eqbd_pg_gas.py
+          name: dpn-airflow-dags
+          subPath: dpn_producer_topic_eqbd_pg_gas.py
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: ghcr-pull-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+      volumes:
+      - configMap:
+          defaultMode: 420
+          name: dpn-airflow-dags
+        name: dpn-airflow-dags

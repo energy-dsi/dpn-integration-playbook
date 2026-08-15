@@ -1,0 +1,226 @@
+# otel-collector: ServiceAccount + ConfigMap + Deployment + Service.
+# Apply this AFTER manifests/02-kafka-stack.yaml (Kafka must exist first) and
+# BEFORE manifests/06-data-prepper.yaml / manifests/07-jaeger.yaml (they read
+# from the topics this writes).
+#
+# The ghcr-pull-secret referenced below must already exist in this namespace —
+# see RUNBOOK.md section 3.1.
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dpn-otel-collector
+  namespace: ns-dpn-health-01
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dpn-otel-collector
+  namespace: ns-dpn-health-01
+data:
+  relay.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 10s
+        send_batch_size: 1024
+
+      resource:
+        attributes:
+          - key: cluster
+            value: <EKS_CLUSTER_NAME>
+            action: upsert
+
+      probabilistic_sampler:
+        sampling_percentage: 10
+
+    exporters:
+      kafka/metrics:
+        brokers:
+          - dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092
+        topic: otel-metrics
+        encoding: otlp_proto
+        protocol_version: 3.5.0
+
+      kafka/logs:
+        brokers:
+          - dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092
+        topic: otel-logs
+        encoding: otlp_proto
+        protocol_version: 3.5.0
+
+      kafka/traces:
+        brokers:
+          - dpn-kafka-health.ns-dpn-health-01.svc.cluster.local:9092
+        topic: otel-traces
+        encoding: otlp_proto
+        protocol_version: 3.5.0
+
+      logging:
+        loglevel: warn
+
+    extensions:
+      health_check:
+        endpoint: 0.0.0.0:13133
+
+    service:
+      extensions: [health_check]
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, resource, probabilistic_sampler]
+          exporters: [kafka/traces, logging]
+
+        metrics:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [kafka/metrics, logging]
+
+        logs:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [kafka/logs, logging]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-otel-collector
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-otel-collector
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: dpn-otel-collector
+  template:
+    metadata:
+      labels:
+        app: dpn-otel-collector
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+    spec:
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: dpn-otel-collector
+      serviceAccountName: dpn-otel-collector
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+      containers:
+        - name: otel-collector
+          image: "ghcr.io/energy-dsi/opentelemetry-collector-contrib:0.95.0"
+          imagePullPolicy: IfNotPresent
+          args:
+            - --config=/etc/otelcol/relay.yaml
+          env:
+            - name: CLUSTER_NAME
+              value: "<EKS_CLUSTER_NAME>"
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+              protocol: TCP
+            - name: otlp-http
+              containerPort: 4318
+              protocol: TCP
+            - name: metrics
+              containerPort: 8888
+              protocol: TCP
+            - name: health
+              containerPort: 13133
+              protocol: TCP
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otelcol
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: dpn-otel-collector
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: dpn-otel-collector
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-otel-collector
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: dpn-otel-collector
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-otel-collector
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+      protocol: TCP
+    - name: otlp-http
+      port: 4318
+      targetPort: 4318
+      protocol: TCP
+    - name: metrics
+      port: 8888
+      targetPort: 8888
+      protocol: TCP
+    - name: health
+      port: 13133
+      targetPort: 13133
+      protocol: TCP

@@ -1,0 +1,148 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dpn-opensearch-health-config
+  namespace: ns-dpn-health-01
+data:
+  opensearch.yml: |
+    cluster.name: dpn-prod-observability
+    network.host: 0.0.0.0
+    discovery.type: single-node
+
+    plugins.security.disabled: true
+
+    cluster.routing.allocation.disk.threshold_enabled: true
+    cluster.routing.allocation.disk.watermark.low: 85%
+    cluster.routing.allocation.disk.watermark.high: 90%
+    cluster.routing.allocation.disk.watermark.flood_stage: 95%
+
+    action.auto_create_index: true
+    indices.query.bool.max_clause_count: 10000
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: dpn-opensearch-health-pvc
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-opensearch-health
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: efs-sc
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dpn-opensearch-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-opensearch-health
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dpn-opensearch-health
+  template:
+    metadata:
+      labels:
+        app: dpn-opensearch-health
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+        instrumentation.opentelemetry.io/inject-nodejs: "true"
+        instrumentation.opentelemetry.io/inject-python: "true"
+        instrumentation.opentelemetry.io/inject-dotnet: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-java: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-nodejs: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-python: "true"
+        cloudwatch.aws.amazon.com/auto-annotate-dotnet: "true"
+    spec:
+      initContainers:
+        # Required — OpenSearch needs vm.max_map_count >= 262144, EKS default is ~65530.
+        - name: increase-vm-max-map
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: ["sysctl", "-w", "vm.max_map_count=262144"]
+          securityContext:
+            privileged: true
+        # Do NOT add a chown-ownership init container here — EFS root-squash
+        # rejects chown from a root init container. efs-sc's access point
+        # already sets correct ownership; trust it.
+      containers:
+        - name: opensearch
+          image: "opensearchproject/opensearch:2.11.0"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 9200
+              protocol: TCP
+            - name: transport
+              containerPort: 9300
+              protocol: TCP
+          env:
+            - name: DISABLE_INSTALL_DEMO_CONFIG
+              value: "true"
+            - name: DISABLE_SECURITY_PLUGIN
+              value: "true"
+            - name: OPENSEARCH_JAVA_OPTS
+              value: "-Xms512m -Xmx512m"
+            - name: node.name
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            requests:
+              cpu: 300m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 1536Mi
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: opensearch-data
+              mountPath: /usr/share/opensearch/data
+            - name: config
+              mountPath: /usr/share/opensearch/config/opensearch.yml
+              subPath: opensearch.yml
+      volumes:
+        - name: opensearch-data
+          persistentVolumeClaim:
+            claimName: dpn-opensearch-health-pvc
+        - name: config
+          configMap:
+            name: dpn-opensearch-health-config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dpn-opensearch-health
+  namespace: ns-dpn-health-01
+  labels:
+    app: dpn-opensearch-health
+spec:
+  type: ClusterIP
+  selector:
+    app: dpn-opensearch-health
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+      protocol: TCP
+    - name: transport
+      port: 9300
+      targetPort: 9300
+      protocol: TCP
