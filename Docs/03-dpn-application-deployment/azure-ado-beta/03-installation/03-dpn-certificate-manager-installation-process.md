@@ -35,7 +35,7 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-The Certificate Manager is deployed with a single Azure DevOps CD pipeline from the `dpn-federator-certificate-manager` repository. It is a headless Spring Boot service that renews the DSM-signed certificate and writes the keystore/truststore P12 files (and their passwords) to the shared file share for the Federator Gateway to consume.
+The Certificate Manager is deployed with a single Azure DevOps CD pipeline from the `dpn-federator-certificate-manager` repository. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used.
 
 ```text
 Root-Repository/
@@ -54,10 +54,8 @@ In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
 - `cert-manager-truststore` secret present
-- `VAULT-TOKEN`/`VAULT-TRUSTSTORE-PASSWORD` secrets are ready
+- Vault credentials ready — `VAULT-APPROLE-SECRET-ID` + `role_id` (recommended) or `VAULT-TOKEN`, plus `VAULT-TRUSTSTORE-PASSWORD`
 - Health monitoring service is running state and OTEL Collector healthy
-- Provisioned Azure File Share
-- `azure-fileshare-secret` secret is created
 - IDP client ID received from DSM
 - Populated `config/<env>.json` and `values-<env>.yaml`
 
@@ -144,11 +142,11 @@ The kubectl logs should not showcase any [error] message if the deployment is su
 
 ---
 
-**P12 files generated on the shared file share** — confirm both are present:
+**Certificate material available in Vault** — the keystore/truststore are built in memory, so there are no P12 files on disk to inspect; confirm the material itself instead:
 
 ```bash
-kubectl -n <namespace> exec <pod-name> -- ls -l /tls
-# expect: keystore.p12  truststore.p12
+kubectl -n <namespace> logs -f deployment/dpn-certificate-manager | grep -i "keystore\|vault"
+# expect no Vault authentication or "keystore" build errors
 ```
 
 **First-run note (Vault):** On the very first start, the log-verification step may show Vault access errors if Vault configuration has not fully completed. Ensure Vault is initialised and the bundle is loaded, then restart the Certificate Manager pod:
@@ -156,7 +154,6 @@ kubectl -n <namespace> exec <pod-name> -- ls -l /tls
 ```bash
 kubectl rollout status deployment/dpn-certificate-manager -n <namespace> --timeout=300s
 kubectl get pods -n <namespace> -l app=dpn-certificate-manager -o wide
-kubectl get pvc  -n <namespace>
 ```
 
 ---

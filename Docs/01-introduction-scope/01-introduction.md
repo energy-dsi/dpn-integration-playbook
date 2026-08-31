@@ -21,17 +21,21 @@ The DPN deployment consists of the following major components.
 
 ### Federator Platform
 
-The **Federator** enables secure data exchange between organisations.
+The **Federator** enables secure data exchange between organisations, over either of two federation styles sharing the same certificate, Identity Provider and Management Node infrastructure:
+
+- **gRPC Federator** — a streamed, Kafka-to-Kafka pipeline for producer/consumer data exchange.
+- **REST Federator Gateway** — a synchronous, HTTPS request/response alternative for organisations that need an API-driven integration rather than a streamed pipeline.
 
 Key functions include:
 
 - Secure communication between nodes using **mutual TLS (mTLS)**
-- Transmission of data between producer and consumer environments using GRPC
-- Message streaming using **Apache Kafka**
+- Transmission of data between producer and consumer environments using **gRPC** (streaming) or **REST over HTTPS** (synchronous)
+- Message streaming using **Apache Kafka**, authenticated via **Keycloak** (`OAUTHBEARER`) in production
 - Coordination using **Zookeeper**
 - Offset and transmission tracking using **Redis**
 - File storage as **Azure Storage Account blob service** or **S3 bucket in AWS**
-- Hashicorp Vault service for **Certificate files** storage
+- Hashicorp Vault service for **certificate material** storage, with component authentication via Vault **AppRole**
+- Keycloak-based **Identity Provider** (Data Preparation Node Authentication Service) for token issuance and validation
 
 ---
 

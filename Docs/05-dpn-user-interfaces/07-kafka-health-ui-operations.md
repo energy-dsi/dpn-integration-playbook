@@ -70,22 +70,20 @@ OpenTelemetry Collector
 
 ## 3. Accessing the Kafka UI
 
-Kafka UI is available on **port 8082**.
+Kafka UI is available on **port 8082**, over HTTPS:
 
 ```
-http://<your-host>:8082
-Use your credential (to be allocated by Admin) to login
+https://dpn-observability.<namespace>.svc.cluster.local:8082
 ```
 
-The UI is protected by HTTP Basic Auth via the Nginx reverse proxy. Credentials are
-administered by DPN Admin.
+> **Recommended:** open it via the [DPN Portal](08-dpn-portal-ui-operations.md), which links to this same address. Access is gated by **Keycloak SSO** through an `oauth2-proxy` sidecar — signing in redirects to the Keycloak login page rather than an HTTP Basic Auth prompt.
 
 ### Steps
 
-1. Open a browser and navigate to **http://<your-host>:8082**.
+1. Open a browser and navigate to **https://dpn-observability.\<namespace\>.svc.cluster.local:8082** (or the Kafka UI tile on the [DPN Portal](08-dpn-portal-ui-operations.md)).
 ![Kafka UI Login](images/kh_login.png)
 
-2. Enter your credentials when prompted.
+2. Sign in with your Keycloak credentials when redirected.
 
 3. The dashboard loads automatically with the cluster named **`dpn-kafka-health`**.
 ![Kafka Dashboard](images/kh_landing.png)

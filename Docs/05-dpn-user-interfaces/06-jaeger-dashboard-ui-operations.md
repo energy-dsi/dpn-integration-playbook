@@ -51,11 +51,11 @@ Jaeger is particularly valuable for:
 
 ## How to Access the Jaeger UI
 
-1. **Open your browser** and navigate to the Jaeger UI URL for your environment, for example:
+1. **Open your browser** and navigate to the Jaeger UI URL for your environment, served over HTTPS, for example:
    ```
-   http://<jaeger-host>:16686
-   Use your credential (to be allocated by Admin) to login
+   https://dpn-observability.<namespace>.svc.cluster.local:16686
    ```
+   **Recommended:** open it via the [DPN Portal](08-dpn-portal-ui-operations.md), which links to this same address. Access is gated by **Keycloak SSO** through an `oauth2-proxy` sidecar — signing in redirects to the Keycloak login page.
    ![Jaeger UI Home Page](images/jaeger-ui-home-page.png)
 
 2. **Search for a trace** using the search panel on the left:
@@ -73,7 +73,7 @@ Jaeger is particularly valuable for:
 
 > **Direct link to a trace:** If you already have a `traceID`, navigate directly to:
 > ```
-> http://<jaeger-host>:16686/trace/<traceID>
+> https://dpn-observability.<namespace>.svc.cluster.local:16686/trace/<traceID>
 > ```
 
 ![A Full Trace](images/jaeger-trace-timeline-view.png)
