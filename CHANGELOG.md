@@ -19,6 +19,33 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
 
 ---
+## Release 1.1.0 - 2026-08-31
+
+### Added
+
+- DPN Authentication Service (Keycloak) configuration guide — deployment, TLS, and secrets for the platform's shared Identity Provider.
+- DPN REST Federator Gateway configuration guide — a synchronous, HTTPS-based alternative to the gRPC Federator, and how to integrate the `rest-federator-client` library as a consumer.
+- Vault AppRole authentication guidance — the recommended alternative to the Vault root token for the Certificate Manager and Federator Gateway, alongside the automated provisioning pipeline.
+- AWS File Scan Service RUNBOOK — Amazon GuardDuty Malware Protection for S3, consumed via an SNS → SQS event flow, as the AWS equivalent of the existing Azure Defender for Storage integration.
+- DPN Portal user guide — the Keycloak-SSO-gated landing page for the observability UIs, including its current group-based tile visibility model.
+
+### Changed
+
+- Certificate Manager and Federator Gateway configuration guides updated to reflect certificate material being built in memory directly from Vault — the shared Azure SMB file share these components previously used has been removed.
+- Federator Gateway configuration guide updated: Kafka brokers now run `SASL_SSL`/`OAUTHBEARER` against Keycloak by default.
+- Kafka UI, Kafka Health UI, OpenSearch Dashboard, and Jaeger Dashboard user guides updated to reflect HTTPS access gated by Keycloak SSO via the DPN Portal, superseding direct HTTP/basic-auth access as the standard path.
+- Introduction updated to describe the Federator Platform's two federation styles (gRPC and REST) and the platform's Keycloak-based Identity Provider.
+
+### Fixed
+
+- None
+
+### Dependencies
+
+- None
+
+---
+
 ## Release 1.0.0 - 2026-07-31
 
 ### Added

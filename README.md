@@ -122,7 +122,7 @@ Understand the configuration required before running deployment pipelines.
 For Azure Deployment refer:
 
 - [Azure Infrastructure Configuration Parameters](Docs/02-dpn-infrastructure-deployment/azure/02-configuration-parameters.md)
-- [Azure Application Configuration Guides](Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/) — Vault, Health Monitoring, Certificate Manager, Federator Gateway, Data Pipelines, File Scan Service
+- [Azure Application Configuration Guides](Docs/03-dpn-application-deployment/azure-ado-beta/02-configuration/) — Vault, Health Monitoring, Certificate Manager, Federator Gateway, Data Pipelines, File Scan Service, Authentication Service (Keycloak), REST Federator Gateway
 
 For AWS Deployment refer:
 
@@ -151,7 +151,7 @@ For Azure Deployment refer:
 For AWS deployment refer:
 
 - [AWS Infrastructure Installation Process](Docs/02-dpn-infrastructure-deployment/aws/03-installation-process.md)
-- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-manual-beta/) — applied in order: `00-shared-prerequisites` → `01-vault-certificate-manager` → `02-health-monitor` → `03-data-pipeline` → `04-federator-gateway`
+- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-manual-beta/) — applied in order: `00-shared-prerequisites` → `01-vault-certificate-manager` → `02-health-monitor` → `03-data-pipeline` → `04-federator-gateway` → `05-file-scan-service`
 
 The installation process includes:
 
@@ -198,6 +198,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Health Monitor Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/02-health-monitor/RUNBOOK.md#312-troubleshooting)
 - [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/03-data-pipeline/RUNBOOK.md#34-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/04-federator-gateway/RUNBOOK.md#37-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-manual-beta/05-file-scan-service/RUNBOOK.md#troubleshooting)
 
 ---
 
@@ -245,9 +246,12 @@ The repository is organised into structured documentation sections that guide or
 │   │   │   ├── 03-data-pipeline
 │   │   │   │   ├── manifests/
 │   │   │   │   └── RUNBOOK.md
-│   │   │   └── 04-federator-gateway
+│   │   │   ├── 04-federator-gateway
+│   │   │   │   ├── manifests/
+│   │   │   │   ├── scripts/
+│   │   │   │   └── RUNBOOK.md
+│   │   │   └── 05-file-scan-service
 │   │   │       ├── manifests/
-│   │   │       ├── scripts/
 │   │   │       └── RUNBOOK.md
 │   │   │
 │   │   └── azure-ado-beta                      # Azure: automated ADO CI/CD pipelines
@@ -260,7 +264,9 @@ The repository is organised into structured documentation sections that guide or
 │   │       │   ├── 03-configure-dpn-certificate-manager.md
 │   │       │   ├── 04-configure-dpn-federator-gateway.md
 │   │       │   ├── 05-configure-dpn-data-pipelines.md
-│   │       │   └── 06-configure-dpn-file-scan-service.md
+│   │       │   ├── 06-configure-dpn-file-scan-service.md
+│   │       │   ├── 07-configure-dpn-authentication-service.md
+│   │       │   └── 08-configure-dpn-rest-federator-gateway.md
 │   │       ├── 03-installation
 │   │       │   ├── 00-dpn-common-installation-process.md
 │   │       │   ├── 01-dpn-vault-installation-process.md

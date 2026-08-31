@@ -25,6 +25,7 @@ DSI provides an **automated method** (Azure DevOps pipelines) that generates the
     - [Step 3A: Configure Bootstrap Vault TLS (`vault-tls-bootstrap-cd`)](#step-3a-configure-bootstrap-vault-tls-vault-tls-bootstrap-cd)
     - [Step 3B: Configuration to Initialise Vault (`vault-https-cd`)](#step-3b-configuration-to-initialise-vault-vault-https-cd)
     - [Step 3C: Configure Certificate Bundle (`vault-load-bundle-cd`)](#step-3c-configure-certificate-bundle-vault-load-bundle-cd)
+    - [Step 3D: Configure AppRole Authentication (`vault-approle-setup-cd`, recommended)](#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended)
 - [Manual Vault Configuration (Fallback)](#manual-vault-configuration-fallback)
   - [Step1: Generate the Vault TLS material](#step1-generate-the-vault-tls-material)
   - [Step2: Publish the TLS material](#step2-publish-the-tls-material)
@@ -59,15 +60,16 @@ Two Vault setup methods are available:
 
 ## Automated Vault Configuration
 
-The automated flow uses three pipelines from the `dpn-federator-certificate-manager` repository
+The automated flow uses four pipelines from the `dpn-federator-certificate-manager` repository
 
 | Order | Pipeline | Purpose |
 |-------|----------|---------|
 | 1 | `vault-tls-bootstrap-cd.yaml` | Generate the Vault server TLS certificate/key + Certificate Manager truststore, and publish them to Key Vault and Kubernetes |
 | 2 | `vault-https-cd.yaml` | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
 | 3 | `vault-load-bundle-cd.yaml` | Load the DSM-signed client certificate bundle into Vault |
+| 4 | `vault-approle-setup-cd.yaml` | *(Recommended)* Create an AppRole identity per Vault-consuming component, so it no longer needs the Vault root token — see [Step 3D](#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended) |
 
-All three are located in `dpn-federator-certificate-manager` repository
+All four are located in `dpn-federator-certificate-manager` repository
 
 ```text
 Root-Repository/
@@ -76,7 +78,8 @@ Root-Repository/
         └── cd-pipelines/
             ├── vault-tls-bootstrap-cd.yaml
             ├── vault-https-cd.yaml
-            └── vault-load-bundle-cd.yaml
+            ├── vault-load-bundle-cd.yaml
+            └── vault-approle-setup-cd.yaml
 ```
 
 ---
@@ -180,7 +183,7 @@ Runtime parameters:
 | `environment` | Your target environment |
 | `vaultImageTag` | Vault image tag (default `1.16`) |
 | `runVaultInit` | Run the init stage (default `true`; idempotent — safe to re-run) |
-| `storeRootTokenInAkv` | Store the Vault root token in Key Vault as `VAULT-TOKEN`. **Set `true` on the first deploy** so the bundle-load pipeline and the Certificate Manager can read it |
+| `storeRootTokenInAkv` | Store the Vault root token in Key Vault as `VAULT-TOKEN`. **Set `true` on the first deploy** — the bundle-load pipeline (Step 3C) always needs it, even if the Certificate Manager and Federator Gateway are subsequently switched to AppRole (Step 3D) |
 
 > **Important:** The init stage publishes the full init output (**root token + recovery keys**) as the `vault-init-output` pipeline artifact. Download it, store the recovery keys securely per Organisation's secrets policy, then delete the artifact.
 
@@ -206,6 +209,42 @@ Runtime parameters: `serviceConnection`, `environment`.
 - `VAULT-TOKEN` present in Key Vault (from Step 3B with `storeRootTokenInAkv: true`)
 - KV v2 enabled at `pki-client`
 - Above secure Files uploaded in ADO
+
+---
+
+### Step 3D: Configure AppRole Authentication (`vault-approle-setup-cd`, recommended)
+
+The Vault root token is a single, all-privileges credential — every component that needs it (Certificate Manager, Federator Gateway) ends up holding full access to Vault. **AppRole** is the recommended alternative: each component authenticates with its own scoped identity (a `role_id` plus a `secret_id`) and receives a short-lived, auto-renewed token restricted to that component's own policy.
+
+Run this pipeline once per component, per environment, **after** Vault is deployed and initialised (Step 3B):
+
+| Parameter | Description |
+|-----------|-------------|
+| `serviceConnection` | Azure service connection for your environment |
+| `environment` | Your target environment |
+| `component` | The Vault-consuming component to provision an AppRole identity for, e.g. `certificate-manager` |
+
+The pipeline runs `setup-approle.sh` inside the Vault pod (using the admin `VAULT-TOKEN` from Key Vault) to:
+
+1. Write a least-privilege policy scoped to that component's own paths under `pki-client/node-net/client/*`.
+2. Create/update an AppRole role bound to that policy (`token_ttl=1h`, `token_max_ttl=4h`, non-expiring `secret_id`).
+3. Publish the generated **secret-id** to Key Vault as `VAULT-APPROLE-SECRET-ID` (consumed automatically by the component's `SecretProviderClass`), and print the **role-id** for you to copy into that component's Helm values.
+
+> **Key Vault governance note:** the `VAULT-APPROLE-SECRET-ID` Key Vault secret is stamped with a 355-day expiry to satisfy Key Vault's maximum-validity policy. The underlying Vault secret-id itself does not expire — **re-run this pipeline before the Key Vault copy expires** to rotate it, then redeploy the component to pick up the refreshed value.
+
+To switch a component over once its AppRole identity exists, set in its environment values file:
+
+```yaml
+vault:
+  authMethod: approle   # was: token
+  appRole:
+    roleId: <role_id from the pipeline output>
+    useSecretIdRef: true
+    secretIdSecretName: <component>-secrets   # synced from Key Vault via the CSI driver
+    secretIdSecretKey: VAULT_APPROLE_SECRET_ID
+```
+
+`token` remains supported for backward compatibility and is still required for the bundle-load pipeline (Step 3C), which authenticates as the Vault admin — AppRole is for the long-running application components that read certificate material at runtime.
 
 ---
 

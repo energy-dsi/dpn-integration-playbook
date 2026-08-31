@@ -27,15 +27,15 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
 ![DPN Architecture Blocks](../../../04-dpn-architecture/images/dpn_components.png)
 
 - **DPN Security Service**
-  - Vault Service — Certificate regeneration for DSM communication and storage.
+  - Vault Service — Certificate regeneration for DSM communication and storage, and the store the Certificate Manager and Federator Gateway build their mTLS keystore/truststore from in memory (no shared file share).
   - Digital Certificate Manager — Manages recycling of certificates at a predefined interval from the DSI Management Node.
-  - Shared File Service — SMB-based shared file storage between the Federator Certificate Manager and Federator Gateway for storing certificate P12 files.
-  - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway using Defender for Cloud Storage
+  - DPN Authentication Service — Keycloak-based OAuth2/OIDC Identity Provider used for Kafka broker authentication and Keycloak SSO on the DPN observability UIs.
+  - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using Defender for Cloud Storage on Azure or GuardDuty Malware Protection for S3 on AWS
 - **DPN Data Pipelines** — Responsible for producing and consuming data products of an organisation.
 - **DPN Data Store Service**
-  - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate P12 files, and Redis caching data.
-  - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission.
-- **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes.
+  - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate material, and Redis caching data.
+  - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission, authenticated via Keycloak (`SASL_SSL`/`OAUTHBEARER`) by default.
+- **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes, either via the streamed gRPC Federator or the synchronous REST Federator Gateway.
 
 DPN components on Azure are deployed using **Azure DevOps (ADO) pipelines**, as defined in the DPN repositories provided by DSI. These pipelines are organised into two stages:
 

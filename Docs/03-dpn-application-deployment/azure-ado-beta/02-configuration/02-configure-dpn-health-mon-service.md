@@ -67,6 +67,8 @@ The nginx proxy authentication acts as a basic authentication gateway for the fo
 - Kafka-UI
 - Thanos
 
+> **Keycloak SSO (oauth2-proxy).** The user interfaces above — plus Apache Airflow and Prometheus — are additionally served over **HTTPS** through the **DPN Portal**, each fronted by its own `oauth2-proxy` sidecar terminating OIDC login against the DPN Authentication Service (Keycloak). This is now the standard access path for day-to-day use; see [DPN Portal Operations](../../../05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) and [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md).
+
 ---
 
 ## Review Notes

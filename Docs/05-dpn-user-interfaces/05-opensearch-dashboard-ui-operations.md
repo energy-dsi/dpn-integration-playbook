@@ -110,14 +110,15 @@ OpenSearch Dashboards — DPN Monitoring dashboard
 
 ## 3. Accessing the Dashboard
 
-The DPN-Monitoring dashboard is served by OpenSearch Dashboards on **port 5601**.
+The DPN-Monitoring dashboard is served by OpenSearch Dashboards on **port 5601**, over HTTPS.
 
 Open a browser and navigate to:
 
 ```
-http://<your-host>:5601
-Use your credential (to be allocated by Admin) to login
+https://dpn-observability.<namespace>.svc.cluster.local:5601
 ```
+
+> **Recommended:** open it via the [DPN Portal](08-dpn-portal-ui-operations.md), which links to this same address. Access is gated by **Keycloak SSO** through an `oauth2-proxy` sidecar — signing in redirects to the Keycloak login page.
 ![Opensearch UI Login](images/os_login.png)
 
 Once the Dashboards home page loads:

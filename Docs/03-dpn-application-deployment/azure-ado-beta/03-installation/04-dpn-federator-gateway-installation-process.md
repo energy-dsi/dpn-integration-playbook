@@ -8,7 +8,7 @@ This document covers the installation of the **DPN Federator Gateway** (Server, 
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads the P12 passwords from Vault and the P12 files from the Certificate Manager's shared file share.
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and the keystore/truststore passwords directly from Vault (no shared file share is used).
 
 ---
 
@@ -53,9 +53,10 @@ Root-Repository/
 ```
 
 Key points, detailed in the configuration guide:
-- The P12 **passwords are read from Vault**; only the storage connection strings are Key Vault secrets.
+- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the storage connection strings (and, if using AppRole, the Vault `secret-id`) are Key Vault secrets.
 - The **Server and Client use separate storage accounts** — the **Client uses the File Scan Service source storage account**.
 - The deployment targets a **single DPN cluster** (`dpn01` or `dpn02`).
+- Kafka brokers run `SASL_SSL`/`OAUTHBEARER` against Keycloak by default (`kafka.authMode: sasl_ssl`).
 
 ---
 
@@ -67,7 +68,7 @@ In summary:
 
 - Vault and Certificate Manager deployed and in running state
 - Health monitoring service is running state and OTEL Collector healthy
-- Shared file share PVC and `cert-manager-truststore` `certificate-manager-secrets` secrets present
+- `cert-manager-truststore` and `certificate-manager-secrets` secrets present; Vault AppRole identity provisioned for the gateway (or the root token, if not yet migrated)
 - Storage Account connection string secrets are prepared using SAS token
 - Server and File Scan source storage accounts provisioned
 - Internal load Balancer IPs are determined
