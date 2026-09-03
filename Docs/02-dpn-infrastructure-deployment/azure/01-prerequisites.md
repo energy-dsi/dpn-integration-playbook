@@ -140,7 +140,7 @@ The following software must be installed before running deployment and applicati
 - Maven 3.9+  
 - Docker (latest version)  
 - Git v2.48+  
-- Python 3.10 or 3.11  
+- Python 3.14.0  
 - OpenSSL (latest version)  
 - Azure CLI v2.50+ (if deploying to Azure)  
 - kubectl (latest version)  
