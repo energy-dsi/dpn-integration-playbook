@@ -2,24 +2,27 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Organisation Prerequisites](#organisation-prerequisites)
-- [Software Prerequisites](#software-prerequisites)
-  - [Optional Tools](#optional-tools)
-- [Service Prerequisites](#service-prerequisites)
-- [Accessibility Prerequisites](#accessibility-prerequisites)
-  - [Access Requirements](#access-requirements)
-    - [GitHub Access](#github-access)
-    - [Azure Service Principal](#azure-service-principal)
-    - [Azure DevOps Service Connection](#azure-devops-service-connection)
-    - [AKS Access](#aks-access)
-    - [Data Pipeline Access](#data-pipeline-access)
-- [Security Prerequisites](#security-prerequisites)
-- [Network Prerequisites](#network-prerequisites)
-- [Certificate Prerequisites](#certificate-prerequisites)
-- [Skills Prerequisites](#skills-prerequisites)
-- [Assumptions](#assumptions)
-- [Review Notes](#review-notes)
+- [DPN Deployment Prerequisites](#dpn-deployment-prerequisites)
+  - [Table of Contents](#table-of-contents)
+  - [Overview](#overview)
+  - [Organisation Prerequisites](#organisation-prerequisites)
+  - [Software Prerequisites](#software-prerequisites)
+    - [Optional Tools](#optional-tools)
+  - [Service Prerequisites](#service-prerequisites)
+  - [Accessibility Prerequisites](#accessibility-prerequisites)
+    - [Access Requirements](#access-requirements)
+      - [GitHub Access](#github-access)
+      - [Azure Service Principal](#azure-service-principal)
+      - [Azure DevOps Service Connection](#azure-devops-service-connection)
+      - [AKS Access](#aks-access)
+      - [Data Pipeline Access](#data-pipeline-access)
+  - [Security Prerequisites](#security-prerequisites)
+  - [Network Prerequisites](#network-prerequisites)
+  - [Certificate Prerequisites](#certificate-prerequisites)
+    - [Certificate Lifecycle and Management](#certificate-lifecycle-and-management)
+  - [Skills Prerequisites](#skills-prerequisites)
+  - [Assumptions](#assumptions)
+  - [Review Notes](#review-notes)
 
 ## Overview
 
@@ -61,7 +64,7 @@ The following softwares must be available in the agent pool before installing DP
 - [Maven 3.9+](https://maven.apache.org/download.cgi)  
 - [Docker – latest version](https://www.docker.com/)  
 - [Git – latest version](https://git-scm.com/)  
-- [Python 3.10 or 3.11](https://www.python.org)  
+- [Python 3.14.0](https://www.python.org)  
 - OpenSSL – latest version  
 
 DPN repositories required:

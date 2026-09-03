@@ -22,6 +22,8 @@
   - [Option B (Helm): Configure Scheduling Without Airflow](#option-b-helm-configure-scheduling-without-airflow)
 - [Step7: Onboard a New Data Product on Airflow Scheduler](#step7-onboard-a-new-data-product-on-airflow-scheduler)
 - [Step8: Configure Secrets](#step8-configure-secrets)
+  - [Step8a: Configure Storage Secrets](#step8a-configure-storage-secrets)
+  - [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls)
 - [Step9: Configure DPN Data Store](#step9-configure-dpn-data-store)
   - [Step9a: Storage Blob / S3 Configuration](#step9a-storage-blob--s3-configuration)
   - [Step9b: Configure Streaming Service (Kafka)](#step9b-configure-streaming-service-kafka)
@@ -192,38 +194,113 @@ Root-Repository
 
 ### Step3a: Set Up Producer Helm Charts For File Based Pathways
 
-The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper and using **file** based integration pathway.
+The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper, using **file** based integration pathway. Most parameters are shared across both stages; where a parameter applies to only one stage this is called out explicitly.
+
+> **Note:** `srcContainerName` applies to the **adaptor only** — it reads the source file. `mapperContainerName`/`mapperTopicName` reuse the same name across stages but the role flips: it is the adaptor's *output* and the schema mapper's *input*. `targetContainerName`/`targetTopicName` are always the schema mapper's output.
+
+**Identity & Image**
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
+| name | Helm release / resource name for this deployment instance | `producer-file-mapper-example` |
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
+| acrName | Azure Container Registry name to pull images from (when `cloudProviderType: azure`) | `""` (leave empty if not applicable) |
 | imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
+| imageTag | Image tag to deploy | `latest` |
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
-| srcContainerName | Source storage container name | `eq-sample-1-stage` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-raw` |
-| mapperContainerName | Storage container name for the mapper stage | `eq-sample-1-raw` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-producer-eq-sample-1-target` |
-| targetContainerName | Storage container name for the target stage | `eq-sample-1-target` |
+| PRODUCT_NAME | Runtime env var alias of `productType` — same value, consumed by application code rather than Helm templating (see [Step1](#step1-setup-a-new-data-product-from-blueprint)) | `eq-sample-1` |
 | orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
+
+**Storage**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| srcContainerName | Source storage container name (**adaptor only**) | `eq-sample-1-stage` |
+| mapperContainerName | Storage container name for the mapper stage | `eq-sample-1-raw` |
+| targetContainerName | Storage container name for the target stage | `eq-sample-1-target` |
+| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets) | `producer-file-dp-secret` |
+
+**AWS S3** (only when `cloudProviderType: aws`)
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| awsEndpointUrl | Custom S3 endpoint URL, if not using the default AWS endpoint | `""` (leave empty to use the AWS default) |
+| awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
+| awsAccessSecret | Kubernetes secret holding AWS access credentials | `aws-access-secret` |
+
+**Kafka Connectivity**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka.ns-dpn-01.svc.cluster.local:9092` |
+| mapperTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-raw` |
+| targetTopicName | Kafka topic name for the target stage | `dpn-producer-eq-sample-1-target` |
+
+Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
+
+**Scheduling & Scaling**
+
+`SCHEDULER_BACKEND`, `EXECUTION_MODE`, `scheduleInterval`, `PIPELINE_CONTROL_TOPIC`, and `PIPELINE_STATUS_TOPIC` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) for the full parameter set and behavior. `replicaCount` and the `hpa.*` block are covered in [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa).
+
+**Observability**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| STATSD_HOST | StatsD host for metrics emission (leave empty to disable) | `""` |
+| STATSD_PORT | StatsD port | `8125` |
+| SERVICE_NAME | Service name reported to tracing/metrics backends | `dpn data pipeline` |
+| SERVICE_VERSION | Service version reported to tracing/metrics backends | `1.0.0` |
+| OTEL_EXPORTER_OTLP_ENDPOINT | OpenTelemetry collector endpoint | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
+| OTEL_EXPORTER_OTLP_PROTOCOL | OTLP wire protocol | `http/protobuf` |
+| OTEL_EXPORTER_OTLP_INSECURE | Skip TLS verification to the OTel collector | `true` / `false` |
+| ENVIRONMENT | Deployment environment label attached to telemetry | `production` |
 
 ### Step3b: Set Up Producer Helm Charts For Topic Based Pathways
 
-The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper and using **topic** based integration pathway.
+The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper, using **topic** based integration pathway. As with the file pathway, most parameters are shared across both stages; where a parameter applies to only one stage this is called out explicitly.
+
+> **Note:** `srcTopicName` and `srcGroupId` apply to the **adaptor only** — it consumes from the upstream source topic. `mapperTopicName` reuses the same name across stages but the role flips: it is the adaptor's *output* and the schema mapper's *input*. `targetTopicName` is the schema mapper's output only.
+
+**Identity & Image**
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
+| name | Helm release / resource name for this deployment instance | `producer-topic-adaptor-example` |
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
+| acrName | Azure Container Registry name to pull images from (when `cloudProviderType: azure`) | `""` (leave empty if not applicable) |
 | imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
+| imageTag | Image tag to deploy | `latest` |
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
-| srcTopicName | Kafka topic name for the Adaptor input stage | `dpn-producer-eq-sample-1-stage` |
-| mapperTopicName | Kafka topic name for the adaptor out and mapper in stage | `dpn-producer-eq-sample-1-raw` |
-| targetTopicName | Kafka topic name for the mapper out and target in stage | `dpn-producer-orga-eq-eq-sample-1-target` {Automatically created} |
+| PRODUCT_NAME | Runtime env var alias of `productType` — same value, consumed by application code rather than Helm templating (see [Step1](#step1-setup-a-new-data-product-from-blueprint)) | `eq-sample-1` |
 | orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
-| srcGroupId | Consumer group | `producer_topic_eq` |
+
+> **Note:** a manual reference `values.yaml` for this pathway's adaptor may set only `PRODUCT_NAME` and omit `productType`/`cloudProviderType` outright. Confirm whether those are injected by the CI pipeline in your environment before assuming they can be dropped.
+
+**Kafka Connectivity**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka.ns-dpn-01.svc.cluster.local:9092` |
+| srcTopicName | Kafka topic name for the adaptor input stage (**adaptor only**) | `dpn-producer-eq-sample-1-src` |
+| mapperTopicName | Kafka topic name for the adaptor-out / mapper-in stage | `dpn-producer-eq-sample-1-raw` |
+| targetTopicName | Kafka topic name for the mapper-out / target-in stage (**schema mapper only**) | `dpn-producer-orga-eq-eq-sample-1-target` {Automatically created} |
+| srcGroupId | Kafka consumer group for the adaptor's source topic (**adaptor only**) | `producer-topic-adaptor-eq-sample-1` |
+| consumerRetryDelaySecs | Delay, in seconds, before retrying a failed consume | `5` |
+| TOPIC_TASK_TIMEOUT_SECS | Timeout, in seconds, for processing a single topic message/task | `60` |
+
+Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
+
+**Scheduling & Scaling**
+
+`SCHEDULER_BACKEND`, `EXECUTION_MODE`, and `replicaCount` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) and [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa) for the full parameter sets.
+
+**Observability**
+
+The same observability block documented for the file pathway (`STATSD_HOST` / `STATSD_PORT`, `SERVICE_NAME` / `SERVICE_VERSION`, `OTEL_EXPORTER_OTLP_*`, `ENVIRONMENT`) applies here unchanged — see the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
 
 ## Step4: Setup Consumer Helm Charts
 
@@ -261,7 +338,7 @@ DSI proposes only selective changes to the values file but provides the provisio
 
 Organisations must adopt the following naming convention
 
-> - Storage container names, Kafka topic names, and product type names must use only alphanumeric characters and hyphens (`-`). No other special characters are permitted.
+> - Storage container names, Kafka topic names, Kafka consumer group IDs, and product type names must use only alphanumeric characters and hyphens (`-`). No other special characters (including underscores) are permitted.
 > - Organisation names must be abbreviated without spaces.
 > - Schema type must match the blueprint schema type exactly: `eq`, `eqbd`, `dl`, or `ssh`.
 
@@ -271,13 +348,19 @@ Each adaptor, schema_mapper, and extractor Deployment can scale horizontally bas
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
-| hpa.enabled | Enables the Horizontal Pod Autoscaler for this stage | `true` |
+| hpa.enabled | Enables the Horizontal Pod Autoscaler for this stage | `false` |
 | hpa.minReplicas | Minimum pod count, including at idle | `1` |
-| hpa.maxReplicas | Maximum pod count under peak load | `5` |
-| hpa.targetCPUUtilizationPercentage | Average CPU utilisation (as % of requested CPU) that triggers scale-out | `70` |
-| hpa.targetMemoryUtilizationPercentage | Average memory utilisation (as % of requested memory) that triggers scale-out | `80` |
+| hpa.maxReplicas | Maximum pod count under peak load | `3` |
+| hpa.scaleUp.cpuUtilization | Average CPU utilisation (as % of requested CPU) that triggers scale-out | `80` |
+| hpa.scaleUp.memoryUtilization | Average memory utilisation (as % of requested memory) that triggers scale-out | `80` |
+| hpa.scaleUpBehavior.stabilizationWindowSeconds | How long the controller waits before acting on a scale-out signal (Kubernetes HPA v2 `behavior.scaleUp`) | `60` |
+| hpa.scaleUpBehavior.policies | Scale-out policies (`type`: `Pods` or `Percent`, `value`, `periodSeconds`) | `[{type: Pods, value: 1, periodSeconds: 60}]` |
+| hpa.scaleDown.stabilizationWindowSeconds | How long the controller waits before acting on a scale-in signal (Kubernetes HPA v2 `behavior.scaleDown`) | `300` |
+| hpa.scaleDown.policies | Scale-in policies (`type`: `Pods` or `Percent`, `value`, `periodSeconds`) | `[{type: Percent, value: 50, periodSeconds: 60}]` |
 
 > **Note:** when `hpa.enabled: true`, the chart's `replicaCount` value is treated only as the **initial** replica count at first deploy — the HPA controller owns the replica count from that point on. Do not rely on `replicaCount` to reflect the running pod count once HPA is active; check `kubectl get hpa` instead.
+
+> **Note:** `hpa.enabled` defaults to `false`. Leave it disabled while `SCHEDULER_BACKEND: interval` is in use (see [Step6](#step6-configure-scheduling)) — interval-based scheduling does not partition work across replicas, so scaling out under that backend does not safely distribute load. Only enable HPA once the stage's trigger/partitioning model actually supports concurrent replicas (e.g. `kafka-trigger` consumption over a partitioned topic).
 
 Recommended starting point: enable HPA on `adaptor` and `schema_mapper` stages, which see variable load depending on file/message volume; leave `extractor` at a fixed `replicaCount` initially unless consumer-side volume is also expected to vary significantly, then revisit.
 
@@ -388,11 +471,15 @@ To onboard a new product:
 
 ## Step8: Configure Secrets
 
-DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Two secret objects are created — one for Producer and one for Consumer.
+DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Storage credentials and Kafka authentication material are two separate secret concerns, covered in Step8a and Step8b respectively.
+
+### Step8a: Configure Storage Secrets
+
+Two secret objects are created for storage access — one for Producer and one for Consumer.
 
 > - Producer secret name: `producer-<processType>-dp-secret`
 > - Consumer secret name: `consumer-<processType>-dp-secret`
-> - `<processType>` is `file` for the file-based pathway in MVP. Future values may include `rest`, `topic`, etc.
+> - `<processType>` is `file` for the file-based pathway, or `topic` for the topic-based pathway. Future values may include `rest`, etc.
 
 **Producer Secrets**
 
@@ -439,6 +526,22 @@ kubectl create secret generic consumer-file-dp-secret \
   --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string>' | base64)" \
   -n <your namespace>
 ```
+
+### Step8b: Configure Kafka Security (SASL/TLS)
+
+Every stage that connects to Kafka — producer adaptor/schema mapper and consumer extractor/schema mapper alike — authenticates using SASL over TLS, with OAuth2 client-credentials issued by Keycloak. These are set directly in each stage's `values.yaml`, alongside `bootstrapServer` (see [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways)):
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| KAFKA_SECURITY_PROTOCOL | Transport security for the Kafka connection | `SASL_SSL` (set to `SSL` or `PLAINTEXT` to opt out) |
+| KAFKA_SASL_MECHANISM | SASL mechanism | `OAUTHBEARER` (OAuth2 client-credentials via Keycloak) |
+| KAFKA_OAUTH_CLIENT_ID | Keycloak service-account client ID | `dpn-service-client` |
+| KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| KAFKA_SSL_CA_LOCATION | Path the CA certificate is mounted at inside the pod | `/etc/kafka/secrets/ca.crt` |
+| kafkaTlsSecretName | Kubernetes secret providing the CA certificate mounted at `KAFKA_SSL_CA_LOCATION` | `dpn-tls` |
+| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials (e.g. client secret) used to obtain tokens | `kafka-secrets` |
+
+> **Note:** exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
 
 ---
 
