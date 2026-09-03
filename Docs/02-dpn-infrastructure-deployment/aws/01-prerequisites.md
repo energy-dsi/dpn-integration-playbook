@@ -10,11 +10,13 @@ This section introduces the prerequisites for infrastructure deployment.
   - [2. AWS Account Requirements](#2-aws-account-requirements)
   - [3. Identity Requirements](#3-identity-requirements)
   - [4. Tooling Requirements](#4-tooling-requirements)
-    - [Required](#required-tools)
+    - [Required Tools](#required-tools)
   - [5. Planning Inputs](#5-planning-inputs)
   - [6. Naming Convention](#6-naming-convention)
   - [7. Pre-Deployment Decisions](#7-pre-deployment-decisions)
-  - [8. Access and Authentication](#9-access-and-authentication)
+    - [Minimum Identity Requirements](#minimum-identity-requirements)
+    - [Why this matters:](#why-this-matters)
+  - [9. Access and Authentication](#9-access-and-authentication)
   
 
 ## Purpose
@@ -130,7 +132,7 @@ Use the following tooling guidance to prepare the deployment workstation.
 The following software must be installed before running deployment and application pipelines:
 
 - Git v2.48+  
-- Python 3.10 or 3.11  
+- Python 3.14.0  
 - OpenSSL (latest version)  
 - AWS CLI v2 latest version  
 - kubectl (latest version)
