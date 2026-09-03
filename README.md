@@ -175,6 +175,7 @@ To further support the node after installation, the following operational docume
 | [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
+| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
 
 ---
 
@@ -283,15 +284,19 @@ The repository is organised into structured documentation sections that guide or
 │   ├── 04-dpn-architecture
 │   │   └── images
 │   │
-│   └── 05-dpn-user-interfaces                  # Day-2 operations UIs
-│       ├── 01-hashicorp-vault-ui-operations.md
-│       ├── 02-apache-airflow-scheduler-ui-operations.md
-│       ├── 03-federator-client-job-runner-ui-operations.md
-│       ├── 04-kafka-ui-operations.md
-│       ├── 05-opensearch-dashboard-ui-operations.md
-│       ├── 06-jaeger-dashboard-ui-operations.md
-│       ├── 07-kafka-health-ui-operations.md
-│       └── images
+│   ├── 05-dpn-user-interfaces                  # Day-2 operations UIs
+│   │   ├── 01-hashicorp-vault-ui-operations.md
+│   │   ├── 02-apache-airflow-scheduler-ui-operations.md
+│   │   ├── 03-federator-client-job-runner-ui-operations.md
+│   │   ├── 04-kafka-ui-operations.md
+│   │   ├── 05-opensearch-dashboard-ui-operations.md
+│   │   ├── 06-jaeger-dashboard-ui-operations.md
+│   │   ├── 07-kafka-health-ui-operations.md
+│   │   ├── 08-dpn-portal-ui-operations.md
+│   │   └── images
+│   │
+│   └── 06-release-notes                        # Per-release configuration deltas
+│       └── release-2.0.0-configuration-changes.md
 │
 ├── CHANGELOG.md
 └── README.md
@@ -370,6 +375,7 @@ Day-to-day monitoring and operation of a running DPN node is performed through t
 | OpenSearch Dashboard | Pipeline health monitoring and log investigation | [Guide](Docs/05-dpn-user-interfaces/05-opensearch-dashboard-ui-operations.md) |
 | Jaeger UI | Distributed trace inspection | [Guide](Docs/05-dpn-user-interfaces/06-jaeger-dashboard-ui-operations.md) |
 | Kafka Health UI | Health monitoring service Kafka view | [Guide](Docs/05-dpn-user-interfaces/07-kafka-health-ui-operations.md) |
+| DPN Portal | Keycloak-SSO landing page linking the observability UIs | [Guide](Docs/05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) |
 
 ---
 

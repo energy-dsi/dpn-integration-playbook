@@ -19,10 +19,13 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
 
 ---
-## Release 1.1.0 - 2026-08-31
+## Release 2.0.0 - 2026-08-31
+
+**See [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) for a full component-by-component Added/Removed/Modified breakdown of every configuration item.**
 
 ### Added
 
+- Two new components in the architecture: the DPN Authentication Service (Keycloak) and the DPN REST Federator Gateway — see the linked configuration-changes page for the major-version rationale.
 - DPN Authentication Service (Keycloak) configuration guide — deployment, TLS, and secrets for the platform's shared Identity Provider.
 - DPN REST Federator Gateway configuration guide — a synchronous, HTTPS-based alternative to the gRPC Federator, and how to integrate the `rest-federator-client` library as a consumer.
 - Vault AppRole authentication guidance — the recommended alternative to the Vault root token for the Certificate Manager and Federator Gateway, alongside the automated provisioning pipeline.
