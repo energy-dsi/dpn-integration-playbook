@@ -105,6 +105,17 @@ Root-Repository/
 | `AKS_CLUSTER` | AKS cluster name | `aks-dpn-pdev-uks-08` |
 | `RESOURCE_GROUP` | AKS resource group | `rg-aks-dpn-pdev-uks-08` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
+| `OTEL_ENDPOINT` | Open Telemetry Endpoint | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318`
+| `otelExporterProtocol` |  Protocol | `https`
+| `otelExporterCertificate` | Otel Exporter Certificate | `/etc/kafka/secrets/ca.crt`
+| `truststorePath` | Truststore Path | `/etc/kafka/secrets/truststore.jks`
+| `otelTlsSecretName` | Otel TLS Secret Name | `dpn-tls`
+| `KC-HTTPS-TRUST-STORE-PASSWORD` | Key Vault object name of the truststore password | `TRUSTSTORE_PASSWORD`
+| `OTEL_OAUTH_ENABLED` | Otel Authorization Enabled | `True`
+| `OTEL_OAUTH_CLIENT_ID` | Otel OAuth Client ID | `dpn-service-client`
+| `OTEL_OAUTH_CLIENT_SECRET` | Otel OAuth Client Secret | `Secret Value`
+| `OTEL_OAUTH_TOKEN_ENDPOINT_URL` | Otel OAuth Token Endpoint Url | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token`
+| `OTEL_OAUTH_CA_LOCATION` |  Otel OAuth CA Location | `/etc/kafka/secrets/ca.crt`
 
 ---
 
