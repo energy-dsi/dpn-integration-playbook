@@ -168,6 +168,8 @@ Capture the following planning inputs before deployment begins.
 | VNET CIDR                      | _________________ | `10.x.x.x/27`                              |
 | Connectivity Sub ID (optional) | _________________ | For Private DNS zones                      |
 
+> **Azure Airgap:** for an air-gapped Azure deployment, `Environment Name` is restricted to `dev-01`, `dev-02`, `test-01`, `test-02` — `prod-01`/`prod-02` are not available for airgap deployments.
+
 ## 6. Naming Convention
 
 Use the following naming patterns to keep deployed resources consistent.
