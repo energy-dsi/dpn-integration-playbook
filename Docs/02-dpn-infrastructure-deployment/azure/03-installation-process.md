@@ -33,11 +33,10 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 4.2 VM Validation](#step-42-vm-validation)
 - [Phase 5: Storage & Messaging Services](#phase-5-storage--messaging-services)
   - [Step 5.1 Deploy Storage Accounts](#step-51-deploy-storage-accounts)
-  - [Step 5.2 Deploy Azure File Share](#step-52-deploy-azure-file-share)
-  - [Step 5.3 Validate Event Grid Topic (File Scanning Service)](#step-53-validate-event-grid-topic-file-scanning-service)
-  - [Step 5.4 Validate Service Bus Namespace (File Scanning Service)](#step-54-validate-service-bus-namespace-file-scanning-service)
-  - [Step 5.5 Validate File Scanning Storage Account](#step-55-validate-file-scanning-storage-account)
-  - [Step 5.6 Validate Observability Logging Storage Account](#step-56-validate-observability-logging-storage-account)
+  - [Step 5.2 Validate Event Grid Topic (File Scanning Service)](#step-52-validate-event-grid-topic-file-scanning-service)
+  - [Step 5.3 Validate Service Bus Namespace (File Scanning Service)](#step-53-validate-service-bus-namespace-file-scanning-service)
+  - [Step 5.4 Validate File Scanning Storage Account](#step-54-validate-file-scanning-storage-account)
+  - [Step 5.5 Validate Observability Logging Storage Account](#step-55-validate-observability-logging-storage-account)
 - [Phase 6: Validation and Testing](#phase-6-validation-and-testing)
   - [Step 6.1 Complete Remaining Deployments](#step-61-complete-remaining-deployments)
   - [Step 6.2 Infrastructure Validation](#step-62-infrastructure-validation)
@@ -404,34 +403,7 @@ Backend state storage: Standard_RAGRS
 Application storage:   Standard_GRS (or Standard_RAGZRS if adopted by organisation policy)
 ```
 
-### Step 5.2 Deploy Azure File Share
-
-If developer storage components are defined in your stack, verify the Azure Files share is created and accessible via private endpoint.
-
-Validation:
-
-```bash
-# List file shares in the developer storage account
-az storage share list \
-  --account-name "<application-storage-account-name>" \
-  --account-key "<storage-key>" \
-  --output table
-
-# Verify private endpoint connectivity
-az network private-endpoint list \
-  --resource-group "<application-storage-resource-group>" \
-  --query "[?contains(name, 'file-pe')].name" -o table
-
-# Test file share access (requires storage account key or SAS token)
-az storage file list \
-  --share-name "<file-share-name>" \
-  --account-name "<application-storage-account-name>" \
-  --account-key "<storage-key>"
-```
-
-Expected output: File share exists and is accessible through private endpoint.
-
-### Step 5.3 Validate Event Grid Topic (File Scanning Service)
+### Step 5.2 Validate Event Grid Topic (File Scanning Service)
 
 If the File Scanning Service is part of your stack, verify the Event Grid topic and its private endpoint after full apply.
 
@@ -450,7 +422,7 @@ az role assignment list --scope "$(az eventgrid topic show --name "<event-grid-t
 
 Expected output: topic exists, private endpoint is connected, and the expected `EventGrid Data Receiver` / `Data Sender` / `Contributor` role assignments are present.
 
-### Step 5.4 Validate Service Bus Namespace (File Scanning Service)
+### Step 5.3 Validate Service Bus Namespace (File Scanning Service)
 
 If the File Scanning Service is part of your stack, verify the Service Bus namespace, queues, and private endpoint after full apply.
 
@@ -472,7 +444,7 @@ az network private-endpoint list \
 
 Expected output: namespace is `Active`, SKU is `Premium`, and the private endpoint is connected.
 
-### Step 5.5 Validate File Scanning Storage Account
+### Step 5.4 Validate File Scanning Storage Account
 
 If the File Scanning Service is part of your stack, verify the dedicated storage account and its private endpoint(s) after full apply.
 
@@ -491,7 +463,7 @@ az role assignment list --scope "$(az storage account show --name "<file-scannin
 
 Expected output: storage account exists with public network access disabled, the blob private endpoint (and file endpoint if enabled) is connected, and the expected `Storage Blob Data Reader` / `Storage Blob Data Contributor` role assignments are present.
 
-### Step 5.6 Validate Observability Logging Storage Account
+### Step 5.5 Validate Observability Logging Storage Account
 
 If the observability logging storage account is part of your stack, verify it and its private endpoint(s) after full apply.
 
