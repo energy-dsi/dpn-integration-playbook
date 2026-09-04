@@ -23,22 +23,17 @@ This section introduces the prerequisites for infrastructure deployment.
   - [10. Self-Hosted Agent Requirements](#10-self-hosted-agent-requirements)
     - [Self-Hosted Agent Setup](#self-hosted-agent-setup)
     - [Agent Pool Configuration](#agent-pool-configuration)
-  - [11. Azure File Share Details](#11-azure-file-share-details)
+  - [11. File Scanning Service Components](#11-file-scanning-service-components)
     - [What is created](#what-is-created)
     - [Key configuration values](#key-configuration-values)
+    - [Role Assignments](#role-assignments)
     - [Deployment behavior](#deployment-behavior)
     - [Why this matters](#why-this-matters-1)
-  - [12. File Scanning Service Components](#12-file-scanning-service-components)
+  - [12. Observability Logging Storage Account](#12-observability-logging-storage-account)
     - [What is created](#what-is-created-1)
     - [Key configuration values](#key-configuration-values-1)
-    - [Role Assignments](#role-assignments)
     - [Deployment behavior](#deployment-behavior-1)
     - [Why this matters](#why-this-matters-2)
-  - [13. Observability Logging Storage Account](#13-observability-logging-storage-account)
-    - [What is created](#what-is-created-2)
-    - [Key configuration values](#key-configuration-values-2)
-    - [Deployment behavior](#deployment-behavior-2)
-    - [Why this matters](#why-this-matters-3)
 
 ## Purpose
 
@@ -275,37 +270,7 @@ pool:
 
 For detailed setup instructions, refer to the [Microsoft documentation for Linux agent setup](https://learn.microsoft.com/en-us/azure/devops/pipelines/agents/linux-agent).
 
-## 11. Azure File Share Details
-
-This deployment uses Azure Files for application storage, with the file share secured through a private endpoint.
-
-### What is created
-
-- Azure Files share inside the application storage account
-- Azure Files private endpoint for secure access from the VNet
-- Storage account private DNS and network access configuration through the deployment
-
-### Key configuration values
-
-The following variables are used in the deployment:
-
-- `application_storage_file_share_name` – Azure Files share name
-- `application_file_share_quota_gb` – quota size for the share in GiB
-- `application_storage_create_file_endpoint` – set to `true` to create the Azure Files private endpoint
-
-### Deployment behavior
-
-- The Azure Files share is only created when `application_storage_file_share_name` is defined.
-- The private endpoint is created only when `application_storage_create_file_endpoint` is enabled.
-- The file share private endpoint uses the `file` subresource.
-
-### Why this matters
-
-- Ensures developer storage is provided as a managed Azure Files share
-- Keeps the file share traffic private inside the VNet
-- Supports secure access to developer storage without exposing the share over the public internet
-
-## 12. File Scanning Service Components
+## 11. File Scanning Service Components
 
 This deployment includes a File Scanning Service, made up of an Event Grid topic, a Service Bus namespace, and a dedicated storage account. Together these components decouple file upload notifications from downstream scanning/processing workloads.
 
@@ -364,7 +329,7 @@ Important: the same SPN object ID must be supplied consistently across `service_
 - Separates the file scanning data path from the core application storage and messaging used elsewhere in the platform
 - Supports least-privilege access for producer, consumer, and administrative principals through scoped role assignments, including cross-account access to the existing developer/application storage account
 
-## 13. Observability Logging Storage Account
+## 12. Observability Logging Storage Account
 
 This deployment includes a dedicated storage account for observability logging, used to centralize log and diagnostic export separately from application and file scanning storage.
 
