@@ -252,10 +252,12 @@ Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming
 | STATSD_PORT | StatsD port | `8125` |
 | SERVICE_NAME | Service name reported to tracing/metrics backends | `dpn data pipeline` |
 | SERVICE_VERSION | Service version reported to tracing/metrics backends | `1.0.0` |
-| OTEL_EXPORTER_OTLP_ENDPOINT | OpenTelemetry collector endpoint | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
-| OTEL_EXPORTER_OTLP_PROTOCOL | OTLP wire protocol | `http/protobuf` |
-| OTEL_EXPORTER_OTLP_INSECURE | Skip TLS verification to the OTel collector | `true` / `false` |
+| OTEL_EXPORTER_OTLP_ENDPOINT_SECURE | OTel collector's HTTPS OTLP endpoint (port 4318) | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
+| OTEL_EXPORTER_OTLP_ENDPOINT_LEGACY | OTel collector's plaintext gRPC OTLP endpoint (port 4317) | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317` |
+| OTEL_EXPORTER_OTLP_INSECURE | Selects which endpoint/protocol pair the pod actually uses — `true` renders `OTEL_EXPORTER_OTLP_ENDPOINT`/`OTEL_EXPORTER_OTLP_PROTOCOL` from the `_LEGACY` gRPC endpoint (protocol `grpc`); `false` renders them from the `_SECURE` HTTPS endpoint (protocol `http/protobuf`) | `false` |
 | ENVIRONMENT | Deployment environment label attached to telemetry | `production` |
+
+> **Note:** `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_PROTOCOL` are not set directly — the chart template derives them from `OTEL_EXPORTER_OTLP_INSECURE` and the two endpoint values above at render time. Set `_SECURE`/`_LEGACY`/`INSECURE`, not the derived pair.
 
 ### Step3b: Set Up Producer Helm Charts For Topic Based Pathways
 
@@ -537,11 +539,11 @@ Every stage that connects to Kafka — producer adaptor/schema mapper and consum
 | KAFKA_SASL_MECHANISM | SASL mechanism | `OAUTHBEARER` (OAuth2 client-credentials via Keycloak) |
 | KAFKA_OAUTH_CLIENT_ID | Keycloak service-account client ID | `dpn-service-client` |
 | KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| KAFKA_SSL_CA_LOCATION | Path the CA certificate is mounted at inside the pod | `/etc/kafka/secrets/ca.crt` |
-| kafkaTlsSecretName | Kubernetes secret providing the CA certificate mounted at `KAFKA_SSL_CA_LOCATION` | `dpn-tls` |
-| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials (e.g. client secret) used to obtain tokens | `kafka-secrets` |
+| KAFKA_SSL_CA_LOCATION | Path the CA truststore is mounted at inside the pod | `/etc/secrets/truststore.jks` |
+| kafkaTlsSecretName | Kubernetes secret providing the truststore mounted at `KAFKA_SSL_CA_LOCATION` | `dpn-tls` |
+| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
 
-> **Note:** exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
+> **Note:** the file mounted at `KAFKA_SSL_CA_LOCATION` is a password-protected `truststore.jks` (genuinely PKCS12, despite older references to a plain `ca.crt`) — not a bare CA certificate PEM. The password comes from the `kafkaOauthSecretName` secret's `UNIVERSAL_DPN_CERT_PASSWORD` key, injected as the `TRUSTSTORE_PASSWORD` env var; at runtime the pod extracts the CA cert(s) from that truststore and points the Kafka client's TLS trust at the extracted PEM. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
 
 ---
 

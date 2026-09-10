@@ -16,9 +16,9 @@
 
 ## 1. What is the DPN Portal?
 
-The DPN Portal is a single landing page linking out to every DPN observability UI — Kafka UI, OpenSearch Dashboards, Jaeger, and Apache Airflow — served over **HTTPS**. It replaces separately bookmarking each UI's own address with one authenticated starting point.
+The DPN Portal is a single landing page linking out to every DPN service UI, grouped into cards, served over **HTTPS**. It replaces separately bookmarking each UI's own address with one authenticated starting point.
 
-The portal itself carries **no authentication logic**. Like the other observability UIs, it sits behind its own `oauth2-proxy` sidecar, which terminates OIDC login against the DPN Authentication Service (Keycloak realm `dpn-realm` — see [Configure DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/07-configure-dpn-authentication-service.md)). `oauth2-proxy` forwards the authenticated request to the portal application with `X-Forwarded-User` and `X-Forwarded-Groups` headers already attached; the portal only reads those headers to decide which tiles to show.
+The portal itself carries **no authentication logic**. Like the other observability UIs, it sits behind its own `oauth2-proxy` sidecar, which terminates OIDC login against the DPN Authentication Service (Keycloak realm `dpn-realm` — see [Configure DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/07-configure-dpn-authentication-service.md)). `oauth2-proxy` forwards the authenticated request to the portal application with `X-Forwarded-User` and `X-Forwarded-Groups` headers already attached; the portal only reads those headers to decide which cards to show.
 
 ## 2. Accessing the Portal
 
@@ -30,30 +30,37 @@ Signing in redirects through the Keycloak login page. Once authenticated, the la
 
 ## 3. Tiles
 
-| Tile | Links to | Purpose |
-|------|----------|---------|
-| Kafka UI | The health-monitoring Kafka UI | Browse topics and manage the `dpn-kafka-health`, `kafka-src`, and `kafka-target` clusters — see [Kafka UI Operations](04-kafka-ui-operations.md) / [Kafka Health UI Operations](07-kafka-health-ui-operations.md) |
-| OpenSearch Dashboards | OpenSearch | Search and visualise logs shipped via the OpenTelemetry Collector — see [OpenSearch Dashboard Operations](05-opensearch-dashboard-ui-operations.md) |
-| Jaeger | Jaeger | Trace requests end-to-end across DPN services — see [Jaeger Dashboard Operations](06-jaeger-dashboard-ui-operations.md) |
-| Airflow | Apache Airflow | Monitor and manage the DPN data-pipeline DAGs — see [Airflow Scheduler UI Operations](02-apache-airflow-scheduler-ui-operations.md) |
+The landing page is organised into **cards**, not a flat tile grid. Each card groups one or more named **components**, and each component is an independent link:
 
-Each tile opens the target UI directly over its own HTTPS address — the portal is a directory, not a reverse proxy for these UIs' content.
+| Card | Component(s) | Links to | Purpose |
+|------|--------------|----------|---------|
+| Users & Roles | Keycloak Console | The Keycloak admin console (master realm) | Manage DPN users, groups, and role assignments — admin-only, see §4 |
+| Data / Store | DPN Kafka | The health-monitoring Kafka UI | Browse topics and manage the Kafka clusters — see [Kafka UI Operations](04-kafka-ui-operations.md) / [Kafka Health UI Operations](07-kafka-health-ui-operations.md) |
+| Gateway | GRPC Gateway Client | The gRPC gateway client UI, once deployed | Manage exposure of Data Products to authorised consumers |
+| Data / Pipeline | Pipeline Orchestrator | Apache Airflow | Monitor and manage the DPN data-pipeline DAGs — see [Airflow Scheduler UI Operations](02-apache-airflow-scheduler-ui-operations.md) |
+| Security / Services | Certification Vault Service | The Vault UI, once deployed | Foundational authentication/authorisation/policy-enforcement service |
+| Health / Monitoring Service | Log Stack, Traces Stack, Metrics Dashboard, Collector Stack | OpenSearch Dashboards, Jaeger, Perses, Kafka UI respectively | Visibility into a participant's operational and compliance posture — see [OpenSearch Dashboard Operations](05-opensearch-dashboard-ui-operations.md), [Jaeger Dashboard Operations](06-jaeger-dashboard-ui-operations.md) |
+
+Each component opens its target UI directly over its own HTTPS address — the portal is a directory, not a reverse proxy for these UIs' content. Two notes on the table above:
+
+- **Collector Stack and DPN Kafka currently point at the same Kafka UI instance.** They are listed as separate components (one under "Data / Store", one under "Health / Monitoring Service") because they represent two different *purposes* for reaching that UI, not two different services.
+- **Gateway and Security / Services ship with no URL configured today.** Their components render as a non-clickable "No status available" row until a GRPC Gateway Client / Vault UI address is deployed and wired into the portal's `tiles` values for that environment — this is a placeholder for services not yet exposed through the portal, not a bug.
 
 ## 4. Access Control (Keycloak Groups)
 
-Tile visibility is filtered by the Keycloak group(s) in the `X-Forwarded-Groups` header. Two groups exist today:
+Card visibility is filtered by the Keycloak group(s) in the `X-Forwarded-Groups` header. Two groups exist today:
 
 | Group | Intended for |
 |-------|--------------|
 | `dpnadmin` | Administrators |
 | `dpnreader` | Read-only operational users |
 
-> **Current limitation.** Both groups currently see every tile — the per-tile group list is scaffolding for a future, more granular access model rather than an enforced admin/reader split today. If a service should become admin-only, that is a configuration change to its tile's `groups` list, not a code change.
+**Users & Roles is admin-only** — its card lists only `dpnadmin` in `groups`, so `dpnreader` users never see it or the Keycloak Console link. Every other card lists both groups and is visible to all authenticated users; per-card `groups` remains the mechanism for tightening any of them further if a service should become admin-only later — that is a configuration change to the card's `groups` list, not a code change.
 
 ## 5. Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
 | Redirected to Keycloak repeatedly, never reaches the portal | Session cookie rejected or Keycloak client misconfigured | Confirm the portal's oauth2-proxy client is registered correctly in the `dpn-realm` realm and that its redirect URI matches the portal's HTTPS address |
-| Portal loads but a tile is missing | Your Keycloak group isn't in that tile's allowed `groups` list, or the tile's `*_URL` environment variable is unset | Check your assigned Keycloak groups; check the portal chart's ConfigMap for the tile's URL variable |
-| Tile link loads a login page again instead of the target UI | That UI's own oauth2-proxy session has expired independently of the portal's | Sign in again on that UI directly — each UI has its own oauth2-proxy session, they are not currently unified into a single sign-on session across tiles |
+| A card or component is missing | Your Keycloak group isn't in that card's allowed `groups` list (expected for `dpnreader` on Users & Roles), or the component's URL is unset for this environment | Check your assigned Keycloak groups; check the portal chart's `tiles` values for that environment for the component's URL |
+| Signing out of the portal doesn't sign you out of every UI immediately | Each UI's oauth2-proxy release keeps its own separate session cookie; the portal's sign-out page fires a logout beacon at every other release's URL, but a UI's own cookie only re-checks Keycloak on its next `cookie_refresh` (30 minutes) | Wait for that UI's own session to refresh, or sign out of it directly — signing out via the portal ends the shared Keycloak SSO session immediately even if an individual UI's local cookie lingers briefly |
