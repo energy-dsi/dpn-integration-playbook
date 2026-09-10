@@ -252,12 +252,18 @@ Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming
 | STATSD_PORT | StatsD port | `8125` |
 | SERVICE_NAME | Service name reported to tracing/metrics backends | `dpn data pipeline` |
 | SERVICE_VERSION | Service version reported to tracing/metrics backends | `1.0.0` |
-| OTEL_EXPORTER_OTLP_ENDPOINT_SECURE | OTel collector's HTTPS OTLP endpoint (port 4318) | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
-| OTEL_EXPORTER_OTLP_ENDPOINT_LEGACY | OTel collector's plaintext gRPC OTLP endpoint (port 4317) | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317` |
-| OTEL_EXPORTER_OTLP_INSECURE | Selects which endpoint/protocol pair the pod actually uses — `true` renders `OTEL_EXPORTER_OTLP_ENDPOINT`/`OTEL_EXPORTER_OTLP_PROTOCOL` from the `_LEGACY` gRPC endpoint (protocol `grpc`); `false` renders them from the `_SECURE` HTTPS endpoint (protocol `http/protobuf`) | `false` |
+| OTEL_EXPORTER_OTLP_ENDPOINT | OTel collector's OTLP endpoint. Defaults to the HTTPS endpoint on port `4318` | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
+| OTEL_EXPORTER_OTLP_INSECURE | Whether the OTLP endpoint above is called over plaintext. Defaults to `false` (HTTPS, port `4318`) | `false` |
 | ENVIRONMENT | Deployment environment label attached to telemetry | `production` |
 
-> **Note:** `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_PROTOCOL` are not set directly — the chart template derives them from `OTEL_EXPORTER_OTLP_INSECURE` and the two endpoint values above at render time. Set `_SECURE`/`_LEGACY`/`INSECURE`, not the derived pair.
+> **Note:** `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE` default to the HTTPS endpoint on port `4318` with `INSECURE: false`, and this is the supported out-of-the-box configuration. Plaintext HTTP on port `4317` is also supported, but only as a manual, user-driven change — to switch to it, update **both** values together:
+>
+> | Mode | OTEL_EXPORTER_OTLP_ENDPOINT | OTEL_EXPORTER_OTLP_INSECURE |
+> |------|------------------------------|------------------------------|
+> | HTTPS (default) | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` | `false` |
+> | Plaintext HTTP (manual) | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317` | `true` |
+>
+> Changing only the port or only the flag results in a mismatched configuration — the port and the `INSECURE` flag must be updated together.
 
 ### Step3b: Set Up Producer Helm Charts For Topic Based Pathways
 
@@ -293,6 +299,7 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | srcGroupId | Kafka consumer group for the adaptor's source topic (**adaptor only**) | `producer-topic-adaptor-eq-sample-1` |
 | consumerRetryDelaySecs | Delay, in seconds, before retrying a failed consume | `5` |
 | TOPIC_TASK_TIMEOUT_SECS | Timeout, in seconds, for processing a single topic message/task | `60` |
+| DRAIN_IDLE_SECS | Idle time, in seconds, with no new messages before the consumer stops draining the topic | `15` |
 
 Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
 
@@ -302,7 +309,9 @@ Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming
 
 **Observability**
 
-The same observability block documented for the file pathway (`STATSD_HOST` / `STATSD_PORT`, `SERVICE_NAME` / `SERVICE_VERSION`, `OTEL_EXPORTER_OTLP_*`, `ENVIRONMENT`) applies here unchanged — see the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
+Most of the observability block documented for the file pathway (`SERVICE_NAME` / `SERVICE_VERSION`, `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE`, `ENVIRONMENT`) applies here unchanged — see the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
+
+> **Note:** the topic pathway's reference `values.yaml` sets the StatsD port via the Helm value `statsdPort` (e.g. `8125`) rather than the `STATSD_HOST` / `STATSD_PORT` env vars used on the file pathway, and does not set a StatsD host equivalent. Confirm which of the two your chart version actually consumes before copying values across pathways.
 
 ## Step4: Setup Consumer Helm Charts
 
@@ -310,29 +319,93 @@ The same observability block documented for the file pathway (`STATSD_HOST` / `S
 
 The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper using **file** based integration pathway
 
+**Identity & Image**
+
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
+| name | Helm release / resource name for this deployment instance | `consumer-file-extractor` |
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
+| acrName | Azure Container Registry name to pull images from (when `cloudProviderType: azure`) | `""` (leave empty if not applicable) |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
+| imageTag | Image tag to deploy | `latest` |
+
+**Storage**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
 | srcContainerName | Source storage container name | `dp-consumer-stage` |
-| mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-file-trfm` |
 | mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
-| targetTopicName | Kafka topic name for the mapper out and target in stage | `dp-consumer-file-target` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
+| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets) | `consumer-file-dp-secret` |
+
+**AWS S3** (only when `cloudProviderType: aws`)
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| awsEndpointUrl | Custom S3 endpoint URL, if not using the default AWS endpoint | `""` (leave empty to use the AWS default) |
+| awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
+| awsAccessSecret | Kubernetes secret holding AWS access credentials | `aws-access-secret` |
+
+**Kafka Connectivity**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka-target.ns-dpn-01.svc.cluster.local:9092` |
+| mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-file-trfm` |
+| targetTopicName | Kafka topic name for the mapper out and target in stage | `dp-consumer-file-target` |
+| DRAIN_IDLE_SECS | Idle time, in seconds, with no new messages before the consumer stops draining the topic | `15` |
+| topicTaskTimeoutSecs | Timeout, in seconds, for processing a single topic message/task. Note the reference `values.yaml` for this pathway uses this lower/camel-case name rather than the `TOPIC_TASK_TIMEOUT_SECS` env var seen on the topic pathway — confirm which your chart version reads before copying values across pathways | `60` |
+
+Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
+
+**Scheduling & Scaling**
+
+`SCHEDULER_BACKEND`, `EXECUTION_MODE`, `scheduleInterval`, `PIPELINE_CONTROL_TOPIC`, and `PIPELINE_STATUS_TOPIC` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) for the full parameter set and behavior. `replicaCount` and the `hpa.*` block are covered in [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa).
+
+**Observability**
+
+`SERVICE_NAME` / `SERVICE_VERSION`, `PRODUCT_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE`, and `ENVIRONMENT` apply here as documented in the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
+
+> **Note:** the file-based consumer's reference `values.yaml` sets only `STATSD_PORT` (no `STATSD_HOST` equivalent).
 
 ### Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway
 
 The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper using **topic** based integration pathway
 
+**Identity & Image**
+
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
+| name | Helm release / resource name for this deployment instance | `dpn-consumer-topic-eq-neso-oil-adaptor` |
 | cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
+
+**Kafka Connectivity**
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka-target.ns-dpn-01.svc.cluster.local:9092` |
 | srcTopicName | Kafka topic name for the extractor in stage | `dp-consumer-topic-stage` |
+| srcGroupId | Kafka consumer group for the extractor's source topic | `consumer_topic_eqbd_pg_gas_test` |
 | mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-topic-trfm` |
 | targetTopicName | Kafka topic name for the mapper out and target in stage | Not Required, Auto Created from metadata |
+| consumerRetryDelaySecs | Delay, in seconds, before retrying a failed consume | `5` |
+| TOPIC_TASK_TIMEOUT_SECS | Timeout, in seconds, for processing a single topic message/task | `60` |
+| DRAIN_IDLE_SECS | Idle time, in seconds, with no new messages before the consumer stops draining the topic | `15` |
+
+Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
+
+**Scheduling & Scaling**
+
+`PRODUCT_NAME`, `SCHEDULER_BACKEND`, `EXECUTION_MODE`, `scheduleInterval`, `PIPELINE_CONTROL_TOPIC`, and `PIPELINE_STATUS_TOPIC` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) for the full parameter set and behavior. `replicaCount` and the `hpa.*` block are covered in [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa).
+
+**Observability**
+
+`SERVICE_NAME` / `SERVICE_VERSION`, `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE`, and `ENVIRONMENT` apply here as documented in the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
+
+> **Note:** as with the topic-based producer, the reference `values.yaml` here sets the StatsD port via the Helm value `statsdPort` (e.g. `8125`) rather than `STATSD_HOST` / `STATSD_PORT`, and does not set a StatsD host equivalent.
 
 DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
 
