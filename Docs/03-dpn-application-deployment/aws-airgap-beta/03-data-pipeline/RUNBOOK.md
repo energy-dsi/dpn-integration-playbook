@@ -14,6 +14,32 @@ those pipelines itself. That means Airflow can be deployed and pass its own heal
 independently of whether `04-federator-gateway` exists yet, but the DAGs won't do anything useful
 (their triggers will have no Kafka broker/pods to talk to) until federator-gateway is deployed too.
 
+**Primary path: the `dpn-containerised-deployment-service` GitHub Actions
+pipeline** (`dpn-cd-airflow.yml` for this component; `dpn-cd-data-pipelines.yml`
+for the producer/consumer adaptor/mapper/extractor pods themselves, covered
+in `04-federator-gateway`'s data-moving components). The Helm chart's
+`dpn-airflow-init` Job automates what Sections 3.1's `airflow db migrate` and
+3.2's admin-user creation do manually — it waits for Postgres, runs the
+migration, and creates the admin user itself on every install. `FERNET_KEY` /
+`WEB_SECRET_KEY` / `POSTGRES_PASSWORD` / `AIRFLOW_ADMIN_PASSWORD` are sourced
+via a `SecretProviderClass` (Key Vault CSI) rather than a hand-authored
+Kubernetes Secret — populate those in Key Vault once (Section 2) instead of
+generating and applying `manifests/secret-airflow-secrets.yaml` by hand. The
+rest of this file (Section 3) is kept as a **manual fallback** for if the
+pipeline is unavailable.
+
+## 0. Deploy via Pipeline
+
+Go to **Actions → DPN CD - Airflow → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+
+| Input | Value |
+|---|---|
+| `environment` | `dev` / `test` |
+| `cluster` | `dpn01` / `dpn02` |
+| `cloud` | `aws` |
+
+Workflow file: `.github/workflows/dpn-cd-airflow.yml`. See the AWS Helm-values caveat in [`00-shared-prerequisites`](../00-shared-prerequisites/RUNBOOK.md#0-one-time-github-actions-aws-access) — populate `dpn-data-pipelines/charts/airflow/values/aws/<environment>-<cluster>.yaml` before relying on this workflow.
+
 ## 1. Prerequisites
 
 - **`00-shared-prerequisites`** must be applied first — namespace `ns-dpn-01`, the `efs-sc`
@@ -37,19 +63,23 @@ independently of whether `04-federator-gateway` exists yet, but the DAGs won't d
 
 ## 2. Configuration
 
-Before applying `manifests/secret-airflow-secrets.yaml`, fill in three values (it ships as a template
-with placeholders — do not commit real values):
+**Pipeline path:** populate these same four values as secrets in Key Vault (consumed via the chart's `SecretProviderClass`), rather than a hand-authored Kubernetes Secret:
 
 | Key | What it is | How to generate |
 |---|---|---|
 | `FERNET_KEY` | Encrypts Airflow connection passwords/variables at rest in the metadata DB | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `WEB_SECRET_KEY` | Flask session secret for the webserver | any long random string, e.g. `head -c32 /dev/urandom \| base64` |
 | `POSTGRES_PASSWORD` | Password for the `airflow` role in the bundled Postgres | choose a strong password; must match what Postgres is initialized with |
+| `AIRFLOW_ADMIN_PASSWORD` | Password for the admin user the init Job creates | choose a strong password |
+
+**Manual fallback path:** before applying `manifests/secret-airflow-secrets.yaml`, fill in the first three values above (it ships as a template with placeholders — do not commit real values).
 
 The namespace in every manifest in this component is `ns-dpn-01` — this is a fixed requirement for
 this cluster and should not be changed.
 
-## 3. Installation
+## 3. Installation (Manual Fallback)
+
+Use this section only if the pipeline (Section 0) is unavailable.
 
 ### 3.1 Deploy Airflow
 

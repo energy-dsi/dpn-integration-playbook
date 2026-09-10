@@ -101,7 +101,7 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 
 ## DPN File Scan Service
 
-See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-file-scan-service.md) (Azure) and the new [AWS File Scan Service RUNBOOK](../03-dpn-application-deployment/aws-manual-beta/05-file-scan-service/RUNBOOK.md).
+See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-file-scan-service.md) (Azure) and the new [AWS File Scan Service RUNBOOK](../03-dpn-application-deployment/aws-airgap-beta/05-file-scan-service/RUNBOOK.md).
 
 | Change | Item | Details |
 |--------|------|---------|

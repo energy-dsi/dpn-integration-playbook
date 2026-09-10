@@ -12,6 +12,45 @@ Airflow DAGs that live in `03-data-pipeline` — Airflow itself is out of scope 
 Everything under `manifests/` and `scripts/` in this folder is flat by design (no `deployments/`,
 `services/`, `secrets/`, `iam/` subfolders) to match the layout used by the other 4 components.
 
+**Primary path: the `dpn-containerised-deployment-service` GitHub Actions
+pipeline — but it splits this folder's scope across two workflows, not one.**
+The pipeline draws the component boundary differently than this manual
+runbook does:
+
+- **Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic
+  Federator Server/Client** (Section 3.3's deployments) map to
+  `dpn-federator-gateway-cd.yml`, which deploys all of them together as the
+  single `dpn-platform` Helm release.
+- **The per-product producer/consumer adaptor/mapper/extractor pods**
+  (Section 3.4 — `bp-natural-gas`, `eqbd-pg-gas`, `eq-neso-oil`) map instead
+  to `dpn-cd-data-pipelines.yml`, documented in this playbook's
+  `03-data-pipeline` section alongside Airflow, not here.
+
+**What the pipeline does *not* automate:** S3 bucket/IAM provisioning
+(`scripts/bootstrap-aws-resources.sh`) and Kafka topic creation (Section
+3.5) have no workflow equivalent — they remain manual prerequisites either
+way. Sections 3.1–3.2 and 3.5 below stay part of the primary flow for that
+reason; only 3.3 and 3.4 are replaced by the two workflows above. See the
+AWS Helm-values caveat in
+[`00-shared-prerequisites`](../00-shared-prerequisites/RUNBOOK.md#0-one-time-github-actions-aws-access) —
+populate `dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`
+(and the data-pipeline charts' AWS values, per `03-data-pipeline`) before
+relying on either workflow.
+
+## 0. Deploy via Pipeline (Sections 3.3–3.4 replacement)
+
+After completing Sections 1–2 and 3.1–3.2 below, go to **Actions → DPN CD - Federator Gateway → Run workflow**, then separately **Actions → DPN CD - Data Pipelines → Run workflow**, in `dpn-containerised-deployment-service`:
+
+| Input | Federator Gateway workflow | Data Pipelines workflow |
+|---|---|---|
+| `environment` | `dev` / `test` | `dev` / `test` |
+| `cluster` | `dpn01` / `dpn02` | `dpn01` / `dpn02` |
+| `cloud` | `aws` | `aws` |
+| `imageTag` | Federator image tag | Data pipeline image tag |
+| `configType` / `processType` / `productType` / `schemaType` | — | as needed per product, e.g. `producer`/`file`/`bp-natural-gas` |
+
+Workflow files: `.github/workflows/dpn-federator-gateway-cd.yml` and `.github/workflows/dpn-cd-data-pipelines.yml`. Then continue to Section 3.5 (Kafka topics — still manual) below.
+
 ## 1. Prerequisites
 
 - `00-shared-prerequisites` has been applied (namespace `ns-dpn-01`, `federator-server`
@@ -93,7 +132,9 @@ the extra `base64 -w0` above. Getting this wrong produces
 place before filling it in some other way; the imperative command above is the recommended path
 and is what this runbook assumes.
 
-### 3.3 Deploy Kafka + Zookeeper + Kafka UI + Redis
+### 3.3 Deploy Kafka + Zookeeper + Kafka UI + Redis (Manual Fallback)
+
+Use this only if the `dpn-federator-gateway-cd.yml` workflow (Section 0) is unavailable.
 
 ```bash
 NS=ns-dpn-01
@@ -113,7 +154,9 @@ the order above and letting Kafka's `Recreate` strategy retry is sufficient — 
 required, but `kubectl rollout status deploy/dpn-zookeeper-src -n $NS` etc. is a good gate if
 scripting this.
 
-### 3.4 Deploy federator server/client pods (producer/consumer, topic/file)
+### 3.4 Deploy federator server/client pods (producer/consumer, topic/file) (Manual Fallback)
+
+Use this only if the `dpn-cd-data-pipelines.yml` workflow (Section 0) is unavailable.
 
 ```bash
 NS=ns-dpn-01
