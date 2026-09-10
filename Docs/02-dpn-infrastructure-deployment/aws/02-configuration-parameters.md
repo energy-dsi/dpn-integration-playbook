@@ -119,6 +119,7 @@ Use the following parameters to configure the application parameters
 enable_s3_malware_protection = <true-or-false>
 
 enable_management_host_backend_access = <true-or-false>
+management_host_ami_id                = "<ami-id>"
 
 application_bucket_name = "<app-bucket-name>"
 data_bucket_name        = "<data-bucket-name>"
@@ -133,11 +134,21 @@ route53_zone_id  = "<R53-id>"
 endpoint_private_access = <true-or-false>
 endpoint_public_access  = <true-or-false>
 
-application_namespace        = "<app-namespace>"
-alb_controller_chart_version = "<version>" #example: "1.14.0"
-alb_controller_image_tag     = "<tag>" #example: "v2.14.0"
+application_namespace              = "<app-namespace>"
+load_balancer_controller_namespace = "<namespace>" #example: "kube-system"
+alb_controller_chart_version       = "<version>" #example: "1.14.0"
+alb_controller_image_tag           = "<tag>" #example: "v2.14.0"
 ```
 
+Set `load_balancer_controller_namespace` to the namespace the AWS Load Balancer Controller already runs in, and confirm it against the cluster before the first apply. Treat it as a value to be discovered rather than chosen.
+
+- One value feeds both the IRSA trust policy and the Kubernetes service account, so the two cannot drift apart.
+- Changing it on a cluster with a live controller replaces the trust policy, and the controller loses its AWS permissions until the value matches the cluster again.
+
+Pin the management host image with `management_host_ami_id`. Left to resolve dynamically, an unrelated apply can rebuild the management host when the upstream image is refreshed.
+
+- Changing the value replaces the instance. Plan it as a rebuild.
+- Track the deprecation date of the pinned image and update the pin deliberately.
 
 ## 4. EKS Parameters
 
@@ -149,8 +160,12 @@ enable_kubernetes_platform = <true-or-false>
 eks_authentication_mode = "<auth-mode>" #example: "API_AND_CONFIG_MAP"
 eks_bootstrap_cluster_creator_admin_permissions = <true-or-false>
 
-enable_cloudwatch_observability = <true-or-false>
-enable_efs_csi_driver           = <true-or-false>
+enable_cloudwatch_observability        = <true-or-false>
+cloudwatch_observability_addon_version = "<version>"
+enable_efs_csi_driver                  = <true-or-false>
+efs_csi_driver_version                 = "<version>"
+enable_ebs_csi_driver                  = <true-or-false>
+ebs_csi_driver_version                 = "<version>"
 
 eks_access_entries = {
   admin = {
@@ -183,6 +198,55 @@ workload_node_group_desired_size   = <desired-size>
 workload_node_group_min_size       = <min-size>
 workload_node_group_max_size       = <max-size>
 ```
+
+### 4.1 Kubernetes Platform Resources
+
+`enable_kubernetes_platform` controls whether the deployment manages Kubernetes and Helm resources alongside the AWS resources.
+
+- With this enabled, a plan instantiates the Helm and Kubernetes providers, and both must reach the EKS API endpoint. Where that endpoint is private, run plan and apply from the management host or through a network tunnel to the endpoint rather than from a workstation.
+- A workstation run against a private endpoint appears as a hang rather than a permissions error, because the private endpoint addresses resolve in public DNS.
+- Enabling this on a cluster where the load balancer controller and its namespace already exist requires importing those objects into state first. See [03-installation-process.md](03-installation-process.md).
+
+### 4.2 Block Storage
+
+`enable_ebs_csi_driver` and `ebs_csi_driver_version` add the Amazon EBS CSI driver to the cluster as an EKS add-on.
+
+- The driver provisions nothing on its own. A StorageClass naming the driver is a separate and required step, and this deployment does not create it — apply the class against the cluster after the deployment completes and before any workload claims block storage.
+- Pin the version. An unpinned create takes whatever version AWS defaults to on the day, so clusters built weeks apart end up on different versions.
+- The version is an in-place add-on update rather than a replacement. Setting it to the version already installed produces no change.
+- A pinned version can fail the create on a newer Kubernetes release. This is intended: the deployment fails visibly rather than installing a different version.
+
+### 4.3 Auto-Instrumentation
+
+Use the following parameters to control which deployments the CloudWatch Observability add-on auto-instruments.
+
+```hcl
+auto_monitor_all_services = <true-or-false>
+
+auto_monitor_selected_deployments = {
+  python = [
+    "<namespace>/<deployment-name>"
+  ]
+}
+
+auto_monitor_excluded_deployments = {
+  python = [
+    "<namespace>/<deployment-name>"
+  ]
+}
+```
+
+- `auto_monitor_all_services` – whether every workload behind a Service is instrumented. Set it explicitly. An add-on installed with no configuration for this key takes the chart's own default, which is on in the commercial regions, and the resolved value is not visible in the chart values or in the add-on configuration.
+- `auto_monitor_selected_deployments` – the deployments to instrument while monitoring all services is off.
+- `auto_monitor_excluded_deployments` – the deployments to leave alone where monitoring all services is on.
+- Entries in both maps take the form `<namespace>/<deployment-name>`. A bare deployment name is accepted by the add-on schema and silently matches nothing.
+- Both maps are keyed by language, so another runtime takes the same shape under its own key.
+- Emptying a map does not remove a selection or an exclusion already applied — edit the list instead.
+
+An annotation on the pod template takes precedence over both maps. A deployment whose template sets `instrumentation.opentelemetry.io/inject-<language>` to true is instrumented whether or not it appears in either map, so a workload that cannot carry an agent needs the annotation set to false in its own manifest.
+
+`cloudwatch_observability_addon_version` pins the add-on. An unpinned create takes whatever version AWS defaults to on the day, which is how instrumentation reaches a cluster without being chosen. Confirm a workload starts with an agent before selecting it. See [04-rollback-procedures.md](04-rollback-procedures.md).
+
 ## 5. Database Parameters
 
 Use the folowing parameters to configure application database
@@ -295,6 +359,27 @@ POLICY
   }
 }
 ```
+
+A workload that reads AWS credentials from environment variables uses those in preference to its IRSA role, so the role appears unused. This is the most common reason IRSA appears not to be working.
+
+### 7.1 File Scan Service
+
+Use the following parameters to create the IRSA role used by the file scan service and to declare the buckets it consumes.
+
+```hcl
+enable_file_scan_service_irsa  = <true-or-false>
+file_scan_service_namespace    = "<namespace>"
+file_scan_service_account_name = "<service-account>"
+
+consumer_buckets = {
+  stage = "<bucket-name>"
+}
+```
+
+- The role is inert until the Kubernetes service account carries the role ARN annotation and the namespace exists. This deployment creates the infrastructure half only.
+- Consumer bucket names carry `prevent_destroy`, so renaming one produces a failed plan rather than a rename. Choose the names once.
+
+The application half of the file scan service is covered in [05-file-scan-service/RUNBOOK.md](../../03-dpn-application-deployment/aws-manual-beta/05-file-scan-service/RUNBOOK.md).
 
 ## 8. Tags
 

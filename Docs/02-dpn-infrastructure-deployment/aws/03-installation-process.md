@@ -18,6 +18,7 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 2.2 Initialize OpenTofu](#step-22-initialize-opentofu)
   - [Step 2.3 Deploy Infrastructure](#step-23-deploy-infrastructure)
   - [Step 2.4 Manual Deployment](#step-24-manual-deployment)
+  - [Step 2.5 Kubernetes Platform Resources](#step-25-kubernetes-platform-resources)
 - [Phase 3: Infrastructure Validation](#phase-3-infrastructure-validation)  
   - [Step 3.1 Management Host](#step-31-management-host)
   - [Step 3.2 Validate Compute Components](#step-32-validate-compute-components)
@@ -25,6 +26,7 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 3.4 Validate Security Module Components](#step-34-validate-security-module-components)
   - [Step 3.5 AWS EFS Details](#step-35-aws-efs-details)
   - [Step 3.6 Observability Logging resources](#step-36-observability-logging-resources)
+  - [Step 3.7 AWS EBS Details](#step-37-aws-ebs-details)
 - [Post-Deployment Configuration](#post-deployment-configuration)
   - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
   - [10.2 Maintainance Operations](#102-maintainance-operations)
@@ -366,6 +368,23 @@ Apply th plan:
 tofu apply dev-01.tfplan
 ```
 
+### Step 2.5 Kubernetes Platform Resources
+
+This step applies where `enable_kubernetes_platform` is set to true.
+
+With the Kubernetes platform enabled, plan and apply instantiate the Helm and Kubernetes providers, and both must reach the EKS API endpoint. Where that endpoint is private, run plan and apply from the management host or through a network tunnel to the endpoint. A run from a workstation appears as a hang rather than a permissions error, because the private endpoint addresses resolve in public DNS.
+
+Where the load balancer controller and its namespace already exist on the cluster, import them into state before the first apply. Without the import, the apply fails on objects that already exist.
+
+```bash
+tofu import \
+    -var-file=environments/<env>.tfvars \
+    '<resource-address>' \
+    '<existing-object-id>'
+```
+
+Run a plan after the import and confirm it reports no changes for the imported objects before applying.
+
 ## Phase 3: Infrastructure Validation
 
 Use the following steps to verify the deployed services.
@@ -489,6 +508,7 @@ This deployment uses AWS EFS storage for application storage, with the file shar
 The following variables are used in the deployment:
 
 - `enable_efs_csi_driver` – The Amazon EFS Container Storage Interface (CSI) driver allows Kubernetes clusters running on AWS to mount Amazon EFS file systems as persistent volumes.
+- `efs_csi_driver_version` – add-on version installed on the cluster, pinned so that clusters built at different times match.
 
 ### Why this matters
 
@@ -523,6 +543,44 @@ The following variables are used in the deployment:
 - The Observability S3 buckets are deployed isolated from the core application and file scanning subnets (the reference dev environment reuses the file scanning storage subnet — confirm whether your environment should instead provision a dedicated subnet). The S3 log buckets are accessed through private endpoints, provided the s3 endpoints are in place, isolated from the core application and file scanning subnets 
 - RBAC role assignments follow least-privilege data-plane roles (Reader, Contributor) rather than granting broad control-plane access.
 
+---
+
+### Step 3.7 AWS EBS Details
+
+This deployment can add block storage for workloads that require a volume attached to a single node rather than a shared file system.
+
+### What is created
+
+- The Amazon EBS CSI driver, installed as an EKS add-on
+
+### Key configuration values
+
+The following variables are used in the deployment:
+
+- `enable_ebs_csi_driver` – The Amazon EBS Container Storage Interface (CSI) driver allows Kubernetes clusters running on AWS to attach Amazon EBS volumes as persistent volumes.
+- `ebs_csi_driver_version` – add-on version installed on the cluster, pinned so that clusters built at different times match.
+
+### Why this matters
+
+- Provides block storage for workloads that cannot use a shared file system
+- Keeps the driver version consistent across environments
+- Fails the deployment visibly where a pinned version is not available for the cluster's Kubernetes release
+
+### Deployment behavior
+
+- The driver provisions no storage on its own. A StorageClass naming the driver is a separate and required step, and this deployment does not create it. Apply the class against the cluster before any workload claims block storage.
+
+Validation:
+
+```bash
+kubectl get pods -n kube-system | grep ebs-csi
+kubectl get storageclass
+kubectl get pvc -A
+```
+
+Expected result: the EBS CSI controller and node pods are `Running`, a StorageClass naming the `ebs.csi.aws.com` provisioner is present, and a claim using that class reaches `Bound` with its volume reported as in use.
+
+---
 
 ## Post-Deployment Configuration
 
@@ -567,6 +625,11 @@ aws eks update-cluster-version \
 aws eks update-nodegroup-version \
   --cluster-name dpn-eks-part \
   --nodegroup-name system
+
+# Review the pinned management host AMI deprecation date (quarterly)
+aws ec2 describe-images \
+  --image-ids <ami-id> \
+  --query "Images[0].DeprecationTime"
 
 # Rotate RDS master password (quarterly)
 aws secretsmanager rotate-secret \
