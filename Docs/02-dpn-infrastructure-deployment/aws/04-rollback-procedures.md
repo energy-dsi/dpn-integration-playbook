@@ -14,6 +14,8 @@ This section explains how to roll back failed or partial infrastructure deployme
   - [Issue: EKS Deployment Fails](#issue-eks-deployment-fails)
   - [Issue: S3 Bucket Already Exists](#issue-s3-bucket-already-exists)
   - [Issue: Nodes Not Joining Cluster](#issue-nodes-not-joining-cluster)
+  - [Issue: Pods Crash After Observability Is Enabled](#issue-pods-crash-after-observability-is-enabled)
+  - [Issue: Persistent Volume Claim Remains Pending](#issue-persistent-volume-claim-remains-pending)
   - [Issue: Pipeline Fails with Authorization Errors](#issue-pipeline-fails-with-authorization-errors)
   - [Issue: File Scanning Service Component Fails to Provision](#issue-file-scanning-service-component-fails-to-provision)
   - [Issue: Observability Logging Storage Account Fails to Provision](#issue-observability-logging-storage-account-fails-to-provision)
@@ -164,6 +166,44 @@ kubectl describe node {node-name}
 aws ssm start-session --target {instance-id}
 tail -f /var/log/cloud-init-output.log
 ```
+
+### Issue: Pods Crash After Observability Is Enabled
+
+Symptom: workloads fail once the CloudWatch Observability add-on is enabled. The recognisable case is Kafka or Zookeeper, where the init container fails before the broker starts.
+
+Unless the configuration says otherwise the add-on monitors all services, so the operator annotates every workload for auto-instrumentation. Two failures follow from that, and they do not look alike.
+
+- The Python init container mounts a `urllib3` build that requires Python 3.10 or later. Images that run Python 3.9 for their `dub` and `cub` tooling fail on that mount, and the pod crash-loops.
+- Images that patch the standard library through `gevent` clash with the injected SDK's own exporter threads. The pod stays `Running` while threads inside it die, application threads included, so nothing crash-loops and the workload is not obviously broken. A crash-loop is therefore not the full extent of the problem.
+
+Check and correct in this order.
+
+- Confirm the failure follows the add-on rather than the workload: for a crash-loop, that it is in the init container rather than the broker; for a running pod, that the failing threads belong to the instrumentation.
+- Set `auto_monitor_all_services` to false and name only the deployments confirmed to start with an agent in `auto_monitor_selected_deployments`. Where monitoring all services is required, add the affected deployments to `auto_monitor_excluded_deployments` as `<namespace>/<deployment-name>` instead. See [02-configuration-parameters.md](02-configuration-parameters.md).
+- Confirm the pod template is not setting `instrumentation.opentelemetry.io/inject-<language>` to true itself. An annotation on the template takes precedence over both maps, so a deployment that requests injection is instrumented whichever way the parameters are set, and the fix is in its manifest. A pod can carry both `instrumentation.opentelemetry.io/inject-<language>` and `cloudwatch.aws.amazon.com/auto-annotate-<language>`, set in the manifest or added by the add-on; the `inject-<language>` key is the one the operator acts on.
+
+```bash
+kubectl describe pod <pod-name> -n <namespace>
+kubectl logs <pod-name> -n <namespace> -c <init-container-name>
+```
+
+### Issue: Persistent Volume Claim Remains Pending
+
+Symptom: a claim stays `Pending` with no error naming a cause, and the pod using it stays unscheduled.
+
+Three separate causes present identically from a pending claim. Check them in order.
+
+- No CSI driver for the storage the claim requests. Confirm the driver pods are running and that `enable_ebs_csi_driver` or `enable_efs_csi_driver` is set for that storage type.
+- A StorageClass naming a provisioner that no longer exists. A `gp2` class still naming the removed in-tree provisioner never binds; the class must name `ebs.csi.aws.com`.
+- No default StorageClass on the cluster. A claim that omits `storageClassName` stays `Pending` indefinitely where no class is marked default.
+
+```bash
+kubectl describe pvc <claim-name> -n <namespace>
+kubectl get storageclass
+kubectl get pods -n kube-system | grep csi
+```
+
+A StorageClass is not created by this deployment. Where none exists, apply one before retrying the claim.
 
 ## 6. Full Environment Rollback (Last Resort)
 
