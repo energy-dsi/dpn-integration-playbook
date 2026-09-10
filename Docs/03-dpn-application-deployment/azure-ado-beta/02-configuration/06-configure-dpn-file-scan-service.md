@@ -105,6 +105,23 @@ Root-Repository/
 | `AKS_CLUSTER` | AKS cluster name | `aks-dpn-pdev-uks-08` |
 | `RESOURCE_GROUP` | AKS resource group | `rg-aks-dpn-pdev-uks-08` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
+| `OTEL_ENDPOINT` | Open Telemetry Endpoint | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318`
+| `otelExporterProtocol` |  Protocol | `https`
+| `otelExporterCertificate` | Otel Exporter Certificate | `/etc/secrets/truststore.jks`
+| `truststorePath` | Truststore Path | `/etc/kafka/secrets/truststore.jks`
+| `otelTlsSecretName` | Otel TLS Secret Name | `dpn-tls`
+| `truststorePasswordSecretName` | Universal dpn truststore certificate password | `UNIVERSAL-DPN-CERT-PASSWORD`
+| `OTEL_OAUTH_ENABLED` | Otel Authorization Enabled | `True`
+| `OTEL_OAUTH_CLIENT_ID` | Otel OAuth Client ID | `dpn-service-client`
+| `OTEL_OAUTH_CLIENT_SECRET` | Otel OAuth Client Secret | `Secret Value`
+| `OTEL_OAUTH_TOKEN_ENDPOINT_URL` | Otel OAuth Token Endpoint Url | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token`
+| `OTEL_OAUTH_CA_LOCATION` |  Otel OAuth CA Location | `/etc/kafka/secrets/ca.crt`
+| `<AWS_REGION>` | Region the S3/SNS/SQS resources live in | `eu-west-2` 
+| `<INBOUND_BUCKET>` | S3 bucket GuardDuty scans | `S3_BUCKET_INBOUND`
+| `<OUTBOUND_BUCKET>` | S3 bucket clean files are copied to | `S3_BUCKET_OUTBOUND`
+| `<SQS_QUEUE_URL>` | The queue URL from Step 3 | `SQS_QUEUE`
+| `<SNS_TOPIC_ARN>` | The topic ARN from Step 3 | `SNS_TOPIC`
+| `<IRSA_ROLE_ARN>` | ARN of the IAM role granting the S3/SQS permissions above | `NA`
 
 ---
 
