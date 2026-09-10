@@ -76,7 +76,16 @@ Kafka UI is available on **port 8082**, over HTTPS:
 https://dpn-observability.<namespace>.svc.cluster.local:8082
 ```
 
-> **Recommended:** open it via the [DPN Portal](08-dpn-portal-ui-operations.md), which links to this same address. Access is gated by **Keycloak SSO** through an `oauth2-proxy` sidecar — signing in redirects to the Keycloak login page rather than an HTTP Basic Auth prompt.
+> **Recommended:** open it via the [DPN Portal](08-dpn-portal-ui-operations.md) ("Data / Store" card, or "Collector Stack" under "Health / Monitoring Service"), which links to this same address.
+
+Access is gated by **Keycloak SSO**, but not through the shared `oauth2-proxy` sidecar used by the other observability UIs — Kafka UI logs in **natively** against the `dpn-realm` realm (its own OAuth2/OIDC client config, not an in-front proxy). Signing in redirects to the Keycloak login page the same way, but the session and role mapping are Kafka UI's own:
+
+| Keycloak realm role | Kafka UI RBAC access |
+|---|---|
+| `dpnadmin` | Full access — view/edit application and cluster config, manage topics, produce/consume/delete messages, manage schemas, connectors, KSQL, and ACLs |
+| `dpnreader` | View-only — browse topics, read messages, view consumer groups, schemas, and connectors; no edit/create/delete actions |
+
+Kafka UI has no view of a user's roles unless Keycloak's `dpn-service-client` emits a `roles` claim — if a signed-in user sees an empty UI (as though the cluster were unreachable) rather than a permissions error, that is the symptom of the `roles` claim being missing or empty for that user, not an actual cluster outage.
 
 ### Steps
 

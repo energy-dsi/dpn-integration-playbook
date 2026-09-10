@@ -120,11 +120,13 @@ See [DPN Portal Operations](../05-dpn-user-interfaces/08-dpn-portal-ui-operation
 
 | Change | Item | Details |
 |--------|------|---------|
-| Added | DPN Portal | New single landing page linking Kafka UI, OpenSearch Dashboards, Jaeger, and Airflow |
-| Added | `dpnadmin` / `dpnreader` Keycloak groups | Control tile visibility on the DPN Portal (currently both groups see every tile — scaffolding for finer-grained access later) |
-| Modified | Kafka UI, Kafka Health UI, OpenSearch Dashboards, Jaeger access URL | Changed from `http://<host>:<port>` with HTTP Basic Auth (nginx) to `https://dpn-observability...:<port>` gated by Keycloak SSO via an `oauth2-proxy` sidecar |
+| Added | DPN Portal | New single landing page, organised into cards (Users & Roles, Data/Store, Gateway, Data/Pipeline, Security/Services, Health/Monitoring Service) each linking one or more component UIs |
+| Added | `dpnadmin` / `dpnreader` Keycloak groups | Control card visibility on the DPN Portal — the "Users & Roles" card (Keycloak Console) is `dpnadmin`-only; every other card is visible to both groups today |
+| Modified | Kafka Health UI, OpenSearch Dashboards, Jaeger access URL | Changed from `http://<host>:<port>` with HTTP Basic Auth (nginx) to `https://dpn-observability...:<port>` gated by Keycloak SSO via an `oauth2-proxy` sidecar |
+| Modified | Kafka UI, Apache Airflow authentication | Moved from HTTP Basic Auth (nginx) directly to **native** Keycloak OIDC login (no `oauth2-proxy` hop) — Keycloak realm roles map to each application's own RBAC (`dpnadmin`/`dpnreader` → full/view-only in Kafka UI, → `Op`/`Viewer` in Airflow) |
+| Modified | Data pipeline OTLP telemetry endpoint | New `OTEL_EXPORTER_OTLP_INSECURE` toggle selects between the OTel Collector's plaintext gRPC endpoint (`:4317`) and its HTTPS endpoint (`:4318`) |
 
-> **Not changed in this release:** the Federator Client JobRunr dashboard (`:8085`) remains plain HTTP — it was not part of this HTTPS migration. The OpenTelemetry Collector's OTLP receivers also remain plain HTTP/gRPC (no TLS) — a certificate-based HTTPS receiver is not yet configured.
+> **Not changed in this release:** the Federator Client JobRunr dashboard (`:8085`) remains plain HTTP by default — a Keycloak-gated HTTPS mode now exists (`federatorClient.auth.enabled`) but is opt-in, not the default. The OpenTelemetry Collector's **gRPC** OTLP receiver (`:4317`) also remains plain HTTP with no TLS option — only its **HTTP** OTLP receiver (`:4318`) gained a certificate-based HTTPS mode (on by default, `tls.enabled: true`).
 
 ---
 

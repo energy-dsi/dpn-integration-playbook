@@ -58,6 +58,18 @@ This playbook explains how to use Apache Airflow to:
 
 In addition to explaining Airflow UI usage, this document provides high-level context on how DPN pipelines are orchestrated within Airflow.
 
+### Accessing Airflow
+
+Airflow signs users in **natively against Keycloak** (`AUTH_TYPE=AUTH_OAUTH`, the same `dpn-service-client` client used by Kafka's own OAuth authentication) rather than through a proxy sitting in front of the UI. Keycloak realm roles map to Airflow's built-in roles:
+
+| Keycloak realm role | Airflow role | Access |
+|---|---|---|
+| `dpnadmin` | `Op` | Operate DAGs — trigger, pause/unpause, clear task instances |
+| `dpnreader` | `Viewer` | Read-only — view DAGs, graphs, and logs |
+| *(no mapped role)* | `Public` | No permissions |
+
+See the [DPN Portal](08-dpn-portal-ui-operations.md) ("Data / Pipeline" card, "Pipeline Orchestrator") for the linked-out entry point.
+
 ---
 
 # Figure 1: Airflow Home Screen

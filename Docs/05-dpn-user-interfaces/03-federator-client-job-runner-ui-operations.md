@@ -80,15 +80,27 @@ JobRunr Dashboard — schedules, states, history, stack traces
 
 ## 3. Accessing the Dashboard
 
-The JobRunr dashboard is served by the Federator Client on **port 8085**.
+The JobRunr dashboard is served by the Federator Client on **port 8085** (`jobRunnerPort`). This raw port is never exposed externally — it is reached one of two ways, depending on whether Keycloak authentication is enabled for this environment (`federatorClient.auth.enabled`, off by default).
 
-Open a browser and navigate to:
+### Auth disabled (default)
 
 ```
 http://<federator-client-host>:8085/dashboard
 ```
 
-> **Note:** The dashboard is served over plain HTTP on an internal address. Access is expected to be restricted to the internal network / VPN — do not expose this port publicly.
+> **Note:** In this mode the dashboard is served over plain HTTP on an internal address. Access is expected to be restricted to the internal network / VPN — do not expose this port publicly.
+
+### Auth enabled (`federatorClient.auth.enabled: true`)
+
+A built-in gateway — not an external oauth2-proxy sidecar — fronts the dashboard on its own port (`federatorClient.service.jobRunnerAuthPort`, e.g. `8086`), which is the **only** port exposed via the `<federatorClient.name>-external` LoadBalancer Service:
+
+```
+https://<federator-client-external-host>:8086/dashboard
+```
+
+- **Browser access** redirects through a Keycloak OIDC authorization-code login run entirely by the gateway itself (no separate login proxy). The redirect URI registered on the Keycloak client **must** point at this `-external` hostname — pointing it at the plain in-cluster hostname instead breaks the login callback with "missing or mismatched state", since the state cookie is set on whichever hostname started the flow but Keycloak always redirects back to the configured one.
+- **API/script access** presents a `Bearer <token>` header directly (`federatorClient.auth.headerName`/`headerScheme`) — obtain the token from Keycloak's token endpoint the same way any other service client would.
+- Two independent Keycloak roles gate access: `federatorClient.auth.adminRole` (full access — view, trigger, requeue, delete) and `federatorClient.auth.readerRole` (view-only). Leave both blank to allow any authenticated user full access; a caller with neither configured role is rejected.
 
 The top navigation bar shows four pages:
 

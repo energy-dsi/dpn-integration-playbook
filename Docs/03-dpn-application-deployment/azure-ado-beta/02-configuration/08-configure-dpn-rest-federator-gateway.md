@@ -16,6 +16,7 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
 - [Step3: Environment Configuration](#step3-environment-configuration)
   - [Step3a: Configure the Gateway](#step3a-configure-the-gateway)
   - [Step3b: Configure Vault Authentication](#step3b-configure-vault-authentication)
+  - [Step3c: Configure Autoscaling](#step3c-configure-autoscaling)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Integrating a Consumer](#integrating-a-consumer)
 - [Review Notes](#review-notes)
@@ -107,7 +108,18 @@ Root-Repository
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
 
-> As with the gRPC Federator, `vault.tlsEnabled: true` is what removes the need for a shared file share — the gateway reads its TLS material straight from Vault.
+> As with the gRPC Federator, `vault.tlsEnabled: true` is what removes the need for a shared file share — the gateway reads its TLS material straight from Vault. The TLS bundle is written to a short-lived, ephemeral-password file on disk at start-up (a JVM-managed temp location, not a mounted volume) rather than being applied purely in memory, and is rewritten on the same schedule as `vault.tls.reload.interval.seconds` (default 3600s) — hot-swapped with no pod restart. No configuration keys changed for this; it is the same `vault.tls*` settings above, just delivered through a more reliable mechanism.
+
+### Step3c: Configure Autoscaling
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `hpa.enabled` | Horizontal Pod Autoscaler for the gateway — **on by default**, not opt-in | `true` |
+| `hpa.minReplicas` / `hpa.maxReplicas` | Scaling bounds | `1` / `3` |
+| `hpa.scaleUp.cpuUtilization` / `.memoryUtilization` | Target average utilisation (%) that triggers scale-up | `80` / `80` |
+| `hpa.scaleUpBehavior.stabilizationWindowSeconds` / `hpa.scaleDown.stabilizationWindowSeconds` | How long a scale-up/scale-down decision must hold before acting | `60` / `300` |
+
+No per-environment values file currently overrides these — every environment inherits the chart defaults above.
 
 ---
 
