@@ -100,7 +100,9 @@ Root-Repository
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `config.KC_HOSTNAME` | Hostname Keycloak advertises — must match the certificate SANs | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443` |
+| `config.KC_HOSTNAME_STRICT` | Whether Keycloak rejects requests whose `Host` header doesn't match `KC_HOSTNAME`. Leave `"false"` while `KC_HOSTNAME` itself is left empty | `"false"` |
 | `config.KC_HTTPS_KEY_ALIAS` | Alias of the server key inside `keystore.jks` | *(from Step3)* |
+| `service.loadBalancer.loadBalancerIP` | Static IP for Keycloak's LoadBalancer Service. Leave empty on first deploy — Azure auto-assigns one — then pin the assigned IP here so it survives a Service recreation | `""`, then the assigned IP after first deploy |
 | `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, managed-identity client ID, tenant ID | `kv-dpn-<env>-<region>-<seq>` / `<managed-identity-client-id>` / `<tenant-id>` |
 | `image.repository` | ACR path for the Keycloak image | `<ACR_NAME>.azurecr.io/keycloak` |
 
