@@ -101,7 +101,7 @@ For Azure Deployment refer:
 For AWS Deployment refer:
 
 - [AWS Infrastructure Prerequisites](Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md)
-- [AWS Shared Prerequisites RUNBOOK](Docs/03-dpn-application-deployment/aws-airgap-beta/00-shared-prerequisites/RUNBOOK.md)
+- [AWS Shared Prerequisites RUNBOOK](Docs/03-dpn-application-deployment/aws-gha-beta/00-shared-prerequisites/RUNBOOK.md)
 
 Topics covered include:
 
@@ -127,7 +127,7 @@ For Azure Deployment refer:
 For AWS Deployment refer:
 
 - [AWS Infrastructure Configuration Parameters](Docs/02-dpn-infrastructure-deployment/aws/02-configuration-parameters.md)
-- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-airgap-beta/) — see the `RUNBOOK.md` under each component folder as per numbering order
+- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-gha-beta/) — see the `RUNBOOK.md` under each component folder as per numbering order
 
 Topics covered include:
 
@@ -151,7 +151,7 @@ For Azure Deployment refer:
 For AWS deployment refer:
 
 - [AWS Infrastructure Installation Process](Docs/02-dpn-infrastructure-deployment/aws/03-installation-process.md)
-- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-airgap-beta/) — applied in order: `00-shared-prerequisites` → `01-vault-certificate-manager` → `02-health-monitor` → `03-data-pipeline` → `04-federator-gateway` → `05-file-scan-service`
+- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-gha-beta/) — applied in order: `00-shared-prerequisites` → `01-vault-certificate-manager` → `02-health-monitor` → `03-data-pipeline` → `04-federator-gateway` → `05-file-scan-service`
 
 The installation process includes:
 
@@ -192,14 +192,14 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
-**AWS (airgap-beta) components:**
+**AWS (gha-beta) components:**
 
-- [Shared Prerequisites Troubleshooting](Docs/03-dpn-application-deployment/aws-airgap-beta/00-shared-prerequisites/RUNBOOK.md#troubleshooting)
-- [Vault + Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-airgap-beta/01-vault-certificate-manager/RUNBOOK.md#troubleshooting)
-- [Health Monitor Troubleshooting](Docs/03-dpn-application-deployment/aws-airgap-beta/02-health-monitor/RUNBOOK.md#312-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-airgap-beta/03-data-pipeline/RUNBOOK.md#34-troubleshooting)
-- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-airgap-beta/04-federator-gateway/RUNBOOK.md#37-troubleshooting)
-- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-airgap-beta/05-file-scan-service/RUNBOOK.md#troubleshooting)
+- [Shared Prerequisites Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/00-shared-prerequisites/RUNBOOK.md#troubleshooting)
+- [Vault + Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/01-vault-certificate-manager/RUNBOOK.md#troubleshooting)
+- [Health Monitor Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/02-health-monitor/RUNBOOK.md#312-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-data-pipeline/RUNBOOK.md#34-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/04-federator-gateway/RUNBOOK.md#37-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/05-file-scan-service/RUNBOOK.md#troubleshooting)
 
 ---
 
@@ -232,7 +232,7 @@ The repository is organised into structured documentation sections that guide or
 │   │       └── README.md
 │   │
 │   ├── 03-dpn-application-deployment           # Application layer (DPN components)
-│   │   ├── aws-airgap-beta                     # AWS airgapped env: GitHub Actions pipeline (manual fallback kept per-component)
+│   │   ├── aws-gha-beta                     # AWS airgapped env: GitHub Actions pipeline (manual fallback kept per-component)
 │   │   │   ├── 00-shared-prerequisites
 │   │   │   │   ├── manifests/
 │   │   │   │   └── RUNBOOK.md
