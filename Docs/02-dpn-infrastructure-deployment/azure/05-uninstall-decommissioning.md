@@ -69,22 +69,9 @@ Also verify all storage accounts are handled as expected:
 
 - OpenTofu state storage account (backend)
 - Application/workload storage account
-- Developer storage account (Azure Files)
+- Developer storage account
 - File scanning service storage account
 - Observability logging storage account
-
-Verify Azure File Share cleanup:
-
-```bash
-# Confirm file share is removed
-az storage share list --account-name <application-storage-account-name> --account-key <key>
-
-# Confirm private endpoint is removed
-az network private-endpoint list --resource-group <application-storage-resource-group>
-
-# Confirm storage account is removed (if not retained)
-az storage account list --query "[?name=='<application-storage-account-name>']"
-```
 
 Verify File Scanning Service component cleanup:
 
