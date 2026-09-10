@@ -379,7 +379,7 @@ consumer_buckets = {
 - The role is inert until the Kubernetes service account carries the role ARN annotation and the namespace exists. This deployment creates the infrastructure half only.
 - Consumer bucket names carry `prevent_destroy`, so renaming one produces a failed plan rather than a rename. Choose the names once.
 
-The application half of the file scan service is covered in [05-file-scan-service/RUNBOOK.md](../../03-dpn-application-deployment/aws-manual-beta/05-file-scan-service/RUNBOOK.md).
+The application half of the file scan service is covered in [05-file-scan-service/RUNBOOK.md](../../03-dpn-application-deployment/aws-airgap-beta/05-file-scan-service/RUNBOOK.md).
 
 ## 8. Tags
 

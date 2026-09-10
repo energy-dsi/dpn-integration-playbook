@@ -4,6 +4,19 @@ Deploys the **DPN File Scan Service** on AWS. Unlike the Azure deployment (which
 
 Apply `00-shared-prerequisites` before this component.
 
+**Deployment uses the pipeline; AWS resource setup does not — there's no
+workflow for that part yet.** `dpn-file-scan-cd.yml` in
+`dpn-containerised-deployment-service` deploys this service via Helm,
+replacing Section 5's manual `kubectl apply`. But the equivalent of
+`dpn-file-scan-prerequisites-cd.yml` (the Azure-only workflow that
+provisions Defender for Storage/Event Grid/Service Bus) has **no AWS
+counterpart** — Section 3 below (SNS/SQS/GuardDuty setup) stays a required
+manual step regardless of which deployment path you use for the service
+itself. See the AWS Helm-values caveat in
+[`00-shared-prerequisites`](../00-shared-prerequisites/RUNBOOK.md#0-one-time-github-actions-aws-access) —
+populate `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml`
+(the Section 4 placeholders below, as Helm values) before relying on the workflow.
+
 ### Files in this folder
 
 | File | Contents |
@@ -74,6 +87,19 @@ Edit `manifests/01-file-scan-service.yaml` and fill in these placeholders before
 No AWS access key/secret is configured directly — the container relies on the IRSA role attached to its ServiceAccount, falling back to boto3's default credential chain.
 
 ## 5. Installation
+
+**Pipeline (primary):** go to **Actions → DPN CD - File Scan Service → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+
+| Input | Value |
+|---|---|
+| `environment` | `dev` / `test` |
+| `cluster` | `dpn01` / `dpn02` |
+| `cloud` | `aws` |
+| `imageTag` | File Scan Service image tag |
+
+Workflow file: `.github/workflows/dpn-file-scan-cd.yml`
+
+**Manual fallback:**
 
 ```bash
 kubectl apply -f manifests/01-file-scan-service.yaml

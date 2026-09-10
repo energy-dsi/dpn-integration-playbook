@@ -5,6 +5,73 @@ namespaces, the shared EFS StorageClass, and the shared ServiceAccount. Apply
 this component **first**, before any of `01-vault-certificate-manager`,
 `02-health-monitor`, `03-data-pipeline`, or `04-federator-gateway`.
 
+**No GitHub Actions workflow provisions this cluster bootstrap step** — it
+remains a one-time manual `kubectl apply` regardless of whether the
+components deployed on top of it use the automated pipeline or not. What
+*is* new is how the pipeline authenticates to this AWS account — set that up
+first, below, before touching any of the manual steps in this file.
+
+## 0. One-time: GitHub Actions AWS Access
+
+Every DPN component's CD workflow in `dpn-containerised-deployment-service`
+authenticates to AWS the same way, via the shared `cloud-login` composite
+action's `aws` branch — a two-step OIDC role chain, not a stored AWS access
+key:
+
+1. The runner's GitHub OIDC token first assumes a fixed **hub role**,
+   `arn:aws:iam::950639282434:role/oidc_github_runner_hub` — this hub
+   account and role are centrally managed (by the DSI/NESO platform team),
+   not something your organisation creates.
+2. The hub role then **role-chains** into an **admin role in your own AWS
+   account**, named `oidc_github_runner_admin` — this is the one role your
+   organisation must create, once, before any pipeline can deploy into your
+   airgapped AWS environment.
+
+Create that role in your target AWS account with a trust policy allowing
+the hub role to assume it:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::950639282434:role/oidc_github_runner_hub"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+```
+
+Attach whatever permissions the role needs to deploy DPN — at minimum EKS
+cluster access (`eks:DescribeCluster` and the ability to authenticate via
+`aws eks update-kubeconfig`) plus IAM/S3/EFS permissions for whichever
+components' prerequisites you provision this way (e.g. the health-monitor's
+Thanos IRSA role, the federator gateway's S3 buckets — see those components'
+sections below). Confirm the exact scope required with your platform/security
+team rather than granting broad account-admin access.
+
+Once this role exists, every `workflow_dispatch` with `cloud: aws` against
+this account authenticates automatically — there's no per-workflow secret to
+configure, matching how `cloud: azure` works via its own OIDC federated
+credential (see the Azure playbook's prerequisites for the equivalent on
+that side).
+
+> **Populate the AWS Helm values before relying on the pipeline.** The
+> workflow mechanism (workflow files, `cloud-login`, per-environment config
+> JSON) is fully built for `cloud: aws` today. However, as of this writing
+> every component's `values/aws/<environment>-<cluster>.yaml` file in
+> `dpn-containerised-deployment-service` is a placeholder stub ("Azure is
+> the only cloud deployed today") — the actual AWS-specific Helm values
+> (storage class, service annotations, IAM role ARNs, etc.) haven't been
+> populated yet. Before triggering any component's CD workflow against your
+> AWS airgapped environment, adapt that component's `values/azure/*.yaml` as
+> a starting template into its `values/aws/*.yaml` counterpart. Each
+> component section below calls out the AWS-specific values it actually
+> needs.
+
 ## 1. Prerequisites
 
 - An EKS cluster you have `kubectl` admin access to.

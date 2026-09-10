@@ -3,17 +3,49 @@
 This component (`02-health-monitor`) deploys the DPN health-monitoring/observability
 stack — Kafka, OpenSearch, an OpenTelemetry Collector, Prometheus+Thanos, Data Prepper,
 Jaeger, Perses, and an Nginx observability proxy — into namespace `ns-dpn-health-01` on
-an AWS EKS cluster. It is a raw-manifest deployment (no Helm release, no CI/CD pipeline):
-every file here is applied directly with `kubectl apply -f`, in the numbered order
-documented below.
+an AWS EKS cluster.
+
+**Primary path: the `dpn-containerised-deployment-service` GitHub Actions
+pipeline.** A single orchestrator workflow, `dpn-health-monitoring-cd-install.yml`,
+replaces the entire sequence of manual `kubectl apply` steps below — trigger
+it once with `cloud: aws` and it deploys every sub-component in dependency
+order (Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger
+branching off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel →
+Nginx Observability Proxy → Validate) via Helm, not raw manifests. The rest
+of this file — the raw-manifest, `kubectl apply`-driven approach — is kept as
+a **manual fallback** (Section 3, Installation) for if the pipeline is
+unavailable.
+
+**What the pipeline does *not* automate:** the Thanos IRSA IAM role and the
+Nginx Basic-Auth secret are still one-time manual AWS/Kubernetes setup either
+way — no workflow provisions AWS IAM roles or generates that secret. Run
+`scripts/10-iam-thanos-irsa.sh` and `scripts/11-nginx-basic-auth.sh` from this
+folder regardless of which deployment path you use (see Sections 1–2 below).
+Also see the AWS Helm-values caveat in
+[`00-shared-prerequisites`](../00-shared-prerequisites/RUNBOOK.md#0-one-time-github-actions-aws-access) —
+populate `values/aws/<environment>-<cluster>.yaml` for each health-monitoring
+chart before relying on the pipeline.
 
 Deploy this component **after** `00-shared-prerequisites`, and after
 `01-vault-certificate-manager` has created namespace `ns-dpn-01` and its
-`ghcr-pull-secret` — `scripts/01-prereqs.sh` copies that secret into
+`ghcr-pull-secret` — `scripts/01-prereqs.sh` (manual fallback) copies that secret into
 `ns-dpn-health-01` and will fail if it doesn't exist yet. The Nginx proxy
-(`manifests/09-nginx-proxy.yaml`) also references two Services that live in
+also references two Services that live in
 `ns-dpn-01` (owned by the `03-data-pipeline` / `04-federator-gateway` components) — see
 section 3.10 for why that is only a soft dependency.
+
+## 0. Deploy via Pipeline
+
+After completing the one-time AWS setup in Sections 1–2 below (IRSA role, Basic-Auth secret), go to **Actions → DPN Health Monitoring → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+
+| Input | Value |
+|---|---|
+| `environment` | `dev` / `test` |
+| `cluster` | `dpn01` / `dpn02` |
+| `cloud` | `aws` |
+| `imageTag` | OTel Collector image tag — default `0.95.0` |
+
+Workflow file: `.github/workflows/dpn-health-monitoring-cd-install.yml`
 
 ## 1. Prerequisites
 
@@ -59,9 +91,9 @@ fixed values, not placeholders — do not rename them.
 Nothing else in this directory needs editing before a first apply; `scripts/10-iam-thanos-irsa.sh`
 prints the exact values to paste into `manifests/05-prometheus-thanos.yaml`.
 
-## 3. Installation
+## 3. Installation (Manual Fallback)
 
-Every later stage depends on an earlier one being genuinely healthy, not just applied —
+Use this section only if the pipeline (Section 0) is unavailable. Every later stage depends on an earlier one being genuinely healthy, not just applied —
 verify before moving on. All commands below assume your working directory is
 `02-health-monitor/`.
 
