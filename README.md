@@ -16,7 +16,7 @@ The documentation is organised around **Multiple deployment layers**, each of wh
 | Layer | Purpose | Azure | AWS |
 |---|---|---|---|
 | **Infrastructure** | Provision the underlying cloud infrastructure (Kubernetes cluster, networking, secrets store, registry) | OpenTofu, with optional Bicep bootstrap | OpenTofu |
-| **Application** | Deploy the DPN components (Federator, Data Pipeline, Vault, Certificate Manager, Health Monitoring, File Scan) on top of that infrastructure | Azure DevOps (ADO) CI/CD pipelines — fully automated | Manual `kubectl apply` runbooks — interim, pending future GitHub Actions support |
+| **Application** | Deploy the DPN components (Federator, Data Pipeline, Vault, Certificate Manager, Health Monitoring, File Scan) on top of that infrastructure | Azure DevOps (ADO) CI/CD pipelines — fully automated | GitHub Actions CI/CD pipelines — fully automated, run on the shared self-hosted runner |
 
 The objective of this repository is to provide organisations with a **clear and structured implementation guide** to deploy a DPN that can securely exchange data with other participating organisations in the **Data Sharing Infrastructure (DSI)**.
 
@@ -101,7 +101,7 @@ For Azure Deployment refer:
 For AWS Deployment refer:
 
 - [AWS Infrastructure Prerequisites](Docs/02-dpn-infrastructure-deployment/aws/01-prerequisites.md)
-- [AWS Shared Prerequisites RUNBOOK](Docs/03-dpn-application-deployment/aws-gha-beta/00-shared-prerequisites/RUNBOOK.md)
+- [AWS Application Deployment Prerequisites](Docs/03-dpn-application-deployment/aws-gha-beta/01-prerequisites/01-dpn-prerequisites.md)
 
 Topics covered include:
 
@@ -127,7 +127,7 @@ For Azure Deployment refer:
 For AWS Deployment refer:
 
 - [AWS Infrastructure Configuration Parameters](Docs/02-dpn-infrastructure-deployment/aws/02-configuration-parameters.md)
-- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-gha-beta/) — see the `RUNBOOK.md` under each component folder as per numbering order
+- [AWS Application Configuration Guides](Docs/03-dpn-application-deployment/aws-gha-beta/02-configuration/) — Vault, Health Monitoring, Certificate Manager, Federator Gateway, Data Pipelines, File Scan Service, Authentication Service (Keycloak), REST Federator Gateway
 
 Topics covered include:
 
@@ -151,14 +151,14 @@ For Azure Deployment refer:
 For AWS deployment refer:
 
 - [AWS Infrastructure Installation Process](Docs/02-dpn-infrastructure-deployment/aws/03-installation-process.md)
-- [AWS Component RUNBOOKs](Docs/03-dpn-application-deployment/aws-gha-beta/) — applied in order: `00-shared-prerequisites` → `01-vault-certificate-manager` → `02-health-monitor` → `03-data-pipeline` → `04-federator-gateway` → `05-file-scan-service`
+- [AWS Application Installation Guides](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/) — Vault, Health Monitoring, Certificate Manager, Federator Gateway, Data Pipelines, File Scan Service
 
 The installation process includes:
 
 - Provisioning infrastructure (cluster, networking, secrets store, registry)
 - Building container images
-- Configuring Continuous Integration (CI) pipelines (Azure) or applying manifests directly (AWS) as interim till GitHub Actions runner-based deployment instructions are published
-- Deploying containers
+- Configuring Continuous Integration (CI) pipelines
+- Deploying containers via Azure DevOps (ADO) CD pipelines (Azure) or GitHub Actions CD workflows (AWS)
 - Verifying deployment health
 
 ---
@@ -171,8 +171,8 @@ To further support the node after installation, the following operational docume
 |--------|--------|
 | [Azure Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/azure/04-rollback-procedures.md) / [Azure Application Rollback Guide](Docs/03-dpn-application-deployment/azure-ado-beta/04-rollback/04-rollback-procedures.md) | Restore a previous stable deployment |
 | [Azure Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/azure/05-uninstall-decommissioning.md) / [Azure Application Uninstallation Guide](Docs/03-dpn-application-deployment/azure-ado-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from the environment |
-| [AWS Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/aws/04-rollback-procedures.md) | Restore a previous stable deployment on AWS |
-| [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
+| [AWS Infrastructure Rollback Guide](Docs/02-dpn-infrastructure-deployment/aws/04-rollback-procedures.md) / [AWS Application Rollback Guide](Docs/03-dpn-application-deployment/aws-gha-beta/04-rollback/04-rollback-procedures.md) | Restore a previous stable deployment on AWS |
+| [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) / [AWS Application Uninstallation Guide](Docs/03-dpn-application-deployment/aws-gha-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
 | [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
@@ -192,14 +192,14 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
-**AWS (gha-beta) components:**
+**AWS (GitHub Actions) components:**
 
-- [Shared Prerequisites Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/00-shared-prerequisites/RUNBOOK.md#troubleshooting)
-- [Vault + Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/01-vault-certificate-manager/RUNBOOK.md#troubleshooting)
-- [Health Monitor Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/02-health-monitor/RUNBOOK.md#312-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-data-pipeline/RUNBOOK.md#34-troubleshooting)
-- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/04-federator-gateway/RUNBOOK.md#37-troubleshooting)
-- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/05-file-scan-service/RUNBOOK.md#troubleshooting)
+- [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
+- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/03-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 ---
 
@@ -232,28 +232,31 @@ The repository is organised into structured documentation sections that guide or
 │   │       └── README.md
 │   │
 │   ├── 03-dpn-application-deployment           # Application layer (DPN components)
-│   │   ├── aws-gha-beta                     # AWS airgapped env: GitHub Actions pipeline (manual fallback kept per-component)
-│   │   │   ├── 00-shared-prerequisites
-│   │   │   │   ├── manifests/
-│   │   │   │   └── RUNBOOK.md
-│   │   │   ├── 01-vault-certificate-manager
-│   │   │   │   ├── manifests/
-│   │   │   │   ├── scripts/
-│   │   │   │   └── RUNBOOK.md
-│   │   │   ├── 02-health-monitor
-│   │   │   │   ├── manifests/
-│   │   │   │   ├── scripts/
-│   │   │   │   └── RUNBOOK.md
-│   │   │   ├── 03-data-pipeline
-│   │   │   │   ├── manifests/
-│   │   │   │   └── RUNBOOK.md
-│   │   │   ├── 04-federator-gateway
-│   │   │   │   ├── manifests/
-│   │   │   │   ├── scripts/
-│   │   │   │   └── RUNBOOK.md
-│   │   │   └── 05-file-scan-service
-│   │   │       ├── manifests/
-│   │   │       └── RUNBOOK.md
+│   │   ├── aws-gha-beta                     # AWS airgapped env: automated GitHub Actions CD pipelines
+│   │   │   ├── 01-prerequisites
+│   │   │   │   └── 01-dpn-prerequisites.md
+│   │   │   ├── 02-configuration
+│   │   │   │   ├── 00-common-dpn-configuration.md
+│   │   │   │   ├── 01-configure-dpn-vault-service.md
+│   │   │   │   ├── 02-configure-dpn-health-mon-service.md
+│   │   │   │   ├── 03-configure-dpn-certificate-manager.md
+│   │   │   │   ├── 04-configure-dpn-federator-gateway.md
+│   │   │   │   ├── 05-configure-dpn-data-pipelines.md
+│   │   │   │   ├── 06-configure-dpn-file-scan-service.md
+│   │   │   │   ├── 07-configure-dpn-authentication-service.md
+│   │   │   │   └── 08-configure-dpn-rest-federator-gateway.md
+│   │   │   ├── 03-installation
+│   │   │   │   ├── 00-dpn-common-installation-process.md
+│   │   │   │   ├── 01-dpn-vault-installation-process.md
+│   │   │   │   ├── 02-dpn-monitoring-service-installation-process.md
+│   │   │   │   ├── 03-dpn-certificate-manager-installation-process.md
+│   │   │   │   ├── 04-dpn-federator-gateway-installation-process.md
+│   │   │   │   ├── 05-dpn-data-pipeline-installation-process.md
+│   │   │   │   └── 06-dpn-file-scan-service-installation-process.md
+│   │   │   ├── 04-rollback
+│   │   │   │   └── 04-rollback-procedures.md
+│   │   │   └── 05-uninstall
+│   │   │       └── 05-uninstall-decommissioning.md
 │   │   │
 │   │   └── azure-ado-beta                      # Azure: automated ADO CI/CD pipelines
 │   │       ├── 01-prerequisites
