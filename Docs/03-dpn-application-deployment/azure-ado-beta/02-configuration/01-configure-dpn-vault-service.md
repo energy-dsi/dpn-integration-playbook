@@ -25,7 +25,7 @@ DSI provides an **automated method** (Azure DevOps pipelines) that generates the
     - [Step 3A: Configure Bootstrap Vault TLS (`vault-tls-bootstrap-cd`)](#step-3a-configure-bootstrap-vault-tls-vault-tls-bootstrap-cd)
     - [Step 3B: Configuration to Initialise Vault (`vault-https-cd`)](#step-3b-configuration-to-initialise-vault-vault-https-cd)
     - [Step 3C: Configure Certificate Bundle (`vault-load-bundle-cd`)](#step-3c-configure-certificate-bundle-vault-load-bundle-cd)
-    - [Step 3D: Configure AppRole Authentication (`vault-approle-setup-cd`, recommended)](#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended)
+    - [Step 3D: Configure AppRole Authentication (recommended)](#step-3d-configure-approle-authentication-recommended)
 - [Manual Vault Configuration (Fallback)](#manual-vault-configuration-fallback)
   - [Step1: Generate the Vault TLS material](#step1-generate-the-vault-tls-material)
   - [Step2: Publish the TLS material](#step2-publish-the-tls-material)
@@ -67,7 +67,7 @@ The automated flow uses four pipelines from the `dpn-federator-certificate-manag
 | 1 | `vault-tls-bootstrap-cd.yaml` | Generate the Vault server TLS certificate/key + Certificate Manager truststore, and publish them to Key Vault and Kubernetes |
 | 2 | `vault-https-cd.yaml` | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
 | 3 | `vault-load-bundle-cd.yaml` | Load the DSM-signed client certificate bundle into Vault |
-| 4 | `vault-approle-setup-cd.yaml` | *(Recommended)* Create an AppRole identity per Vault-consuming component, so it no longer needs the Vault root token — see [Step 3D](#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended) |
+| 4 | `vault-approle-setup-cd.yaml` | *(Recommended)* Creates the Certificate Manager's AppRole identity, so it no longer needs the Vault root token. This pipeline is Certificate-Manager-specific — the Federator Gateway and REST Federator Gateway are provisioned differently — see [Step 3D](#step-3d-configure-approle-authentication-recommended) |
 
 All four are located in `dpn-federator-certificate-manager` repository
 
@@ -212,39 +212,55 @@ Runtime parameters: `serviceConnection`, `environment`.
 
 ---
 
-### Step 3D: Configure AppRole Authentication (`vault-approle-setup-cd`, recommended)
+### Step 3D: Configure AppRole Authentication (recommended)
 
-The Vault root token is a single, all-privileges credential — every component that needs it (Certificate Manager, Federator Gateway) ends up holding full access to Vault. **AppRole** is the recommended alternative: each component authenticates with its own scoped identity (a `role_id` plus a `secret_id`) and receives a short-lived, auto-renewed token restricted to that component's own policy.
+The Vault root token is a single, all-privileges credential — every component that needs it (Certificate Manager, Federator Gateway, REST Federator Gateway) ends up holding full access to Vault. **AppRole** is the recommended alternative: each component authenticates with its own scoped identity (a `role_id` plus a `secret_id`) and receives a short-lived, auto-renewed token restricted to that component's own policy.
 
-Run this pipeline once per component, per environment, **after** Vault is deployed and initialised (Step 3B):
+**This is provisioned differently per component today — there is no single, generic "run once per component" pipeline.** Each component's Vault-side setup lives in that component's own repository, and only one of the three currently has an automated pipeline:
+
+| Component | Policy / role name | Automated? |
+|-----------|---------------------|------------|
+| Certificate Manager | `certificate-manager-policy` / `certificate-manager` | **Yes** — `vault-approle-setup-cd.yaml` (below) |
+| Federator Gateway | `federator-policy` / `federator` | No — manual script, see [Federator Gateway (manual)](#federator-gateway-and-rest-federator-gateway-manual) below |
+| REST Federator Gateway | *(none shipped yet)* | No — the chart accepts AppRole values, but no policy file or setup script exists in that repo yet; see below |
+
+#### Certificate Manager (automated)
+
+Run `vault-approle-setup-cd.yaml`, from the `dpn-federator-certificate-manager` repository, once per environment/cluster, **after** Vault is deployed and initialised (Step 3B). This pipeline is **hardcoded to the Certificate Manager** — it has no `component` parameter to target any other component:
 
 | Parameter | Description |
 |-----------|-------------|
-| `serviceConnection` | Azure service connection for your environment |
+| `ServiceConnection` | Azure service connection for your environment |
 | `environment` | Your target environment |
-| `component` | The Vault-consuming component to provision an AppRole identity for, e.g. `certificate-manager` |
+| `dpnCluster` | The target DPN cluster — `dpn01` or `dpn02` |
 
-The pipeline runs `setup-approle.sh` inside the Vault pod (using the admin `VAULT-TOKEN` from Key Vault) to:
+The pipeline runs that repository's `vault/setup-approle.sh` inside the Vault pod (using the admin `VAULT-TOKEN` from Key Vault) to:
 
-1. Write a least-privilege policy scoped to that component's own paths under `pki-client/node-net/client/*`.
-2. Create/update an AppRole role bound to that policy (`token_ttl=1h`, `token_max_ttl=4h`, non-expiring `secret_id`).
-3. Publish the generated **secret-id** to Key Vault as `VAULT-APPROLE-SECRET-ID` (consumed automatically by the component's `SecretProviderClass`), and print the **role-id** for you to copy into that component's Helm values.
+1. Write the least-privilege `certificate-manager-policy`, scoped to `pki-client/*`.
+2. Create/update the `certificate-manager` AppRole role (`token_ttl=1h`, `token_max_ttl=4h`, non-expiring `secret_id`).
+3. Publish the generated **secret-id** to Key Vault as `VAULT-APPROLE-SECRET-ID` (consumed automatically by the Certificate Manager's `SecretProviderClass`), and print the **role-id** for you to copy into `vault.appRole.roleId` in that component's Helm values.
 
-> **Key Vault governance note:** the `VAULT-APPROLE-SECRET-ID` Key Vault secret is stamped with a 355-day expiry to satisfy Key Vault's maximum-validity policy. The underlying Vault secret-id itself does not expire — **re-run this pipeline before the Key Vault copy expires** to rotate it, then redeploy the component to pick up the refreshed value.
+> **Key Vault governance note:** the `VAULT-APPROLE-SECRET-ID` Key Vault secret is stamped with a 355-day expiry to satisfy Key Vault's maximum-validity policy. The underlying Vault secret-id itself does not expire — **re-run this pipeline before the Key Vault copy expires** to rotate it, then redeploy the Certificate Manager to pick up the refreshed value.
 
-To switch a component over once its AppRole identity exists, set in its environment values file:
+To switch the Certificate Manager over once its AppRole identity exists, see [Configure DPN Certificate Manager, Step2](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication).
 
-```yaml
-vault:
-  authMethod: approle   # was: token
-  appRole:
-    roleId: <role_id from the pipeline output>
-    useSecretIdRef: true
-    secretIdSecretName: <component>-secrets   # synced from Key Vault via the CSI driver
-    secretIdSecretKey: VAULT_APPROLE_SECRET_ID
+#### Federator Gateway and REST Federator Gateway (manual)
+
+Neither of the Federator Gateway components has a CD pipeline for this step yet. For the **Federator Gateway**, its own repository ships `vault/setup-approle.sh` and `vault/federator-policy.hcl` (policy: `pki-client/*` read/list) — run the script by hand against the Vault pod:
+
+```bash
+POD=$(kubectl get pod -n <namespace> -l app=dpn-vault-https -o jsonpath='{.items[0].metadata.name}')
+kubectl cp vault/setup-approle.sh "<namespace>/$POD:/tmp/setup-approle.sh"
+kubectl cp vault/federator-policy.hcl "<namespace>/$POD:/tmp/federator-policy.hcl"
+kubectl exec -n <namespace> "$POD" -- sh -c \
+  "VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN=<admin token> sh /tmp/setup-approle.sh"
 ```
 
-`token` remains supported for backward compatibility and is still required for the bundle-load pipeline (Step 3C), which authenticates as the Vault admin — AppRole is for the long-running application components that read certificate material at runtime.
+This prints a `role_id` (not sensitive) and a `secret_id` (sensitive — handle it the same way the automated pipeline does: store it directly in Key Vault as `VAULT-APPROLE-SECRET-ID` for that component's environment, don't leave it in shell history or logs). Set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId` in the Federator Gateway's values file per [Configure DPN Federator Gateway, Step1](05-configure-dpn-federator-gateway.md#step1-meet-prerequisites).
+
+For the **REST Federator Gateway**, the chart already exposes `restFederatorServer.vault.appRole.*` values, but **no policy file or setup script is shipped in that repository yet** — there is nothing to run, automated or manual. An organisation that wants AppRole for this component today must author its own Vault policy (the same `pki-client/*` read/list shape used by the other two components is a reasonable starting point) and create the AppRole role directly with `vault write auth/approle/role/<role-name> ...`, following the same pattern as the Federator Gateway's script above.
+
+> **`token` remains supported for backward compatibility** across all three components, and is still required for the bundle-load pipeline (Step 3C), which always authenticates as the Vault admin — AppRole is for the long-running application components that read certificate material at runtime, not for that one-off bootstrap step.
 
 ---
 
