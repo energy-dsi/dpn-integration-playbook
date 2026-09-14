@@ -277,8 +277,7 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 |-----------|---------|---------|
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
 | name | Helm release / resource name for this deployment instance | `producer-topic-adaptor-example` |
-| cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
-| acrName | Azure Container Registry name to pull images from (when `cloudProviderType: azure`) | `""` (leave empty if not applicable) |
+| acrName | Azure Container Registry name to pull images from | `""` (leave empty if not applicable) |
 | imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
 | imageTag | Image tag to deploy | `latest` |
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
@@ -286,7 +285,7 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
 
-> **Note:** a manual reference `values.yaml` for this pathway's adaptor may set only `PRODUCT_NAME` and omit `productType`/`cloudProviderType` outright. Confirm whether those are injected by the CI pipeline in your environment before assuming they can be dropped.
+> **Note:** `cloudProviderType` and the AWS S3 / storage-secret parameters from the file pathway (see [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways)) do not apply here — the topic pathway is Kafka-to-Kafka only and does not read or write blob/S3 storage, so this stage's `values.yaml` has no `cloudProviderType`, `awsEndpointUrl`, `awsAccessSecret`, or `storageConnectionSecret` keys at all.
 
 **Kafka Connectivity**
 
@@ -379,8 +378,9 @@ The values.yaml file created in Step 2 for all data products running in a specif
 |-----------|---------|---------|
 | namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
 | name | Helm release / resource name for this deployment instance | `dpn-consumer-topic-eq-neso-oil-adaptor` |
-| cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
 | imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
+
+> **Note:** `cloudProviderType` and the AWS S3 / storage-secret parameters from the file pathway (see [Step4a](#step4a-setup-consumer-helm-charts-for-file-based-integration-pathway)) do not apply here, for the same reason as the topic-pathway producer (see [Step3b](#step3b-set-up-producer-helm-charts-for-topic-based-pathways)) — this stage does not read or write blob/S3 storage.
 
 **Kafka Connectivity**
 
@@ -411,9 +411,9 @@ DSI proposes only selective changes to the values file but provides the provisio
 
 > **Naming conventions**
 
-Organisations must adopt the following naming convention
+Organisations are recommended to adopt the following naming convention
 
-> - Storage container names, Kafka topic names, Kafka consumer group IDs, and product type names must use only alphanumeric characters and hyphens (`-`). No other special characters (including underscores) are permitted.
+> - Storage container names and product type names should use only alphanumeric characters and hyphens (`-`) — this is enforced for `product_type` (see [Step1](#step1-setup-a-new-data-product-from-blueprint)). Kafka topic names and consumer group IDs are not restricted by the pipeline's own validation to hyphen-only naming — the shipped reference configuration uses underscores in some Kafka consumer group IDs (e.g. `consumer_topic_eqbd_pg_gas_test`), so treat the hyphen-only form as a convention to prefer, not a hard requirement enforced by the code.
 > - Organisation names must be abbreviated without spaces.
 > - Schema type must match the blueprint schema type exactly: `eq`, `eqbd`, `dl`, or `ssh`.
 
@@ -474,15 +474,15 @@ A message published to `PIPELINE_CONTROL_TOPIC` starts a run; the pipeline stage
 
 #### Option B: Helm Configure Scheduling Without Airflow
 
-Manual scheduler requires Organisations to start pipeline manually and monitor the execution
+Manual scheduler requires Organisations to start pipeline manually and monitor the execution — no orchestration framework runs it for them.
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
-| SCHEDULER_BACKEND | Set to `airflow` to hand scheduling control to Airflow instead of the Kafka control topic | `airflow` |
+| SCHEDULER_BACKEND | Set to `standalone` for one-time, operator-initiated execution — no Kafka control topic and no Airflow involvement | `standalone` |
 
 ## Step7: Onboard a New Data Product on Airflow Scheduler
 
-Scheduling configuration on Airflow is **not created automatically** — a Direct Acyclic Graph (DAG) must be added alongside every new data product using `SCHEDULER_BACKEND: airflow`, in addition to the steps in [Producer Setup](#step1-setup-a-new-data-product-from-blueprint).
+Scheduling configuration on Airflow is **not created automatically** — a Direct Acyclic Graph (DAG) must be added alongside every new data product using `SCHEDULER_BACKEND: kafka-trigger`, in addition to the steps in [Producer Setup](#step1-setup-a-new-data-product-from-blueprint).
 
 ```text
 Root-Repository
@@ -502,7 +502,7 @@ PRODUCT         = "bp-natural-gas"
 PIPELINE_TYPE   = "file"
 PIPELINE_ROLE   = "producer"
 
-BOOTSTRAP_SERVER = "dpn-kafka-src:9092"
+BOOTSTRAP_SERVER = os.getenv("bootstrapServer", "dpn-kafka-src.ns-dpn-01.svc.cluster.local:9094")
 SCHEDULE         = '*/3 * * * *'
 ```
 
@@ -612,11 +612,10 @@ Every stage that connects to Kafka — producer adaptor/schema mapper and consum
 | KAFKA_SASL_MECHANISM | SASL mechanism | `OAUTHBEARER` (OAuth2 client-credentials via Keycloak) |
 | KAFKA_OAUTH_CLIENT_ID | Keycloak service-account client ID | `dpn-service-client` |
 | KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| KAFKA_SSL_CA_LOCATION | Path the CA truststore is mounted at inside the pod | `/etc/secrets/truststore.jks` |
-| kafkaTlsSecretName | Kubernetes secret providing the truststore mounted at `KAFKA_SSL_CA_LOCATION` | `dpn-tls` |
+| kafkaTlsSecretName | Kubernetes secret providing the `truststore.jks` mounted into the pod | `dpn-tls` |
 | kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
 
-> **Note:** the file mounted at `KAFKA_SSL_CA_LOCATION` is a password-protected `truststore.jks` (genuinely PKCS12, despite older references to a plain `ca.crt`) — not a bare CA certificate PEM. The password comes from the `kafkaOauthSecretName` secret's `UNIVERSAL_DPN_CERT_PASSWORD` key, injected as the `TRUSTSTORE_PASSWORD` env var; at runtime the pod extracts the CA cert(s) from that truststore and points the Kafka client's TLS trust at the extracted PEM. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
+> **Note:** the pod resolves its CA truststore from the `kafkaTlsSecretName` secret's mounted `truststore.jks` — a password-protected file (genuinely PKCS12, despite older references to a plain `ca.crt`), not a bare CA certificate PEM. The password comes from the `kafkaOauthSecretName` secret's `UNIVERSAL_DPN_CERT_PASSWORD` key, injected as the `TRUSTSTORE_PASSWORD` env var; at runtime the pod extracts the CA cert(s) from that truststore and points the Kafka client's TLS trust at the extracted PEM. `KAFKA_SSL_CA_LOCATION` is **not** part of this default path and is not set by any chart — it exists only as a manual fallback for an image/environment with no truststore mounted at all, and should be left unset otherwise. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" and in `.docs/kafka-auth-modes.md` — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
 
 ---
 
@@ -667,19 +666,19 @@ For file based integration pathway, the following convention is recommended
 
 | Process | Source Topic Name | Target Topic Name | Bootstrap Server |
 |---------|-------------------|-------------------|------------------|
-| adaptor | N/A | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
-| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src:9092` |
-| extractor | N/A | `dp-consumer-topic-trfm` | `dpn-kafka-target:9092` |
-| consumer-mapper | `dp-consumer-topic-trfm` | `dp-consumer-topic-target` | `dpn-kafka-target:9092` |
+| adaptor | N/A | `dpn-producer-{product_type}-raw` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
+| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
+| extractor | N/A | `dp-consumer-topic-trfm` | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
+| consumer-mapper | `dp-consumer-topic-trfm` | `dp-consumer-topic-target` | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
 
 For streaming based integration pathway, the following convention is recommended
 
 | Process | Source Topic Name | Target Topic Name | Bootstrap Server |
 |---------|-------------------|-------------------|------------------|
-| adaptor | `dpn-producer-{product_type}-stage` | `dpn-producer-{product_type}-raw` | `dpn-kafka-src:9092` |
-| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{orgname}-{schema_type}-{product_type}-target` | `dpn-kafka-src:9092` |
-| extractor | `dp-consumer-topic-stage` | `dp-consumer-topic-trfm` | `dpn-kafka-target:9092` |
-| consumer-mapper | `dp-consumer-topic-trfm` | Auto created based on data product name in meta data | `dpn-kafka-target:9092` |
+| adaptor | `dpn-producer-{product_type}-stage` | `dpn-producer-{product_type}-raw` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
+| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{orgname}-{schema_type}-{product_type}-target` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
+| extractor | `dp-consumer-topic-stage` | `dp-consumer-topic-trfm` | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
+| consumer-mapper | `dp-consumer-topic-trfm` | Auto created based on data product name in meta data | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
 
 
 where **`product_type`** is the name of the data product name such as `eq-sample-1` as described in previous sections.

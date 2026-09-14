@@ -93,10 +93,10 @@ git push -u ado main
 Ensure the following prerequisites are completed before deployment:
 
 - AKS cluster provisioned and accessible, with the **metrics-server** running (required for HPA — enabled by default on AKS)
-- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/05-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
+- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
 - DPN Health Monitoring Service deployed and OTEL collector container is in running state
-- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
-- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step8-configure-secrets))
+- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
+- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step8-configure-secrets))
 - Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (Azure DevOps access, GHCR access — see Step 4 below)
 
@@ -109,7 +109,7 @@ Ensure the following prerequisites are completed before deployment:
 - There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
 - The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
 - The environment parameters are pointing to correct deployment environment
-- The DSM endpoints are correctly pointing to respective pdev, ptest or puat environments
+- The DSM endpoints are correctly pointing to the target deployment environment
 - Required Firewall rules are applied
 - Both CI and CD pipelines to be verified for the above prerequisites before execution
 
@@ -187,7 +187,7 @@ The pipeline proceeds with consumer-specific configuration and deployment only.
 
 When **Config Type = `producer`** is selected:
 
-- **Process Type** — Mandatory. Currently supported value: `file`. (This may be extended in future releases.)
+- **Process Type** — Mandatory. Supported values: `file` and `topic`. (This may be extended in future releases.)
 - **Schema Type** — Mandatory. Remove 'Default' before providing currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
 - **Product Type** — Mandatory. Remove 'Default' before providing supoorted values. Must be provided to correctly parameterise the producer pipeline.
 
@@ -220,7 +220,7 @@ Root-Repository/
 
 > **Notes:**
 > - Organisations must determine which data templates they require for processing. The pipelines are designed to be generic, processing a specific type (producer or consumer), integration pathway (file, topic), cloud provider type (Azure, AWS, GCP), and consumer ID.
-> - before running this pipeline, confirm the `SCHEDULER_BACKEND` value set on each product's `values.yaml` (`kafka-trigger` for automated, software-triggered scheduling, or `airflow` for orchestrator-driven scheduling
+> - before running this pipeline, confirm the `SCHEDULER_BACKEND` value set on each product's `values.yaml`: `kafka-trigger` for automated, Airflow-orchestrated scheduling; `interval` for schedule-based execution without Airflow; or `standalone` for manual, one-time execution (see [Configure DPN Data Pipelines → Step6: Configure Scheduling](../02-configuration/07-configure-dpn-data-pipelines.md#step6-configure-scheduling))
 
 ---
 
@@ -290,7 +290,7 @@ Root-Repository/
     └── airflow/
         ├── values-<env>-dpn01.yaml   <- Environment-specific Airflow overrides
         └── dags/
-              └── {product_type}.py   <- One DAG per data product using the airflow backend
+              └── {product_type}.py   <- One DAG per data product using the kafka-trigger backend
 ```
 
 - Confirm a DAG file exists under `charts/airflow/dags/` for every product using `SCHEDULER_BACKEND: kafka-trigger`
@@ -456,7 +456,7 @@ Data Pipeline service images are found in GHCR with following name
 | producer-topic-mapper-ssh | `ghcr.io/energy-dsi/producer-topic-mapper-ssh` | `<version>` |
 | consumer-file-extractor | `ghcr.io/energy-dsi/consumer-file-extractor` | `<version>` |
 | consumer-file-mapper | `ghcr.io/energy-dsi/consumer-file-mapper` | `<version>` |
-| consumer-topic-extractor | `ghcr.io/energy-dsi/consumer-topic-extractor` | `<version>0` |
+| consumer-topic-extractor | `ghcr.io/energy-dsi/consumer-topic-extractor` | `<version>` |
 | consumer-topic-mapper | `ghcr.io/energy-dsi/consumer-topic-mapper` | `<version>` |
 
 
@@ -505,7 +505,7 @@ Execute this CD Pipeline to perform deployment.
 
 ### Step5c. Verify CD Pipeline
 
-Follow the same verification steps mentioned in step3c and step3d as above.
+Follow the same verification steps mentioned in Step2e/Step2f (data pipeline deployment) and Step3c (Airflow) as above.
 
 ---
 

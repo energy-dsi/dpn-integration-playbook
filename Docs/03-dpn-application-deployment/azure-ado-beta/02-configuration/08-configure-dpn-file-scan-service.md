@@ -50,6 +50,8 @@ The File Scan Service requires a service principal for authentication to all the
 
 Once the service principal is available, note the CLIENT_ID and CLIENT_SECRET to be used for file scan service.
 
+> **Note:** role assignment is not automated by any pipeline in this repository — the two roles above must be assigned to the service principal manually/out-of-band before deployment.
+
 ## Step2: Configure Prerequisites Provisioning Pipeline
 
 `dpn-file-scan-service-prerequisites-cd.yaml` is a separate, parameterised pipeline that performs following actions. 
@@ -57,9 +59,9 @@ Once the service principal is available, note the CLIENT_ID and CLIENT_SECRET to
 - **Note** Organisation must set up softDelete for malicious blob at the storage account level in Defender for Storage settings. Subscription level settings will not work as the prerequisite pipeline overrides the subscription settings to use eventgrid topic for scan result publish
 - Registers Event Grid subscription on Defender for cloud storage
 - Create event grid topic to push events from Defender service to Azure Service Bus
-- Create a new container in the target storage account
-- Performs necessary role assignments
-- Verifies that the required storage accounts exist in the environment
+- Create the Azure Service Bus topic and subscription that receive scan-result events
+- Create a new container (default `dp-consumer-raw`) in the source/quarantine storage account (`storageAccountName`), if it does not already exist
+- Performs necessary role assignments (e.g. granting the Event Grid topic's managed identity "Azure Service Bus Data Sender" on the Service Bus topic, so it can publish scan results)
 
 ### Step2a: Setup Prerequisite Pipeline Parameters
 
@@ -83,14 +85,14 @@ Once the service principal is available, note the CLIENT_ID and CLIENT_SECRET to
 
 ## Step3: Configure File Scan Deployment Pipeline
 
-Organisations should prepare a config/dpn-<env-name>.json file per environment where file scan service is deployed and keep in the following location. This file will be referenced by the pipelines during deployment.
+Organisations should prepare a config file per environment (and DPN cluster) where file scan service is deployed, named `<env>-<cluster>.json` (e.g. `dev-dpn01.json`), and keep it in the following location. This file will be referenced by the pipelines during deployment.
 
 ```text
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── config/
-            └── dpn-<env-name>.json
+            └── <env>-<cluster>.json
 ```
 
 ### Step3a: Configure Environment JSON File
@@ -105,23 +107,8 @@ Root-Repository/
 | `AKS_CLUSTER` | AKS cluster name | `aks-dpn-pdev-uks-08` |
 | `RESOURCE_GROUP` | AKS resource group | `rg-aks-dpn-pdev-uks-08` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
-| `OTEL_ENDPOINT` | Open Telemetry Endpoint | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318`
-| `otelExporterProtocol` |  Protocol | `https`
-| `otelExporterCertificate` | Otel Exporter Certificate | `/etc/secrets/truststore.jks`
-| `truststorePath` | Truststore Path | `/etc/kafka/secrets/truststore.jks`
-| `otelTlsSecretName` | Otel TLS Secret Name | `dpn-tls`
-| `truststorePasswordSecretName` | Universal dpn truststore certificate password | `UNIVERSAL-DPN-CERT-PASSWORD`
-| `OTEL_OAUTH_ENABLED` | Otel Authorization Enabled | `True`
-| `OTEL_OAUTH_CLIENT_ID` | Otel OAuth Client ID | `dpn-service-client`
-| `OTEL_OAUTH_CLIENT_SECRET` | Otel OAuth Client Secret | `Secret Value`
-| `OTEL_OAUTH_TOKEN_ENDPOINT_URL` | Otel OAuth Token Endpoint Url | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token`
-| `OTEL_OAUTH_CA_LOCATION` |  Otel OAuth CA Location | `/etc/kafka/secrets/ca.crt`
-| `<AWS_REGION>` | Region the S3/SNS/SQS resources live in | `eu-west-2` 
-| `<INBOUND_BUCKET>` | S3 bucket GuardDuty scans | `S3_BUCKET_INBOUND`
-| `<OUTBOUND_BUCKET>` | S3 bucket clean files are copied to | `S3_BUCKET_OUTBOUND`
-| `<SQS_QUEUE_URL>` | The queue URL from Step 3 | `SQS_QUEUE`
-| `<SNS_TOPIC_ARN>` | The topic ARN from Step 3 | `SNS_TOPIC`
-| `<IRSA_ROLE_ARN>` | ARN of the IAM role granting the S3/SQS permissions above | `NA`
+
+> **Note:** the OpenTelemetry/OAuth and truststore parameters (`otelExporterProtocol`, `otelExporterCertificate`, `truststorePath`, `otelTlsSecretName`, `truststorePasswordSecretName`, etc.) are **not** part of this environment JSON file — they are Helm chart values, set in `values-<env>.yaml`. See [Step4](#step4-configure-helm-chart-files).
 
 ---
 
@@ -141,19 +128,26 @@ The following values to be modified in the values-<env>.yaml
 
 | Item | Value |
 |---|---|
-| image:repository | `<ACR_NAME>.azurecr.io/dpn-file-scan-service` |
-| image:tag | `<Build.BuildNumber>` |
-| keyvault:name | `Your AKV name` |
-| keyvault:clientID | `Azure Service Principal - Client ID ` |
-| keyvault:tenantID | `Azure Service Principal - Azure Tenant ID` |
-| serviceBusNamespace | `Azure Service namespace i.e. <xyz>.servicebus.windows.net` |
-| sourceStorageAccount | `Azure source storage account name where file will be scanned` |
-| sourceContainer | `Azure source storage account container name, preferred name "dp-consumer-raw"`|
-| destStorageAccount | `Azure destination storage account name where file will be copied` |
-| destContainer |  `Azure destination storage account container name, preferred name "dp-consumer-stage"`|
-| tenantId | `Azure Subscription tenant ID` |
-| topicname | `target topic name on the azure service bus- preferred <dpn-fileupload-scan-results>`|
-| subscriptionname | `Azure Subscription ID`|
+| image.repository | `<ACR_NAME>.azurecr.io/dpn-file-scan-service` |
+| image.tag | `<Build.BuildNumber>` |
+| keyvault.name | `Your AKV name` |
+| keyvault.clientID | `Azure Service Principal - Client ID ` |
+| keyvault.tenantId | `Azure Key Vault's AAD tenant ID` |
+| env.cloudprovidertype | `AZURE` — selects the Azure Service Bus/Blob code path |
+| env.serviceBusNamespace | `Azure Service namespace i.e. <xyz>.servicebus.windows.net` |
+| env.sourceStorageAccount | `Azure source storage account name where file will be scanned` |
+| env.sourceContainer | `Azure source storage account container name, preferred name "dp-consumer-raw"`|
+| env.destStorageAccount | `Azure destination storage account name where file will be copied` |
+| env.destContainer |  `Azure destination storage account container name, preferred name "dp-consumer-stage"`|
+| env.tenantId | `Azure Subscription tenant ID used by the application at runtime (distinct from keyvault.tenantId above)` |
+| env.topicname | `target topic name on the azure service bus- preferred <dpn-fileupload-scan-results>`|
+| env.subscriptionname | `Subscription (on the Service Bus topic) the service listens on`|
+| env.otelEndpoint | OTel collector's OTLP endpoint, e.g. `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
+| env.otelExporterProtocol | OTel exporter protocol, e.g. `http/protobuf` |
+| env.otelExporterCertificate | Path to the OTel exporter's client certificate inside the pod, e.g. `/etc/secrets/truststore.jks` |
+| env.truststorePath | Path the truststore is mounted at inside the pod, e.g. `/etc/kafka/secrets/truststore.jks` |
+| env.otelTlsSecretName | Kubernetes secret providing the mounted truststore, e.g. `dpn-tls` |
+| keyvault.truststorePasswordSecretName | Key Vault secret holding the truststore password, e.g. `UNIVERSAL-DPN-CERT-PASSWORD` |
 
 ---
 
@@ -165,6 +159,10 @@ The following secrets should be created in Azure Key Vault
 |-------------|---------|
 |FILESCAN-CLIENT-ID | Service principal client id |
 |FILESCAN-CLIENT-SECRET | Service principal secret |
+|FILESCAN-OTEL-TRUSTSTORE | OTel PKCS#12 truststore, stored in Key Vault as a base64-encoded secret |
+|FILESCAN-OTEL-TRUSTSTORE-PASSWORD | Password for the truststore above, synced into a native Kubernetes Secret |
+
+> **Note:** the chart also expects a pre-existing Kubernetes Secret named by `env.otelTlsSecretName` (default `dpn-tls`) in the target namespace, holding the mounted truststore — this is not a Key Vault secret and is not created by this chart.
 
 ---
 

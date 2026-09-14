@@ -45,6 +45,9 @@ The following prerequisites must be met.
 - Service connection required roles to create an Event Grid System Topic and provision a Service Bus namespace/topic
 - Service Bus user access administrator permission to create and assign Managed Identities and RBAC role assignments
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
+- The Service Principal created with the required role assignments and its Client ID/Secret noted (see [Configure DPN File Scan Service → Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-service-principal-in-azure-ad))
+- The per-environment config file (`config/<env>-<cluster>.json`) and Helm values overlay (`values-<env>-<cluster>.yaml`) prepared (see [Configure DPN File Scan Service → Step3](../02-configuration/08-configure-dpn-file-scan-service.md#step3-configure-file-scan-deployment-pipeline) and [Step4](../02-configuration/08-configure-dpn-file-scan-service.md#step4-configure-helm-chart-files))
+- The required Azure Key Vault secrets created — `FILESCAN-CLIENT-ID`, `FILESCAN-CLIENT-SECRET`, `FILESCAN-OTEL-TRUSTSTORE`, `FILESCAN-OTEL-TRUSTSTORE-PASSWORD` — plus the pre-existing `dpn-tls` Kubernetes secret in the target namespace (see [Configure DPN File Scan Service → Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-azure-key-vault--secrets))
 
 **Note:** Organisations must review the CI/CD Pipeline codes for the following. 
 
@@ -53,7 +56,7 @@ The following prerequisites must be met.
 - There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
 - The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
 - The environment parameters are pointing to correct deployment environment
-- The DSM endpoints are correctly pointing to respective pdev, ptest or puat environments
+- The DSM endpoints are correctly pointing to the target deployment environment
 - Required Firewall rules are applied
 - Both CI and CD pipelines to be verified for the above prerequisites before execution
 
@@ -70,7 +73,7 @@ Root-Repository/
         └── cd-pipelines/
             └── dpn-file-scan-service-prerequisites-cd.yaml
 ```
-Prepare a new pipeline from this yaml file and run. This pipeline will require a set of runtime parameters as defined in [File Scan Service Prerequisite Pipeline Run Parameters](../02-configuration/06-configure-dpn-file-scan-service.md)
+Prepare a new pipeline from this yaml file and run. This pipeline will require a set of runtime parameters as defined in [File Scan Service Prerequisite Pipeline Run Parameters](../02-configuration/08-configure-dpn-file-scan-service.md#step2a-setup-prerequisite-pipeline-parameters)
 
 ### Step2a: Validate Prerequisite Pipeline Execution
 
@@ -95,9 +98,9 @@ The CI pipeline requires the following paramters to be passed.
 
 | Parameter | Value |
 |-----------|-------|
-| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `serviceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `dpncluster` | `dpn01` or `dpn02` (`dpn02` applies to `dev`/`devtest`/`test` only; `pdev`/`ptest`/`puat` are single-cluster, `dpn01` only) |
 
 
 Execute the CI pipeline to build the image and push to image registry.
@@ -121,7 +124,7 @@ Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── cd-pipelines/
-            └── dpn-file-scan-service-cd.yaml
+            └── dpn-file-scan-service-cd.yml
 ```
 The CD Pipeline would require the following run time parameters. 
 
@@ -129,8 +132,8 @@ The CD Pipeline would require the following run time parameters.
 |-----------|-------|
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
-|`image tag` | The same image tag created from CI pipeline during pushing the image | 
+| `dpncluster` | `dpn01` or `dpn02` (`dpn02` applies to `dev`/`devtest`/`test` only; `pdev`/`ptest`/`puat` are single-cluster, `dpn01` only) |
+| `imageTag` | The same image tag created from the CI pipeline when pushing the image | 
 
 ---
 
@@ -209,14 +212,14 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step5b. Execute CD Pipeline
 
-Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+To deploy the DSI-provided GHCR image, use the same CD pipeline as the standard path, with the Helm values' `image.repository` set to the GHCR path (`ghcr.io/energy-dsi/dpn-file-scan-service`) and `image.tag` to the desired version (see [Configure DPN File Scan Service → Step4](../02-configuration/08-configure-dpn-file-scan-service.md#step4-configure-helm-chart-files)).
 
 ```text
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── cd-pipelines/
-            └── dpn-file-scan-service-ghcr-cd.yaml
+            └── dpn-file-scan-service-cd.yml
 ```
 The CD Pipeline would require the following run time parameters. 
 
@@ -224,7 +227,8 @@ The CD Pipeline would require the following run time parameters.
 |-----------|-------|
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `dpncluster` | `dpn01` or `dpn02` (`dpn02` applies to `dev`/`devtest`/`test` only; `pdev`/`ptest`/`puat` are single-cluster, `dpn01` only) |
+| `imageTag` | The GHCR image tag to deploy (e.g. `1.0.0`) |
 
 Execute this CD Pipeline to perform deployment.
 
