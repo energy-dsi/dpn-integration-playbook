@@ -15,6 +15,8 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 - [Step2: Configure Secrets](#step2-configure-secrets)
 - [Step3: Configure TLS](#step3-configure-tls)
 - [Step4: Environment Configuration](#step4-environment-configuration)
+  - [Step4a: Environment JSON (`config/<env>-<cluster>.json`)](#step4a-environment-json-configenv-clusterjson)
+  - [Step4b: Helm Values Overlay (`values-<env>-<cluster>.yaml`)](#step4b-helm-values-overlay-values-env-clusteryaml)
 - [Step5: Configure Deployment Parameters](#step5-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -39,10 +41,10 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 | # | Prerequisite | Notes |
 |---|--------------|-------|
-| 1 | **AKS cluster**, a **user-assigned managed identity**, and the **Secrets Store CSI driver** | The managed identity needs *get* access to the four Key Vault secrets below |
+| 1 | **AKS cluster**, a **user-assigned managed identity**, and the **Secrets Store CSI driver** | The managed identity needs *get* access to the four CSI-mounted Key Vault secrets below (`KC-SERVICE-CLIENT-SECRET` is fetched separately by the pipeline, not via CSI) |
 | 2 | **`dpn-tls` Kubernetes secret present in the namespace** | An `Opaque` secret holding `keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret) — created before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
-| 3 | **Four Key Vault secrets populated** | See [Step2: Configure Secrets](#step2-configure-secrets) |
-| 4 | **Container image tag available** | Stock upstream Keycloak pulled via ACR, or supplied to the CD pipeline as `imageTag` |
+| 3 | **Five Key Vault secrets populated** | See [Step2: Configure Secrets](#step2-configure-secrets) |
+| 4 | **No image tag input needed** | The pipeline hardcodes upstream `quay.io/keycloak/keycloak:26.3.2` (and `postgres:16-alpine`) and imports both into ACR itself during Deploy — there is no `imageTag` parameter to supply |
 | 5 | **`config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml` populated** | See [Step4: Environment Configuration](#step4-environment-configuration) |
 
 > **Azure DevOps pipeline setup (one-time):** create the target namespace (`kubectl create namespace <namespace>`) and the Azure service connection before running the CD pipeline — it does not create either for you.
@@ -51,7 +53,7 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 ## Step2: Configure Secrets
 
-The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error. Create these four secrets in the environment's Key Vault before the first deploy:
+The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error. Create these five secrets in the environment's Key Vault before the first deploy:
 
 | Key Vault secret | Becomes | Used by |
 |-------------------|---------|---------|
@@ -59,6 +61,7 @@ The deploy pipeline reads the required secret names out of the rendered `SecretP
 | `KEYCLOAK-ADMIN-PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account |
 | `KC-HTTPS-KEY-STORE-PASSWORD` | `KC_HTTPS_KEY_STORE_PASSWORD` | Opens `keystore.jks` |
 | `KC-HTTPS-TRUST-STORE-PASSWORD` | `KC_HTTPS_TRUST_STORE_PASSWORD` | Opens `truststore.jks` |
+| `KC-SERVICE-CLIENT-SECRET` | `KC_SERVICE_CLIENT_SECRET` | Not CSI-mounted — checked explicitly in Validate, then fed to `configure-keycloak.sh` in Deploy. Sets the secret on the `dpn-service-client` UI client; must match the same Key Vault object already synced by `dpn-health-monitoring-service`'s oauth2-proxy releases (OpenSearch Dashboards, Jaeger, Perses, Portal) and by Kafka UI's own `SecretProviderClass` for its native OIDC login |
 
 > **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy.
 
@@ -86,6 +89,32 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
 ---
 
 ## Step4: Environment Configuration
+
+Two per-environment files must be populated: the pipeline's environment JSON (`config/<env>-<cluster>.json`) and the Helm values overlay (`values-<env>-<cluster>.yaml`).
+
+### Step4a: Environment JSON (`config/<env>-<cluster>.json`)
+
+The CD pipeline loads its Azure targeting and the Keycloak admin/realm details from `.pipelines/azure-pipelines/config/<env>-<cluster>.json`. Every key below is read by the pipeline (via `jq`) and must be present:
+
+| Key | Description | Example (placeholder) |
+|-----|-------------|-----------------------|
+| `ENV_NAME` | Deployment environment abbreviation | `<env>` |
+| `CONTAINER_REGISTRY` | ACR name (no `.azurecr.io` suffix) | `acrdpn<env>uks01` |
+| `CONTAINER_REGISTRY_URL` | ACR URL | `acrdpn<env>uks01.azurecr.io` |
+| `BASE_REGISTRY` | Base container registry URL | `acrdpn<env>uks01.azurecr.io` |
+| `AZURE_SUBSCRIPTION_ID` | Subscription where the infrastructure is deployed | `<subscription-id>` |
+| `RESOURCE_GROUP` | Resource group containing the AKS cluster | `rg-aks-dpn-<env>-uks-08` |
+| `AKS_CLUSTER` | AKS cluster name | `aks-dpn-<env>-uks-08` |
+| `NAMESPACE` | Kubernetes namespace for the deployment | `ns-dpn-01` |
+| `KEY_VAULT_NAME` | Key Vault holding the secrets from [Step2](#step2-configure-secrets) | `kv-dpn-<env>-<region>-<seq>` |
+| `KEYCLOAK_BASE_URL` | Local URL the pipeline port-forwards to when running `configure-keycloak.sh` (the local port is taken from here) | `https://127.0.0.1:18443` |
+| `KEYCLOAK_ADMIN_USER` | Master-realm bootstrap admin username (password comes from `KEYCLOAK-ADMIN-PASSWORD` in Key Vault) | `admin` |
+| `KEYCLOAK_REALM` | Realm the configuration script creates/updates | `dpn-realm` |
+| `KEYCLOAK_CLIENT_ID` | Machine-to-machine client the script creates | `DPN-Client` |
+
+> **Note:** `ServiceConnection`, `environment`, and `dpnCluster` are supplied as pipeline **runtime parameters** at trigger time — they are **not** keys in this JSON file (see [Step5](#step5-configure-deployment-parameters)).
+
+### Step4b: Helm Values Overlay (`values-<env>-<cluster>.yaml`)
 
 Copy `values.yaml` (reference — do not edit directly) to `values-<env>-<cluster>.yaml`.
 
@@ -133,13 +162,13 @@ Root-Repository/
             └── dpn-keycloak-uninstall-cd.yaml
 ```
 
-The deploy pipeline runs **Validate** (confirms the Key Vault secrets exist, verifies the TLS certificate and its alias/SANs, `helm lint` + dry run) → **Approval** → **Deploy** (`helm upgrade --install`, records the deployed image digest) → **Verify** (confirms the load balancer is internal, checks the HTTPS endpoint from inside the cluster, and asserts plaintext HTTP is refused).
+The deploy pipeline runs **Validate** (confirms the Key Vault secrets exist, verifies the TLS certificate and its alias/SANs, `helm lint` + dry run) → **Deploy** (`helm upgrade --install`, records the deployed image digest, then configures the realm/clients — see below) → **Verify** (confirms the load balancer is internal, checks the HTTPS endpoint from inside the cluster, and asserts plaintext HTTP is refused). The Deploy stage is gated on the environment's approver group.
 
-Runtime parameters: `serviceConnection`, `environment`, `cluster`, `imageTag`.
+Runtime parameters: `ServiceConnection`, `environment`, `dpnCluster`. There is no `imageTag` parameter — see [Step1](#step1-meet-the-prerequisites).
 
 The uninstall pipeline (`dpn-keycloak-uninstall-cd.yaml`) retains the PostgreSQL PVC by default so realm data survives a reinstall — pass `deletePvc: true` to destroy it.
 
-> **Realm and client configuration is out of scope for this chart.** This pipeline deploys the Keycloak server only; creating the `dpn-realm` realm and the OAuth clients that Kafka, the observability UIs, and other components authenticate as is a manual, per-environment configuration step performed against the running Keycloak admin console.
+> **Realm and client configuration is automatic, not manual.** After `helm upgrade --install` completes, the Deploy stage runs a step named **"Configure Realm, Client, Roles and Audit Logging"**, which port-forwards to the Keycloak service and runs `charts/keycloak/scripts/configure-keycloak.sh` against the Admin REST API. This script is idempotent (create on first run, update on later ones) and creates/updates the `dpn-realm` realm, the `DPN-Client` machine-to-machine client, the `dpn-service-client` UI client (secret sourced from `KC-SERVICE-CLIENT-SECRET`), realm roles, groups, protocol mappers, and audit/event logging settings on every deploy. No manual admin-console step is required for this baseline configuration.
 
 ---
 

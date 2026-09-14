@@ -1,6 +1,16 @@
 {
   "permissions": {
     "allow": [
+      "Bash(find \"C:/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service\" -maxdepth 3 -not -path \"*/node_modules/*\" -not -path \"*/.git/*\" | sort)",
+      "Read(//c/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/**)",
+      "Read(//c/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/charts/keycloak/**)",
+      "Bash(ls \"C:/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/charts/keycloak/templates\" \"C:/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/.pipelines/azure-pipelines/cd-pipelines\" \"C:/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/.pipelines/azure-pipelines/config\")",
+      "Read(//c/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/charts/keycloak/templates/**)",
+      "Bash(ls \"C:/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/charts/keycloak/scripts\")",
+      "Read(//c/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/charts/keycloak/scripts/**)",
+      "Read(//c/Users/sourav.ghosh/Desktop/Neso/dpn-authentication-service/.pipelines/azure-pipelines/cd-pipelines/**)",
+      "Bash(find \"C:/Users/sourav.ghosh/Desktop/Neso/dpn-health-monitoring-service_develop\" -maxdepth 3 -not -path \"*/.git/*\" | sort)",
+      "Read(//c/Users/sourav.ghosh/Desktop/Neso/dpn-health-monitoring-service_develop/**)",
       "Bash(xargs -n1 basename)",
       "Read(//c/Users/AnuranDatta/Documents/work/NESO/dpn-federator-gateway/charts/dpn-platform/**)",
       "Read(//c/Users/AnuranDatta/Documents/work/NESO/dpn-federator-gateway/vault/**)",
