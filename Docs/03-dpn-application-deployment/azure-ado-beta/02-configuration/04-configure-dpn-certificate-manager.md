@@ -71,7 +71,7 @@ The Certificate Manager reads and writes its certificate material directly in Va
 | Method | `vault.authentication` | Notes |
 |--------|------------------------|-------|
 | Root token | `TOKEN` | Simplest to bootstrap with, but the token has full access to Vault. Kept for backward compatibility; see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3b-configuration-to-initialise-vault-vault-https-cd) |
-| **AppRole** (recommended, chart default) | `APPROLE` | Scoped, short-lived credentials specific to the Certificate Manager. Provisioned by the `vault-approle-setup-cd` pipeline — see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended) |
+| **AppRole** (recommended, chart default) | `APPROLE` | Scoped, short-lived credentials specific to the Certificate Manager. Provisioned by the `vault-approle-setup-cd` pipeline — see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 
 To switch to AppRole once the identity has been provisioned, set in `values-<env>.yaml`:
 
@@ -167,7 +167,7 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 | `VAULT-TOKEN` | `certificate-manager-secrets` / `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault (from Vault init) — only used when `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
 | `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `OAUTH2_CLIENT_SECRET` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
 
-> **Note:** `VAULT-APPROLE-SECRET-ID` is produced by the `vault-approle-setup-cd` pipeline (see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended)). `VAULT-TOKEN` is produced during Vault setup by the Vault init stage (`storeRootTokenInAkv: true`) and is only needed if you have not migrated to AppRole. Confirm whichever you use exists in Key Vault before deploying.
+> **Note:** `VAULT-APPROLE-SECRET-ID` is produced by the `vault-approle-setup-cd` pipeline (see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended)). `VAULT-TOKEN` is produced during Vault setup by the Vault init stage (`storeRootTokenInAkv: true`) and is only needed if you have not migrated to AppRole. Confirm whichever you use exists in Key Vault before deploying.
 
 #### Option B - Through Vault truststore (Kubernetes secret)
 

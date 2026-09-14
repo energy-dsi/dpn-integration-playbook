@@ -59,7 +59,7 @@ See [Configure DPN Vault Service](../03-dpn-application-deployment/azure-ado-bet
 
 | Change | Item | Details |
 |--------|------|---------|
-| Added | `vault-approle-setup-cd.yaml` pipeline | New 4th pipeline — provisions a scoped AppRole identity (policy + role + `role_id`/`secret_id`) per Vault-consuming component |
+| Added | `vault-approle-setup-cd.yaml` pipeline | New 4th pipeline — provisions a scoped AppRole identity (policy + role + `role_id`/`secret_id`) for the Certificate Manager. Not a generic per-component pipeline: the Federator Gateway is provisioned by running that repository's own `vault/setup-approle.sh` manually, and the REST Federator Gateway has no policy file or setup script yet at all |
 | Added | `VAULT-APPROLE-SECRET-ID` Key Vault secret | Output of the new pipeline; 355-day expiry, requires periodic re-run to rotate |
 | Modified | `storeRootTokenInAkv` (in `vault-https-cd`) | Still required — the bundle-load pipeline always needs the root token — but no longer the *only* credential path for downstream components |
 
@@ -136,7 +136,7 @@ See [DPN Portal Operations](../05-dpn-user-interfaces/08-dpn-portal-ui-operation
 
 For an organisation moving from Release 1.0.0:
 
-1. **Vault**: no mandatory action — root token continues to work. Optionally run `vault-approle-setup-cd` per component and switch `vault.authentication`/`vaultConfig.authMethod` to the AppRole values above.
+1. **Vault**: no mandatory action — root token continues to work. Optionally migrate to AppRole and switch `vault.authentication`/`vaultConfig.authMethod` to the AppRole values above: run `vault-approle-setup-cd` for the Certificate Manager, or run the Federator Gateway's own `vault/setup-approle.sh` manually (no pipeline exists for it yet) — see [Configure DPN Vault Service, Step 3D](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
 2. **Certificate Manager**: remove any `fileShare.*`/`certDest.*`/`mtls.*` overrides from your `values-<env>.yaml` — they no longer exist in the chart. Add `vault.uri`, `vault.pkiMount`, `vault.secretPath` if not already set. The `azure-fileshare-secret` and its PV/PVC can be decommissioned once you've confirmed the new deployment is healthy.
 3. **Federator Gateway**: remove any file-share-related overrides. Decide on `kafka.authMode` — set to `sasl_ssl` and populate `kafka.oauth.tokenEndpointUrl` if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so.
 4. **Optional new components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need Keycloak-backed Kafka/UI authentication or a REST-based integration pattern — neither is required to keep an existing Release 1.0.0 deployment running.
