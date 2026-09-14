@@ -4,7 +4,7 @@ This document covers the installation of the **DPN Authentication Service** — 
 
 **Full instructions live in the configuration guide.** The end-to-end Authentication Service flow — overview, prerequisites, the secrets/TLS/values to populate, deployment, realm configuration and post-deployment verification — is documented in one place:
 
-**[Configure DPN Authentication Service](../02-configuration/07-configure-dpn-authentication-service.md)**
+**[Configure DPN Authentication Service](../02-configuration/02-configure-dpn-authentication-service.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
@@ -28,7 +28,7 @@ This installation page is a quick-reference summary that points to that guide.
   - [Certificate SAN Does Not Cover KC_HOSTNAME](#certificate-san-does-not-cover-kc_hostname)
   - [Internal Load Balancer Has No Assigned IP](#internal-load-balancer-has-no-assigned-ip)
   - [Downstream Login/Logout Failures After Deploy](#downstream-loginlogout-failures-after-deploy)
-  - [Realm Import Job Fails on First Deploy](#realm-import-job-fails-on-first-deploy)
+  - [Configure Realm, Client, Roles and Audit Logging Step Fails on First Deploy](#configure-realm-client-roles-and-audit-logging-step-fails-on-first-deploy)
 - [Review Notes](#review-notes)
 
 ---
@@ -46,7 +46,8 @@ Root-Repository/
         ├── Chart.yaml
         ├── values.yaml                          base values — reference only
         ├── values-<env>-<cluster>.yaml           9 environment overlays
-        ├── dpn-realm.json                        realm/client/roles imported on every deploy
+        ├── scripts/
+        │   └── configure-keycloak.sh              realm/clients/roles/groups/audit config, run as a pipeline step
         └── templates/
 
 .pipelines/
@@ -62,7 +63,7 @@ Root-Repository/
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Authentication Service → Step1: Meet the Prerequisites](../02-configuration/07-configure-dpn-authentication-service.md#step1-meet-the-prerequisites).
+Confirm the prerequisites before starting — see [Configure DPN Authentication Service → Step1: Meet the Prerequisites](../02-configuration/02-configure-dpn-authentication-service.md#step1-meet-the-prerequisites).
 
 In summary the following must be in place:
 
@@ -76,7 +77,7 @@ In summary the following must be in place:
 
 - The agent pool name has been modified to the Organisation's required agent pool name
 - There should not be any `<<Your specific value>>` placeholders left in the parameters
-- `KC-SERVICE-CLIENT-SECRET` matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui/airflow) — a mismatch does not fail the pipeline, it fails login for every dependent UI
+- `KC-SERVICE-CLIENT-SECRET` matches whatever secret value is already configured on the consuming services' side — the `dpn-health-monitoring-service` oauth2-proxy releases (OpenSearch Dashboards, Jaeger, Perses, Portal) and Kafka UI's own `SecretProviderClass` — a mismatch does not fail the pipeline, it fails login for every dependent UI
 - The environment parameters point to the correct deployment environment
 - Required firewall rules are applied (outbound access to the container registry, and inbound from consuming namespaces to the internal load balancer)
 - The CD pipeline is verified against the above prerequisites before execution
@@ -115,7 +116,7 @@ The pipeline runs three stages:
 2. **Deploy** (gated behind the environment's approval group — `dsi-dev`, `dsi-devtest` or `dsi-ppd`) — mirrors the upstream Keycloak/PostgreSQL images into ACR, runs `helm upgrade --install`, waits for both deployments to roll out, records the deployed image digest as a build artifact, then configures the realm, service client, roles and audit logging via `charts/keycloak/scripts/configure-keycloak.sh`.
 3. **Verify** — confirms pods and the load balancer are healthy, asserts the load balancer is genuinely internal, checks the HTTPS endpoint from inside the cluster, and confirms plaintext HTTP (port 8080) is refused.
 
-On success the Deploy stage's realm-import step completes with `Keycloak configuration complete: realm <realm>, client <client>.`
+On success the Deploy stage's realm-configuration step completes with `Keycloak configuration complete: realm <realm>, clients <machine-client> + <ui-client>.`
 
 ---
 
@@ -134,7 +135,7 @@ kubectl get svc dpn-keycloak-service-lb -n <namespace> \
   -o jsonpath='{.metadata.annotations.service\.beta\.kubernetes\.io/azure-load-balancer-internal}'
 ```
 
-Tail the logs and confirm there are no startup or realm-import errors:
+Tail the logs and confirm there are no startup errors:
 
 ```bash
 kubectl logs -n <namespace> -l app=dpn-keycloak --tail=100
@@ -144,18 +145,19 @@ kubectl logs -n <namespace> -l app=dpn-keycloak --tail=100
 
 ## Step3: Post-Deployment Realm and Client Configuration
 
-Unlike a plain Helm-only deployment, the Deploy stage of `dpn-keycloak-cd.yaml` also creates/updates the following automatically on every run — no manual admin-console step is required for these:
+Unlike a plain Helm-only deployment, the Deploy stage of `dpn-keycloak-cd.yaml` runs an additional step — **"Configure Realm, Client, Roles and Audit Logging"** — after `helm upgrade --install` completes. This step port-forwards to the freshly deployed Keycloak Service and runs `charts/keycloak/scripts/configure-keycloak.sh`, which authenticates to the `master` realm as the bootstrap admin and then makes plain `curl`/`jq` calls against the Keycloak Admin REST API (idempotent — create on first run, update on later ones). There is no Helm hook, no Kubernetes Job, no `kcadm`, and no realm-JSON file import involved — everything below is created/updated by this one script, as one pipeline step:
 
-| Object | Created by | Purpose |
-|---|---|---|
-| `<realmName>` realm (default `dpn-realm`) | Helm post-install/upgrade hook (`templates/realm-import-job.yaml`), importing `dpn-realm.json` | Realm roles (`dpnadmin`, `dpnreader`), groups, and the shared browser client |
-| `dpn-service-client` | Same hook | Shared OIDC client used by every DPN UI (kafka-ui, Airflow directly; OpenSearch Dashboards/Jaeger/Perses/Portal via their `oauth2-proxy` sidecars) |
-| Realm session/audit settings (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`, event retention) | Same hook, via `kcadm update realms/` and `kcadm update events/config` (fields Keycloak's `partialImport` endpoint silently drops) | Session ceilings and audit log retention |
-| `DPN-Client` (machine-to-machine) | `configure-keycloak.sh`, run as a separate pipeline step after Helm completes | Client-credentials-only client for service-to-service calls; realm roles mapped onto its service account |
+| Object | Purpose |
+|---|---|
+| `<realmName>` realm (default `dpn-realm`) | Realm-level settings: `ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`, `rememberMe`, login theme, and event/audit toggles |
+| `DPN-Client` (machine-to-machine) | Client-credentials-only client for service-to-service calls; realm roles (`dpnreader`, `dpnadmin`, `dpnoperator`) mapped onto its service account |
+| Audit logging | `PUT /admin/realms/<realm>/events/config` — enables every event type reported by `/admin/serverinfo`, with configurable retention |
+| `dpn-service-client` (UI client) | Shared OIDC client used by every DPN UI behind `oauth2-proxy` (OpenSearch Dashboards, Jaeger, Perses, Portal) plus native-OIDC UIs (Kafka UI, Airflow); carries the audience/realm-roles/groups protocol mappers |
+| Groups (`dpn-admins`, `dpn-readers`, `dpn-operators`) | Each group carries one realm role, so access can be managed by group membership |
 
 Two things to confirm after every deploy:
 
-- The redirect URIs / web origins on `dpn-service-client` (`charts/keycloak/values-<env>-<cluster>.yaml` → `uiHosts.*`) cover every UI that needs to authenticate in this environment. Add a new UI's hostname here before it can complete login.
+- The redirect URIs / web origins registered on `dpn-service-client` cover every UI that needs to authenticate in this environment. These come from the `KC_UI_HOST_*` environment variables read by `configure-keycloak.sh` (e.g. `KC_UI_HOST_KAFKA_UI`, `KC_UI_HOST_AIRFLOW`, `KC_UI_HOST_PORTAL`) — each has a hardcoded default baked into the script itself, and the CD pipeline does not currently override any of them per environment. Adding or changing a UI's hostname requires editing the pipeline step (to export the relevant `KC_UI_HOST_*` variable) or the script's own default.
 - `KC-SERVICE-CLIENT-SECRET` in this environment's Key Vault matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
 
 ---
@@ -228,21 +230,15 @@ Common causes: the subnet has no free IPs, or `service.loadBalancer.loadBalancer
 
 If a specific UI cannot complete login, or logout leaves the SSO session alive with an "Invalid redirect uri" error, check:
 
-- The UI's hostname is present in `uiHosts.*` in `values-<env>-<cluster>.yaml` for this environment/cluster.
+- The UI's hostname matches the corresponding `KC_UI_HOST_*` value that `configure-keycloak.sh` was run with (its hardcoded default, unless the pipeline step has been edited to override it) for this environment/cluster.
 - For UIs behind `oauth2-proxy` (OpenSearch Dashboards, Jaeger, Perses, Portal), the bare root hostname (no path) matches the `post.logout.redirect.uris` entry and the `post_logout_redirect_uri` the proxy actually sends.
 - `KC-SERVICE-CLIENT-SECRET` in Key Vault matches the secret configured on the consuming service's side.
 
 ---
 
-### Realm Import Job Fails on First Deploy
+### Configure Realm, Client, Roles and Audit Logging Step Fails on First Deploy
 
-The `<release>-realm-import` Job can fail if it reaches Keycloak before the Service's endpoint has finished propagating. It polls the HTTPS port for up to 60 seconds before running `kcadm`; if it still fails, check the Job's logs directly:
-
-```bash
-kubectl logs -n <namespace> job/dpn-keycloak-realm-import
-```
-
-Re-running the CD pipeline re-runs this Job (`helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded` allows it to run again on every upgrade).
+This pipeline step can fail if it reaches Keycloak before the Service's endpoint has finished propagating. `configure-keycloak.sh` port-forwards to the Keycloak Service and polls `${KC_BASE_URL}/realms/master` for up to 60 seconds before authenticating; if it still fails, check the step's own pipeline logs, or re-run the CD pipeline — the script is idempotent, so re-running it is safe.
 
 ---
 
