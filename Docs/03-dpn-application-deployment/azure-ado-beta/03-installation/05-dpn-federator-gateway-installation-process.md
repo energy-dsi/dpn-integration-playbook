@@ -4,11 +4,11 @@ This document covers the installation of the **DPN Federator Gateway** (Server, 
 
 **Full instructions live in the configuration guide.** The end-to-end Federator Gateway flow — overview, prerequisites, Key Vault and Kubernetes secrets, the values to populate, deployment, and verification — is documented in one place:
 
-**[Configure DPN Federator Gateway](../02-configuration/04-configure-dpn-federator-gateway.md)**
+**[Configure DPN Federator Gateway](../02-configuration/05-configure-dpn-federator-gateway.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and the keystore/truststore passwords directly from Vault (no shared file share is used).
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](04-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and the keystore/truststore passwords directly from Vault (no shared file share is used).
 
 ---
 
@@ -24,7 +24,7 @@ This installation page is a quick-reference summary that points to that guide.
   - [Step2e. Setup Kafka Topics](#step2e-setup-kafka-topics)
   - [Step2f: Verify Job Runner Interface](#step2f-verify-job-runner-interface)
 - [Step3: Troubleshooting](#step3-troubleshooting)
-  - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
+  - [Invalid Keystore/Truststore Password](#invalid-keystoretruststore-password)
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
   - [52x error Due to SSL handshake failure](#52x-error-due-to-ssl-handshake-failure)
@@ -62,7 +62,7 @@ Key points, detailed in the configuration guide:
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
+Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/05-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
 
 In summary: 
 
@@ -173,7 +173,7 @@ http://`<kafka-ui load balancer ip>`:8086
 ```
 
 The login would require nginx proxy authentication credentials to be provided. 
-Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/05-configure-dpn-data-pipelines.md)
+Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/07-configure-dpn-data-pipelines.md)
 
 For more details on kafka-ui interface refer to [Kafka UI Operations](../../../05-dpn-user-interfaces/04-kafka-ui-operations.md)
 
@@ -199,7 +199,7 @@ For more details on the job runner UI, refer to For more details on kafka-ui int
 
 While working with Federator Gateway Service some known problem could arise. These are given below.
 
-### Invalid Keystore/Trustore Password
+### Invalid Keystore/Truststore Password
 
 This is a common known error occuring due to password mismatch. Please follow the Troubleshooting step for Certificate manager for the same issue.
 
@@ -213,7 +213,7 @@ Sometimes the certificate entries in the management-node could get out of sync w
 
 ### 52x error Due to SSL handshake failure
 
-Sometimes the certificates in keystore.p12 file could hit expiry or out of sync. This can trigger 52x errors from the DPN of other Organisation when the consumer job tries to connect a producer.
+Sometimes the certificate material read from Vault could hit expiry or fall out of sync (the keystore/truststore are built in memory from that material, not from a file on disk). This can trigger 52x errors from the DPN of other Organisation when the consumer job tries to connect a producer.
 
 ### 403 OCSP certificate check failure
 

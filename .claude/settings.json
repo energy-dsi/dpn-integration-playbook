@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs -n1 basename)",
+      "Read(//c/Users/AnuranDatta/Documents/work/NESO/dpn-federator-gateway/charts/dpn-platform/**)",
+      "Read(//c/Users/AnuranDatta/Documents/work/NESO/dpn-federator-gateway/vault/**)",
+      "Bash(xargs -I{} sh -c 'echo ---{}---; head -40 \"{}\"')",
+      "Bash(sed -i 's/04-configure-dpn-federator-gateway\\\\.md/05-configure-dpn-federator-gateway.md/g' 02-configure-dpn-authentication-service.md)",
+      "Bash(sed -i 's/05-configure-dpn-data-pipelines\\\\.md/07-configure-dpn-data-pipelines.md/g' 03-configure-dpn-health-monitoring-service.md)"
+    ]
+  }
+}

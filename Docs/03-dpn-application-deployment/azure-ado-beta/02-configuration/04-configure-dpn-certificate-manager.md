@@ -32,7 +32,7 @@ The Certificate Manager runs as a headless daemon (no HTTP endpoints) executing 
 
 The Federator Gateway Server and Client read the same certificate material directly from Vault and build their own in-memory keystore/truststore the same way — they no longer mount a shared volume to pick up P12 files from the Certificate Manager.
 
-> **No more SMB file share.** Earlier releases distributed `keystore.p12`/`truststore.p12` between the Certificate Manager and the Federator Gateway via a shared Azure SMB file share. That file share has been removed: no PV/PVC is created by the `certificate-manager` chart, and the `mountCertFileShare`-style flags some values files retain are for backward compatibility only.
+> **No more SMB file share.** Earlier releases distributed `keystore.p12`/`truststore.p12` between the Certificate Manager and the Federator Gateway via a shared Azure SMB file share. That file share has been fully removed from this chart: there is no `fileShare.*` values block, no PV/PVC template, and no toggle to re-enable it — the keystore/truststore are built in memory from Vault material instead.
 
 **How it uses Vault:** the Certificate Manager reads and writes the following KV v2 paths under the `pki-client` mount. The first three are loaded during Vault setup; the last three are written by the Certificate Manager itself:
 
@@ -128,8 +128,11 @@ DSI proposes only the selective changes below; other parameters may be customise
 |-----------|---------|-----------------------|
 | `vault.uri` | HTTPS address of the DPN Vault service | `https://vault-https.<namespace>.svc.cluster.local:8200` |
 | `vault.authentication` | `APPROLE` (recommended, and the chart's own default) or `TOKEN` | `APPROLE` |
+| `vault.authRole` | Vault role name used for the `TOKEN`/`KUBERNETES` login paths | `certificate-manager` |
 | `vault.pkiMount` / `vault.secretPath` | KV v2 mount and path holding the certificate material | `pki-client` / `pki-client/node-net/client` |
+| `vault.appRole.role` | AppRole role name (must match the role created by `vault-approle-setup-cd`) | `certificate-manager` |
 | `vault.appRole.roleId` | Non-sensitive role-id printed by `vault-approle-setup-cd` | `<role_id>` |
+| `vault.appRole.mountPath` | Mount path of Vault's AppRole auth method | `approle` |
 | `certIdent.keystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
 
 **Certificate subject** (used by the Certificate Manager to generate its CSR)
@@ -160,9 +163,9 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 
 | AKV Secret | Kubernetes secret / key | Purpose | Example (placeholder) |
 |------------|-------------------------|---------|-----------------------|
-| `VAULT-APPROLE-SECRET-ID` *(recommended)* | `certificate-manager-secrets` / `vaultAppRoleSecretId` | AppRole secret-id for the Certificate Manager, from `vault-approle-setup-cd` | `<generated secret-id>` |
-| `VAULT-TOKEN` | `certificate-manager-secrets` / `vaultToken` | Root token of the DPN HashiCorp Vault (from Vault init) — only used when `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
-| `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `oauth2ClientSecret` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
+| `VAULT-APPROLE-SECRET-ID` *(recommended)* | `certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID` | AppRole secret-id for the Certificate Manager, from `vault-approle-setup-cd` | `<generated secret-id>` |
+| `VAULT-TOKEN` | `certificate-manager-secrets` / `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault (from Vault init) — only used when `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
+| `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `OAUTH2_CLIENT_SECRET` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
 
 > **Note:** `VAULT-APPROLE-SECRET-ID` is produced by the `vault-approle-setup-cd` pipeline (see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended)). `VAULT-TOKEN` is produced during Vault setup by the Vault init stage (`storeRootTokenInAkv: true`) and is only needed if you have not migrated to AppRole. Confirm whichever you use exists in Key Vault before deploying.
 

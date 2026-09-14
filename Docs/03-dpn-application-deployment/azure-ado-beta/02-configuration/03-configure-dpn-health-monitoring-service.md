@@ -75,9 +75,9 @@ The nginx proxy authentication acts as a basic authentication gateway for the fo
 - Kafka-UI
 - Thanos
 
-> **Keycloak SSO.** OpenSearch, Jaeger, and Perses are additionally served over **HTTPS** through the **DPN Portal**, each fronted by its own `oauth2-proxy` sidecar terminating OIDC login against the DPN Authentication Service (Keycloak). This is now the standard access path for day-to-day use; see [DPN Portal Operations](../../../05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) and [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md).
+> **Keycloak SSO.** OpenSearch, Jaeger, and Perses are additionally served over **HTTPS** through the **DPN Portal**, each fronted by its own `oauth2-proxy` sidecar terminating OIDC login against the DPN Authentication Service (Keycloak). This is now the standard access path for day-to-day use; see [DPN Portal Operations](../../../05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) and [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
 >
-> **Kafka UI authenticates natively, not through `oauth2-proxy`.** Its own oauth2-proxy release has been removed — Kafka UI now runs its own OIDC login directly against the `dpn-realm` realm, with `dpnadmin`/`dpnreader` realm roles mapped to Kafka UI's own RBAC (full access vs. view-only). See [Kafka Health UI Operations](../../../05-dpn-user-interfaces/07-kafka-health-ui-operations.md#3-accessing-the-kafka-ui). Apache Airflow similarly authenticates natively against Keycloak rather than through an `oauth2-proxy` sidecar — see [Configure DPN Data Pipelines](05-configure-dpn-data-pipelines.md).
+> **Kafka UI authenticates natively, not through `oauth2-proxy`.** Its own oauth2-proxy release has been removed — Kafka UI now runs its own OIDC login directly against the `dpn-realm` realm, with `dpnadmin`/`dpnreader` realm roles mapped to Kafka UI's own RBAC (full access vs. view-only). See [Kafka Health UI Operations](../../../05-dpn-user-interfaces/07-kafka-health-ui-operations.md#3-accessing-the-kafka-ui). Apache Airflow similarly authenticates natively against Keycloak rather than through an `oauth2-proxy` sidecar — see [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md).
 
 ---
 
