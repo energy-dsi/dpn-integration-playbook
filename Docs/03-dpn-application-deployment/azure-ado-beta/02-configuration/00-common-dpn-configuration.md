@@ -214,7 +214,7 @@ During the organisation's onboarding process, an initial certificate package con
 - The **P12/PFX certificate** issued by the DSI DSM Certificate Authority (keystore)
 - The **DSI certificate chain pem file** (truststore)
 
-Refer to the [DPN Federator Certificate Manager](03-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
+Refer to the [DPN Federator Certificate Manager](04-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
 
 The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
 

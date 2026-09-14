@@ -31,7 +31,7 @@ Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS
 | Database | Bundled PostgreSQL (`dpn-keycloak-postgres`) — can be pointed at a managed database instead (see [Step4](#step4-environment-configuration)) |
 | Secrets | Azure Key Vault via the Secrets Store CSI driver |
 
-Consuming components resolve tokens against a realm on this Keycloak instance, for example the Federator Gateway's Kafka brokers when `kafka.authMode: sasl_ssl` (see [Configure DPN Federator Gateway, Step3d](04-configure-dpn-federator-gateway.md#step3d-configure-kafka-security)).
+Consuming components resolve tokens against a realm on this Keycloak instance, for example the Federator Gateway's Kafka brokers when `kafka.authMode: sasl_ssl` (see [Configure DPN Federator Gateway, Step3d](05-configure-dpn-federator-gateway.md#step3d-configure-kafka-security)).
 
 ---
 

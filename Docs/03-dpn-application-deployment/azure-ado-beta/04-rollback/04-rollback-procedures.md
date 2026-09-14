@@ -15,6 +15,7 @@
   - [Which Strategy to Use](#which-strategy-to-use)
   - [Verification](#verification)
 - [Part 2 — DPN Federator Gateway Rollback](#part-2--dpn-federator-gateway-rollback)
+- [Part 2a — DPN REST Federator Gateway Rollback](#part-2a--dpn-rest-federator-gateway-rollback)
 - [Part 3 — DPN Federator Certificate Manager Rollback](#part-3--dpn-federator-certificate-manager-rollback)
 - [Part 4 — DPN File Scanning Service Rollback](#part-4--dpn-file-scanning-service-rollback)
 - [Part 5 — DPN Health Monitoring Service Rollback](#part-5--dpn-health-monitoring-service-rollback)
@@ -62,8 +63,9 @@ The distinction matters for what actually gets reverted:
 | Component | Standard CD pipeline (Strategy 1) | Dedicated rollback pipeline (Strategy 2) | 
 |-----------|--------------------------------------|-----------------------------------------------|
 | DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | Confirmed — both pipelines read directly from the `develop-rollback` branch |
-| DPN Federator Gateway | `azure-dpn-cd.yaml` | `federator-gateway-rollback-cd.yaml` |
-| DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `certificate-manager-rollback-cd.yaml` | 
+| DPN Federator Gateway | `azure-dpn-cd.yaml` | None found — use the manual `helm rollback dpn-platform` command in [Part 2](#part-2--dpn-federator-gateway-rollback) |
+| DPN REST Federator Gateway | `rest-federator-cd.yml` | None found — use the manual `helm rollback` commands in [Part 2a](#part-2a--dpn-rest-federator-gateway-rollback) |
+| DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `dpn-certificate-manager-rollback.yaml` | 
 | DPN File Scanning Service | `dpn-file-scan-service-cd.yml` | `dpn-file-scan-service-rollback-cd.yml` | 
 | DPN Health Monitoring Service | `monitoring-master-cd.yaml` | `monitoring-master-rollback-cd.yaml` | 
 
@@ -92,12 +94,15 @@ The runtime dependency chain across DPN components is:
 ```
 Vault
   └─→ Federator Certificate Manager (persists certs to Vault)
-        └─→ Federator Gateway (uses issued certs for mTLS)
-              └─→ Data Pipeline (hands off data via Federator Gateway)
-                    └─→ File Scanning Service (writes into Data Pipeline's dp-consumer-stage container)
+        ├─→ Federator Gateway (uses issued certs for mTLS)
+        │     └─→ Data Pipeline (hands off data via Federator Gateway)
+        │           └─→ File Scanning Service (writes into Data Pipeline's dp-consumer-stage container)
+        └─→ REST Federator Gateway (uses the same issued certs for mTLS; independent of the gRPC Federator Gateway and Data Pipeline)
 
 Health Monitoring Service — independent of the chain above; every other component sends telemetry to it, but nothing above depends on it to function
 ```
+
+**Vault AppRole identities are part of Vault's own state, not a component's.** If Vault itself is restored from a secure offline copy (rather than just having a component's deployment rolled back), any AppRole roles/policies provisioned via `vault-approle-setup-cd` are restored along with it. If Vault is rebuilt from scratch instead, re-run `vault-approle-setup-cd` per component before rolling that component back into an AppRole-authenticated state — otherwise it will fail to authenticate to the newly-built Vault.
 
 When multiple components need rolling back together, work **down the chain, from Vault outward**, for the same reason you'd deploy in that order: a downstream component's current config assumes the upstream one is in a known-good state.
 
@@ -193,7 +198,7 @@ kubectl set image deployment/federator-server \
 kubectl rollout status deployment/federator-server -n <namespace>
 ```
 
-**Strategy 2 — dedicated rollback pipeline:**
+**Strategy 2 — no dedicated rollback pipeline was found; manual Helm-revision rollback:**
 
 ```bash
 helm rollback dpn-platform <rollbackRevision> -n <namespace>
@@ -206,6 +211,35 @@ Reverts the entire combined release — every sub-component — to that revision
 ```bash
 kubectl get pods -n <namespace>
 helm history dpn-platform -n <namespace>
+```
+
+---
+
+## Part 2a — DPN REST Federator Gateway Rollback
+
+Deployed from the `dpn-rest-federator-gateway` repository as **two separate Helm releases**, `dpn-redis` and `dpn-rest-federator` — each can be rolled back independently of the other, and independently of the gRPC Federator Gateway in [Part 2](#part-2--dpn-federator-gateway-rollback).
+
+**Strategy 1 — standard CD pipeline (`rest-federator-cd.yml`):** re-run with an older `imageTag` (Build ID). The pipeline runs `Deploy_Redis` then `Deploy_RestFederator` as separate stages — re-running the whole pipeline redeploys both, or target just the gateway sub-component directly:
+
+```bash
+kubectl set image deployment/dpn-rest-federator-server-1 \
+  dpn-rest-federator-server-1=<acr-url>/dpn-rest-federator-server:<imageTag> -n <namespace>
+kubectl rollout status deployment/dpn-rest-federator-server-1 -n <namespace>
+```
+
+**Strategy 2 — no dedicated rollback pipeline was found; manual Helm-revision rollback:**
+
+```bash
+helm rollback dpn-rest-federator <rollbackRevision> -n <namespace>
+# or, if the cache itself needs reverting:
+helm rollback dpn-redis <rollbackRevision> -n <namespace>
+```
+
+**Verification:**
+
+```bash
+kubectl get pods -n <namespace>
+helm history dpn-rest-federator -n <namespace>
 ```
 
 ---
@@ -226,8 +260,10 @@ helm rollback dpn-certificate-manager <rollbackRevision> -n <namespace>
 
 ```bash
 kubectl get pods -n <namespace>
-kubectl -n <namespace> exec <pod-name> -- ls /tls
+kubectl -n <namespace> logs -f deployment/dpn-certificate-manager | grep -i "keystore\|vault"
 ```
+
+The keystore/truststore are built in memory from Vault at start-up — there is no `/tls` mount or P12 file to inspect; a clean rollback shows no Vault authentication or keystore-build errors in the logs above.
 
 ---
 
@@ -315,8 +351,9 @@ Component-specific additions:
 
 | Component | Additional check |
 |-----------|----------------------|
-| Federator Certificate Manager / Vault | `kubectl -n <namespace> exec <pod-name> -- ls /tls` — confirm P12 keystore/truststore present |
+| Federator Certificate Manager / Vault | `kubectl -n <namespace> logs -f deployment/dpn-certificate-manager \| grep -i "keystore\|vault"` — confirm no keystore-build or Vault authentication errors (the keystore/truststore are built in memory, not on disk) |
 | Data Pipeline / Federator Gateway | Kafka UI — confirm topics and message flow |
+| REST Federator Gateway | `kubectl logs -f dpn-rest-federator-server-1-XXXXXXXXX` — confirm no Vault authentication or keystore-build errors, same as the Certificate Manager |
 | File Scanning Service | Upload a clean test file and confirm it still lands in `dp-consumer-stage` post-rollback |
 | Health Monitoring Service | `kubectl get hpa -n ns-dpn-health-01` — confirm the OTEL Collector's HPA is healthy post-rollback |
 
