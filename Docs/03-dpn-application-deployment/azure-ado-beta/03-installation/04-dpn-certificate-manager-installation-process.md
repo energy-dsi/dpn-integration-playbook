@@ -4,7 +4,7 @@ This document covers the installation of the **DPN Federator Certificate Manager
 
 **Full instructions live in the configuration guide.** The end-to-end Certificate Manager flow — overview, prerequisites, the values/secrets to populate, deployment, and post-deployment verification — is documented in one place:
 
-**[Configure DPN Certificate Manager](../02-configuration/03-configure-dpn-certificate-manager.md)**
+**[Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
@@ -22,7 +22,7 @@ This installation page is a quick-reference summary that points to that guide.
   - [Step2c. Execute CD Pipeline](#step2c-execute-cd-pipeline)
   - [Step2d. Verify CD Pipeline](#step2d-verify-cd-pipeline)
 - [Step3: Troubleshooting](#step3-troubleshooting)
-  - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
+  - [Invalid Keystore/Truststore Password](#invalid-keystoretruststore-password)
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
 - [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
@@ -48,7 +48,7 @@ Root-Repository/
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
+Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/04-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
 
 In summary the following prerequisites must be met.
 
@@ -162,9 +162,14 @@ kubectl get pods -n <namespace> -l app=dpn-certificate-manager -o wide
 
 While working with the Federator Certificate Manager some common problem may arise. These are given below.
 
-### Invalid Keystore/Trustore Password
+### Invalid Keystore/Truststore Password
 
-This is a common known error occuring due to password mismatch. Confirm that `/tls/keystore.p12` and `/tls/truststore.p12` files in the dpn-certificate-manager kubernettes container are in sync with the loaded certificates in Hashicorp vault by checking their timestamps. If not delete the files from inside the container.
+This is a common known error occuring due to password mismatch. The keystore/truststore are built **in memory** at start-up from certificate material and passwords read from Vault (`pki-client/node-net/client/keystore-password`, `truststore-password`) — there are no `/tls/keystore.p12`/`truststore.p12` files on disk to inspect or delete. Confirm instead that the passwords stored at those Vault paths match what the Certificate Manager last wrote, then restart the pod so it rebuilds the in-memory keystore from the current Vault state:
+
+```bash
+kubectl -n <namespace> logs -f deployment/dpn-certificate-manager | grep -i "keystore\|vault"
+kubectl rollout restart deployment/dpn-certificate-manager -n <namespace>
+```
 
 ### PKIX Certificate validation error
 

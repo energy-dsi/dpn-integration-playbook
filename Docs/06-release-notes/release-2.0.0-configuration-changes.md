@@ -24,7 +24,7 @@ Two components are entirely new in this release — every configuration item bel
 
 ### DPN Authentication Service (Keycloak)
 
-New shared OAuth2/OIDC Identity Provider. See [Configure DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/07-configure-dpn-authentication-service.md).
+New shared OAuth2/OIDC Identity Provider. See [Configure DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md).
 
 | Change | Item | Details |
 |--------|------|---------|
@@ -36,7 +36,7 @@ New shared OAuth2/OIDC Identity Provider. See [Configure DPN Authentication Serv
 
 ### DPN REST Federator Gateway
 
-New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the new repository `dpn-rest-federator-gateway`. See [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/08-configure-dpn-rest-federator-gateway.md).
+New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the new repository `dpn-rest-federator-gateway`. See [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md).
 
 | Change | Item | Details |
 |--------|------|---------|
@@ -49,6 +49,8 @@ New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the n
 | Added | `BACKEND-API-KEY` / `dpn-backend-api-key` | Shared secret authenticating the gateway to its internal backend |
 | Added | `rest-federator-client` library | Importable Java dependency for consumers — not a deployed component |
 
+> **Release scope for REST endpoint behaviour:** this release delivers endpoint registration, per-product supported-method listing, GET/POST proxying, and consumer authorisation (deny-if-unauthorised). Payload/template alignment validation, filtering/slicing, documented query parameters, and audit logging of access attempts are **not** part of this release — deferred to PI5. Connection reuse (a consumer's client builds one mTLS client per product and reuses it) and automatic pickup of newly-published products (via a short config-cache TTL, no reconfiguration needed) are delivered; tracking a received version ID/timestamp per update is not — see [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md#rest-endpoint-behaviour-and-release-scope) for the full breakdown.
+
 ---
 
 ## DPN Vault Service
@@ -57,7 +59,7 @@ See [Configure DPN Vault Service](../03-dpn-application-deployment/azure-ado-bet
 
 | Change | Item | Details |
 |--------|------|---------|
-| Added | `vault-approle-setup-cd.yaml` pipeline | New 4th pipeline — provisions a scoped AppRole identity (policy + role + `role_id`/`secret_id`) per Vault-consuming component |
+| Added | `vault-approle-setup-cd.yaml` pipeline | New 4th pipeline — provisions a scoped AppRole identity (policy + role + `role_id`/`secret_id`) for the Certificate Manager. Not a generic per-component pipeline: the Federator Gateway is provisioned by running that repository's own `vault/setup-approle.sh` manually, and the REST Federator Gateway has no policy file or setup script yet at all |
 | Added | `VAULT-APPROLE-SECRET-ID` Key Vault secret | Output of the new pipeline; 355-day expiry, requires periodic re-run to rotate |
 | Modified | `storeRootTokenInAkv` (in `vault-https-cd`) | Still required — the bundle-load pipeline always needs the root token — but no longer the *only* credential path for downstream components |
 
@@ -65,7 +67,7 @@ See [Configure DPN Vault Service](../03-dpn-application-deployment/azure-ado-bet
 
 ## DPN Certificate Manager
 
-See [Configure DPN Certificate Manager](../03-dpn-application-deployment/azure-ado-beta/02-configuration/03-configure-dpn-certificate-manager.md).
+See [Configure DPN Certificate Manager](../03-dpn-application-deployment/azure-ado-beta/02-configuration/04-configure-dpn-certificate-manager.md).
 
 | Change | Item | Details |
 |--------|------|---------|
@@ -85,7 +87,7 @@ See [Configure DPN Certificate Manager](../03-dpn-application-deployment/azure-a
 
 ## DPN Federator Gateway
 
-See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/04-configure-dpn-federator-gateway.md).
+See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/05-configure-dpn-federator-gateway.md).
 
 | Change | Item | Details |
 |--------|------|---------|
@@ -101,7 +103,7 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 
 ## DPN File Scan Service
 
-See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-file-scan-service.md) (Azure) and [Configure DPN File Scan Service](../03-dpn-application-deployment/aws-gha-beta/02-configuration/06-configure-dpn-file-scan-service.md) (AWS).
+See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/08-configure-dpn-file-scan-service.md) (Azure) and [Configure DPN File Scan Service](../03-dpn-application-deployment/aws-gha-beta/02-configuration/08-configure-dpn-file-scan-service.md) (AWS).
 
 | Change | Item | Details |
 |--------|------|---------|
@@ -134,9 +136,9 @@ See [DPN Portal Operations](../05-dpn-user-interfaces/08-dpn-portal-ui-operation
 
 For an organisation moving from Release 1.0.0:
 
-1. **Vault**: no mandatory action — root token continues to work. Optionally run `vault-approle-setup-cd` per component and switch `vault.authentication`/`vaultConfig.authMethod` to the AppRole values above.
+1. **Vault**: no mandatory action — root token continues to work. Optionally migrate to AppRole and switch `vault.authentication`/`vaultConfig.authMethod` to the AppRole values above: run `vault-approle-setup-cd` for the Certificate Manager, or run the Federator Gateway's own `vault/setup-approle.sh` manually (no pipeline exists for it yet) — see [Configure DPN Vault Service, Step 3D](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
 2. **Certificate Manager**: remove any `fileShare.*`/`certDest.*`/`mtls.*` overrides from your `values-<env>.yaml` — they no longer exist in the chart. Add `vault.uri`, `vault.pkiMount`, `vault.secretPath` if not already set. The `azure-fileshare-secret` and its PV/PVC can be decommissioned once you've confirmed the new deployment is healthy.
-3. **Federator Gateway**: remove any file-share-related overrides. Decide on `kafka.authMode` — set to `sasl_ssl` and populate `kafka.oauth.tokenEndpointUrl` if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/07-configure-dpn-authentication-service.md) first if so.
+3. **Federator Gateway**: remove any file-share-related overrides. Decide on `kafka.authMode` — set to `sasl_ssl` and populate `kafka.oauth.tokenEndpointUrl` if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so.
 4. **Optional new components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need Keycloak-backed Kafka/UI authentication or a REST-based integration pattern — neither is required to keep an existing Release 1.0.0 deployment running.
 5. **File Scan Service**: no action for Azure deployments. AWS deployments can adopt the new GuardDuty-based RUNBOOK in place of building your own.
 6. **Observability UIs**: if you front these with your own reverse proxy or bookmark direct URLs, update them to the new HTTPS addresses and expect a Keycloak login in place of HTTP Basic Auth.

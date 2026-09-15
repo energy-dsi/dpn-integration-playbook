@@ -8,7 +8,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
 >
 > The gateway reads this material directly from Vault and builds its mTLS keystore/truststore **in memory** at start-up (`vaultConfig.tlsEnabled: true`) — there is no shared file share to provision (`vaultConfig.mountCertFileShare: false`).
 >
-> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](03-configure-dpn-certificate-manager.md) first.
+> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) first.
 
 > **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
 
@@ -51,7 +51,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 
 - The gateway builds its mTLS keystore/truststore **in memory** directly from certificate material in Vault (`vaultConfig.tlsEnabled: true`, `vaultConfig.tlsBasePath: node-net/client`) — no shared file share is used (`vaultConfig.mountCertFileShare: false`).
 - The keystore/truststore **passwords are read from Vault** at start-up (`vaultConfig.keystorePasswordPath` / `truststorePasswordPath`) — they are **not** stored as Federator Key Vault secrets.
-- The gateway authenticates to Vault itself via **AppRole** (`vaultConfig.authMethod: approle`, recommended) or the Vault root token (`token`) — see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended).
+- The gateway authenticates to Vault itself via **AppRole** (`vaultConfig.authMethod: approle`, recommended) or the Vault root token (`token`). Unlike the Certificate Manager, there is no CD pipeline for this — the AppRole identity is provisioned by running this repository's own `vault/setup-approle.sh` manually against the Vault pod. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
 - The only Federator secrets in Key Vault are the **storage connection strings** (one for the Server, a separate one for the Client) and, if using AppRole, the Vault `secret-id`.
 
 > **Storage account separation for Server and Client (MUST READ)**
@@ -71,7 +71,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the Vault `vault-tls-bootstrap-cd` pipeline; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
-| 4 | **Vault AppRole identity provisioned** *(recommended)* | Run `vault-approle-setup-cd` for the gateway component, then set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId`. `token` remains available for backward compatibility. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-vault-approle-setup-cd-recommended) |
+| 4 | **Vault AppRole identity provisioned** *(recommended)* | No CD pipeline exists for this yet — run this repository's `vault/setup-approle.sh` manually against the Vault pod, then set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId`. `token` remains available for backward compatibility. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | The managed identity must have *get* access to the Key Vault secrets |
 | 6 | **Azure Key Vault secrets created** | The two storage connection strings — see [Step2: Configure Secrets](#step2-configure-secrets) |
 | 7 | **Storage accounts provisioned** | The **Server's** storage account, and the **File Scan Service source** storage account used by the **Client** |
@@ -194,7 +194,7 @@ The following parameter needs to be set if key vault is used as secret provider.
 | `kafka.authMode` | Security protocol for **every** Kafka listener (Source and Target) — `sasl_ssl` (production default), `ssl` (TLS only), or `plaintext` (dev/test only) | `sasl_ssl` |
 | `kafka.oauth.tokenEndpointUrl` | Keycloak token endpoint used for `OAUTHBEARER` login/validation when `authMode: sasl_ssl` | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
 
-> Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
+> Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
 
 ---
 
