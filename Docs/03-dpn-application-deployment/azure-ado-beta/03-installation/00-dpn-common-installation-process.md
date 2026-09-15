@@ -38,6 +38,7 @@ The deployment uses the following repositories:
 - https://github.com/energy-dsi/dpn-data-pipelines.git
 - https://github.com/energy-dsi/dpn-file-scan-service.git
 - https://github.com/energy-dsi/dpn-health-monitoring-service.git
+- https://github.com/energy-dsi/dpn-rest-federator-gateway.git *(optional — the REST/HTTPS alternative to the gRPC Federator Gateway)*
 
 The deployment process consists of:
 
@@ -74,6 +75,9 @@ This component is responsible to maintain and recycle DPN certificates from DSM 
 
 **DPN Authentication Service**
 Deploys Keycloak, the platform's shared OAuth2/OIDC Identity Provider. Kafka brokers authenticate against it by default (`SASL_SSL`/`OAUTHBEARER`), and it also backs Keycloak SSO on the DPN observability UIs via the DPN Portal.
+
+**DPN REST Federator Gateway** *(optional)*
+A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for producers/consumers that need a request/response API instead of a streamed Kafka-to-Kafka pipeline. It reuses the same Vault, Certificate Manager, and Management Node infrastructure as the gRPC Federator Gateway and can be deployed alongside it. See [Configure DPN REST Federator Gateway](../02-configuration/06-configure-dpn-rest-federator-gateway.md).
 
 **DPN Data Pipeline Producer**
 - Files are extracted from the organisation's source storage location automatically on a scheduled basis
@@ -190,11 +194,12 @@ The DPN currently comprises the following components. Complete the prerequisites
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Health Monitoring Service | *02-dpn-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
-| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installation-process.md* | Depends on Vault |
-| DPN Federator Gateway | *04-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
-| DPN Data Pipeline | *05-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
-| DPN File Scanning Service | *06-dpn-file-scan-service-installation-process.md* | Native deployment for Azure Cloud only |
+| DPN Health Monitoring Service | *03-dpn-health-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
+| DPN Federator Certificate Manager | *04-dpn-certificate-manager-installation-process.md* | Depends on Vault |
+| DPN Federator Gateway | *05-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
+| DPN REST Federator Gateway | *06-dpn-rest-federator-gateway-installation-process.md* | Optional. Depends on Vault and Certificate Manager, same as the gRPC Federator Gateway; independent of it otherwise |
+| DPN Data Pipeline | *07-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
+| DPN File Scanning Service | *08-dpn-file-scan-service-installation-process.md* | Native deployment for Azure Cloud only |
 
 ---
 

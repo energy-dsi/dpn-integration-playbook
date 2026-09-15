@@ -25,6 +25,7 @@
   - [Step 1 — Prepare Federator Gateway Uninstall CD Pipeline](#step-1--prepare-federator-gateway-uninstall-cd-pipeline)
   - [Step 2 — Execute Federator Gateway Uninstall CD Pipeline](#step-2--execute-federator-gateway-uninstall-cd-pipeline)
   - [Step 3 — Verify Federator Gateway Removal](#step-3--verify-federator-gateway-removal)
+- [Part 4a — Uninstall DPN REST Federator Gateway](#part-4a--uninstall-dpn-rest-federator-gateway)
 - [Part 5 — Uninstall DPN Health Monitoring Service](#part-5--uninstall-dpn-health-monitoring-service)
   - [Step 1 — Remove Health Monitoring Sub-Components](#step-1--remove-health-monitoring-sub-components)
   - [Step 2 — Verify Health Monitoring Service Removal](#step-2--verify-health-monitoring-service-removal)
@@ -48,6 +49,7 @@ The uninstallation process removes the following components:
 - DPN Data Pipeline containers (adaptors, mappers, extractors)
 - DPN Federator Certificate Manager and Vault service
 - DPN Federator Gateway (Kafka, Zookeeper, Redis, Federator Server and Client)
+- DPN REST Federator Gateway (optional — the REST/HTTPS alternative to the gRPC Federator Gateway, plus its own `dpn-redis` release)
 - DPN Health Monitoring Service (Kafka-health, OpenTelemetry Collector, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, Nginx-observability)
 - Kubernetes resources and Helm releases
 - Container images in Azure Container Registry / GHCR
@@ -67,6 +69,7 @@ All DPN services deployed as part of the DSI package are in scope for this unins
 - DPN Data Pipelines
 - DPN Federator Certificate Manager
 - DPN Federator Gateway
+- DPN REST Federator Gateway (optional)
 - DPN Health Monitoring Service
 
 ---
@@ -94,7 +97,7 @@ At the time of writing, no dedicated uninstall pipeline was found for the DPN He
 **Uninstallation must be performed in the following order**, to respect the same runtime dependencies used elsewhere in DPN's documentation (see the dependency chain in the Rollback and Recovery Process):
 
 ```
-File Scanning Service -> Data Pipeline -> Federator Gateway -> Federator Certificate Manager -> Vault 
+File Scanning Service -> Data Pipeline -> Federator Gateway -> REST Federator Gateway -> Federator Certificate Manager -> Vault 
 ```
 
 Because uninstallation removes components rather than reverting them, work **up the chain, from the most dependent component to the most foundational one** — the reverse of the order you would use to install them:
@@ -102,10 +105,10 @@ Because uninstallation removes components rather than reverting them, work **up 
 1. **File Scanning Service** — remove first. It depends on the Data Pipeline's `dp-consumer-stage` container already existing; removing it first avoids scan results being written into a container that may be mid-removal.
 2. **Data Pipeline** — has no other DPN component depending on it for its own removal, and no longer has anything writing into it once File Scanning Service is gone.
 3. **Federator Certificate Manager (and Vault, removed together)** — safe to remove once nothing downstream still expects it to issue or renew certificates.
-4. **Federator Gateway** — remove **immediately after** step 3. Once the Certificate Manager and Vault are gone, the Gateway can no longer renew or synchronise certificates, so leaving it running afterward serves no purpose and it will begin to fail on its own.
+4. **Federator Gateway and REST Federator Gateway** — remove **immediately after** step 3, in either order relative to each other (they don't depend on one another). Once the Certificate Manager and Vault are gone, neither gateway can renew or synchronise certificates, so leaving either running afterward serves no purpose and it will begin to fail on its own.
 5. **Health Monitoring Service** — remove last. It has no other DPN component depending on it to function, and keeping it in place while the components above are removed means its dashboards can still be used to confirm each preceding removal completed cleanly.
 
-Parts 1–5 below are ordered to match this sequence — follow them top to bottom rather than picking an order of convenience.
+Parts 1–5 below are ordered to match this sequence (Part 4 covers both gateways) — follow them top to bottom rather than picking an order of convenience.
 
 ---
 
@@ -279,7 +282,7 @@ No pods with names matching the patterns below should remain:
 
 ## Part 3 — Uninstall DPN Federator Certificate Manager
 
-This part removes the Federator Certificate Manager and the HashiCorp Vault service deployed from the `dpn-federator-certificate-manager` repository. Removing the Certificate Manager will also remove the P12 keystore and truststore files from the shared storage at `/tls`.
+This part removes the Federator Certificate Manager and the HashiCorp Vault service deployed from the `dpn-federator-certificate-manager` repository. The Certificate Manager's own keystore/truststore are built in memory only — there is no shared file share or `/tls` mount to clean up for this component. Vault's **own** persistent volume (its secret storage, separate from the removed certificate file share) is removed along with the Vault Helm release itself.
 
 > **Warning:** Once the Certificate Manager and Vault are removed, the Federator Gateway will no longer be able to renew or synchronise certificates. Per [Uninstallation Sequence](#uninstallation-sequence), proceed directly to [Part 4](#part-4--uninstall-dpn-federator-gateway) immediately after this step.
 
@@ -323,7 +326,7 @@ The pipeline internally executes the equivalent of:
 helm uninstall dpn-certificate-manager -n <namespace>
 ```
 
-This removes the Certificate Manager deployment, the Vault deployment, associated Kubernetes services, and the shared storage mount. If the pipeline completes successfully, the following message will appear:
+This removes the Certificate Manager deployment, the Vault deployment (including Vault's own persistent volume), and associated Kubernetes services. If the pipeline completes successfully, the following message will appear:
 
 ```
 CERTIFICATE MANAGER UNINSTALL COMPLETE
@@ -437,6 +440,29 @@ No pods with names matching the patterns below should remain:
 
 ---
 
+## Part 4a — Uninstall DPN REST Federator Gateway
+
+This part removes the optional REST Federator Gateway, deployed from the `dpn-rest-federator-gateway` repository as two separate Helm releases (`dpn-redis`, `dpn-rest-federator`). No dedicated uninstall CD pipeline was found for this repository — the following commands are the manual equivalent, matching the pattern used for [Health Monitoring Service](#part-5--uninstall-dpn-health-monitoring-service) where no dedicated pipeline exists. Skip this part entirely if this optional component was never deployed.
+
+```bash
+helm uninstall dpn-rest-federator -n <namespace>
+helm uninstall dpn-redis -n <namespace>
+```
+
+**Verify removal:**
+
+```bash
+kubectl get pods -n <namespace>
+kubectl get svc -n <namespace>
+```
+
+No pods with names matching the patterns below should remain:
+
+- `dpn-rest-federator-server-1-*`
+- `dpn-redis-*`
+
+---
+
 ## Part 5 — Uninstall DPN Health Monitoring Service
 
 This part removes the Health Monitoring Service stack deployed in `ns-dpn-health-01`. No dedicated uninstall CD pipeline was found for this repository — the following commands are the manual equivalent, run per sub-component. This is removed **last**, per [Uninstallation Sequence](#uninstallation-sequence), so it remains available to confirm the earlier removals completed cleanly.
@@ -515,6 +541,7 @@ Repeat for all DPN-related images, including:
 - `dpn-federator-server`
 - `dpn-federator-client`
 - `dpn-federator-certificate-manager`
+- `dpn-rest-federator-server` (if the optional REST Federator Gateway was deployed)
 - `dpn-file-scan-service`
 - `producer-file-adaptor-*`
 - `producer-file-mapper-*`
@@ -560,13 +587,19 @@ kubectl delete secrets --all -n <namespace>
 
 This includes the `ghcr-pull-secret` used for GHCR image pulls, if one was created during installation.
 
-Remove the P12 keystore and truststore files from the shared storage location if persistent volume claims were not deleted by the uninstall pipeline:
+There is no certificate file share or PVC to clean up for the Certificate Manager, Federator Gateway, or REST Federator Gateway — their keystore/truststore material is built in memory only. If Vault itself was decommissioned, its own persistent volume claim (Vault's secret storage) is removed with the rest of its Helm release:
 
 ```bash
 kubectl delete pvc --all -n <namespace>
 ```
 
-Remove any certificates and secrets from **Azure Key Vault** that are no longer required, following the organisation's secrets management policy.
+If a component is being decommissioned while Vault is **retained** for other components, revoke that component's AppRole identity so its `role_id`/`secret_id` can no longer authenticate, rather than leaving an orphaned credential:
+
+```bash
+kubectl exec -n <namespace> <vault-pod> -- vault delete auth/approle/role/<component>
+```
+
+Then remove that component's `VAULT-APPROLE-SECRET-ID` (and `VAULT-TOKEN`, if it was still using the root token) from Azure Key Vault, along with any other certificates and secrets no longer required, following the organisation's secrets management policy.
 
 ---
 
@@ -576,6 +609,7 @@ Delete all Azure DevOps pipelines associated with the DPN node once uninstallati
 
 - Federator CI and CD pipelines
 - Federator uninstall CD pipeline
+- REST Federator Gateway CI and CD pipelines (`rest-federator-ci.yaml`, `rest-federator-cd.yml`), if the optional component was deployed — no dedicated uninstall pipeline exists for it (see [Part 4a](#part-4a--uninstall-dpn-rest-federator-gateway))
 - Certificate Manager CI, CD, and uninstall CD pipelines
 - Data Pipeline CI, CD, and uninstall CD pipelines
 - File Scanning Service CI, CD, and uninstall CD pipelines
