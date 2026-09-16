@@ -225,10 +225,13 @@ This error most likely is caused due to invalid bearer token used or authenticat
 
 ### File or Streaming Data Not Arriving
 
-This error happens if kafka topic offset is out of sync for certain reasons. In this case it is advised to flush redis cache using the following command. 
+This error happens if kafka topic offset is out of sync for certain reasons. In this case it is advised to flush redis cache using the following command.
 
-```text
-kubectl exec -n ns-dpn-01 <redis-pod-name> -- redis-cli FLUSHALL
+> **Note (Release 2.0.0):** Redis now enforces TLS. The redis flush will now need to pass a certificate — the plain command will fail with `Error: Connection reset by peer`.
+
+```bash
+kubectl get secret dpn-tls -n <namespace> -o jsonpath="{.data['ca\.crt']}" | base64 --decode > local-ca.crt && \
+kubectl exec -i <redis-pod-name> -n <namespace> -- redis-cli --tls --cacert /dev/stdin -h 127.0.0.1 -p 6379 FLUSHALL < local-ca.crt
 ```
 
 ### Kafka Pod Failure

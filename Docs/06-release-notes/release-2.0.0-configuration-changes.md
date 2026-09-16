@@ -98,6 +98,7 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 | Added | `kafka.authMode` (`sasl_ssl`\|`ssl`\|`plaintext`) | Single value reconfiguring all Kafka listeners; `sasl_ssl` is the production default |
 | Added | `kafka.oauth.tokenEndpointUrl` | Keycloak token endpoint used for `OAUTHBEARER` authentication, required when `authMode: sasl_ssl` |
 | Modified | `certificate-manager-secrets` contents | Now carries either the AppRole `secret-id` or the root token, instead of always the root token |
+| Modified | Redis TLS enforcement | Redis now requires TLS for all connections, including administrative `redis-cli` commands (e.g. `FLUSHALL`). See the updated command under [File or Streaming Data Not Arriving](../03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-federator-gateway-installation-process.md#file-or-streaming-data-not-arriving) in the installation guide's Troubleshooting section |
 
 ---
 
