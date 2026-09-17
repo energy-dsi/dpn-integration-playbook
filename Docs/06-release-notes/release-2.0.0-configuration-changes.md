@@ -98,6 +98,10 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 | Added | `kafka.authMode` (`sasl_ssl`\|`ssl`\|`plaintext`) | Single value reconfiguring all Kafka listeners; `sasl_ssl` is the production default |
 | Added | `kafka.oauth.tokenEndpointUrl` | Keycloak token endpoint used for `OAUTHBEARER` authentication, required when `authMode: sasl_ssl` |
 | Modified | `certificate-manager-secrets` contents | Now carries either the AppRole `secret-id` or the root token, instead of always the root token |
+| Added | `redis.tls.enabled`, `redis.truststore.path`/`.password` | Redis now TLS-only (server-auth), on by default in every environment — see [Step3e](../03-dpn-application-deployment/azure-ado-beta/02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-redis-security) |
+| Removed | `redis.username`, `redis.password` | Redis ACL authentication removed — access is now gated by a Keycloak session at the application layer instead |
+
+> **Not changed in this release:** the REST Federator Gateway's own separate Redis cache (`dpn-redis`) has no TLS yet — that migration is a distinct, not-yet-delivered enabler.
 
 ---
 
@@ -138,7 +142,7 @@ For an organisation moving from Release 1.0.0:
 
 1. **Vault**: no mandatory action — root token continues to work. Optionally migrate to AppRole and switch `vault.authentication`/`vaultConfig.authMethod` to the AppRole values above: run `vault-approle-setup-cd` for the Certificate Manager, or run the Federator Gateway's own `vault/setup-approle.sh` manually (no pipeline exists for it yet) — see [Configure DPN Vault Service, Step 3D](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
 2. **Certificate Manager**: remove any `fileShare.*`/`certDest.*`/`mtls.*` overrides from your `values-<env>.yaml` — they no longer exist in the chart. Add `vault.uri`, `vault.pkiMount`, `vault.secretPath` if not already set. The `azure-fileshare-secret` and its PV/PVC can be decommissioned once you've confirmed the new deployment is healthy.
-3. **Federator Gateway**: remove any file-share-related overrides. Decide on `kafka.authMode` — set to `sasl_ssl` and populate `kafka.oauth.tokenEndpointUrl` if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so.
+3. **Federator Gateway**: remove any file-share-related overrides. Decide on `kafka.authMode` — set to `sasl_ssl` and populate `kafka.oauth.tokenEndpointUrl` if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so. Remove any `redis.username`/`redis.password` overrides — they no longer exist; Redis TLS (`redis.tls.enabled`) is on by default and needs no new secret, since it reuses the existing `dpn-tls` certificate.
 4. **Optional new components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need Keycloak-backed Kafka/UI authentication or a REST-based integration pattern — neither is required to keep an existing Release 1.0.0 deployment running.
 5. **File Scan Service**: no action for Azure deployments. AWS deployments can adopt the new GuardDuty-based RUNBOOK in place of building your own.
 6. **Observability UIs**: if you front these with your own reverse proxy or bookmark direct URLs, update them to the new HTTPS addresses and expect a Keycloak login in place of HTTP Basic Auth.
