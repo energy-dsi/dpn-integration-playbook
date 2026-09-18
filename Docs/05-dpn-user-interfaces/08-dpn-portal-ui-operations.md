@@ -52,8 +52,8 @@ Card visibility is filtered by the Keycloak group(s) in the `X-Forwarded-Groups`
 
 | Group | Intended for |
 |-------|--------------|
-| `dpnadmin` | Administrators |
-| `dpnreader` | Read-only operational users |
+| `dpn-admins` | Administrators |
+| `dpn-readers` | Read-only operational users |
 
 **Users & Roles is admin-only** — its card lists only `dpnadmin` in `groups`, so `dpnreader` users never see it or the Keycloak Console link. Every other card lists both groups and is visible to all authenticated users; per-card `groups` remains the mechanism for tightening any of them further if a service should become admin-only later — that is a configuration change to the card's `groups` list, not a code change.
 
