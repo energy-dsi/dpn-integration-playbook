@@ -1,6 +1,6 @@
 # DSM Certificate Management User Interface Guide
 
-This section describes the certificate management screen in the DSM participant web app — the self-service alternative to calling the Management Node's certificate API directly (see [Requesting a DPN Server Certificate](../03-dpn-application-deployment/azure-ado-beta/02-configuration/09-request-dpn-server-certificate.md) for the raw API flow).
+This section describes the certificate management screen in the DSM participant web app — the self-service alternative to calling the Management Node's certificate API directly (see [Requesting a DPN Server Certificate](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#requesting-a-dpn-server-certificate) for the raw API flow).
 
 ---
 
@@ -22,9 +22,9 @@ This section describes the certificate management screen in the DSM participant 
 The DSM web app's **Certificate Management** screen lets a participant view their organisation's active certificates, browse certificate history, and request a new certificate by uploading a CSR — without calling any API directly. It covers both certificate types a participant deals with day to day:
 
 - The **Federator** certificate — the gRPC Federator Gateway's own mTLS certificate (short-lived, auto-renewed once issued — see [Configure DPN Certificate Manager](../03-dpn-application-deployment/azure-ado-beta/02-configuration/04-configure-dpn-certificate-manager.md)).
-- The **Edge** certificate — the UI's name for what the Management Node API calls the **server certificate**: a long-lived certificate for the participant's own edge/server infrastructure (e.g. a Cloudflare-fronted server), requested manually and never auto-renewed — see [Requesting a DPN Server Certificate](../03-dpn-application-deployment/azure-ado-beta/02-configuration/09-request-dpn-server-certificate.md) for the underlying flow and certificate properties.
+- The **Edge** certificate — the UI's name for what the Management Node API calls the **server certificate**: a long-lived certificate for the participant's own edge/server infrastructure (e.g. a Cloudflare-fronted server), requested manually and never auto-renewed — see [Requesting a DPN Server Certificate](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#requesting-a-dpn-server-certificate) for the underlying flow and certificate properties.
 
-> **How this reaches the signing backend.** This screen does not call the Management Node's `/api/v1/certificate/*` API directly — it goes through the DSM web app's own organisation/participant backend, which is expected to forward the request internally. If you're troubleshooting a request that fails from this UI, the [Requesting a DPN Server Certificate](../03-dpn-application-deployment/azure-ado-beta/02-configuration/09-request-dpn-server-certificate.md) page documents the underlying Management Node endpoints directly, which is useful for isolating whether an issue is in the UI's own backend or in the signing flow itself.
+> **How this reaches the signing backend.** This screen does not call the Management Node's `/api/v1/certificate/*` API directly — it goes through the DSM web app's own organisation/participant backend, which is expected to forward the request internally. If you're troubleshooting a request that fails from this UI, [Requesting a DPN Server Certificate](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#requesting-a-dpn-server-certificate) documents the underlying Management Node endpoints directly, which is useful for isolating whether an issue is in the UI's own backend or in the signing flow itself.
 
 ## Accessing Certificate Management
 
@@ -53,7 +53,7 @@ Under either the Federator or Edge section, upload a CSR to request a new certif
 
 > **"Bootstrap certificate" terminology.** When no Federator certificate is currently active for the organisation, the UI's own copy describes the CSR you submit as issuing a **bootstrap certificate**. This matches the Certificate Manager's own bootstrap-certificate detection (a custom OID embedded in the certificate's SAN, checked on every renewal cycle — see `docs/certificate-lifecycle.md` in the `dpn-federator-certificate-manager` repository): an initial certificate is marked this way so the Certificate Manager renews it immediately on its next cycle rather than waiting out its normal validity window, and the replacement issued through that automatic renewal no longer carries the bootstrap marker. In short: the first Federator certificate you request here is a bootstrap certificate; everything after that is renewed automatically without further action in this UI.
 
-You will need a CSR to upload — see [Requesting a DPN Server Certificate, Steps 1–2](../03-dpn-application-deployment/azure-ado-beta/02-configuration/09-request-dpn-server-certificate.md#step1-create-a-key-pair) for how to generate a key pair and CSR if you don't already have one from another tool.
+You will need a CSR to upload — see [Requesting a DPN Server Certificate, Steps 1–2](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step1-create-a-key-pair) for how to generate a key pair and CSR if you don't already have one from another tool.
 
 ## What this UI does not do
 
