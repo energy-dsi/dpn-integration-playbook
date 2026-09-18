@@ -296,6 +296,8 @@ The repository is organised into structured documentation sections that guide or
 │   │   ├── 06-jaeger-dashboard-ui-operations.md
 │   │   ├── 07-kafka-health-ui-operations.md
 │   │   ├── 08-dpn-portal-ui-operations.md
+│   │   ├── 09-dpn-keycloak-operations.md
+│   │   ├── 10-dsi-certificate-management-ui-operations.md
 │   │   └── images
 │   │
 │   └── 06-release-notes                        # Per-release configuration deltas
@@ -379,6 +381,8 @@ Day-to-day monitoring and operation of a running DPN node is performed through t
 | Jaeger UI | Distributed trace inspection | [Guide](Docs/05-dpn-user-interfaces/06-jaeger-dashboard-ui-operations.md) |
 | Kafka Health UI | Health monitoring service Kafka view | [Guide](Docs/05-dpn-user-interfaces/07-kafka-health-ui-operations.md) |
 | DPN Portal | Keycloak-SSO landing page linking the observability UIs | [Guide](Docs/05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) |
+| DPN Keycloak | User management for DPN UI components | [Guide](Docs/05-dpn-user-interfaces/09-dpn-keycloak-operations.md) |
+| DSI Certificate Management | Issue/renew Federator bootstrap and Edge certificates | [Guide](Docs/05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md) |
 
 ---
 
