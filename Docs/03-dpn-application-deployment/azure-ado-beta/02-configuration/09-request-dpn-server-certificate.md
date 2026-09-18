@@ -23,6 +23,10 @@ A **server certificate** is a long-TTL (60 day) certificate issued by the DSM Ma
 
 All endpoints below are under `/api/v1/certificate` on the DSM Management Node and require a bearer token with the appropriate authority (see each step).
 
+> **Prefer the DSM web app for day-to-day use.** The steps below call the Management Node API directly — useful for automation/scripting, or for understanding what's happening under the hood. Most participants will instead use the DSM web app's own **Certificate Management** screen (Your Organisation → DPN → Certificate Management), where this certificate is labelled **"Edge"** rather than "server." See the [DSM Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsm-certificate-management-ui-operations.md).
+
+> **Bootstrap certificates are a different, Federator-side concept.** The Certificate Manager's *automatic* Federator certificate renewal (linked above) marks a participant's very first Federator certificate as a "bootstrap certificate" (a custom OID in its SAN, per `dpn-federator-certificate-manager`'s `docs/certificate-lifecycle.md`) so it gets replaced on the very next renewal cycle rather than running its full validity. That mechanism is unrelated to the server certificate on this page — a server certificate is never auto-renewed and never carries a bootstrap marker; it must always be requested fresh via [Step3](#step3-request-the-signed-server-certificate) before it expires.
+
 ## How this differs from the Federator Gateway's certificate
 
 | | Federator Gateway certificate | Server certificate (this page) |

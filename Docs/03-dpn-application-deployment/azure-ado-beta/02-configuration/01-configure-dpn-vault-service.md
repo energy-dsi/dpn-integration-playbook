@@ -50,6 +50,10 @@ HashiCorp Vault stores the cryptographic material the Certificate Manager needs 
 
 Vault serves over **HTTPS (TLS 1.2+)** internally and uses **Azure Key Vault auto-unseal** in the automated approach, so it unseals itself on start-up. In case of manual process the unseal key needs to be created separately. DSI provides the community edition of the Vault container; organisations may substitute an enterprise edition per their licensing strategy.
 
+> **This Vault only stores certificate material — it does not sign certificates.** The `pki-client` mount above is a plain KV v2 secrets engine, not a Vault PKI secrets engine. Signing happens on a **separate** Vault instance run by the DSM Management Node, whose own PKI secrets engine (`pki_int`) holds the CA key material and performs the actual signing when the Certificate Manager submits a CSR. See [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) for the automatic Federator certificate renewal flow, [Requesting a DPN Server Certificate](09-request-dpn-server-certificate.md) for the manually-requested long-TTL server/edge certificate signed by that same Management Node PKI engine, and the [DSM Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsm-certificate-management-ui-operations.md) for the self-service screen that wraps both.
+>
+> **Two different "bootstrap" concepts.** [Step 3A](#step-3a-configure-bootstrap-vault-tls-vault-tls-bootstrap-cd) below bootstraps *this Vault's own TLS listener* — unrelated to a **bootstrap certificate**, which is the Certificate Manager's term for a participant's first Federator certificate (marked with a special OID so it renews immediately — see [Requesting a DPN Server Certificate](09-request-dpn-server-certificate.md#overview) and the DSM Certificate Management UI Guide linked above). Don't conflate the two when following this page.
+
 Two Vault setup methods are available:
 
 - **[Automated Vault Configuration](#automated-vault-configuration)** *(recommended)* — three ADO pipelines generate the TLS material, deploy and initialise Vault, and load the certificate bundle.
