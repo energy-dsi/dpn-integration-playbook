@@ -34,7 +34,7 @@ The landing page is organised into **cards**, not a flat tile grid. Each card gr
 
 | Card | Component(s) | Links to | Purpose |
 |------|--------------|----------|---------|
-| Users & Roles | Keycloak Console | The Keycloak admin console (master realm) | Manage DPN users, groups, and role assignments — admin-only, see §4 |
+| Users & Roles | Keycloak Console | The Keycloak admin console (dpn-realm realm) | Manage DPN users, groups, and role assignments — admin-only, see §4 |
 | Data / Store | DPN Kafka | The health-monitoring Kafka UI | Browse topics and manage the Kafka clusters — see [Kafka UI Operations](04-kafka-ui-operations.md) / [Kafka Health UI Operations](07-kafka-health-ui-operations.md) |
 | Gateway | GRPC Gateway Client | The gRPC gateway client UI, once deployed | Manage exposure of Data Products to authorised consumers |
 | Data / Pipeline | Pipeline Orchestrator | Apache Airflow | Monitor and manage the DPN data-pipeline DAGs — see [Airflow Scheduler UI Operations](02-apache-airflow-scheduler-ui-operations.md) |
