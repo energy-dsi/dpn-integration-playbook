@@ -28,6 +28,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
   - [Step3b: Configure Federator Client](#step3b-configure-federator-client)
   - [Step3c: Configure Key Vault If Used](#step3c-configure-key-vault-if-used)
   - [Step3d: Configure Kafka Security](#step3d-configure-kafka-security)
+  - [Step3e: Configure AWS ServiceAccount (IRSA)](#step3e-configure-aws-serviceaccount-irsa)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -47,7 +48,9 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 | **Federator Server** | Receives inbound connections from other DPNs' clients; reads from Kafka Source and streams data out over gRPC/mTLS |
 | **Federator Client** | Connects outward to a remote Federator Server; writes received data into Kafka Target and its storage |
 
-> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafka.oauth.tokenEndpointUrl`), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials.
+> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafka.oauth.tokenEndpointUrl`), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials. This client secret (`KC_SERVICE_CLIENT_SECRET`) is read directly from the `dpn-keycloak-secrets` Kubernetes secret created by the **DPN Authentication Service** deployment — Kafka Source/Target, Kafka UI, and the Federator Server/Client no longer pull an independent `KAFKA-OAUTH-CLIENT-SECRET` entry of their own, so there is one fewer secret to provision per environment.
+
+> **`cloudProvider: aws`.** The `dpn-platform` chart's templates branch on this value to select AWS-native behaviour (Network Load Balancers, the AWS Secrets Store CSI provider for Kafka's own credentials, S3 storage config, and the IRSA `ServiceAccount` below) instead of the Azure equivalents. Every populated `values/aws/<environment>-<cluster>.yaml` file must set `cloudProvider: aws` — it is **not** the chart's own default (`values.yaml` defaults it to `azure`).
 
 **certificates and passwords flow (MUST READ):**
 
@@ -82,6 +85,9 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafka.oauth.tokenEndpointUrl` |
 | 11 | **Container image tag available** | Built by the DSI CI process or prebuilt DSI image; supplied to the CD workflow as `imageTag` |
 | 12 | **Config JSON and values file populated for the `<environment>-<cluster>` combination** | See [Step3: Configure Environment](#step3-configure-environment) |
+| 13 | **IAM role for the platform's `ServiceAccount` (IRSA)** | Required when `serviceAccount.create: true` (the AWS default) — see [Step3e](#step3e-configure-aws-serviceaccount-irsa) |
+
+> **AWS-native Kafka secrets.** On AWS, Kafka's own SecretProviderClass (Keycloak admin password, HTTPS keystore/truststore passwords, universal cert password) pulls from **AWS Secrets Manager** under `secretsManager.secretPrefix` instead of Azure Key Vault — create these entries at `<secretsManager.secretPrefix>/<KEY>` before first deploy (see [Step3e](#step3e-configure-aws-serviceaccount-irsa)). This is separate from the Server/Client storage credentials in [Step2](#step2-configure-secrets), which continue to come from the cross-cloud Azure Key Vault as before.
 
 > **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** The gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)) when `vaultConfig.mountCertFileShare: false` is set. The chart's own reference `values.yaml` still defaults this to `true` for backward compatibility — confirm your environment's values file explicitly sets it to `false` rather than relying on the reference default, or the deprecated file share is mounted again.
 
@@ -147,6 +153,7 @@ dpn-federator-gateway/
 | `federatorServer.idp.tokenUrl` | Token endpoint for access tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
 | `federatorServer.storage.s3.bucket` | The **Server's** S3 bucket | `<s3-bucket-prefix>-application` |
 | `federatorServer.storage.s3.region` | Region of the Server's S3 bucket | `<AWS_REGION>` |
+| `federatorServer.service.eipAllocationId` | Optional Elastic IP allocation to pin to the Server's external NLB | `eipalloc-xxxxxxxx` (leave unset for a dynamically-assigned address) |
 
 ### Step3b: Configure Federator Client
 
@@ -170,6 +177,7 @@ dpn-federator-gateway/
 | `federatorClient.auth.issuerUrl` / `.audience` | Keycloak realm issuer and OIDC client ID (reuses the same client Kafka's OAuth already uses) | as received from DSM |
 | `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
 | `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port — must differ from `jobRunnerPort`, and is the **only** port exposed via the `-external` NLB Service | `8086` |
+| `federatorClient.tls.gatewaySecretName` | Optional Kubernetes `Secret` mounted at `/tls-gateway` for a browser-facing TLS identity in front of the Job Runner dashboard. Empty by default (no mount) — set once the DPN universal TLS prerequisite pipeline has issued a certificate for this hostname | `fed-gateway-tls` |
 
 > **Keycloak redirect URI must use the `-external` hostname.** The gateway runs its own OIDC authorization-code login. Register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` as the redirect URI on the Keycloak client — pointing it at the plain in-cluster hostname instead breaks the login callback (state-cookie mismatch), since Keycloak always redirects back to whichever hostname is configured here regardless of which one the browser actually started the login from.
 
@@ -190,8 +198,27 @@ The following parameter needs to be set if key vault is used as secret provider.
 |-----------|---------|-----------------------|
 | `kafka.authMode` | Security protocol for **every** Kafka listener (Source and Target) — `sasl_ssl` (production default), `ssl` (TLS only), or `plaintext` (dev/test only) | `sasl_ssl` |
 | `kafka.oauth.tokenEndpointUrl` | Keycloak token endpoint used for `OAUTHBEARER` login/validation when `authMode: sasl_ssl` | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `kafkaUI.oauth.clientId` | OIDC client ID Kafka UI itself authenticates with (separate from `kafkaUI.oidcRbac`, below) | as received from DSM/Keycloak |
+| `kafkaUI.tls.enabled` | Terminate HTTPS on Kafka UI's own listener, reusing the same `dpn-tls` keystore Kafka brokers and Redis already use. **Off by default** — only enable it in an environment where nothing else (e.g. an `oauth2-proxy`) depends on this listener staying plain HTTP, since Kafka UI drops its HTTP listener entirely once TLS is on | `false` |
 
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
+
+> **OpenTelemetry export.** `otel.tls.enabled` (default `true`) drives both the Federator Server/Client's OTLP exporter endpoint scheme and whether the OTel Collector truststore env vars are set at all — see [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md) if your Collector's OTLP receiver terminates TLS (the default). `otel.collector.host` / `otel.collector.port` point at the Collector Service.
+
+### Step3e: Configure AWS ServiceAccount (IRSA)
+
+A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Target, the Federator Server, and the Federator Client, provides IAM Roles for Service Accounts (IRSA) credentials to the AWS Secrets Store CSI driver.
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `serviceAccount.create` | Render the `ServiceAccount` and attach it to every pod in this release | `true` |
+| `serviceAccount.name` | Name of the `ServiceAccount` | `dpn-federator-gateway` |
+| `serviceAccount.irsaRoleArn` | ARN of the IAM role the `ServiceAccount` assumes | `arn:aws:iam::<account-id>:role/dpn-federator-gateway-secrets-role` |
+| `secretsManager.secretPrefix` | AWS Secrets Manager path prefix Kafka's `SecretProviderClass` reads its 5 secrets from (`KEYCLOAK_ADMIN_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD`, `KAFKA_OAUTH_CLIENT_SECRET`, `UNIVERSAL_DPN_CERT_PASSWORD`) | `dpn/<environment>-<cluster>/federator-gateway` |
+
+The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and its permissions policy must grant `secretsmanager:GetSecretValue` on `secretsManager.secretPrefix/*` plus S3 read/write on `federatorServer.storage.s3.bucket` and `federatorClient.storage.s3.bucket`.
+
+> **Kafka pods on AWS disable Python auto-instrumentation.** Kafka Source/Target and Zookeeper Source/Target pods carry `instrumentation.opentelemetry.io/inject-python: "false"` when `cloudProvider: aws` — the cluster's OTel auto-instrumentation webhook otherwise injects a `urllib3` build incompatible with these images' Python 3.9 startup tooling and crashes the pod on start. No action needed; this is set automatically.
 
 ---
 
@@ -216,6 +243,8 @@ dpn-containerised-deployment-service/
 | `imageTag` | Tag of the Federator images to deploy (from the CI build or prebuilt DSI image) |
 
 To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as a workflow artifact.
+
+> **No separate Key Vault fetch step on AWS.** The workflow's "Fetch Secrets From Key Vault" step (`vaultConfig.truststorePassword`) only runs `if: inputs.cloud == 'azure'`. On AWS the container reads the truststore password from the `certificate-manager-secrets` Kubernetes secret directly (`VAULT_TRUSTSTORE_PASSWORD` env var, set unconditionally in the Server/Client deployment templates) — nothing to fetch or `--set` at deploy time.
 
 Once this is deployed, provision the per-product producer/consumer pods and the S3 bucket/Kafka-topic prerequisites they need — see [Configure DPN Data Pipelines](05-configure-dpn-data-pipelines.md) and the [installation guide](../03-installation/04-dpn-federator-gateway-installation-process.md).
 

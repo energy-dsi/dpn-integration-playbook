@@ -193,6 +193,8 @@ Refer to the [DPN Federator Certificate Manager](03-configure-dpn-certificate-ma
 
 The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
 
+In addition to that DSM-issued bundle, the platform's own internal mTLS material (the `dpn-tls` / `dpn-health-tls` Kubernetes secrets consumed by Keycloak, Kafka, cert-manager, the `oauth2-proxy` observability gateways, and Health Monitoring Service's Data Prepper) is generated and published by a shared, cloud-aware **DPN CD - Prerequisite Pipeline (Universal TLS)** workflow (`dpn-prerequisite-pipeline.yml`) rather than being created by hand. This pipeline publishes its certificate secrets into **both** the target namespace (`ns-dpn-01`, or whichever `targetNamespace` you use) **and** `ns-dpn-health-01` — Health Monitoring Service components running in that second namespace need their own copy of the same certificate material, so both namespaces must exist (see [AKS Namespace Configuration](#step23-aks-namespace-configuration)) before this pipeline is run.
+
 ---
 
 ### Step5: Network and Ports Configuration

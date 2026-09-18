@@ -70,6 +70,8 @@ In summary:
 - Internal load Balancer IPs are determined
 - IDP client ID is received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
+- IAM role for the platform's `ServiceAccount` (IRSA) created, and its ARN set as `serviceAccount.irsaRoleArn` — see [Configure DPN Federator Gateway, Step3e](../02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-aws-serviceaccount-irsa)
+- AWS Secrets Manager entries populated under `secretsManager.secretPrefix` for Kafka's Keycloak/keystore/truststore/cert passwords
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
 
@@ -215,6 +217,8 @@ In case Kafka is failing , please restart using rollout restart command in seque
 ```text
 kubectl rollout restart deployment/<deployment-name> -n <namespace>
 ```
+
+If Kafka Source/Target or Zookeeper Source/Target crash-loop immediately on start with a Python `urllib3` import error, check that the pod's `instrumentation.opentelemetry.io/inject-python` annotation is `"false"` — the cluster's OTel Python auto-instrumentation webhook injects a `urllib3` build incompatible with these images' Python 3.9 startup tooling otherwise. This is set automatically on AWS (`cloudProvider: aws`); if it is missing, re-deploy so the annotation is applied — a live `kubectl patch` alone is reverted by the next `helm upgrade`.
 
 ---
 

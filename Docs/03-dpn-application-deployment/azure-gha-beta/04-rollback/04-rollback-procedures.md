@@ -256,9 +256,11 @@ Re-run the verification steps from the File Scanning Service's Installation Proc
 
 ## Part 5 — DPN Health Monitoring Service Rollback
 
-Every sub-component (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel Collector, Nginx Observability Proxy) has its own CD workflow in code (`dpn-cd-kafka.yml`, `dpn-cd-opensearch.yml`, etc.), but these are **`workflow_call`-only** — they can't be triggered standalone from the Actions tab, only invoked by the `dpn-health-monitoring-cd-install.yml` orchestrator.
+Every sub-component (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel Collector, DPN Portal) has its own CD workflow in code (`dpn-cd-kafka.yml`, `dpn-cd-opensearch.yml`, etc.), but these are **`workflow_call`-only** — they can't be triggered standalone from the Actions tab, only invoked by the `dpn-health-monitoring-cd-install.yml` orchestrator.
 
-**Strategy 1 — re-run the orchestrator:** go to **Actions → DPN Health Monitoring → Run workflow**. This redeploys the full dependency chain (Kafka → OpenSearch → Prometheus → Thanos, etc.) — only the OTel Collector's `imageTag` is an input; other sub-components don't take an image tag from the orchestrator today, so an image-tag rollback for those means Strategy 2 instead.
+> **Note:** `dpn-portal` — a tile landing page that links out to the observability UIs — has replaced the retired `nginx-observability` reverse proxy as the last component in this chain; it is fronted by its own `oauth2-proxy` gateway rather than acting as the reverse proxy itself. The `oauth2-proxy` gateways that used to front Kafka UI, Prometheus, and Thanos directly have also been retired: Kafka UI now uses native Keycloak OIDC login and is exposed on its own internal load balancer, and Prometheus/Thanos are no longer browsed directly (both are consumed through Perses).
+
+**Strategy 1 — re-run the orchestrator:** go to **Actions → DPN Health Monitoring → Run workflow**. This redeploys the full dependency chain (Kafka → OpenSearch → Prometheus → Thanos, etc.) — the OTel Collector's `imageTag` is an input, and DPN Portal likewise requires its own `portalImageRepository`/`portalImageTag` inputs since that chart ships no default image; other sub-components don't take an image tag from the orchestrator today, so an image-tag rollback for those means Strategy 2 instead.
 
 **Strategy 2 — manual Helm revision rollback for the affected sub-component:**
 
@@ -266,7 +268,7 @@ Every sub-component (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger
 helm rollback <release-name> <rollbackRevision> -n ns-dpn-health-01
 ```
 
-**Rollback order matters here**, mirroring the deployment dependency graph (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper`/`Jaeger → Perses → OTel → NginxObservability`): if rolling back a component others depend on (e.g. Kafka), check whether dependent components also need attention afterward. This is a sequence *within* Health Monitoring Service specifically — separate from, and unaffected by, the cross-component sequence in [Rollback Sequence Across Components](#rollback-sequence-across-components).
+**Rollback order matters here**, mirroring the deployment dependency graph (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper`/`Jaeger → Perses → OTel → DPN Portal`): if rolling back a component others depend on (e.g. Kafka), check whether dependent components also need attention afterward. This is a sequence *within* Health Monitoring Service specifically — separate from, and unaffected by, the cross-component sequence in [Rollback Sequence Across Components](#rollback-sequence-across-components).
 
 **A rollback of the OTEL Collector specifically** interrupts telemetry collection platform-wide during the rollout — factor this into timing per the [Pre-Rollback Checklist](#pre-rollback-checklist).
 
