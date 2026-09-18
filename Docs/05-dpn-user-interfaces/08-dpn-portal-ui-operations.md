@@ -50,10 +50,10 @@ Each component opens its target UI directly over its own HTTPS address — the p
 
 Card visibility is filtered by the Keycloak group(s) in the `X-Forwarded-Groups` header. Two groups exist today:
 
-|Role| Group | Intended for |
-|-------|--------------|
-|dpnadmin| `dpn-admins` | Administrators |
-|dpnreader| `dpn-readers` | Read-only operational users |
+| Role | Group | Intended for |
+|------|-------|--------------|
+| dpnadmin | `dpn-admins` | Administrators |
+| dpnreader | `dpn-readers` | Read-only operational users |
 
 **Users & Roles is admin-only** — its card lists only `dpn-admins` in `groups`, so `dpn-readers` users never see it or the Keycloak Console link. Every other card lists both groups and is visible to all authenticated users; per-card `groups` remains the mechanism for tightening any of them further if a service should become admin-only later — that is a configuration change to the card's `groups` list, not a code change.
 
