@@ -544,6 +544,12 @@ To onboard a new product:
 
 - Set `SCHEDULER_BACKEND: airflow` on the product's `values.yaml` to match.
 
+> **Operational notes:**
+> - The `kafka-trigger` backend now auto-creates the shared `dpn-pipeline-control`/`dpn-pipeline-status` topics on first use if they don't already exist, avoiding a race against topic auto-creation on a freshly provisioned broker.
+> - Every trigger/status log line now carries a consistent `component.name` attribute (e.g. `producer-file-adaptor`), making it easier to filter one pipeline stage's Airflow-side logs from another downstream in the OTel/Kibana pipeline.
+> - The Airflow init job now idempotently creates a custom `DagOperator` role (trigger/pause/view on DAGs, DAG Runs, and Task Instances — no delete, no Connections/Variables/Pools/Config access), mapped from the Keycloak **group** `dpn-operators` (Keycloak group membership, not a realm role name, is what FAB reads from the OAuth userinfo `groups` claim). This gives day-to-day pipeline operators Airflow access without the broader built-in `Op` role.
+> - The Airflow webserver now terminates TLS itself rather than relying on an in-front oauth2-proxy: it reads a real `kubernetes.io/tls` certificate/key pair from a `dpn-health-tls` Secret (SAN covering `*.ns-dpn-01.svc.cluster.local`), and its Service/LoadBalancer port has moved from `80` to `8080` (`https`). Update any bookmarked/firewalled Airflow UI URL accordingly, and provision `dpn-health-tls` before upgrading. The `AIRFLOW_OIDC_CLIENT_SECRET` used for Keycloak SSO now also comes from `dpn-keycloak-secrets`/`KC_SERVICE_CLIENT_SECRET`, matching the Kafka client secret change in [Step8b](#step8b-configure-kafka-security-sasltls).
+
 ## Step8: Configure Secrets
 
 DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Storage credentials and Kafka authentication material are two separate secret concerns, covered in Step8a and Step8b respectively.
@@ -612,11 +618,11 @@ Every stage that connects to Kafka — producer adaptor/schema mapper and consum
 | KAFKA_SASL_MECHANISM | SASL mechanism | `OAUTHBEARER` (OAuth2 client-credentials via Keycloak) |
 | KAFKA_OAUTH_CLIENT_ID | Keycloak service-account client ID | `dpn-service-client` |
 | KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| KAFKA_SSL_CA_LOCATION | Path the CA truststore is mounted at inside the pod | `/etc/secrets/truststore.jks` |
-| kafkaTlsSecretName | Kubernetes secret providing the truststore mounted at `KAFKA_SSL_CA_LOCATION` | `dpn-tls` |
-| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
+| KAFKA_SSL_CA_LOCATION | Path of a plain CA certificate PEM mounted inside the pod, alongside the existing `truststore.jks` mount | `/etc/secrets/ca.crt` |
+| kafkaTlsSecretName | Kubernetes secret providing the `dpn-tls` volume, now mounted at both `/etc/secrets/truststore.jks` (subPath `truststore.jks`) and `/etc/secrets/ca.crt` (subPath `ca.crt`) — the secret must carry both keys | `dpn-tls` |
+| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials (`KC_SERVICE_CLIENT_SECRET`) | `dpn-keycloak-secrets` |
 
-> **Note:** the file mounted at `KAFKA_SSL_CA_LOCATION` is a password-protected `truststore.jks` (genuinely PKCS12, despite older references to a plain `ca.crt`) — not a bare CA certificate PEM. The password comes from the `kafkaOauthSecretName` secret's `UNIVERSAL_DPN_CERT_PASSWORD` key, injected as the `TRUSTSTORE_PASSWORD` env var; at runtime the pod extracts the CA cert(s) from that truststore and points the Kafka client's TLS trust at the extracted PEM. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
+> **Note:** the OAuth2 client secret and the truststore password now come from **two separate secrets**: `kafkaOauthSecretName` (default `dpn-keycloak-secrets`) supplies `KC_SERVICE_CLIENT_SECRET` — the previous key name, `KAFKA_OAUTH_CLIENT_SECRET`, has been retired — while the `TRUSTSTORE_PASSWORD` env var (used to open the PKCS12 `truststore.jks`) is always read from a fixed `kafka-secrets` secret's `KC_HTTPS_TRUST_STORE_PASSWORD` key, regardless of `kafkaOauthSecretName`. This replaces the old `UNIVERSAL_DPN_CERT_PASSWORD` key, which was actually the keystore-password family and only happened to share a value with the truststore password. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
 
 ---
 

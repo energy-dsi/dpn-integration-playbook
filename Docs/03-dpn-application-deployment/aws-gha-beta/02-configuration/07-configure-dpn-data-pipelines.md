@@ -220,15 +220,27 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | srcContainerName | Source storage container name (**adaptor only**) | `eq-sample-1-stage` |
 | mapperContainerName | Storage container name for the mapper stage | `eq-sample-1-raw` |
 | targetContainerName | Storage container name for the target stage | `eq-sample-1-target` |
-| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets) | `producer-file-dp-secret` |
+| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets). Only injected as env vars (`srcConnectionString`/`mapperConnectionString`/`targetConnectionString`) when `cloudProviderType: azure`; on AWS these are omitted entirely and S3 access goes through IRSA instead (see below) | `producer-file-dp-secret` |
 
 **AWS S3** (only when `cloudProviderType: aws`)
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
-| awsEndpointUrl | Custom S3 endpoint URL, if not using the default AWS endpoint | `""` (leave empty to use the AWS default) |
+| awsEndpointUrl | Custom S3 endpoint URL. Leave empty to use the AWS default — when blank, the chart now derives `https://s3.<awsRegion>.amazonaws.com` automatically instead of requiring a local MinIO endpoint to be configured | `""` (leave empty to use the derived AWS default) |
 | awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
-| awsAccessSecret | Kubernetes secret holding AWS access credentials | `aws-access-secret` |
+| awsAccessSecret | Kubernetes secret holding AWS access credentials. Real S3 access now comes from the pod's IRSA-bound ServiceAccount (see **ServiceAccount / IRSA (AWS only)** below) — this secret is kept only as an empty-string placeholder to satisfy the application's config validator, and defaults to `aws-access-secret` if left unset | `aws-access-secret` |
+
+**ServiceAccount / IRSA (AWS only)**
+
+Every file-based producer/consumer stage chart now ships its own `templates/serviceaccount.yaml`, created only when `cloudProviderType: aws` and `serviceAccount.create: true`. The Deployment's `serviceAccountName` is set to it automatically:
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| serviceAccount.create | Whether to create the IRSA ServiceAccount for this stage | `true` |
+| serviceAccount.name | ServiceAccount name | `dpn-producer-bp-natural-gas-adaptor` |
+| serviceAccount.irsaRoleArn | ARN of the IAM role this ServiceAccount assumes. Its trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and the role's own policy must grant this stage's required S3 permissions (read on its source bucket, read/write on its target bucket) | `arn:aws:iam::<account-id>:role/dpn-<stage-name>-s3-role` |
+
+> **Note:** the topic-based pathway ([Step3b](#step3b-set-up-producer-helm-charts-for-topic-based-pathways)/[Step4b](#step4b-setup-consumer-helm-charts-for-topic-based-integration-pathway)) does not touch S3 and does not get a `serviceaccount.yaml` — IRSA only applies to the file-based adaptor/schema_mapper/extractor charts above.
 
 **Kafka Connectivity**
 
@@ -337,15 +349,27 @@ The values.yaml file created in Step 2 for all data products running in a specif
 | srcContainerName | Source storage container name | `dp-consumer-stage` |
 | mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
 | targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
-| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets) | `consumer-file-dp-secret` |
+| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets). Only injected as env vars (`srcConnectionString`/`mapperConnectionString`/`targetConnectionString`) when `cloudProviderType: azure`; on AWS these are omitted entirely and S3 access goes through IRSA instead (see below) | `consumer-file-dp-secret` |
 
 **AWS S3** (only when `cloudProviderType: aws`)
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
-| awsEndpointUrl | Custom S3 endpoint URL, if not using the default AWS endpoint | `""` (leave empty to use the AWS default) |
+| awsEndpointUrl | Custom S3 endpoint URL. Leave empty to use the AWS default — when blank, the chart now derives `https://s3.<awsRegion>.amazonaws.com` automatically instead of requiring a local MinIO endpoint to be configured | `""` (leave empty to use the derived AWS default) |
 | awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
-| awsAccessSecret | Kubernetes secret holding AWS access credentials | `aws-access-secret` |
+| awsAccessSecret | Kubernetes secret holding AWS access credentials. Real S3 access now comes from the pod's IRSA-bound ServiceAccount (see **ServiceAccount / IRSA (AWS only)** below) — this secret is kept only as an empty-string placeholder to satisfy the application's config validator, and defaults to `aws-access-secret` if left unset | `aws-access-secret` |
+
+**ServiceAccount / IRSA (AWS only)**
+
+Every file-based producer/consumer stage chart now ships its own `templates/serviceaccount.yaml`, created only when `cloudProviderType: aws` and `serviceAccount.create: true`. The Deployment's `serviceAccountName` is set to it automatically:
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| serviceAccount.create | Whether to create the IRSA ServiceAccount for this stage | `true` |
+| serviceAccount.name | ServiceAccount name | `dpn-producer-bp-natural-gas-adaptor` |
+| serviceAccount.irsaRoleArn | ARN of the IAM role this ServiceAccount assumes. Its trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and the role's own policy must grant this stage's required S3 permissions (read on its source bucket, read/write on its target bucket) | `arn:aws:iam::<account-id>:role/dpn-<stage-name>-s3-role` |
+
+> **Note:** the topic-based pathway ([Step3b](#step3b-set-up-producer-helm-charts-for-topic-based-pathways)/[Step4b](#step4b-setup-consumer-helm-charts-for-topic-based-integration-pathway)) does not touch S3 and does not get a `serviceaccount.yaml` — IRSA only applies to the file-based adaptor/schema_mapper/extractor charts above.
 
 **Kafka Connectivity**
 
@@ -544,6 +568,12 @@ To onboard a new product:
 
 - Set `SCHEDULER_BACKEND: airflow` on the product's `values.yaml` to match.
 
+> **Operational notes:**
+> - The `kafka-trigger` backend now auto-creates the shared `dpn-pipeline-control`/`dpn-pipeline-status` topics on first use if they don't already exist, avoiding a race against topic auto-creation on a freshly provisioned broker.
+> - Every trigger/status log line now carries a consistent `component.name` attribute (e.g. `producer-file-adaptor`), making it easier to filter one pipeline stage's Airflow-side logs from another downstream in the OTel/Kibana pipeline.
+> - The Airflow init job now idempotently creates a custom `DagOperator` role (trigger/pause/view on DAGs, DAG Runs, and Task Instances — no delete, no Connections/Variables/Pools/Config access), mapped from the Keycloak `dpn-operators` group. This gives day-to-day pipeline operators Airflow access without the broader built-in `Op` role.
+> - The Airflow chart itself (webserver/scheduler/worker/triggerer/Postgres/Redis) can now be deployed on AWS: set `cloudProvider: aws` in `charts/airflow/values/aws/<environment>-<cluster>.yaml`, along with `serviceAccount.create`/`serviceAccount.name`/`serviceAccount.irsaRoleArn` (IRSA) and `secretsManager.enabled`/`secretsManager.secretPrefix` — the same AWS Secrets Manager + IRSA pattern used by the pipeline-stage charts above, replacing the Azure Key Vault-backed `SecretProviderClass` used on Azure. The Secrets Manager prefix must hold `FERNET_KEY`, `WEB_SECRET_KEY`, `AIR_POSTGRES_PASSWORD`, and `AIRFLOW_ADMIN_PASSWORD`.
+
 ## Step8: Configure Secrets
 
 DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Storage credentials and Kafka authentication material are two separate secret concerns, covered in Step8a and Step8b respectively.
@@ -612,11 +642,12 @@ Every stage that connects to Kafka — producer adaptor/schema mapper and consum
 | KAFKA_SASL_MECHANISM | SASL mechanism | `OAUTHBEARER` (OAuth2 client-credentials via Keycloak) |
 | KAFKA_OAUTH_CLIENT_ID | Keycloak service-account client ID | `dpn-service-client` |
 | KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| KAFKA_SSL_CA_LOCATION | Path the CA truststore is mounted at inside the pod | `/etc/secrets/truststore.jks` |
-| kafkaTlsSecretName | Kubernetes secret providing the truststore mounted at `KAFKA_SSL_CA_LOCATION` | `dpn-tls` |
+| KAFKA_SSL_CA_LOCATION | Path of a plain CA certificate PEM mounted inside the pod. `build_kafka_client_config()` now reads this PEM directly for TLS trust — the previous fallback that extracted a CA from a password-protected `truststore.jks` (`utils/kafka_truststore.py`) has been removed | `/etc/kafka/secrets/ca.crt` |
+| kafkaTlsSecretName | Kubernetes secret providing the `dpn-tls` volume. It is now mounted as a directory at `/etc/kafka/secrets` (carrying both `ca.crt` and `truststore.jks`), rather than a single `truststore.jks` subPath at `/etc/secrets/truststore.jks` | `dpn-tls` |
 | kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
+| OTEL_TRUSTSTORE_PATH | Explicit path to the OTLP truststore, since the application's own default lookup path (`/etc/secrets/truststore.jks`) is no longer where `dpn-tls` is mounted | `/etc/kafka/secrets/truststore.jks` |
 
-> **Note:** the file mounted at `KAFKA_SSL_CA_LOCATION` is a password-protected `truststore.jks` (genuinely PKCS12, despite older references to a plain `ca.crt`) — not a bare CA certificate PEM. The password comes from the `kafkaOauthSecretName` secret's `UNIVERSAL_DPN_CERT_PASSWORD` key, injected as the `TRUSTSTORE_PASSWORD` env var; at runtime the pod extracts the CA cert(s) from that truststore and points the Kafka client's TLS trust at the extracted PEM. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
+> **Note:** the `TRUSTSTORE_PASSWORD` env var (used to open the PKCS12 `truststore.jks` for the OTLP exporter) now reads from the `kafkaOauthSecretName` secret's `KC_HTTPS_TRUST_STORE_PASSWORD` key — the previous key name, `UNIVERSAL_DPN_CERT_PASSWORD`, has been retired. A second `dpn-tls` mount also places the CA at `/etc/pki/tls/certs/ca-bundle.crt`: this confluent-kafka wheel's statically-linked OpenSSL ignores `ssl.ca.location` for OIDC token-endpoint/broker TLS verification and expects a CentOS-style default cert path instead, so the real CA is placed there directly rather than relying on the env var being honoured. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
 
 ---
 

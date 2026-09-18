@@ -19,6 +19,7 @@
   - [Verification Service Cannot Read or delete from `dp-consumer-raw`](#verification-service-cannot-read-or-delete-from-dp-consumer-raw)
   - [Verified Files Not Appearing in `dp-consumer-stage`](#verified-files-not-appearing-in-dp-consumer-stage)
   - [Authentication Issue to Storage Account](#authentication-issue-to-storage-account)
+  - [OTEL Truststore Password Errors](#otel-truststore-password-errors)
   - [HPA Not Scaling](#hpa-not-scaling)
 - [Reference: Container Images Used](#reference-container-images-used)
 - [Review Notes](#review-notes)
@@ -146,6 +147,10 @@ Confirm the Verification Service's Managed Identity has the **Storage Blob Data 
 ### Authentication Issue to Storage Account
 
 Verify the Service Principal Client ID and Client Secret are correct. Secert is not expired and the connection string has correct storage container name.
+
+### OTEL Truststore Password Errors
+
+If OTel/telemetry export fails with a truststore password error, confirm `keyvault.truststorePasswordSecretName` in your environment's values file points at the correct Key Vault secret — the previous shared secret name, `UNIVERSAL-DPN-CERT-PASSWORD`, has been retired in favour of an environment-specific name (e.g. `KC-HTTPS-TRUST-STORE-PASSWORD` or `TRUSTSTORE-PASSWORD`); see [Configure DPN File Scan Service, Step5](../02-configuration/06-configure-dpn-file-scan-service.md#step5-configure-azure-key-vault--secrets).
 
 ### HPA Not Scaling
 

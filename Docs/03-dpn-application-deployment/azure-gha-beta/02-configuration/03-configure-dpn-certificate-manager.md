@@ -54,7 +54,7 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Vault running over HTTPS, KV v2 enabled at `pki-client`, and the certificate bundle loaded into `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-vault-tls-bootstrap-cd.yml` workflow |
-| 3 | **Vault credentials available** | `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init step) — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication) for why AppRole isn't an option yet on this path. `VAULT-TRUSTSTORE-PASSWORD` (from the Vault bootstrap) is required either way |
+| 3 | **Vault credentials available** | `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init step) — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication) for the AppRole alternative. `TRUSTSTORE-PASSWORD` (the universal DPN platform truststore password, from the Vault bootstrap) is required either way |
 | 4 | **AKS cluster** + (if using Azure Key Vault for secrets) a **user-assigned managed identity** and the **Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
 | 5 | **OAuth2 client ID, client secret, and Management Node URL** | Received from DSM during onboarding to establish the DPN connection |
 | 6 | **Certificate Manager container image available** | Built via the DSI-provided CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD workflow as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
@@ -70,19 +70,19 @@ The Certificate Manager reads and writes its certificate material directly in Va
 
 | Method | `vault.authentication` | Notes |
 |--------|------------------------|-------|
-| Root token | `TOKEN` | **Only supported method on this path today.** The token has full access to Vault; see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3b-configuration-to-initialise-vault-vault-https-cd) |
-| AppRole (chart supports it; not yet automated here) | `APPROLE` | The chart itself defaults to `APPROLE` and scoped, short-lived credentials are the recommended long-term design — but the GitHub Actions workflow that provisions the AppRole identity (`setup-approle.sh`) doesn't exist yet for this airgap path. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-planned-not-yet-available). **Set `vault.authentication: TOKEN` explicitly** until that workflow is available, or run `setup-approle.sh` by hand against the Vault pod if you want AppRole now |
+| Root token | `TOKEN` | The token has full access to Vault; see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3b-configuration-to-initialise-vault-vault-https-cd) |
+| AppRole | `APPROLE` | The chart itself defaults to `APPROLE`, and scoped, short-lived credentials are the recommended design. The provisioning workflow, `dpn-certificate-manager-role-id-creation.yml`, runs `scripts/vault/setup-approle.sh` inside the Vault pod (admin token from Key Vault) to write a least-privilege policy, create/update the `certificate-manager` AppRole role, and publish the generated secret-id |
 
-Once the AppRole-provisioning workflow is available, switching over will look like this in the environment/cluster values file:
+Switching over looks like this in the environment/cluster values file:
 
 ```yaml
 vault:
   authentication: APPROLE
   appRole:
-    roleId: <role_id from the AppRole setup output>
+    roleId: <role_id from the AppRole setup workflow's output>
 ```
 
-The generated `secret-id` would be delivered as the Key Vault secret `VAULT-APPROLE-SECRET-ID`, synced into the `certificate-manager-secrets` Kubernetes secret by the CSI driver — the same mechanism already used for `VAULT-TOKEN` (see [Step3b: Configure Secrets](#step3b-configure-secrets)). `VaultAuthStartupValidator` fails the deployment fast if `authentication: APPROLE` is set but the role-id/secret-id are missing — another reason to keep `authentication: TOKEN` until the AppRole identity actually exists.
+The generated `secret-id` is delivered as the Key Vault secret `VAULT-APPROLE-SECRET-ID` (355-day expiry, to satisfy Key Vault's maximum-validity policy), synced into the `certificate-manager-secrets` Kubernetes secret by the CSI driver — the same mechanism already used for `VAULT-TOKEN` (see [Step3b: Configure Secrets](#step3b-configure-secrets)). `VaultAuthStartupValidator` fails the deployment fast if `authentication: APPROLE` is set but the role-id/secret-id are missing. **The AppRole secret-id does not expire** (`secret_id_ttl=0`) — re-run the setup workflow periodically to rotate it, then redeploy the Certificate Manager to pick up the refreshed value.
 
 ---
 
@@ -152,6 +152,8 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `vaultTruststore.secretName` | Pre-existing Kubernetes secret holding `truststore.jks` to trust Vault's HTTPS endpoint | `cert-manager-truststore` |
 | `existingSecret.name` | Use a pre-created Kubernetes secret instead of the chart-managed one (required when `keyvault.enabled: true`) | `certificate-manager-secrets` |
 
+> **Renamed from earlier releases.** The Key Vault secret backing the Vault-truststore password was previously `VAULT-TRUSTSTORE-PASSWORD`. It is now **`TRUSTSTORE-PASSWORD`** — dropping the `VAULT-` prefix to match the same universal, platform-wide truststore-password secret the Authentication Service now reads (see [Configure DPN Authentication Service, Step2](07-configure-dpn-authentication-service.md#step2-configure-secrets)). Rename or recreate this secret in Key Vault before deploying this chart version.
+
 ### Step3b: Configure Secrets
 
 #### Option A — Through Azure Key Vault (`keyvault.enabled: true`)
@@ -160,11 +162,12 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 
 | AKV Secret | Kubernetes secret / key | Purpose | Example (placeholder) |
 |------------|-------------------------|---------|-----------------------|
-| `VAULT-APPROLE-SECRET-ID` *(not yet available)* | `certificate-manager-secrets` / `vaultAppRoleSecretId` | AppRole secret-id for the Certificate Manager — would come from the AppRole-setup workflow once it exists; see [Step2](#step2-configure-vault-authentication) | `<generated secret-id>` |
-| `VAULT-TOKEN` *(use this today)* | `certificate-manager-secrets` / `vaultToken` | Root token of the DPN HashiCorp Vault (from Vault init) — required while `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
+| `VAULT-APPROLE-SECRET-ID` | `certificate-manager-secrets` / `vaultAppRoleSecretId` | AppRole secret-id for the Certificate Manager — from the AppRole-setup workflow; see [Step2](#step2-configure-vault-authentication) | `<generated secret-id>` |
+| `VAULT-TOKEN` | `certificate-manager-secrets` / `vaultToken` | Root token of the DPN HashiCorp Vault (from Vault init) — required while `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
 | `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `oauth2ClientSecret` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
+| `TRUSTSTORE-PASSWORD` | `certificate-manager-secrets` / `VAULT_SSL_TRUST_STORE_PASSWORD` and `OTEL_TRUSTSTORE_PASSWORD` | Password for `truststore.jks` — trusts Vault's HTTPS endpoint **and** the OTLP exporter's trust material (same file, same password, populated into both keys) | `<truststore password>` |
 
-> **Note:** `VAULT-TOKEN` is produced during Vault setup by the `dpn-vault-https-cd.yml` workflow's Vault Init step (`storeRootTokenInAkv: true`) — confirm it exists in Key Vault before deploying. `VAULT-APPROLE-SECRET-ID` is not produced by anything yet on this path (see [Step2](#step2-configure-vault-authentication)).
+> **Note:** `VAULT-TOKEN` is produced during Vault setup by the `dpn-vault-https-cd.yml` workflow's Vault Init step (`storeRootTokenInAkv: true`) — confirm it exists in Key Vault before deploying. `VAULT-APPROLE-SECRET-ID` is produced by `dpn-certificate-manager-role-id-creation.yml` (see [Step2](#step2-configure-vault-authentication)).
 
 #### Option B - Through Vault truststore (Kubernetes secret)
 

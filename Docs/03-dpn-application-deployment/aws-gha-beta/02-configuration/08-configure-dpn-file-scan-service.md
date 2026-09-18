@@ -41,6 +41,7 @@ The File Scan Service requires an IAM role (via IRSA — IAM Roles for Service A
 | `s3:PutObject` (as target of `CopyObject`) | `<outbound-bucket>/*` | Write the clean copy |
 | `s3:DeleteObject` | `<inbound-bucket>/*` | Remove the object from inbound once handled |
 | `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` | the scan-results SQS queue | Long-poll and acknowledge scan-result events |
+| `secretsmanager:GetSecretValue` | `arn:aws:secretsmanager:<region>:<account-id>:secret:<secretPrefix>/*` | Only required when `secretsManager.enabled: true` (see [Step5](#step5-configure-secrets)) — lets the AWS Secrets Store CSI driver read `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` for this ServiceAccount |
 
 No AWS access key/secret is configured directly — the container relies on the IRSA role attached to its ServiceAccount, falling back to boto3's default credential chain.
 
@@ -116,18 +117,32 @@ The following values to be modified in that file
 |---|---|
 | image:repository | `ghcr.io/energy-dsi/dpn-file-scan-service` |
 | image:tag | Image tag to deploy |
+| serviceAccount.create | Whether to create the IRSA ServiceAccount — set `true` on AWS | `true` |
+| serviceAccount.name | ServiceAccount name, also set as the Deployment's `serviceAccountName` | `dpn-file-scan-service` |
 | serviceAccount.irsaRoleArn | ARN of the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) |
-| region | AWS region the S3/SQS resources live in |
-| inboundBucket | S3 bucket GuardDuty scans |
-| outboundBucket | S3 bucket clean files are copied to |
-| sqsQueueUrl | The queue URL from [Step2](#step2-aws-resource-setup-snssqsguardduty) |
-| snsTopicArn | The topic ARN from [Step2](#step2-aws-resource-setup-snssqsguardduty) |
+| env.awsRegion | AWS region the S3/SQS resources live in |
+| env.sourceBucket | S3 bucket GuardDuty scans (inbound). Passed to the container as `S3_BUCKET_INBOUND` |
+| env.destBucket | S3 bucket clean files are copied to (outbound). Passed to the container as `S3_BUCKET_OUTBOUND` |
+| env.sqsQueueName | The **plain queue name** (not the queue URL) from [Step2](#step2-aws-resource-setup-snssqsguardduty) — the app resolves the URL itself via `boto3`'s `get_queue_url`. Passed to the container as `SQS_QUEUE` |
+
+> **Note:** there is no Helm value for the SNS topic ARN — the app only ever consumes from SQS; the SNS→SQS fan-out from [Step2](#step2-aws-resource-setup-snssqsguardduty) is wiring set up outside the application. `env.awsRegion`/`env.sourceBucket`/`env.destBucket`/`env.sqsQueueName` are AWS-only fields alongside the shared `env.*` block — leave them empty (their default) on Azure.
+>
+> Optionally, `env.truststorePath` gates whether the chart mounts the `dpn-tls` OTLP truststore volume at all — leave it unset for an environment with no `dpn-tls` secret provisioned.
 
 ---
 
 ## Step5: Configure Secrets
 
-Unlike the Azure path, this service does not need Key Vault-sourced AWS credentials — the IRSA role attached to its ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)) covers all S3/SQS access. `KEY_VAULT_NAME` is still referenced in the config JSON for other cross-cloud secrets the chart's OTel/observability wiring may need (see [Configure DPN Health Monitoring](02-configure-dpn-health-mon-service.md)) — no File Scan Service-specific secret needs to be created there.
+Unlike the Azure path, this service does not need Key Vault-sourced AWS credentials — the IRSA role attached to its ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)) covers all S3/SQS access. `KEY_VAULT_NAME` is still referenced in the config JSON for other cross-cloud secrets the chart's OTel/observability wiring may need (see [Configure DPN Health Monitoring](02-configure-dpn-health-mon-service.md)).
+
+The service's OAuth client credentials (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` — the same pair Azure sources from Key Vault) can now be sourced from **AWS Secrets Manager** instead, via the AWS Secrets Store CSI driver:
+
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| secretsManager.enabled | Use the AWS Secrets Store CSI driver instead of Key Vault | `true` |
+| secretsManager.secretPrefix | Secrets Manager path prefix holding `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` | `dpn/<environment>-<cluster>/file-scan-service` |
+
+When `secretsManager.enabled: true`, both `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` must already exist under `secretsManager.secretPrefix` before the first deploy, and the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) must additionally grant `secretsmanager:GetSecretValue` on that prefix. Leave `secretsManager.enabled: false` (the default) for an environment that isn't provisioned for this yet.
 
 ---
 

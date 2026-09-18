@@ -84,7 +84,7 @@ Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 | `cloud` | `aws` |
 | `vaultImageTag` | Release version or image tag to pull from GHCR — default `1.16` |
 | `runVaultInit` | Enable KV v2 + audit logging — default `true`, safe to re-run |
-| `storeRootTokenInAkv` | Store the Vault root token in Key Vault as `VAULT-TOKEN` — see [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
+| `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`; on Azure, `VAULT-TOKEN` in Key Vault. See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
 
 > **Prerequisite:** AWS KMS auto-unseal must already be configured — see [Configure DPN Vault Service, Step 1](../02-configuration/01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed) — otherwise this workflow's Vault Init step will fail against a sealed Vault.
 

@@ -16,6 +16,7 @@
 - [Step4: Troubleshooting](#step4-troubleshooting)
   - [No SQS Messages Ever Arrive](#no-sqs-messages-ever-arrive)
   - [AccessDenied on S3 Copy/Delete](#accessdenied-on-s3-copydelete)
+  - [AccessDenied Reading Secrets Manager](#accessdenied-reading-secrets-manager)
   - [Files Disappear From Inbound But Never Appear Outbound](#files-disappear-from-inbound-but-never-appear-outbound)
   - [Messages Received But Not Deleted, Queue Backs Up](#messages-received-but-not-deleted-queue-backs-up)
 - [Reference: Container Images Used](#reference-container-images-used)
@@ -37,6 +38,7 @@ The following prerequisites must be met.
 - The source (inbound) and destination (outbound) S3 buckets are provisioned
 - An EKS cluster reachable via the GitHub Actions OIDC federated credential (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role))
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount
+- If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/06-configure-dpn-file-scan-service.md#step5-configure-secrets)
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
@@ -131,6 +133,10 @@ GuardDuty Malware Protection plan not covering the upload prefix, or not wired t
 ### AccessDenied on S3 Copy/Delete
 
 IRSA role missing a required action, or bucket policy blocking access — confirm the role ARN is on the pod's ServiceAccount annotation and the IAM policy matches [Configure DPN File Scan Service, Step1](../02-configuration/06-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service).
+
+### AccessDenied Reading Secrets Manager
+
+If the pod fails to start with a Secrets Store CSI mount error, confirm `secretsManager.secretPrefix` matches where `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` actually live, and that the IRSA role has `secretsmanager:GetSecretValue` scoped to that prefix (see [Configure DPN File Scan Service, Step5](../02-configuration/06-configure-dpn-file-scan-service.md#step5-configure-secrets)).
 
 ### Files Disappear From Inbound But Never Appear Outbound
 
