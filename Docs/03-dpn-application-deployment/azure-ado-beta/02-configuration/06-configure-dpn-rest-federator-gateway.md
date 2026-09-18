@@ -11,6 +11,8 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
 ## Table of Contents
 
 - [Overview](#overview)
+- [Repository Components](#repository-components)
+  - [Running the reference demo](#running-the-reference-demo)
 - [REST Endpoint Behaviour and Release Scope](#rest-endpoint-behaviour-and-release-scope)
 - [Step1: Meet the Prerequisites](#step1-meet-the-prerequisites)
 - [Step2: Configure Secrets](#step2-configure-secrets)
@@ -43,6 +45,48 @@ On the consumer (client) side, an organisation imports the `rest-federator-clien
 | `rest-federator-client` | Importable library jar — not a deployed component. A consumer's own application depends on it |
 
 Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
+
+---
+
+## Repository Components
+
+The `dpn-rest-federator-gateway` repository is a Maven multi-module build (`mvn clean install` from the root builds everything, in dependency order) containing four distinct pieces. Only the first two are part of the actual DPN data path — the other two are an illustrative reference implementation, useful for testing a deployment end to end but not required by it.
+
+| Module (path in repo) | Artifact / release | Role |
+|---|---|---|
+| `server/` — `rest-federator-server` | Deployed container (`dpn-rest-federator`) | **The gateway itself** — the generic authorising reverse proxy described in [Overview](#overview). This is the only server-side piece a producer runs. |
+| `client/` — `rest-federator-client` | Importable library jar | The **consumer's** integration point — a participant imports this into their own application (it is never deployed as its own container) and gets mTLS, JWT, OCSP, Management Node bootstrap, and certificate hot-reload handled for it. See [Integrating a Consumer](#integrating-a-consumer). |
+| `demo/demo-runner-server/` — `demo-runner-server` | Deployed container, its own Helm chart (`dpn-demo-runner-server`) | **Example only — illustrative, not production.** A standalone Spring Boot backend implementing a subset of the MHHS FMAR specification (`GET/POST /api/v1/fmar/...`), sitting *behind* the gateway as its internal backend. Data is held in memory, not persisted. Terminates HTTPS with the same Vault-issued certificate the gateway uses (server-only TLS) and requires the shared backend API key on every call. |
+| `demo/demo-runner-client/` — `demo-runner-client` | One-shot Kubernetes Job, its own Helm chart (`dpn-demo-runner-client`) | **Example only.** A plain Java console application (no Spring) that imports `rest-federator-client` and drives a scripted call sequence against `demo-runner-server` *through* the gateway — register an asset, look it up, attempt a duplicate registration (expects `409`), and call a path deliberately outside the product's allowed-path configuration (expects `403`) — to demonstrate the gateway's authorisation working end to end. |
+
+`server` and `client` are the two sides of a federated exchange — the gateway is the sole authority on authorisation (consumer + method/path, from producer config); the client library only handles the plumbing and lets the integrator drive the calls. `demo-runner-server`/`demo-runner-client` are a worked example of exactly that shape, useful for validating a new environment's deployment without needing a second real organisation to test against.
+
+### Running the reference demo
+
+Deployed by its own pipeline, independent of the gateway's own CD pipeline:
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── demo-runner-cd.yml
+```
+
+The pipeline runs two independent stages — **Deploy_DemoRunnerServer** (a normal Deployment + Service) and **Run_DemoRunnerClient** (a one-shot Job; since a Job's pod spec is immutable, every run creates a *new* Job object suffixed with the build ID, rather than re-triggering an existing one).
+
+| Parameter | Description |
+|-----------|-------------|
+| `ServiceConnection` / `environment` / `cluster` | As with the gateway's own CD pipeline |
+| `imageTag` | Tag of the demo-runner images to deploy (a separate CI build from the gateway's own) |
+| `deployServer` / `runClient` | Booleans — run either stage independently, e.g. `runClient: true` with `deployServer: false` to re-run just the client against an already-deployed server |
+| `mpan`, `postcode`, `assetId`, `fspId` | Demo run parameters passed into the client Job's environment — the specific asset to register/look up on each run |
+
+`organisationName`/`productName` (which organisations/products the client targets) are **not** pipeline parameters — they're set in the `dpn-demo-runner-client` chart's own values file per environment (blank targets every subscribed product). Completed Jobs are kept for `ttlSecondsAfterFinished` (1h default) so their output can be read afterward:
+
+```bash
+kubectl logs job/dpn-demo-runner-client-<buildId> -n <namespace>
+```
 
 ---
 
