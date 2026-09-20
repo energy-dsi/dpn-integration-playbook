@@ -21,7 +21,7 @@ This page covers **configuration and deployment surface only** (Helm values, pip
 
 ## New Components
 
-Two components are entirely new in this release — every configuration item below is **Added**, not a change to something that existed in Release 1.0.0.
+Three components are entirely new in this release — every configuration item below is **Added**, not a change to something that existed in Release 1.0.0. Each ships its own image versioned independently of the DPN platform's `2.0.0` release number, starting at its own `1.0.0`.
 
 ### DPN Authentication Service (Keycloak)
 
@@ -37,7 +37,11 @@ New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the n
 | Added | `DSI DPN REST Producer` endpoint (`https://producer-rest01.dpn01.dsipreprod1.neso.energy`) | New pdev DSM endpoint for REST-based DPN-to-DPN data sharing, alongside the existing gRPC producer endpoint — see [Step1: DSI DSM Endpoint Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step1-dsi-dsm-endpoint-configuration) |
 | Action required | Firewall rules ([Step5: Network and Ports Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration)) | Participants deploying the REST Federator Gateway must open an outbound/bi-directional rule for `producer-rest01.dpn01.dsi(xxx).neso.energy` on TCP 443, in addition to the existing gRPC producer rule — the REST endpoint uses HTTP/1.1 and is compatible with a Layer 7 load balancer, unlike the gRPC endpoint |
 
-> **Note:** both new components (`dpn-authentication-service` and `dpn-rest-federator-gateway`) currently ship only through the ACR/Azure DevOps pipeline path — neither repository has a GitHub Actions / GHCR pipeline yet, so they are not part of the GHCR image list in the [Upgrade Checklist](#upgrade-checklist) below.
+### DPN Portal (Unified UI)
+
+New single landing page for every DPN component UI, in `dpn-health-monitoring-service`'s `charts/dpn-portal`. Published as `ghcr.io/energy-dsi/dpn-portal:1.0.0`, its first release — see [DPN Internal DNS Configuration](#dpn-internal-dns-configuration) below for how its UI links are configured, and the [GHCR upgrade checklist](#upgrade-checklist) for the image reference.
+
+> **Note:** all three new components currently have gaps in their GHCR delivery. `dpn-authentication-service` and `dpn-rest-federator-gateway` ship only through the ACR/Azure DevOps pipeline path — neither repository has a GitHub Actions / GHCR pipeline yet. `dpn-portal`'s chart still ships with `image.repository`/`image.tag` left blank and no build/push workflow exists yet in `dpn-health-monitoring-service` — confirm the `1.0.0` image has actually been published before relying on it.
 
 ---
 
@@ -174,7 +178,7 @@ Participants who deployed Release 1.0.0 through GHCR, they need to upgrade by pu
 
    **Health Monitoring Service Stack** — this entire GHCR-based deployment path is new in Release 2.0.0: Release 1.0.0's `dpn-health-monitoring-service` pulled these images directly from public registries (Docker Hub / Quay) rather than through `ghcr.io/energy-dsi` at all. Every image below is confirmed against `.pipelines/github-actions-pipelines/.../dpn-health-monitoring/charts/**` on `release-internal/2.0.0`:
 
-   | Component | Image | Confirmed 2.0.0 tag |
+   | Component | Image | Confirmed tag |
    |---|---|---|
    | Data Prepper | `ghcr.io/energy-dsi/data-prepper` | `2.6.0` |
    | Jaeger Collector | `ghcr.io/energy-dsi/jaeger-collector` | `1.57.0` |
@@ -190,16 +194,18 @@ Participants who deployed Release 1.0.0 through GHCR, they need to upgrade by pu
    | Kafka | `ghcr.io/energy-dsi/dpn-kafka` | `7.5.3` |
    | Kafka UI | `ghcr.io/energy-dsi/kafka-ui` | `v0.7.2` |
    | curl (OpenSearch init/utility jobs) | `ghcr.io/energy-dsi/curl` | `8.8.0` |
+   | DPN Portal (Unified UI) | `ghcr.io/energy-dsi/dpn-portal` | `1.0.0` — first-ever release, independent of the platform's `2.0.0` version |
 
    Two of these are genuine version changes, not just re-hosting to GHCR:
    - **nginx** moves from the public `nginx:1.27-alpine` (Release 1.0.0) to `ghcr.io/energy-dsi/nginx:1.25-alpine` — this is a *downgrade* in the underlying nginx minor version; confirm with the Health Monitoring Service team whether this is intentional before upgrading.
    - **Kafka UI** moves off the floating `provectuslabs/kafka-ui:latest` (Release 1.0.0) onto a pinned `ghcr.io/energy-dsi/kafka-ui:v0.7.2`, removing the reproducibility risk of a `:latest` tag.
 
-   > **DPN Portal (Unified UI) has no published image at all yet.** `charts/dpn-portal/values.yaml` deliberately ships with `image.repository`/`image.tag` left blank, and there is no `.github/workflows` build/push pipeline anywhere in `dpn-health-monitoring-service` for it. Until DSI publishes one, organisations must build and push the Portal image themselves from `app/dpn-portal/Dockerfile`.
+   > **DPN Portal (Unified UI) is a brand-new image, published for the first time as `1.0.0`** — its own independent versioning, not tied to the DPN platform's `2.0.0` release number (the same pattern as the DPN Authentication Service and REST Federator Gateway). As of this validation, `charts/dpn-portal/values.yaml` still ships with `image.repository`/`image.tag` left blank and no `.github/workflows` build/push pipeline exists yet in `dpn-health-monitoring-service` — set `image.repository: ghcr.io/energy-dsi/dpn-portal` and `image.tag: "1.0.0"` once that first image is published, and confirm the actual published tag against the pipeline output before pulling.
 
    ```bash
    docker pull ghcr.io/energy-dsi/dpn-federator-server:2.0.0
    docker pull ghcr.io/energy-dsi/dpn-federator-client:2.0.0
+   docker pull ghcr.io/energy-dsi/dpn-portal:1.0.0
    docker pull ghcr.io/energy-dsi/data-prepper:2.6.0
    docker pull ghcr.io/energy-dsi/jaeger-collector:1.57.0
    docker pull ghcr.io/energy-dsi/jaeger-query:1.57.0
