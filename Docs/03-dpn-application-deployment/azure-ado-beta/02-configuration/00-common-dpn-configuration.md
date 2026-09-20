@@ -17,6 +17,7 @@
   - [Step4: Certificate Configuration](#step4-certificate-configuration)
   - [Step5: Network and Ports Configuration](#step5-network-and-ports-configuration)
   - [Step6: DPN Internal Domain Naming (DNS) Configuration](#step6-dpn-internal-domain-naming-dns-configuration)
+  - [Step7: DPN Secrets Reference](#step7-dpn-secrets-reference)
 - [Review Notes](#review-notes)
 
 ---
@@ -199,10 +200,10 @@ Sensitive credentials must **not be stored in source code repositories**. They m
 - **HashiCorp Vault** — provided with the DSI DPN package
 - **Azure Key Vault** — cloud-specific option for organisations using Azure
 
-Organisations **must change the default values of secrets** — i.e. sample values such as `changeit`, `admin-password`, `admin-admin`, etc.
+Organisations **must change the default values of secrets** — i.e. sample values such as `changeit`, `admin-password`, `admin-admin`, etc. Two specific placeholders to check before going live: the Certificate Manager's `dpn-tls-cd` pipeline defaults `keystorePassword`/`truststorePassword`/`clientP12Password` to the literal `changeit` unless overridden at run time, and the Health Monitoring Service's `charts/thanos/objstore.yaml` ships a literal `SAS-Token` placeholder that must be replaced with a real Azure Storage SAS token.
 
 Organisations should rotate secrets at defined frequencies.
-The secrets are described in the individual component sections of this document that follow.
+The secrets are described in the individual component sections of this document that follow, and consolidated in full in [Step7: DPN Secrets Reference](#step7-dpn-secrets-reference) below.
 
 ---
 
@@ -270,8 +271,6 @@ The two AKS namespaces that host DPN UIs are `ns-dpn-01` and `ns-dpn-health-01` 
 
 `dpn-observability` is a single static internal Load Balancer address in `ns-dpn-health-01` shared by all four Keycloak-fronted UIs above (OpenSearch, Jaeger, Perses, and the Portal itself) — each one takes the port its UI already used, so only the scheme changes (`http` → `https`) and the login changes from basic auth to Keycloak SSO.
 
-> **Note:** This requires **client-side DNS** — browsers never resolve through the cluster's internal `kube-dns`, so both `dpn-observability.ns-dpn-health-01.svc.cluster.local` and `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` must be published in the organisation's own VNet or corporate DNS, resolving to the respective service's static Load Balancer IP. An Azure Private DNS zone for `svc.cluster.local` linked to the VNet, with an A record for each of the two names above, is the standard way to do this. The CD pipeline cannot verify this step — it resolves through `kube-dns` like any other pod, which says nothing about a client machine's resolution — so confirm resolution from a client machine before going live.
-
 #### Using your own DNS instead of the `*.svc.cluster.local` names
 
 Organisations that prefer their own corporate hostnames instead of the Kubernetes-style `*.svc.cluster.local` names above can do so, but this is **not** a DNS-only change — the TLS certificate and every Keycloak client registration are bound to the current names:
@@ -281,6 +280,57 @@ Organisations that prefer their own corporate hostnames instead of the Kubernete
 3. **Re-register the new hostnames as Keycloak redirect URIs and Web Origins** on the shared `dpn-service-client` client in the `dpn-realm` realm. Keycloak matches redirect URIs and origins **exactly**; a login attempt against a hostname that isn't registered fails with `invalid_redirect_uri`.
 4. **Point your own DNS zone at the same static internal Load Balancer IPs** already provisioned for `dpn-observability` and `dpn-keycloak-service-lb` (or provision your own if you also change the Load Balancer configuration).
 5. **Re-run the CD pipelines** for the DPN Portal / Observability UIs and Keycloak (Authentication Service) so the updated values, certificate, and realm configuration are applied together — a partial update (e.g. new DNS record but unregistered redirect URI) will break login for that UI.
+
+---
+
+### Step7: DPN Secrets Reference
+
+This section consolidates every secret used across the DPN platform, compiled from the `release-internal/2.0.0` branch of each component repository (`release-internal/1.0.0` for `dpn-authentication-service` and `dpn-rest-federator-gateway`, which have not yet cut a `2.0.0` branch). Each secret is either synced from **Azure Key Vault** into a Kubernetes `Secret` via a `SecretProviderClass` (CSI driver), mounted directly as a CSI file with no Kubernetes `Secret` object, or created natively in Kubernetes with no Key Vault backing at all.
+
+#### Platform-wide shared secrets
+
+A small number of Kubernetes Secrets are written once by one component and then read directly, by name, from several other components — rather than every component re-syncing its own copy from Key Vault.
+
+| Kubernetes Secret | Key(s) | Backing Key Vault Secret | Purpose | Namespace(s) | Consumed by |
+|---|---|---|---|---|---|
+| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD` | Canonical keystore/truststore/mTLS-client-cert passwords, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Certificate Manager, Federator Gateway, REST Federator Gateway, File Scan Service, Health Monitoring Service (Kafka UI, Data Prepper) |
+| `certificate-manager-secrets` | `VAULT_TOKEN`, `VAULT_APPROLE_SECRET_ID` | `VAULT-TOKEN`, `VAULT-APPROLE-SECRET-ID` | Vault credentials for PKI/mTLS bootstrap | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` | `KC-SERVICE-CLIENT-SECRET` (set manually — see note below), `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD` | `dpn-service-client` OIDC client secret, plus Keycloak's own admin and database passwords | ns-dpn-01 | Authentication Service (Keycloak), Data Pipelines (Airflow SSO + Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
+| `dpn-keycloak-shared-akv` | `client-secret` | `KC-SERVICE-CLIENT-SECRET` (same Key Vault object as above, independently synced) | Same `dpn-service-client` secret, a separate copy synced into the health-monitoring namespace | ns-dpn-health-01 | Health Monitoring Service's `oauth2-proxy` releases (Portal, OpenSearch, Jaeger, Perses) and Kafka UI OIDC RBAC |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a Key Vault secret | Universal DPN server TLS identity | ns-dpn-01, ns-dpn-health-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis, Airflow |
+| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+
+> **Note:** `dpn-keycloak-secrets` (ns-dpn-01) and `dpn-keycloak-shared-akv` (ns-dpn-health-01) both carry the same underlying `KC-SERVICE-CLIENT-SECRET` Key Vault value, but are two independently-synced Kubernetes Secret objects in two different namespaces — a rotation of `KC-SERVICE-CLIENT-SECRET` in Key Vault must be followed by re-running the CD pipeline for **both** namespaces, or the two copies will drift apart and one set of UIs will fail to log in.
+
+#### Per-component secrets
+
+| Component (repository / chart) | Key Vault Secret (AKV objectName) | Kubernetes Secret / Key | Purpose |
+|---|---|---|---|
+| DPN Authentication Service (`dpn-authentication-service`, `charts/keycloak`) | `KC-DB-PASSWORD` | `keycloak-secrets` / `KC_DB_PASSWORD` | Keycloak's own Postgres database password |
+| DPN Authentication Service | `KEYCLOAK-ADMIN-PASSWORD` | `keycloak-secrets` / `KEYCLOAK_ADMIN_PASSWORD` | Keycloak bootstrap admin password |
+| DPN Authentication Service | `KC-HTTPS-KEY-STORE-PASSWORD`, `KC-HTTPS-TRUST-STORE-PASSWORD` | `keycloak-secrets` / `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD` | Keycloak's own HTTPS keystore/truststore passwords — **these are the platform's retired pre-`tls-auth-secret` naming scheme (see Certificate Manager row below); verify with the Authentication Service team whether this chart has been migrated to read `tls-auth-secret` like every other component** |
+| DPN Vault Service / Certificate Manager (`dpn-federator-certificate-manager`) | `VAULT-TOKEN` | `certificate-manager-secrets` / `VAULT_TOKEN` | Vault root/admin token (used when `vault.authentication: TOKEN`) |
+| DPN Vault Service / Certificate Manager | `VAULT-APPROLE-SECRET-ID` | `certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID` | Vault AppRole secret-id (used when `vault.authentication: APPROLE`, the chart default); rotated by the `vault-approle-setup-cd` pipeline, 355-day Key Vault expiry |
+| DPN Vault Service (`charts/vault-https`) | `VAULT-TLS-CERT`, `VAULT-TLS-KEY` | CSI file mount only — no Kubernetes `Secret` object | Vault's own HTTPS server certificate and private key |
+| DPN Certificate Manager (platform-wide, via `dpn-tls-cd` pipeline) | `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD` | `tls-auth-secret` / `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | See [Platform-wide shared secrets](#platform-wide-shared-secrets) above — defaults to the literal `changeit` unless the pipeline's `keystorePassword`/`truststorePassword`/`clientP12Password` parameters are overridden |
+| DPN Federator Gateway (`dpn-federator-gateway`, `charts/dpn-platform`) | `CLIENT-STORAGE-CONNECTION-STRING` | `federator-client-secrets` / `STORAGE_CONNECTION_STRING` | Azure Blob connection string for federator client-side storage |
+| DPN Federator Gateway | `STORAGE-CONNECTION-STRING` | `federator-server-secrets` / `STORAGE_CONNECTION_STRING` | Azure Blob connection string for federator server-side storage |
+| DPN REST Federator Gateway (`dpn-rest-federator-gateway`, `charts/dpn-rest-federator`) | `BACKEND-API-KEY` (optional — `keyvault.enabled: false` by default) | `dpn-rest-federator-server-secrets` / `BACKEND_API_KEY` | Backend API key the REST federator server presents to the origin/backend API |
+| DPN REST Federator Gateway | n/a — pre-existing Secret, not Key-Vault-synced by this chart | `dpn-backend-api-key` (default name) / `apiKey` | Same backend API key, referenced directly by name by the REST Federator Server and Demo Runner Server/Client |
+| DPN File Scan Service (`dpn-file-scan-service`, `charts/file-scan-service`) | `FILESCAN-CLIENT-ID`, `FILESCAN-CLIENT-SECRET` | CSI file mount only — no Kubernetes `Secret` object | Azure Service Bus / event-grid client credentials for publishing scan results |
+| DPN File Scan Service | `FILESCAN-OTEL-TRUSTSTORE` (base64-encoded) | CSI file mount only — no Kubernetes `Secret` object | OTel exporter truststore file, new in Release 2.0.0 |
+| DPN Data Pipelines (`dpn-data-pipelines`, `charts/airflow`) | `fernetKey` *(non-standard naming — see note below)* | `dpn-airflow-secrets` / `FERNET_KEY` | Airflow metadata database field-encryption key |
+| DPN Data Pipelines | `webSecretKey` *(non-standard naming)* | `dpn-airflow-secrets` / `WEB_SECRET_KEY` | Airflow webserver Flask session signing key |
+| DPN Data Pipelines | `airPostgresPassword` *(non-standard naming)* | `dpn-airflow-secrets` / `POSTGRES_PASSWORD` | Airflow's own Postgres database password |
+| DPN Data Pipelines | `AIRFLOW-ADMIN-PASSWORD` | `dpn-airflow-secrets` / `AIRFLOW_ADMIN_PASSWORD` | Airflow UI admin user bootstrap password |
+| DPN Health Monitoring Service (`dpn-health-monitoring-service`, `charts/oauth2-proxy` / `charts/kafka-stack`) | `KC-SERVICE-CLIENT-SECRET` | `dpn-keycloak-shared-akv` / `client-secret` | See [Platform-wide shared secrets](#platform-wide-shared-secrets) above |
+| DPN Health Monitoring Service (`charts/opensearch`) | `KC-OPENSEARCH-ADMIN-PASSWORD` | `dpn-opensearch-health-oidc-secrets` / `admin-password` | OpenSearch internal `admin` user password |
+| DPN Health Monitoring Service | `KC-OPENSEARCH-KIBANASERVER-PASSWORD` | `dpn-opensearch-health-oidc-secrets` / `kibanaserver-password` | OpenSearch Dashboards service-account password |
+| DPN Health Monitoring Service | `KC-OPENSEARCH-DATAWRITER-PASSWORD` | `dpn-opensearch-health-oidc-secrets` / `datawriter-password` | OpenSearch write-role password, also consumed by Data Prepper's sinks and by Jaeger (`ES_PASSWORD`) |
+| DPN Health Monitoring Service (`charts/oauth2-proxy`) | n/a — chart-generated, deliberately never in Key Vault | `<release>-cookie-secret` / `cookie-secret` | AES key each `oauth2-proxy` release uses to encrypt session cookies; auto-generated once and preserved across `helm upgrade` |
+| DPN Health Monitoring Service (`charts/thanos`) | n/a — hardcoded in `objstore.yaml`, not Key-Vault-backed | n/a | Azure Blob object-store connection string for Thanos — **ships with a literal `SAS-Token` placeholder that must be replaced before use** |
+
+> **Naming inconsistency to be aware of:** three of `dpn-data-pipelines`' four Key Vault object names (`fernetKey`, `webSecretKey`, `airPostgresPassword`) are lowerCamelCase and hardcoded directly in the chart template, unlike the `UPPER-KEBAB-CASE` convention every other component uses (`VAULT-TOKEN`, `KC-DB-PASSWORD`, etc.). They are not exposed as overridable Helm values. Flagged here for awareness; consider raising with the Data Pipelines team to align naming in a future release.
 
 ---
 
