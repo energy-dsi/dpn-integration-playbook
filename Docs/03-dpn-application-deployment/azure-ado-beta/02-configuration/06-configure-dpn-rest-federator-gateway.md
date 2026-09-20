@@ -105,8 +105,7 @@ This release delivers **endpoint registration, method-listing, GET/POST proxying
 
 > **One-time connection reuse.** The `rest-federator-client` library builds one mTLS-enabled HTTP client per subscribed product when it starts up, and reuses that same client for the life of the process — it is rebuilt only on certificate rotation (via a file watcher), never per request. There is no separate "sharing agreement" record: a consumer's authorisation to connect is enforced by its membership in that product's consumer list, which the gateway fetches dynamically from the Management Node — this list **is** the technical sharing agreement check for REST.
 
-> **Automatic pickup of new REST products.** The gateway re-fetches its producer/consumer configuration from the Management Node on a short TTL (`restFederatorServer.managementNode.cacheTtlSeconds`, default 60s) rather than only at start-up — so a newly-published REST product becomes reachable over an already-established connection with no gateway reconfiguration or restart. This release does **not** yet track a received version ID or timestamp for each update (no such field or storage exists); that bookkeeping, and the broader Data Product versioning design for REST, is deferred to PI5 (tracked separately as an enabler).
-
+> **Automatic pickup of new REST products.** The gateway re-fetches its producer/consumer configuration from the Management Node on a short TTL (`restFederatorServer.managementNode.cacheTtlSeconds`, default 60s) rather than only at start-up — so a newly-published REST product becomes reachable over an already-established connection with no gateway reconfiguration or restart. 
 ---
 
 ## Step1: Meet the Prerequisites
@@ -155,10 +154,9 @@ Root-Repository
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `restFederatorServer.tls.enabled` | Whether this listener terminates HTTPS itself | `true` |
-| `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate. Off by default so the gateway can sit behind infrastructure that cannot present one (e.g. health probes) | `false` |
-| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `http://<backend-service>:8080` |
-| `restFederatorServer.producerId` | This producer's identifier, as registered with the Management Node | `<producer-id>` |
-| `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` |
+| `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate | `true` - **Note** - Set this value to false when the mTLS is negotiated over Edge proxy or at layer 7 load balancer |
+| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:<port-number>` |
+| `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` where XXX is based on DSI environment |
 | `restFederatorServer.idp.clientId` / `jwksUrl` / `tokenUrl` | Identity Provider client ID and endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
 | `restFederatorServer.redis.host` / `port` | Points at this chart's own `dpn-redis` release | `dpn-rest-federator-redis` / `6379` |
 
@@ -171,10 +169,6 @@ Root-Repository
 | `restFederatorServer.vault.appRole.useSecretIdRef` | Source the AppRole `secret-id` from a Kubernetes Secret (`certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID`) rather than a plaintext value | `true` |
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
-
-> **No DSI-provided AppRole automation exists yet for this component.** Unlike the Certificate Manager (automated pipeline) and the Federator Gateway (a manual script shipped in that repo), the `dpn-rest-federator-gateway` repository ships no Vault policy file or setup script at all — the chart above accepts AppRole values, but there is nothing to run to actually provision the role in Vault. An organisation using `authMethod: approle` for this component must author its own policy (the `pki-client/*` read/list shape used by the other two components is a reasonable starting point) and create the AppRole role directly, following the same manual pattern described for the Federator Gateway. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
-
-> As with the gRPC Federator, `vault.tlsEnabled: true` is what removes the need for a shared file share — the gateway reads its TLS material straight from Vault. The TLS bundle is written to a short-lived, ephemeral-password file on disk at start-up (a JVM-managed temp location, not a mounted volume) rather than being applied purely in memory, and is rewritten on the same schedule as `vault.tls.reload.interval.seconds` (default 3600s) — hot-swapped with no pod restart. No configuration keys changed for this; it is the same `vault.tls*` settings above, just delivered through a more reliable mechanism.
 
 ### Step3c: Configure Autoscaling
 
@@ -240,12 +234,12 @@ ProductKey orgB = new ProductKey("Org B", "Data Product X");
 String body = client.get(orgB, "/api/v1/things?id=42", Map.of());
 ```
 
-See the `dpn-rest-federator-gateway` repository's `demo/demo-runner-client` for a complete worked example, including the expected `403` behaviour when a path falls outside a product's allowed-path configuration.
+See the `dpn-rest-federator-gateway` repository's `demo/demo-runner-client` for a complete worked example, including the different result behaviour with both success and failure examples
 
 ---
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
