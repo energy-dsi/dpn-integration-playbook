@@ -51,7 +51,7 @@ In addition to the common keys, this repository's `config/<env>-<cluster>.json` 
 
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|
-| `OBSERVABILITY_LB_IP` | Fixed internal load-balancer IP for this environment's Prometheus and Thanos Query services | `10.226.121.10` |
+| `OBSERVABILITY_LB_IP` | Fixed internal load-balancer IP for this environment's Prometheus and Thanos Query services | `10.XXX.XXX.10` |
 
 > **Why this is required per environment.** Prometheus's and Thanos Query's own chart values hardcode the same `loadBalancerIP` as a placeholder default. The CD pipeline overrides both from `OBSERVABILITY_LB_IP` at deploy time — leaving it unset in a given environment's config risks that environment colliding with another on the same fixed IP, or the deployment hanging on `helm --wait` if the requested IP is already claimed elsewhere on the network.
 
@@ -81,6 +81,7 @@ DPN Health Monitoring requires the following Kubernetes secrets to be created fo
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
