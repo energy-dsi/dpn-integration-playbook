@@ -14,6 +14,7 @@ This page covers **configuration and deployment surface only** (Helm values, pip
 - [DPN Federator Gateway](#dpn-federator-gateway)
 - [DPN File Scan Service](#dpn-file-scan-service)
 - [DPN Observability UIs](#dpn-observability-uis)
+- [DPN Internal DNS Configuration](#dpn-internal-dns-configuration)
 - [Upgrade Checklist](#upgrade-checklist)
 
 ---
@@ -30,6 +31,11 @@ New shared OAuth2/OIDC Identity Provider. See [Configure DPN Authentication Serv
 ### DPN REST Federator Gateway
 
 New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the new repository `dpn-rest-federator-gateway`. See [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md).
+
+| Change | Item | Details |
+|--------|------|---------|
+| Added | `DSI DPN REST Producer` endpoint (`https://producer-rest01.dpn01.dsipreprod1.neso.energy`) | New pdev DSM endpoint for REST-based DPN-to-DPN data sharing, alongside the existing gRPC producer endpoint — see [Step1: DSI DSM Endpoint Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step1-dsi-dsm-endpoint-configuration) |
+| Action required | Firewall rules ([Step5: Network and Ports Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration)) | Participants deploying the REST Federator Gateway must open an outbound/bi-directional rule for `producer-rest01.dpn01.dsi(xxx).neso.energy` on TCP 443, in addition to the existing gRPC producer rule — the REST endpoint uses HTTP/1.1 and is compatible with a Layer 7 load balancer, unlike the gRPC endpoint |
 
 > **Note:** both new components (`dpn-authentication-service` and `dpn-rest-federator-gateway`) currently ship only through the ACR/Azure DevOps pipeline path — neither repository has a GitHub Actions / GHCR pipeline yet, so they are not part of the GHCR image list in the [Upgrade Checklist](#upgrade-checklist) below.
 
@@ -91,8 +97,6 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 | Modified | `certificate-manager-secrets` contents | Now carries either the AppRole `secret-id` or the root token, instead of always the root token |
 | Added | `redis.tls.enabled` (default `true`), `redis.truststore.path` | Redis is now TLS-only (server-auth) by default in every environment, reusing the existing `dpn-tls` certificate — see [Step3e](../03-dpn-application-deployment/azure-ado-beta/02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-redis-security). Health probes moved from a `redis-cli ping` exec check to a `tcpSocket` check |
 
-> `redis.username`/`redis.password` remain unchanged, blank placeholders in both Release 1.0.0 and 2.0.0 — Redis ACL authentication was never enabled in either release; there is nothing to remove here.
->
 > **Note** the REST Federator Gateway uses its own separate Redis cache (`dpn-redis`) and it has no TLS yet. Authenticated Redis is to be added in a future release.
 
 ---
@@ -130,6 +134,17 @@ See [DPN Portal Operations](../05-dpn-user-interfaces/08-dpn-portal-ui-operation
 
 ---
 
+## DPN Internal DNS Configuration
+
+New in this release: a consistent internal domain naming strategy for every DPN user interface, based on Kubernetes Service DNS (`<service>.<namespace>.svc.cluster.local`) rather than per-UI ingress hostnames or IP addresses, configured centrally through the DPN Portal (Unified UI) service.
+
+| Change | Item | Details |
+|--------|------|---------|
+| Added | DPN internal DNS naming reference table, one row per UI component | See [Step6: DPN Internal Domain Naming (DNS) Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step6-dpn-internal-domain-naming-dns-configuration) for the full component-by-component DNS table and required client-side DNS setup |
+| Added | Guidance for organisations wanting to use their own corporate DNS instead of the `*.svc.cluster.local` names | Same section — covers the certificate SAN, `externalUrl`, and Keycloak redirect URI changes required; this is not a DNS-only change |
+
+---
+
 ## Upgrade Checklist
 
 For an organisation moving from Release 1.0.0:
@@ -140,6 +155,8 @@ For an organisation moving from Release 1.0.0:
 4. **Optional new components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need Keycloak-backed Kafka/UI authentication or a REST-based integration pattern — neither is required to keep an existing Release 1.0.0 deployment running. Both are currently deployed via the ACR/Azure DevOps pipeline path only; there is no GHCR pipeline for either yet.
 5. **File Scan Service**: no action for Azure deployments. The AWS/GuardDuty code path exists in the application but is **not yet available as a deployable Helm chart or CD pipeline** in `dpn-file-scan-service` — confirm current availability with the File Scan Service team before planning an AWS rollout against this release.
 6. **Observability UIs**: if you front these with your own reverse proxy or bookmark direct URLs, update them to the new HTTPS addresses and expect a Keycloak login in place of HTTP Basic Auth.
+7. **Internal DNS**: publish `dpn-observability.ns-dpn-health-01.svc.cluster.local` and `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` in your VNet/corporate DNS, resolving to their static internal Load Balancer IPs, before rolling out the DPN Portal or any Keycloak-fronted UI — see [Step6: DPN Internal Domain Naming (DNS) Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step6-dpn-internal-domain-naming-dns-configuration). If you plan to use your own corporate hostnames instead, follow the certificate/`externalUrl`/Keycloak redirect URI steps in that section rather than only adding a DNS record.
+8. **REST Federator Gateway firewall rule**: if deploying the REST Federator Gateway, open the new `producer-rest01.dpn01.dsi(xxx).neso.energy` endpoint on TCP 443 in addition to the existing gRPC producer rule — see [Step5: Network and Ports Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration).
 
 ### Upgrading a GHCR-based (GitHub Actions) deployment from 1.0.0 to 2.0.0
 
