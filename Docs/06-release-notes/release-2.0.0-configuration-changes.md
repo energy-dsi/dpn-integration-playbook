@@ -97,8 +97,6 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 | Modified | `certificate-manager-secrets` contents | Now carries either the AppRole `secret-id` or the root token, instead of always the root token |
 | Added | `redis.tls.enabled` (default `true`), `redis.truststore.path` | Redis is now TLS-only (server-auth) by default in every environment, reusing the existing `dpn-tls` certificate — see [Step3e](../03-dpn-application-deployment/azure-ado-beta/02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-redis-security). Health probes moved from a `redis-cli ping` exec check to a `tcpSocket` check |
 
-> **Note** the REST Federator Gateway uses its own separate Redis cache (`dpn-redis`) and it has no TLS yet. Authenticated Redis is to be added in a future release.
-
 ---
 
 ## DPN File Scan Service
@@ -111,10 +109,6 @@ See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado
 | Added (application code only — **not yet wired into the Helm chart**) | `AWS_REGION`, `S3_BUCKET_INBOUND`, `S3_BUCKET_OUTBOUND`, `SQS_QUEUE`, `SNS_TOPIC`, `S3_BUCKET_QUARANTINE`, `SQS_ENDPOINT`, `SNS_ENDPOINT` | AWS-specific configuration read by `app/config/settings.py` and `app/providers/aws/*.py`, parallel to the existing Azure settings |
 | Added | `env.otelExporterCertificate`, `env.truststorePath`, `env.otelTlsSecretName` (default `dpn-tls`), `FILESCAN-OTEL-TRUSTSTORE` Key Vault secret | TLS to the OTel Collector, mounted via a new `dpn-tls` secret volume |
 | Modified | `OTEL_ENDPOINT` → `OTEL_EXPORTER_OTLP_ENDPOINT` | Renamed; `env.otelExporterInsecure` removed as part of the same change |
-
-> **Verification note:** every `values-*.yaml` in `charts/file-scan-service` currently sets `env.cloudprovidertype: "AZURE"`, and there is no `values-aws-*.yaml`, no `aws-gha-beta` pipeline folder, and no IRSA ServiceAccount annotation anywhere in the `dpn-file-scan-service` repository as of this validation. The AWS/GuardDuty environment variables above exist only in application code, not in the Helm chart or CD pipeline — **the AWS deployment path described in [Configure DPN File Scan Service (AWS)](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/08-configure-dpn-file-scan-service.md) is not yet chart-deployable from this repository's current `release-internal/2.0.0` branch.** Confirm with the File Scan Service team whether the AWS chart/pipeline work is tracked separately before advertising it as available in this release.
->
-> No changes to the existing Azure Defender for Storage configuration.
 
 ---
 
@@ -129,8 +123,6 @@ See [DPN Portal Operations](../05-dpn-user-interfaces/08-dpn-portal-ui-operation
 | Modified | Kafka Health UI, OpenSearch Dashboards, Jaeger access URL | Changed from `http://<host>:<port>` with HTTP Basic Auth (nginx) to `https://dpn-observability...:<port>` gated by Keycloak SSO via an `oauth2-proxy` sidecar |
 | Modified | Kafka UI, Apache Airflow authentication | Moved from HTTP Basic Auth (nginx) directly to **native** Keycloak OIDC login (no `oauth2-proxy` hop). Keycloak realm roles map to each application's own RBAC: for Kafka UI this is configured in the **DPN Federator Gateway** repository (`kafkaUI.oidcRbac.*`, see that component's table above), `dpnadmin`/`dpnreader` → full/view-only. For Airflow (`charts/airflow/webserver_config.py`, `AUTH_ROLES_MAPPING`) it is `dpnadmin` → `Op`, `dpnreader` → `Viewer`, and a third role, `dpnoperator` → `DagOperator` |
 | Modified | Data pipeline OTLP telemetry endpoint | The `OTEL_EXPORTER_OTLP_INSECURE` value itself is not new — it existed (hardcoded `true`) per-blueprint in Release 1.0.0 (e.g. `dpn-data-pipelines/blueprints/**/charts/values.yaml`, not the Airflow chart). What changed in Release 2.0.0: the value flips to `false`, the endpoint port moves from `:4317` to `:4318`, and the `OTEL_EXPORTER_OTLP_PROTOCOL: grpc` line is removed entirely from those same per-blueprint `values.yaml` files |
-
-> **Note:** the Federator Client JobRunr dashboard (`:8085`) remains plain HTTP by default. Keycloak-gated HTTPS scaffolding (`federatorClient.auth.*`, see the Federator Gateway table above) already ships in this release but is **disabled by default** — set `federatorClient.auth.enabled: true` to turn it on rather than waiting for a future release.
 
 ---
 
@@ -151,16 +143,16 @@ For an organisation moving from Release 1.0.0:
 
 1. **Vault**: no mandatory action — root token continues to work. `vault.uri`, `vault.pkiMount`, and `vault.secretPath` are unchanged from Release 1.0.0. Optionally migrate to AppRole and switch `vault.authentication`/`vaultConfig.authMethod` to `APPROLE` (a `KUBERNETES` option also now exists): run `vault-approle-setup-cd` for the Certificate Manager, or run the Federator Gateway's own `vault/setup-approle.sh` manually (no pipeline exists for it yet) — see [Configure DPN Vault Service, Step 3D](../03-dpn-application-deployment/azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
 2. **Certificate Manager**: remove any `fileShare.*`/`certDest.*`/`mtls.*` overrides, and any `secrets.oauth2ClientSecret` override, from your `values-<env>.yaml` — they no longer exist in the chart. The `azure-fileshare-secret` and its PV/PVC can be decommissioned once you've confirmed the new deployment is healthy.
-3. **Federator Gateway**: remove any file-share-related overrides once you've moved fully to Vault (`vaultConfig.mountCertFileShare` defaults to `true` for backward compatibility — set it to `false` explicitly when ready). Decide on `kafka.authMode` — set to `sasl_ssl` and populate the new per-broker `kafkaSrc.oauth.*`/`kafkaTarget.oauth.*` and `kafkaSrc.tls.*`/`kafkaTarget.tls.*` settings if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so. `redis.username`/`redis.password` were never populated in either release and need no action; Redis TLS (`redis.tls.enabled`) is on by default and needs no new secret, since it reuses the existing `dpn-tls` certificate. If you relied on the demo `kafkaTopicCreator`/`kafkaTopicPopulator` jobs, recreate that behaviour yourself — they have been removed from the chart.
-4. **Optional new components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need Keycloak-backed Kafka/UI authentication or a REST-based integration pattern — neither is required to keep an existing Release 1.0.0 deployment running. Both are currently deployed via the ACR/Azure DevOps pipeline path only; there is no GHCR pipeline for either yet.
-5. **File Scan Service**: no action for Azure deployments. The AWS/GuardDuty code path exists in the application but is **not yet available as a deployable Helm chart or CD pipeline** in `dpn-file-scan-service` — confirm current availability with the File Scan Service team before planning an AWS rollout against this release.
-6. **Observability UIs**: if you front these with your own reverse proxy or bookmark direct URLs, update them to the new HTTPS addresses and expect a Keycloak login in place of HTTP Basic Auth.
+3. **Federator Gateway**: remove any file-share-related overrides once you've moved fully to Vault (`vaultConfig.mountCertFileShare` defaults to `true` for backward compatibility — set it to `false` explicitly when ready). Decide on `kafka.authMode` — set to `sasl_ssl` and populate the new per-broker `kafkaSrc.oauth.*`/`kafkaTarget.oauth.*` and `kafkaSrc.tls.*`/`kafkaTarget.tls.*` settings if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so as it has a dependency.
+4. **New components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need a REST-based integration pattern
+5. **File Scan Service**: no action for Azure deployments. The AWS/GuardDuty code path exists is added in the application and to be deployed via GitHub Actions in ADO
+6. **Observability UIs**: New HTTPS addresses and a Keycloak login in place of HTTP Basic Auth.
 7. **Internal DNS**: publish `dpn-observability.ns-dpn-health-01.svc.cluster.local` and `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` in your VNet/corporate DNS, resolving to their static internal Load Balancer IPs, before rolling out the DPN Portal or any Keycloak-fronted UI — see [Step6: DPN Internal Domain Naming (DNS) Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step6-dpn-internal-domain-naming-dns-configuration). If you plan to use your own corporate hostnames instead, follow the certificate/`externalUrl`/Keycloak redirect URI steps in that section rather than only adding a DNS record.
 8. **REST Federator Gateway firewall rule**: if deploying the REST Federator Gateway, open the new `producer-rest01.dpn01.dsi(xxx).neso.energy` endpoint on TCP 443 in addition to the existing gRPC producer rule — see [Step5: Network and Ports Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration).
 
-### Upgrading a GHCR-based (GitHub Actions) deployment from 1.0.0 to 2.0.0
+### Upgrading a GHCR-based deployment from 1.0.0 to 2.0.0
 
-Participants who deployed Release 1.0.0 through the `azure-gha-beta`/`aws-gha-beta` (GitHub Actions + GHCR) pipeline path — rather than the ACR/Azure DevOps path — upgrade by pulling the newer images from `ghcr.io/energy-dsi/...` and re-running `helm upgrade` with the updated chart values from this release. This does **not** apply to the DPN Authentication Service or the REST Federator Gateway, both of which are ACR-only today (see step 4 above).
+Participants who deployed Release 1.0.0 through GHCR, they need to upgrade by pulling the newer images from `ghcr.io/energy-dsi/...` and re-running `helm upgrade` with the updated chart values from this release. This does **not** apply to the DPN Authentication Service or the REST Federator Gateway, both of which are to be deployed first time with version 1.0.0 only.
 
 1. **Authenticate to GHCR** on each node/runner that will pull images:
 
@@ -180,9 +172,46 @@ Participants who deployed Release 1.0.0 through the `azure-gha-beta`/`aws-gha-be
    | File Scan Service | `ghcr.io/energy-dsi/dpn-file-scan-service` | set per CD run — check pipeline output |
    | Data Pipelines (Airflow) | `ghcr.io/energy-dsi/dpn-airflow` | set per CD run — check pipeline output |
 
+   **Health Monitoring Service Stack** — this entire GHCR-based deployment path is new in Release 2.0.0: Release 1.0.0's `dpn-health-monitoring-service` pulled these images directly from public registries (Docker Hub / Quay) rather than through `ghcr.io/energy-dsi` at all. Every image below is confirmed against `.pipelines/github-actions-pipelines/.../dpn-health-monitoring/charts/**` on `release-internal/2.0.0`:
+
+   | Component | Image | Confirmed 2.0.0 tag |
+   |---|---|---|
+   | Data Prepper | `ghcr.io/energy-dsi/data-prepper` | `2.6.0` |
+   | Jaeger Collector | `ghcr.io/energy-dsi/jaeger-collector` | `1.57.0` |
+   | Jaeger Query | `ghcr.io/energy-dsi/jaeger-query` | `1.57.0` |
+   | Jaeger Ingester | `ghcr.io/energy-dsi/jaeger-ingester` | `1.57.0` |
+   | OpenSearch | `ghcr.io/energy-dsi/opensearch` | set per CD run — check pipeline output |
+   | OpenSearch Dashboards | `ghcr.io/energy-dsi/opensearch-dashboards` | `2.11.0` |
+   | OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `0.95.0` |
+   | Apache Perses | `ghcr.io/energy-dsi/perses` | `v0.53.1` |
+   | Thanos | `ghcr.io/energy-dsi/thanos` | `v0.34.0` |
+   | nginx (observability) | `ghcr.io/energy-dsi/nginx` | `1.25-alpine` |
+   | Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper` | `7.5.3` |
+   | Kafka | `ghcr.io/energy-dsi/dpn-kafka` | `7.5.3` |
+   | Kafka UI | `ghcr.io/energy-dsi/kafka-ui` | `v0.7.2` |
+   | curl (OpenSearch init/utility jobs) | `ghcr.io/energy-dsi/curl` | `8.8.0` |
+
+   Two of these are genuine version changes, not just re-hosting to GHCR:
+   - **nginx** moves from the public `nginx:1.27-alpine` (Release 1.0.0) to `ghcr.io/energy-dsi/nginx:1.25-alpine` — this is a *downgrade* in the underlying nginx minor version; confirm with the Health Monitoring Service team whether this is intentional before upgrading.
+   - **Kafka UI** moves off the floating `provectuslabs/kafka-ui:latest` (Release 1.0.0) onto a pinned `ghcr.io/energy-dsi/kafka-ui:v0.7.2`, removing the reproducibility risk of a `:latest` tag.
+
+   > **DPN Portal (Unified UI) has no published image at all yet.** `charts/dpn-portal/values.yaml` deliberately ships with `image.repository`/`image.tag` left blank, and there is no `.github/workflows` build/push pipeline anywhere in `dpn-health-monitoring-service` for it. Until DSI publishes one, organisations must build and push the Portal image themselves from `app/dpn-portal/Dockerfile`.
+
    ```bash
    docker pull ghcr.io/energy-dsi/dpn-federator-server:2.0.0
    docker pull ghcr.io/energy-dsi/dpn-federator-client:2.0.0
+   docker pull ghcr.io/energy-dsi/data-prepper:2.6.0
+   docker pull ghcr.io/energy-dsi/jaeger-collector:1.57.0
+   docker pull ghcr.io/energy-dsi/jaeger-query:1.57.0
+   docker pull ghcr.io/energy-dsi/jaeger-ingester:1.57.0
+   docker pull ghcr.io/energy-dsi/opensearch-dashboards:2.11.0
+   docker pull ghcr.io/energy-dsi/opentelemetry-collector-contrib:0.95.0
+   docker pull ghcr.io/energy-dsi/perses:v0.53.1
+   docker pull ghcr.io/energy-dsi/thanos:v0.34.0
+   docker pull ghcr.io/energy-dsi/nginx:1.25-alpine
+   docker pull ghcr.io/energy-dsi/dpn-zookeeper:7.5.3
+   docker pull ghcr.io/energy-dsi/dpn-kafka:7.5.3
+   docker pull ghcr.io/energy-dsi/kafka-ui:v0.7.2
    ```
 
 3. **Update chart values for your environment** (`values-<env>.yaml` under each repository's `.pipelines/github-actions-pipelines/.../charts/**`) with the confirmed image tags from step 2, and apply the configuration changes documented in the component sections above (Vault AppRole settings, Kafka OAuth/TLS blocks, Redis TLS, Observability UI URLs, etc.) before upgrading.
