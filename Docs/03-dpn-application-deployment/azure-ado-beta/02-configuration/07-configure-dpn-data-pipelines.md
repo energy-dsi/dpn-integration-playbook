@@ -615,8 +615,6 @@ Every stage that connects to Kafka — producer adaptor/schema mapper and consum
 | kafkaTlsSecretName | Kubernetes secret providing the `truststore.jks` mounted into the pod | `dpn-tls` |
 | kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
 
-> **Note:** the pod resolves its CA truststore from the `kafkaTlsSecretName` secret's mounted `truststore.jks` — a password-protected file (genuinely PKCS12, despite older references to a plain `ca.crt`), not a bare CA certificate PEM. The password comes from the `kafkaOauthSecretName` secret's `UNIVERSAL_DPN_CERT_PASSWORD` key, injected as the `TRUSTSTORE_PASSWORD` env var; at runtime the pod extracts the CA cert(s) from that truststore and points the Kafka client's TLS trust at the extracted PEM. `KAFKA_SSL_CA_LOCATION` is **not** part of this default path and is not set by any chart — it exists only as a manual fallback for an image/environment with no truststore mounted at all, and should be left unset otherwise. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" and in `.docs/kafka-auth-modes.md` — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
-
 ---
 
 ## Step9: Configure DPN Data Store
@@ -631,6 +629,8 @@ The DPN Data Store consists of two sub-components:
 Storage Blob / S3 is the integration layer between the organisation's internal data source, the Federator Gateway, Data Pipelines, and the data destination.
 
 The file-based integration pathway requires a set of storage containers (buckets) to be defined upfront, based on the data product template in use. The following naming convention is recommended when provisioning containers:
+
+**Note** The storage containers must be precreated by participant Organisation before setting up the data product. DPN Data Pipeline does not create storage containers at this point. This action to be taken in future release. The following container list is a naming convention for Data Pipeline containers only
 
 | Process | Source Container Name | Target Container Name |
 |---------|-----------------------|-----------------------|
@@ -711,6 +711,7 @@ Example:
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

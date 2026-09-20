@@ -166,10 +166,6 @@ Root-Repository
 | `federatorClient.storage.provider` | `AZURE/S3/GCP/LOCAL` | Note. Important to set this value based on cloud provider. This parameter decides which storage provider to be invoked based on cloud type |
 | `federatorClient.storage.azure.container` | Container where inbound files are written (File Scan source container) | `dp-consumer-raw` |
 
-**JobRunr dashboard authentication** (see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
-
-> **⚠️ SECURITY — insecure by default.** Out of the box, `federatorClient.auth.enabled` and `jobs.dashboard.https.enabled` are **both `false`**. The JobRunr dashboard is served over **plain HTTP with no authentication at all** — anyone who can reach `jobRunnerPort` on the pod/Service can view and trigger/requeue/delete jobs.
-
 ### Step3c: Configure Key Vault If Used
 
 The following parameter needs to be set if key vault is used as secret provider. 
@@ -182,8 +178,6 @@ The following parameter needs to be set if key vault is used as secret provider.
 | `keyvault.tenantId` | Azure AD tenant ID | `<tenant-id>` |
 
 ### Step3d: Configure Kafka Security
-
-> **Nested under `kafkaSrc:` / `kafkaTarget:`, not a standalone section.** Each of Kafka Source and Kafka Target has its own `oauth:` and `tls:` sub-blocks in `values-<env>-<cluster>.yaml`. There is no shared top-level `kafka.oauth.*` key — every environment today configures **both** blocks identically (same Keycloak client, same realm), but they must each be set.
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
@@ -244,6 +238,7 @@ DPN DEPLOYMENT COMPLETE
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-Jul-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

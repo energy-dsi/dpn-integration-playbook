@@ -172,55 +172,12 @@ Participants who deployed Release 1.0.0 through GHCR, they need to upgrade by pu
    |---|---|---|
    | Federator Gateway (server) | `ghcr.io/energy-dsi/dpn-federator-server` | `2.0.0` |
    | Federator Gateway (client) | `ghcr.io/energy-dsi/dpn-federator-client` | `2.0.0` |
-   | Certificate Manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` | set per CD run — check pipeline output |
-   | File Scan Service | `ghcr.io/energy-dsi/dpn-file-scan-service` | set per CD run — check pipeline output |
-   | Data Pipelines (Airflow) | `ghcr.io/energy-dsi/dpn-airflow` | set per CD run — check pipeline output |
-
-   **Health Monitoring Service Stack** — this entire GHCR-based deployment path is new in Release 2.0.0: Release 1.0.0's `dpn-health-monitoring-service` pulled these images directly from public registries (Docker Hub / Quay) rather than through `ghcr.io/energy-dsi` at all. Every image below is confirmed against `.pipelines/github-actions-pipelines/.../dpn-health-monitoring/charts/**` on `release-internal/2.0.0`:
-
-   | Component | Image | Confirmed tag |
-   |---|---|---|
-   | Data Prepper | `ghcr.io/energy-dsi/data-prepper` | `2.6.0` |
-   | Jaeger Collector | `ghcr.io/energy-dsi/jaeger-collector` | `1.57.0` |
-   | Jaeger Query | `ghcr.io/energy-dsi/jaeger-query` | `1.57.0` |
-   | Jaeger Ingester | `ghcr.io/energy-dsi/jaeger-ingester` | `1.57.0` |
-   | OpenSearch | `ghcr.io/energy-dsi/opensearch` | set per CD run — check pipeline output |
-   | OpenSearch Dashboards | `ghcr.io/energy-dsi/opensearch-dashboards` | `2.11.0` |
-   | OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib` | `0.95.0` |
-   | Apache Perses | `ghcr.io/energy-dsi/perses` | `v0.53.1` |
-   | Thanos | `ghcr.io/energy-dsi/thanos` | `v0.34.0` |
-   | nginx (observability) | `ghcr.io/energy-dsi/nginx` | `1.25-alpine` |
-   | Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper` | `7.5.3` |
-   | Kafka | `ghcr.io/energy-dsi/dpn-kafka` | `7.5.3` |
-   | Kafka UI | `ghcr.io/energy-dsi/kafka-ui` | `v0.7.2` |
-   | curl (OpenSearch init/utility jobs) | `ghcr.io/energy-dsi/curl` | `8.8.0` |
-   | DPN Portal (Unified UI) | `ghcr.io/energy-dsi/dpn-portal` | `1.0.0` — first-ever release, independent of the platform's `2.0.0` version |
-
-   Two of these are genuine version changes, not just re-hosting to GHCR:
-   - **nginx** moves from the public `nginx:1.27-alpine` (Release 1.0.0) to `ghcr.io/energy-dsi/nginx:1.25-alpine` — this is a *downgrade* in the underlying nginx minor version; confirm with the Health Monitoring Service team whether this is intentional before upgrading.
-   - **Kafka UI** moves off the floating `provectuslabs/kafka-ui:latest` (Release 1.0.0) onto a pinned `ghcr.io/energy-dsi/kafka-ui:v0.7.2`, removing the reproducibility risk of a `:latest` tag.
-
-   > **DPN Portal (Unified UI) is a brand-new image, published for the first time as `1.0.0`** — its own independent versioning, not tied to the DPN platform's `2.0.0` release number (the same pattern as the DPN Authentication Service and REST Federator Gateway). As of this validation, `charts/dpn-portal/values.yaml` still ships with `image.repository`/`image.tag` left blank and no `.github/workflows` build/push pipeline exists yet in `dpn-health-monitoring-service` — set `image.repository: ghcr.io/energy-dsi/dpn-portal` and `image.tag: "1.0.0"` once that first image is published, and confirm the actual published tag against the pipeline output before pulling.
-
-   ```bash
-   docker pull ghcr.io/energy-dsi/dpn-federator-server:2.0.0
-   docker pull ghcr.io/energy-dsi/dpn-federator-client:2.0.0
-   docker pull ghcr.io/energy-dsi/dpn-portal:1.0.0
-   docker pull ghcr.io/energy-dsi/data-prepper:2.6.0
-   docker pull ghcr.io/energy-dsi/jaeger-collector:1.57.0
-   docker pull ghcr.io/energy-dsi/jaeger-query:1.57.0
-   docker pull ghcr.io/energy-dsi/jaeger-ingester:1.57.0
-   docker pull ghcr.io/energy-dsi/opensearch-dashboards:2.11.0
-   docker pull ghcr.io/energy-dsi/opentelemetry-collector-contrib:0.95.0
-   docker pull ghcr.io/energy-dsi/perses:v0.53.1
-   docker pull ghcr.io/energy-dsi/thanos:v0.34.0
-   docker pull ghcr.io/energy-dsi/nginx:1.25-alpine
-   docker pull ghcr.io/energy-dsi/dpn-zookeeper:7.5.3
-   docker pull ghcr.io/energy-dsi/dpn-kafka:7.5.3
-   docker pull ghcr.io/energy-dsi/kafka-ui:v0.7.2
-   ```
+   | Certificate Manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` | `2.0.0` |
+   | File Scan Service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `2.0.0` |
+   | Data Pipelines (Airflow) | `ghcr.io/energy-dsi/dpn-airflow` | `2.0.0` |
 
 3. **Update chart values for your environment** (`values-<env>.yaml` under each repository's `.pipelines/github-actions-pipelines/.../charts/**`) with the confirmed image tags from step 2, and apply the configuration changes documented in the component sections above (Vault AppRole settings, Kafka OAuth/TLS blocks, Redis TLS, Observability UI URLs, etc.) before upgrading.
+
 4. **Roll out with Helm**, one component at a time, verifying health before moving to the next:
 
    ```bash
@@ -230,4 +187,5 @@ Participants who deployed Release 1.0.0 through GHCR, they need to upgrade by pu
    ```
 
    Repeat per component (Certificate Manager, Vault, File Scan Service, Data Pipelines, Observability stack), following each component's own configuration guide linked above for the full set of values to change.
+
 5. **Verify** each component comes up healthy against the new images and Vault/Keycloak configuration before decommissioning any Release 1.0.0 resources (file shares, PVCs, old secrets) called out in steps 1–3.
