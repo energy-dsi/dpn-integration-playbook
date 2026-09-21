@@ -105,9 +105,19 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 
 See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/08-configure-dpn-file-scan-service.md) (Azure) and [Configure DPN File Scan Service](../03-dpn-application-deployment/aws-gha-beta/02-configuration/08-configure-dpn-file-scan-service.md) (AWS).
 
+`CLOUD_PROVIDER_TYPE` (`env.cloudprovidertype` in the Helm chart) selects which listener/storage code path the service starts with. The application (`app/main.py`) recognises exactly three values, case-sensitive:
+
+| `CLOUD_PROVIDER_TYPE` value | Cloud | Listener started |
+|---|---|---|
+| `AZURE` | Azure | Azure Service Bus listener (`app/providers/azure/listener.py`) — the only value currently wired into the Helm chart's `values-*.yaml` |
+| `AWS` | AWS | AWS SQS listener (`app/providers/aws/listener.py`) — application code only, not yet set by any chart values file |
+| `GCP` | GCP | GCP processor (`app/providers/gcp/processor.py`) — application code only, not yet set by any chart values file |
+
+Any other value (including `S3`, which is not a recognised provider type — it names the AWS storage service the AWS path talks to, not the provider itself) raises `Unsupported cloud provider` and the service fails to start.
+
 | Change | Item | Details |
 |--------|------|---------|
-| Added (application code only — **not yet wired into the Helm chart**) | `CLOUD_PROVIDER_TYPE=S3` | Selects the AWS code path in the service |
+| Added (application code only — **not yet wired into the Helm chart**) | `CLOUD_PROVIDER_TYPE=AWS` | Selects the AWS code path in the service — see the cloud provider type table above |
 | Added (application code only — **not yet wired into the Helm chart**) | `AWS_REGION`, `S3_BUCKET_INBOUND`, `S3_BUCKET_OUTBOUND`, `SQS_QUEUE`, `SNS_TOPIC`, `S3_BUCKET_QUARANTINE`, `SQS_ENDPOINT`, `SNS_ENDPOINT` | AWS-specific configuration read by `app/config/settings.py` and `app/providers/aws/*.py`, parallel to the existing Azure settings |
 | Added | `env.otelExporterCertificate`, `env.truststorePath`, `env.otelTlsSecretName` (default `dpn-tls`), `FILESCAN-OTEL-TRUSTSTORE` Key Vault secret | TLS to the OTel Collector, mounted via a new `dpn-tls` secret volume |
 | Modified | `OTEL_ENDPOINT` → `OTEL_EXPORTER_OTLP_ENDPOINT` | Renamed; `env.otelExporterInsecure` removed as part of the same change |
