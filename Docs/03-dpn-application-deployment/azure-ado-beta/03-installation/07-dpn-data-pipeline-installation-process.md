@@ -512,5 +512,6 @@ Follow the same verification steps mentioned in Step2e/Step2f (data pipeline dep
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
