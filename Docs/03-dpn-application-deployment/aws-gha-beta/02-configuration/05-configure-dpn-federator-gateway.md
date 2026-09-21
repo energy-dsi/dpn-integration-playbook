@@ -56,7 +56,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 
 - The gateway builds its mTLS keystore/truststore **in memory** directly from certificate material in Vault (`vaultConfig.tlsEnabled: true`, `vaultConfig.tlsBasePath: node-net/client`) — no shared file share is used (`vaultConfig.mountCertFileShare: false`).
 - The keystore/truststore **passwords are read from Vault** at start-up (`vaultConfig.keystorePasswordPath` / `truststorePasswordPath`) — they are **not** stored as Federator Key Vault secrets.
-- The gateway authenticates to Vault itself via the Vault root token (`vaultConfig.authMethod: token`) — **AppRole (`approle`) is the long-term design but isn't automated on this path yet**; see [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available).
+- The gateway can authenticate to Vault either via the Vault root token (`vaultConfig.authMethod: token`) or, on this AWS path, by **sharing the Certificate Manager's own AppRole identity** (`vaultConfig.authMethod: approle`, `vaultConfig.appRole.roleId` set to the Certificate Manager's `role_id`) — there is no dedicated per-component AppRole-provisioning workflow for the Federator Gateway yet, but reusing an already-provisioned identity works today and is the pattern the real AWS environment uses. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available).
 - The only Federator secrets in Key Vault are the **S3 access credentials** (one for the Server, a separate one for the Client) and, if using AppRole, the Vault `secret-id`.
 
 > **Storage separation for Server and Client (MUST READ)**
@@ -76,11 +76,11 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
-| 4 | **Vault authentication configured** | Set `vaultConfig.authMethod: token` — AppRole isn't automated on this path yet. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) |
+| 4 | **Vault authentication configured** | Set `vaultConfig.authMethod: token`, or `approle` reusing the Certificate Manager's already-provisioned `role_id`/`secret_id` (no dedicated Federator Gateway AppRole workflow exists yet, but sharing the identity works). See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) |
 | 5 | **EKS cluster**, and an identity that can reach Azure Key Vault | Needed if using Key Vault-sourced secrets; see [Step2](#step2-configure-secrets) |
 | 6 | **S3 bucket credentials created** | The two IAM credentials/roles — see [Step2: Configure Secrets](#step2-configure-secrets) |
 | 7 | **S3 buckets provisioned** | The **Server's** bucket, and the **File Scan Service source** bucket used by the **Client** |
-| 8 | **Internal Network Load Balancer (NLB) reserved** | One for the Server service, one for the Client service |
+| 8 | **Network Load Balancers (NLBs) reserved** | One for the Server service — commonly **internet-facing** with a pinned Elastic IP per AZ, since other DPN nodes must reach it externally — and one **internal** NLB for the Client service. See [Step3a](#step3a-configure-federator-server) |
 | 9 | **OAuth2 client ID + Management Node URL + IDP URLs** | Received from DSM during onboarding |
 | 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafka.oauth.tokenEndpointUrl` |
 | 11 | **Container image tag available** | Built by the DSI CI process or prebuilt DSI image; supplied to the CD workflow as `imageTag` |
@@ -124,7 +124,7 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 |-------------------|-------------|----------|
 | `federator-server-secrets` | CSI driver from AKV Server S3 credentials | Server S3 access |
 | `federator-client-secrets` | CSI driver from AKV Client S3 credentials | Client S3 access |
-| `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — the root token (`VAULT_TOKEN`, `authMethod: token`) today; AppRole `secret-id` once that workflow exists |
+| `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — either the root token (`VAULT_TOKEN`, `authMethod: token`) or, by pointing `vaultConfig.appRole.roleId` at the Certificate Manager's own `role_id`, its shared AppRole `secret-id` |
 | `cert-manager-truststore` | Created by the **`dpn-vault-tls-bootstrap-cd.yml`** workflow | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
 
 ---
@@ -151,9 +151,10 @@ dpn-federator-gateway/
 | `federatorServer.idp.clientId` | Client ID received from DSM for this DPN node | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | `federatorServer.idp.jwksUrl` | JWKS endpoint for verifying identity tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/certs` |
 | `federatorServer.idp.tokenUrl` | Token endpoint for access tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
-| `federatorServer.storage.s3.bucket` | The **Server's** S3 bucket | `<s3-bucket-prefix>-application` |
-| `federatorServer.storage.s3.region` | Region of the Server's S3 bucket | `<AWS_REGION>` |
-| `federatorServer.service.eipAllocationId` | Optional Elastic IP allocation to pin to the Server's external NLB | `eipalloc-xxxxxxxx` (leave unset for a dynamically-assigned address) |
+| `federatorServer.service.internalLoadBalancer` | Whether the Server's NLB is internal-only. The Server's is commonly set to `"false"` (**internet-facing**) so external DPN nodes can reach it — unlike the Client, which stays internal | `"false"` |
+| `federatorServer.service.eipAllocationId` | Elastic IP allocation(s) to pin to the Server's external NLB, **comma-separated** — an NLB takes one EIP per subnet/AZ, not one shared EIP, so a two-AZ deployment needs two allocation IDs here | `eipalloc-xxxxxxxx,eipalloc-yyyyyyyy` (leave unset for dynamically-assigned addresses) |
+
+> **The Server has no storage configuration of its own.** Unlike the Client below, `federatorServer.storage.*` does not exist in this chart — the Server resolves the source type and target bucket per-request from the `FileTransferRequest` supplied by the Management Node API, not from a static bucket/region setting. Do not look for a Server-side S3 bucket parameter; there isn't one.
 
 ### Step3b: Configure Federator Client
 
@@ -166,8 +167,8 @@ dpn-federator-gateway/
 | `federatorClient.idp.clientId` | Client ID received from DSM | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | `federatorClient.idp.jwksUrl` / `tokenUrl` | IDP endpoints and grant mode (as Server) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` / |
 | `federatorClient.storage.provider` | `S3` on this path | `S3` — important to set based on cloud provider; this parameter decides which storage provider is invoked |
-| `federatorClient.storage.s3.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) | `dp-consumer-raw` |
-| `federatorClient.storage.s3.region` | Region of the Client's S3 bucket | `<AWS_REGION>` |
+| `federatorClient.storage.aws.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) — note the key is `storage.aws.bucket`, **not** `storage.s3.bucket` | `dp-consumer-raw` |
+| `federatorClient.storage.aws.region` | Region of the Client's S3 bucket | `<AWS_REGION>` |
 
 **JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
 
@@ -241,6 +242,8 @@ dpn-containerised-deployment-service/
 | `cluster` | The **single** target DPN cluster — `dpn01` or `dpn02`. Deploy one cluster at a time; the Client is configured for this one cluster |
 | `cloud` | `aws` |
 | `imageTag` | Tag of the Federator images to deploy (from the CI build or prebuilt DSI image) |
+| `serverImageRepository` | Optional — override the Server image path after `ghcr.io/energy-dsi/` for this run only (e.g. `1.0.1/dpn-federator-server`). Leave blank to use the environment's configured repository |
+| `clientImageRepository` | Optional — same override for the Client image path (e.g. `1.0.1/dpn-federator-client`). Leave blank to use the environment's configured repository |
 
 To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as a workflow artifact.
 

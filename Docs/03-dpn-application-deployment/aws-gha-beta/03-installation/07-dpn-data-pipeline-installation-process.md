@@ -194,6 +194,7 @@ Go to **Actions → DPN CD - Data Pipelines → Run workflow** in `dpn-container
 | `productType` | The product type, e.g. `eq`, `dl`, `eqbd`, `ssh` — default `default` |
 | `schemaType` | The schema type — default `default` |
 | `imageTag` | The image tag to deploy |
+| `imageName` | Optional — override the computed image name for this run only. Leave blank to auto-derive per service as today |
 
 > **Notes:**
 > - Organisations must determine which data templates they require for processing. The workflow is generic — it dynamically discovers and Helm-installs every chart matching the `configType`/`processType`/`productType` combination under `dpn-data-pipelines/`.

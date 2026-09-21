@@ -90,12 +90,12 @@ dpn-containerised-deployment-service/
 | `EKS_CLUSTER` | EKS cluster name | `eks-dpn-dev-eu-west-2` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
 | `IMAGE_REGISTRY` | Base registry URL | `ghcr.io` |
-| `KEY_VAULT_NAME` | Azure Key Vault holding cross-cloud secrets (see [Step5](#step5-configure-secrets)) | `kv-dpn-<env>-<region>-<seq>` |
-| `FILESCAN_INBOUND_BUCKET` | S3 bucket GuardDuty scans | `<inbound-bucket>` |
-| `FILESCAN_OUTBOUND_BUCKET` | S3 bucket clean files are copied to | `<outbound-bucket>` |
-| `FILESCAN_SQS_QUEUE_URL` | The queue URL from [Step2](#step2-aws-resource-setup-snssqsguardduty) | `https://sqs.<region>.amazonaws.com/<account-id>/dpn-fileupload-scan-results` |
-| `FILESCAN_SNS_TOPIC_ARN` | The topic ARN from [Step2](#step2-aws-resource-setup-snssqsguardduty) | `arn:aws:sns:<region>:<account-id>:dpn-fileupload-scan-results` |
-| `FILESCAN_IRSA_ROLE_ARN` | ARN of the IAM role granting the S3/SQS permissions above | `arn:aws:iam::<account-id>:role/dpn-file-scan-irsa` |
+| `FILESCAN_SOURCE_BUCKET` | S3 bucket GuardDuty scans (source/raw uploads) | `dp-consumer-raw-<env>-<account-id>-<region>` |
+| `FILESCAN_DEST_BUCKET` | S3 bucket clean files are copied to | `dpn-<env>-dp-consumer-stage` |
+| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-<env>-guardduty-findings` |
+| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-<env>-file-scan-results` |
+
+> **No `KEY_VAULT_NAME` or IRSA-role-ARN key in this JSON file.** The IAM permissions come entirely from the IRSA role already attached to the ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)), which this config file does not need to reference — there is no `FILESCAN_IRSA_ROLE_ARN`-style key. This component's real AWS config file also carries no `KEY_VAULT_NAME` entry at all: nothing in its GitHub Actions workflow reads one.
 | OTEL_EXPORTER_OTLP_ENDPOINT | OTel collector's OTLP endpoint. Defaults to the HTTPS endpoint on port `4318` | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
 
 ---
@@ -134,7 +134,7 @@ The following values to be modified in that file
 
 ## Step5: Configure Secrets
 
-Unlike the Azure path, this service does not need Key Vault-sourced AWS credentials — the IRSA role attached to its ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)) covers all S3/SQS access. `KEY_VAULT_NAME` is still referenced in the config JSON for other cross-cloud secrets the chart's OTel/observability wiring may need (see [Configure DPN Health Monitoring](02-configure-dpn-health-mon-service.md)).
+Unlike the Azure path, this service does not need Key Vault-sourced AWS credentials — the IRSA role attached to its ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)) covers all S3/SQS access, and the config JSON carries no `KEY_VAULT_NAME` entry at all on this path (see the note under [Step3a](#step3a-configure-environment-json-file)).
 
 The service's OAuth client credentials (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` — the same pair Azure sources from Key Vault) can now be sourced from **AWS Secrets Manager** instead, via the AWS Secrets Store CSI driver:
 
