@@ -39,7 +39,7 @@ The following prerequisites must be met.
 
 - Defender for Cloud Storage is enabled at the subscription level or more
 - The source and target storage accounts are provisioned
-- The target storage account contains a container named `dp-consumer-stage` or other names if modifed
+- The source storage account contains a container `dp-consumer-raw` and target storage account contains a container named `dp-consumer-stage` or other names if modifed
 - An AKS cluster with service connection access to deploy new workloads
 - Azure subscription access sufficient to enable Microsoft Defender for Storage
 - Service connection required roles to create an Event Grid System Topic and provision a Service Bus namespace/topic
@@ -191,7 +191,7 @@ File scan service images are found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
+| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 2.0.0` |
 
 
 ### Step5a. Configure GHCR Image Access
@@ -228,7 +228,7 @@ The CD Pipeline would require the following run time parameters.
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
 | `dpncluster` | `dpn01` or `dpn02` (`dpn02` applies to `dev`/`devtest`/`test` only; `pdev`/`ptest`/`puat` are single-cluster, `dpn01` only) |
-| `imageTag` | The GHCR image tag to deploy (e.g. `1.0.0`) |
+| `imageTag` | The GHCR image tag to deploy (e.g. `2.0.0`) |
 
 Execute this CD Pipeline to perform deployment.
 
@@ -243,5 +243,6 @@ Follow the same verification steps mentioned in step3c and step3d as above.
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

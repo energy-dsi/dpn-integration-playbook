@@ -41,7 +41,7 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-The REST Federator Gateway is deployed from the `dpn-rest-federator-gateway` repository as **two independent Helm releases**, each its own CD stage: `dpn-redis` (the cache this chart owns) and `dpn-rest-federator` (the gateway itself). Unlike the gRPC Federator's single combined `dpn-platform` release, these can be rolled back independently of each other.
+The REST Federator Gateway is deployed from the following location on the repository.
 
 ```text
 Root-Repository/
@@ -52,10 +52,9 @@ Root-Repository/
 ```
 
 Key points, detailed in the configuration guide:
-- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used, the same mechanism as the gRPC Federator and Certificate Manager.
-- Vault authentication defaults to **AppRole** in this chart (`vault.authMethod: approle`), not just token.
+- The gateway builds its mTLS keystore/truststore **in memory from Vault** with same mechanism as the gRPC Federator and Certificate Manager.
+- Vault authentication uses **AppRole** in this chart (`vault.authMethod: approle`).
 - The repository also ships a self-contained reference implementation — the Demo Runner Server and Client — used to exercise the gateway end-to-end (see Step3).
-- See Step4 for deploying the DSI-published GHCR container images instead of building via CI.
 
 ---
 
@@ -74,7 +73,6 @@ In summary:
 
 **Note:** Organisations must review the CI/CD Pipeline codes for the following, as with every other DPN component:
 
-- DSI Package contains certain tool usage recommendations to run CI pipeline (Checkmarx, FOSSA, SonarQube, JFrog X-Ray). These steps should be carefully reviewed by Organisations and kept only where relevant
 - The agent pool name has been modified to Organisation required agent pool name
 - There should not be any `<<Your specific value>>` in the parameters
 - The environment parameters are pointing to correct deployment environment
@@ -94,7 +92,7 @@ Root-Repository/
             └── rest-federator-ci.yaml
 ```
 
-The CI pipeline builds and scans the server image (Checkmarx, FOSSA, SonarQube, JaCoCo, cosign image signing, JFrog X-Ray) and pushes it to the configured registry.
+The CI pipeline builds and scans the server image. It then pushes it to the configured registry.
 
 ### Step2b. Verify CI Pipeline Execution
 
@@ -137,7 +135,7 @@ The kubectl logs should not show any Vault authentication or keystore-build erro
 
 ## Step3: Reference Implementation - Demo Runner Server and Client
 
-The repository ships a self-contained example integration under `demo/demo-runner-server` and `demo/demo-runner-client`, used to exercise the REST Federator Gateway end-to-end without needing a participant's own backend or consumer application. The sequence follows the MHHS FMAR asset registration specification, with paths prefixed `/api/v1/fmar` for consistency with the gateway's other routes.
+The repository ships a self-contained example integration under `demo/demo-runner-server` and `demo/demo-runner-client`, used to exercise the REST Federator Gateway end-to-end without needing a participant's own backend or consumer application. The sequence follows the asset registration specification, with paths prefixed `/api/v1/fmar` for consistency with the gateway's other routes.
 
 **Demo Runner Server** is a minimal Spring Boot backend that sits behind the gateway as the example "producer's backend" (`restFederatorServer.backend.baseUrl`). It terminates its own HTTPS using the shared `dpn-tls` keystore and does not talk to Vault directly. The gateway-to-backend hop is authenticated with a shared API key header (`X-Backend-Api-Key`), sourced from the same `dpn-backend-api-key` Secret the gateway itself is configured with. It exposes an in-memory FMAR asset registration API, Swagger UI (`/swagger-ui.html`), and standard Kubernetes health probes.
 
@@ -235,7 +233,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step4b. Execute CD Pipeline
 
-This repository does not yet ship a dedicated GHCR-only CD pipeline (unlike the Certificate Manager's `certificate-manager-ghcr-cd.yaml`). Reuse the existing `rest-federator-cd.yml` (for the gateway) and `demo-runner-cd.yml` (for the demo apps) pipelines — both already resolve their image repository from `CONTAINER_REGISTRY_URL` in the environment's config file. Point that value at `ghcr.io/energy-dsi` for the target environment before running the pipeline, so the deployed `image.repository` resolves against GHCR instead of the environment's ACR.
+Reuse existing `rest-federator-cd.yml` (for the gateway) and `demo-runner-cd.yml` (for the demo apps) pipelines that use image repository from `CONTAINER_REGISTRY_URL` in the environment's config file. Point the value at `ghcr.io/energy-dsi` for the target environment before running the pipeline, so the deployed `image.repository` resolves against GHCR.
 
 ```text
 Root-Repository/
@@ -287,6 +285,7 @@ Same cause and remedy as the Certificate Manager — see [Certificate Manager In
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-------------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+
