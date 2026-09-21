@@ -56,7 +56,7 @@ The deploy pipeline reads the required secret names out of the rendered `SecretP
 | Key Vault secret | Becomes | Used by |
 |-------------------|---------|---------|
 | `KC-DB-PASSWORD` | `KC_DB_PASSWORD` | Keycloak, and PostgreSQL via `POSTGRES_PASSWORD_FILE` |
-| `KEYCLOAK-ADMIN-PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account |
+| `KEYCLOAK-ADMIN-PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account - This password would be required for DPN Admin to login keycloak and set up new users as admin or reader or operator |
 | `KC-HTTPS-KEY-STORE-PASSWORD` | `KC_HTTPS_KEY_STORE_PASSWORD` | Opens `keystore.jks` |
 | `KC-HTTPS-TRUST-STORE-PASSWORD` | `KC_HTTPS_TRUST_STORE_PASSWORD` | Opens `truststore.jks` |
 | `KC-SERVICE-CLIENT-SECRET` | `KC_SERVICE_CLIENT_SECRET` | Sets the secret on the `dpn-service-client` UI client; must match the same Key Vault object already synced by `dpn-health-monitoring-service`'s oauth2-proxy releases (OpenSearch Dashboards, Jaeger, Perses, Portal) and by Kafka UI's own `SecretProviderClass` for its native OIDC login |
