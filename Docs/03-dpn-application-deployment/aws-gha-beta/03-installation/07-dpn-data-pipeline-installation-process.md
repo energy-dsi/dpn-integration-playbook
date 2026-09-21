@@ -85,11 +85,11 @@ Deployment itself runs directly against the `dpn-containerised-deployment-servic
 Ensure the following prerequisites are completed before deployment:
 
 - EKS cluster provisioned and accessible, with the **metrics-server** add-on running (required for HPA)
-- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with a per-stage IAM role created for each file-based adaptor/schema_mapper/extractor's S3 access — see [ServiceAccount / IRSA (AWS only)](../02-configuration/05-configure-dpn-data-pipelines.md#step3a-set-up-producer-helm-charts-for-file-based-pathways) in the Configuration Guide. This replaces static AWS access-key credentials for S3 access
-- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/05-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
+- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with a per-stage IAM role created for each file-based adaptor/schema_mapper/extractor's S3 access — see [ServiceAccount / IRSA (AWS only)](../02-configuration/07-configure-dpn-data-pipelines.md#step3a-set-up-producer-helm-charts-for-file-based-pathways) in the Configuration Guide. This replaces static AWS access-key credentials for S3 access
+- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
 - DPN Health Monitoring Service deployed and OTEL collector container is in running state
-- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
-- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step8-configure-secrets))
+- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
+- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step8-configure-secrets))
 - Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (GitHub Actions access, GHCR access — see Step2 below)
 
@@ -283,6 +283,12 @@ Go to **Actions → DPN CD - Airflow → Run workflow** in `dpn-containerised-de
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
+| `airflowImageRepository` | Optional — Airflow image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-airflow`). Leave blank to use the environment's configured repository |
+| `airflowImageTag` | Optional — Airflow image tag. Leave blank to use the environment's configured tag |
+| `postgresImageRepository` | Optional — Postgres image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/postgres`). Leave blank to use the environment's configured repository |
+| `postgresImageTag` | Optional — Postgres image tag. Leave blank to use the environment's configured tag |
+| `redisImageRepository` | Optional — Redis image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/redis`). Leave blank to use the environment's configured repository |
+| `redisImageTag` | Optional — Redis image tag. Leave blank to use the environment's configured tag |
 
 ### Step3c. Verify CD Workflow Execution
 

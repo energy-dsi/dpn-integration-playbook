@@ -512,7 +512,7 @@ Scheduling configuration on Airflow is **not created automatically** — a Direc
 Root-Repository
   └── charts
         └── airflow/
-              ├── values-<env>-dpn01.yaml   <- Environment-specific Airflow overrides
+              ├── values/aws/<environment>-<cluster>.yaml   <- Environment-specific Airflow overrides
               └── dags/
                     └── {product_type}.py   <- One DAG per data product
 ```

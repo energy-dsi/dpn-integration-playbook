@@ -38,7 +38,7 @@ The following prerequisites must be met.
 - The source (inbound) and destination (outbound) S3 buckets are provisioned
 - An EKS cluster reachable via the GitHub Actions OIDC federated credential (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role))
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount
-- If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/06-configure-dpn-file-scan-service.md#step5-configure-secrets)
+- If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets)
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
@@ -54,12 +54,13 @@ The following prerequisites must be met.
 
 ## Step2: AWS Resource Setup (SNS/SQS/GuardDuty)
 
-**There is no GitHub Actions workflow for this step** — `dpn-file-scan-prerequisites-cd.yml` is Azure-only by design (it provisions Defender for Storage/Event Grid/Service Bus, with no AWS equivalent). Provision the SNS topic, SQS queue, and GuardDuty Malware Protection plan manually — see [Configure DPN File Scan Service, Step2](../02-configuration/06-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands.
+**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must still be provisioned manually** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-file-scan-prerequisites-cd.yml` does have an AWS branch (`cloud: aws`), but it only creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan.
 
 Once complete, validate:
 
 - The SNS topic and SQS queue exist and the queue is subscribed to the topic
 - The GuardDuty Malware Protection plan is active and covers the inbound bucket's upload prefix
+- Optionally, run `dpn-file-scan-prerequisites-cd.yml` with `cloud: aws` to have it verify this wiring, and to create the IRSA role and seed the Secrets Manager entries if you haven't already (see [Configure DPN File Scan Service, Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service) and [Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets))
 
 ---
 
@@ -97,6 +98,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow** in `dpn-contai
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag from Step3a |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-file-scan-service`) — leave blank to use the environment's configured repository |
 
 Workflow file: `.github/workflows/dpn-file-scan-cd.yml`
 
@@ -132,11 +134,11 @@ GuardDuty Malware Protection plan not covering the upload prefix, or not wired t
 
 ### AccessDenied on S3 Copy/Delete
 
-IRSA role missing a required action, or bucket policy blocking access — confirm the role ARN is on the pod's ServiceAccount annotation and the IAM policy matches [Configure DPN File Scan Service, Step1](../02-configuration/06-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service).
+IRSA role missing a required action, or bucket policy blocking access — confirm the role ARN is on the pod's ServiceAccount annotation and the IAM policy matches [Configure DPN File Scan Service, Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service).
 
 ### AccessDenied Reading Secrets Manager
 
-If the pod fails to start with a Secrets Store CSI mount error, confirm `secretsManager.secretPrefix` matches where `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` actually live, and that the IRSA role has `secretsmanager:GetSecretValue` scoped to that prefix (see [Configure DPN File Scan Service, Step5](../02-configuration/06-configure-dpn-file-scan-service.md#step5-configure-secrets)).
+If the pod fails to start with a Secrets Store CSI mount error, confirm `secretsManager.secretPrefix` matches where `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` actually live, and that the IRSA role has `secretsmanager:GetSecretValue` scoped to that prefix (see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets)).
 
 ### Files Disappear From Inbound But Never Appear Outbound
 

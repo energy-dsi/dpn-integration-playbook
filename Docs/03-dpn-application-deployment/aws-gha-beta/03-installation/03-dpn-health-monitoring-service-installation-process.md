@@ -71,6 +71,7 @@ Go to **Actions → DPN Health Monitoring → Run workflow** in `dpn-containeris
 | `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment — organisations may keep only one, e.g. `dpn01`, to run a single DPN cluster) |
 | `cloud` | `aws` |
 | `imageTag` | OTel Collector image tag — default `0.95.0` |
+| `otelImageRepository` | OTel Collector image path after `ghcr.io/energy-dsi/` — optional, leave blank to use the environment's configured repository |
 | `portalImageTag` | DPN Portal container image tag — **required**, no default (the short git-SHA the DPN Portal application's own CI build printed) |
 | `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `1.0.1/dpn-portal` |
 

@@ -81,15 +81,15 @@ The Certificate Manager reads and writes its certificate material directly in Va
 | Value | AWS Secrets Manager location | Azure Key Vault location |
 |---|---|---|
 | `secret-id` (sensitive) | `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_SECRET_ID` | `VAULT-APPROLE-SECRET-ID` (355-day expiry, to satisfy Key Vault's maximum-validity policy) |
-| `role-id` (not sensitive) | `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` — consuming CD workflows can fetch this programmatically instead of a human editing the values file | Printed in the workflow summary for you to copy into `vault.appRole.roleId` |
+| `role-id` (not sensitive) | `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` — stored for reference/other tooling (e.g. [Step 3C of the Vault workflow](01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml) fetches it programmatically) | Printed in the workflow summary for you to copy into `vault.appRole.roleId` |
 
-To switch over, set in the environment/cluster values file:
+**On AWS you must still copy the role-id into the values file yourself.** `dpn-certificate-manager-cd.yml` does not read `VAULT_APPROLE_ROLE_ID` from Secrets Manager and inject it — it deploys the Helm chart exactly as the values file specifies. Copy the `role_id` from the setup workflow's run summary into `vault.appRole.roleId`, the same as on Azure. To switch over, set in the environment/cluster values file:
 
 ```yaml
 vault:
   authentication: APPROLE
   appRole:
-    roleId: <role_id from the AppRole setup workflow's output>   # not needed on AWS if the CD workflow resolves it from Secrets Manager for you
+    roleId: <role_id from the AppRole setup workflow's output>   # required on AWS too — the CD workflow does not resolve this for you
 ```
 
 The `secret-id` itself is delivered into the `certificate-manager-secrets` Kubernetes secret by the CSI driver — the same mechanism already used for `VAULT-TOKEN`/`VAULT_TOKEN` (see [Step3b: Configure Secrets](#step3b-configure-secrets)). `VaultAuthStartupValidator` fails the deployment fast if `authentication: APPROLE` is set but the role-id/secret-id are missing. **The AppRole secret-id does not expire** (`secret_id_ttl=0`) — re-run the setup workflow periodically to rotate it, then redeploy the Certificate Manager to pick up the refreshed value.
@@ -195,14 +195,14 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 
 | AKV Secret | Kubernetes secret / key | Purpose | Example (placeholder) |
 |------------|-------------------------|---------|-----------------------|
-| `VAULT-APPROLE-SECRET-ID` | `certificate-manager-secrets` / `vaultAppRoleSecretId` | AppRole secret-id for the Certificate Manager — from the AppRole-setup workflow, see [Step2](#step2-configure-vault-authentication) | `<generated secret-id>` |
-| `VAULT-TOKEN` | `certificate-manager-secrets` / `vaultToken` | Root token of the DPN HashiCorp Vault (from Vault init) — required while `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
-| `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `oauth2ClientSecret` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
-| `VAULT-TRUSTSTORE-PASSWORD` | `certificate-manager-secrets` / `VAULT_SSL_TRUST_STORE_PASSWORD` | Password for `truststore.jks` (trusts Vault's HTTPS endpoint) — read by the app as `VAULT_SSL_TRUST_STORE_PASSWORD`, **not** `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD` or `OTEL_TRUSTSTORE_PASSWORD` (an old alias to the latter has been removed — it never actually supplied a trust-store password to the app on either cloud) | `<truststore password>` |
+| `VAULT-APPROLE-SECRET-ID` | `certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID` | AppRole secret-id for the Certificate Manager — from the AppRole-setup workflow, see [Step2](#step2-configure-vault-authentication) | `<generated secret-id>` |
+| `VAULT-TOKEN` | `certificate-manager-secrets` / `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault (from Vault init) — required while `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
 
-> **Note:** `VAULT-TOKEN` is produced during Vault setup by the `dpn-vault-https-cd.yml` workflow's Vault Init step (`storeRootTokenInAkv: true`) — confirm it exists in Key Vault before deploying. `VAULT-APPROLE-SECRET-ID` comes from `dpn-certificate-manager-role-id-creation.yml` (see [Step2](#step2-configure-vault-authentication)).
+> **Note:** `VAULT-TOKEN` is produced during Vault setup by the `dpn-vault-https-cd.yml` workflow's Vault Init step (`storeRootTokenInAkv: true`) — confirm it exists in Key Vault before deploying. `VAULT-APPROLE-SECRET-ID` comes from `dpn-certificate-manager-role-id-creation.yml` (see [Step2](#step2-configure-vault-authentication)). The chart's `SecretProviderClass` pulls only the Vault auth credential above — it no longer pulls an OAuth2 client secret or a truststore password. `OAUTH2-CLIENT-SECRET` is unused: every deployed values file sets `oauth2.authMode: private_key_jwt`, which never reads a client secret. The truststore password is instead read directly from the `tls-auth-secret` Kubernetes secret (key `TRUSTSTORE_PASSWORD`, created once by `dpn-tls-cd.yaml`) as `VAULT_SSL_TRUST_STORE_PASSWORD` — **not** `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD` — with no independent Key Vault re-sync for this component.
 
 #### Option B — Through AWS Secrets Manager (`secretsManager.enabled: true`)
+
+> **Known limitation — not yet wired into the chart's templates.** The `certificate-manager` chart's `SecretProviderClass` template is gated entirely on `keyvault.enabled` (Azure); setting `secretsManager.enabled: true` alone does not generate an AWS-native `SecretProviderClass`, and the Deployment's CSI volume unconditionally mounts `secretProviderClass: dpn-certificate-manager-kv-secrets` regardless of cloud. Until AWS CSI support is added, set `existingSecret.name` (e.g. `certificate-manager-secrets`) and pre-create that Kubernetes secret and the `dpn-certificate-manager-kv-secrets` `SecretProviderClass` object yourself — this is the pattern the real AWS environment values files already use. The table below documents the intended target design so environments are ready to adopt it once implemented.
 
 The `SecretProviderClass` pulls the following from `<secretsManager.secretPrefix>/<KEY_NAME>` into the `certificate-manager-secrets` Kubernetes secret, using the pod's IRSA identity (no dedicated role beyond `serviceAccount.irsaRoleArn` for this POC):
 

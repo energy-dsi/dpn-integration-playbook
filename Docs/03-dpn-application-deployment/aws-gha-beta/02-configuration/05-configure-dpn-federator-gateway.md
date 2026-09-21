@@ -8,11 +8,11 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
 >
 > The gateway reads this material directly from Vault and builds its mTLS keystore/truststore **in memory** at start-up (`vaultConfig.tlsEnabled: true`) — there is no shared file share to provision (`vaultConfig.mountCertFileShare: false`).
 >
-> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](03-configure-dpn-certificate-manager.md) first.
+> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) first.
 
 > **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
 
-> **This scope spans two GitHub Actions workflows, not one.** `dpn-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/mapper/extractor pods are a **separate** workflow, `dpn-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](05-configure-dpn-data-pipelines.md) — not here.
+> **This scope spans two GitHub Actions workflows, not one.** `dpn-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/mapper/extractor pods are a **separate** workflow, `dpn-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) — not here.
 
 ---
 
@@ -87,7 +87,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 12 | **Config JSON and values file populated for the `<environment>-<cluster>` combination** | See [Step3: Configure Environment](#step3-configure-environment) |
 | 13 | **IAM role for the platform's `ServiceAccount` (IRSA)** | Required when `serviceAccount.create: true` (the AWS default) — see [Step3e](#step3e-configure-aws-serviceaccount-irsa) |
 
-> **AWS-native Kafka secrets.** On AWS, Kafka's own SecretProviderClass (Keycloak admin password, HTTPS keystore/truststore passwords, universal cert password) pulls from **AWS Secrets Manager** under `secretsManager.secretPrefix` instead of Azure Key Vault — create these entries at `<secretsManager.secretPrefix>/<KEY>` before first deploy (see [Step3e](#step3e-configure-aws-serviceaccount-irsa)). This is separate from the Server/Client storage credentials in [Step2](#step2-configure-secrets), which continue to come from the cross-cloud Azure Key Vault as before.
+> **Kafka's Keycloak secrets come from a Kubernetes Secret, not AWS Secrets Manager.** On every cloud — not only AWS — Kafka Source/Target, Kafka UI, and the Federator Server/Client read the Keycloak admin password (`KEYCLOAK_ADMIN_PASSWORD`) and the OAuth client secret directly from the **`dpn-keycloak-secrets`** Kubernetes secret created by the **DPN Authentication Service** deployment (see the [Overview](#overview) note above) — no template in the `dpn-platform` chart currently reads `secretsManager.secretPrefix` for these values, so populating that prefix alone will not provision them. This is separate from the Server/Client storage credentials in [Step2](#step2-configure-secrets), which continue to come from the cross-cloud Azure Key Vault as before.
 
 > **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** The gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)) when `vaultConfig.mountCertFileShare: false` is set. The chart's own reference `values.yaml` still defaults this to `true` for backward compatibility — confirm your environment's values file explicitly sets it to `false` rather than relying on the reference default, or the deprecated file share is mounted again.
 
@@ -126,6 +126,7 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 | `federator-client-secrets` | CSI driver from AKV Client S3 credentials | Client S3 access |
 | `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — either the root token (`VAULT_TOKEN`, `authMethod: token`) or, by pointing `vaultConfig.appRole.roleId` at the Certificate Manager's own `role_id`, its shared AppRole `secret-id` |
 | `cert-manager-truststore` | Created by the **`dpn-vault-tls-bootstrap-cd.yml`** workflow | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
+| `tls-auth-secret` | Created once by **`dpn-tls-cd.yaml`** — the same platform-wide secret the Certificate Manager reads (see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication)) | `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD` keys, injected as `VAULT_TRUSTSTORE_PASSWORD` and (when `kafka.authMode: sasl_ssl`) `KAFKA_SSL_TRUSTSTORE_PASSWORD`/`KAFKA_SSL_KEYSTORE_PASSWORD` |
 
 ---
 
@@ -202,7 +203,7 @@ The following parameter needs to be set if key vault is used as secret provider.
 | `kafkaUI.oauth.clientId` | OIDC client ID Kafka UI itself authenticates with (separate from `kafkaUI.oidcRbac`, below) | as received from DSM/Keycloak |
 | `kafkaUI.tls.enabled` | Terminate HTTPS on Kafka UI's own listener, reusing the same `dpn-tls` keystore Kafka brokers and Redis already use. **Off by default** — only enable it in an environment where nothing else (e.g. an `oauth2-proxy`) depends on this listener staying plain HTTP, since Kafka UI drops its HTTP listener entirely once TLS is on | `false` |
 
-> Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
+> Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
 
 > **OpenTelemetry export.** `otel.tls.enabled` (default `true`) drives both the Federator Server/Client's OTLP exporter endpoint scheme and whether the OTel Collector truststore env vars are set at all — see [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md) if your Collector's OTLP receiver terminates TLS (the default). `otel.collector.host` / `otel.collector.port` point at the Collector Service.
 
@@ -215,9 +216,9 @@ A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Targe
 | `serviceAccount.create` | Render the `ServiceAccount` and attach it to every pod in this release | `true` |
 | `serviceAccount.name` | Name of the `ServiceAccount` | `dpn-federator-gateway` |
 | `serviceAccount.irsaRoleArn` | ARN of the IAM role the `ServiceAccount` assumes | `arn:aws:iam::<account-id>:role/dpn-federator-gateway-secrets-role` |
-| `secretsManager.secretPrefix` | AWS Secrets Manager path prefix Kafka's `SecretProviderClass` reads its 5 secrets from (`KEYCLOAK_ADMIN_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD`, `KAFKA_OAUTH_CLIENT_SECRET`, `UNIVERSAL_DPN_CERT_PASSWORD`) | `dpn/<environment>-<cluster>/federator-gateway` |
+| `secretsManager.secretPrefix` | Reserved AWS Secrets Manager path prefix for this `ServiceAccount`'s IRSA role — **not currently read by any template in this chart** (Kafka's Keycloak admin password and OAuth client secret come from the `dpn-keycloak-secrets` Kubernetes secret instead; see the note above [Step1](#step1-meet-prerequisites)) | `dpn/<environment>-<cluster>/federator-gateway` |
 
-The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and its permissions policy must grant `secretsmanager:GetSecretValue` on `secretsManager.secretPrefix/*` plus S3 read/write on `federatorServer.storage.s3.bucket` and `federatorClient.storage.s3.bucket`.
+The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and its permissions policy must grant S3 read/write on `federatorClient.storage.aws.bucket` — the Server has no static bucket parameter of its own (see [Step3a](#step3a-configure-federator-server)) — plus `secretsmanager:GetSecretValue` on `secretsManager.secretPrefix/*` for when that path is wired into a future chart update.
 
 > **Kafka pods on AWS disable Python auto-instrumentation.** Kafka Source/Target and Zookeeper Source/Target pods carry `instrumentation.opentelemetry.io/inject-python: "false"` when `cloudProvider: aws` — the cluster's OTel auto-instrumentation webhook otherwise injects a `urllib3` build incompatible with these images' Python 3.9 startup tooling and crashes the pod on start. No action needed; this is set automatically.
 
@@ -247,9 +248,9 @@ dpn-containerised-deployment-service/
 
 To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as a workflow artifact.
 
-> **No separate Key Vault fetch step on AWS.** The workflow's "Fetch Secrets From Key Vault" step (`vaultConfig.truststorePassword`) only runs `if: inputs.cloud == 'azure'`. On AWS the container reads the truststore password from the `certificate-manager-secrets` Kubernetes secret directly (`VAULT_TRUSTSTORE_PASSWORD` env var, set unconditionally in the Server/Client deployment templates) — nothing to fetch or `--set` at deploy time.
+> **No separate Key Vault fetch step on AWS.** The workflow's "Fetch Secrets From Key Vault" step (`vaultConfig.truststorePassword`) only runs `if: inputs.cloud == 'azure'`. On AWS the container reads the truststore password from the `tls-auth-secret` Kubernetes secret directly (key `TRUSTSTORE_PASSWORD`, created once by `dpn-tls-cd.yaml` — the same secret the Certificate Manager reads, see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication)), injected as the `VAULT_TRUSTSTORE_PASSWORD` env var unconditionally in the Server/Client deployment templates — nothing to fetch or `--set` at deploy time.
 
-Once this is deployed, provision the per-product producer/consumer pods and the S3 bucket/Kafka-topic prerequisites they need — see [Configure DPN Data Pipelines](05-configure-dpn-data-pipelines.md) and the [installation guide](../03-installation/04-dpn-federator-gateway-installation-process.md).
+Once this is deployed, provision the per-product producer/consumer pods and the S3 bucket/Kafka-topic prerequisites they need — see [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) and the [installation guide](../03-installation/05-dpn-federator-gateway-installation-process.md).
 
 ---
 

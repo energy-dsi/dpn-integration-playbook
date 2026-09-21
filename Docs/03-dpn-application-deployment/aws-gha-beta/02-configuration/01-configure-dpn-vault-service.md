@@ -151,7 +151,7 @@ dpn-federator-cert-manager/
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `cloudProvider` | **Set to `aws`.** Selects AWS KMS auto-unseal, the IRSA ServiceAccount, the AWS-native `SecretProviderClass`, and the NLB service annotations below; the chart's own default is `azure` | `aws` |
-| `image.repository` | Complete URL of the Vault image | `ghcr.io/energy-dsi/vault` |
+| `image.repository` | Complete URL of the Vault image | `ghcr.io/energy-dsi/1.0.1/vault` |
 | `image.tag` | Vault image tag (also overridable at runtime) | `1.16` |
 | `namespace` | Kubernetes namespace | `ns-dpn-01` |
 | `persistence.storageClassName` | Persistent volume StorageClass — an EBS-backed class (`gp2`/`gp3`), **not** the `efs-sc` class used by Certificate Manager's file share; Vault needs a `ReadWriteOnce` volume | `gp3` |
@@ -245,7 +245,7 @@ The workflow resolves the Vault pod, obtains a Vault token, and writes `pki-clie
 
 #### Step 3D: Deploy Certificate Manager (`dpn-certificate-manager-cd.yml`)
 
-See [Configure DPN Certificate Manager](03-configure-dpn-certificate-manager.md) for the full configuration and workflow inputs for this step.
+See [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) for the full configuration and workflow inputs for this step.
 
 ---
 
