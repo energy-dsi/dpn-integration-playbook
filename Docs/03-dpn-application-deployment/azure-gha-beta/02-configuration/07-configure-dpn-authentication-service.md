@@ -122,7 +122,7 @@ config:
   KC_DB_USERNAME: keycloak_db_user
 ```
 
-**Environments provided:** `dev`/`devtest`/`test` (both `dpn01` and `dpn02`); `pdev`/`ptest`/`puat` (single-DPN, `dpn01` only — both pipelines fail fast if `dpn02` is selected for these).
+**Environments provided:** `dev`/`devtest`/`test` (both `dpn01` and `dpn02`).
 
 ---
 
