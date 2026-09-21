@@ -26,6 +26,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
   - [Step3b: Configure Federator Client](#step3b-configure-federator-client)
   - [Step3c: Configure Key Vault If Used](#step3c-configure-key-vault-if-used)
   - [Step3d: Configure Kafka Security](#step3d-configure-kafka-security)
+  - [Step3e: Configure Redis Security](#step3e-configure-redis-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -41,11 +42,11 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 | Kafka Source | Stages the DPN's outgoing data; the Federator **Server** reads from here to send data out |
 | Kafka Target | Receives incoming data from other DPNs; the Federator **Client** writes received data here |
 | Kafka UI | Web dashboard to monitor topics/messages in both Kafka clusters (testing) |
-| Redis | In-memory cache for offsets and tokens, used by both Server and Client |
+| Redis | In-memory cache for offsets and tokens, used by both Server and Client. TLS-only (server-auth), access gated by Keycloak — see [Step3e](#step3e-configure-redis-security) |
 | **Federator Server** | Receives inbound connections from other DPNs' clients; reads from Kafka Source and streams data out over gRPC/mTLS |
 | **Federator Client** | Connects outward to a remote Federator Server; writes received data into Kafka Target and its storage |
 
-> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafka.oauth.tokenEndpointUrl`), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials.
+> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafkaSrc.oauth.tokenEndpointUrl` / `kafkaTarget.oauth.tokenEndpointUrl` — there is no shared top-level `kafka.oauth.*` key), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials.
 
 **certificates and passwords flow (MUST READ):**
 
@@ -77,7 +78,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 7 | **Storage accounts provisioned** | The **Server's** storage account, and the **File Scan Service source** storage account used by the **Client** |
 | 8 | **Fixed internal load balancer IPs reserved** | One for the Server service, one for the Client service (internal LB) |
 | 9 | **OAuth2 client ID + Management Node URL + IDP URLs** | Received from DSM during onboarding |
-| 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafka.oauth.tokenEndpointUrl` |
+| 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafkaSrc.oauth.tokenEndpointUrl` / `kafkaTarget.oauth.tokenEndpointUrl` |
 | 11 | **Container image tag available** | Built by the DSI CI process or prebuilt DSI image; supplied to the CD pipeline as `imageTag` |
 | 12 | **`config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml` populated** | See [Step3: Configure Environment](#step3-configure-environment) |
 
@@ -165,17 +166,6 @@ Root-Repository
 | `federatorClient.storage.provider` | `AZURE/S3/GCP/LOCAL` | Note. Important to set this value based on cloud provider. This parameter decides which storage provider to be invoked based on cloud type |
 | `federatorClient.storage.azure.container` | Container where inbound files are written (File Scan source container) | `dp-consumer-raw` |
 
-**JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
-
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `federatorClient.auth.enabled` | Front the JobRunr dashboard with a built-in Keycloak-authenticating gateway instead of leaving it open on the internal network | `true` |
-| `federatorClient.auth.issuerUrl` / `.audience` | Keycloak realm issuer and OIDC client ID (reuses the same client Kafka's OAuth already uses) | as received from DSM |
-| `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
-| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port — must differ from `jobRunnerPort`, and is the **only** port exposed via the `-external` LoadBalancer Service | `8086` |
-
-> **Keycloak redirect URI must use the `-external` hostname.** The gateway runs its own OIDC authorization-code login. Register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` as the redirect URI on the Keycloak client — pointing it at the plain in-cluster hostname instead breaks the login callback (state-cookie mismatch), since Keycloak always redirects back to whichever hostname is configured here regardless of which one the browser actually started the login from.
-
 ### Step3c: Configure Key Vault If Used
 
 The following parameter needs to be set if key vault is used as secret provider. 
@@ -191,10 +181,29 @@ The following parameter needs to be set if key vault is used as secret provider.
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `kafka.authMode` | Security protocol for **every** Kafka listener (Source and Target) — `sasl_ssl` (production default), `ssl` (TLS only), or `plaintext` (dev/test only) | `sasl_ssl` |
-| `kafka.oauth.tokenEndpointUrl` | Keycloak token endpoint used for `OAUTHBEARER` login/validation when `authMode: sasl_ssl` | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `kafka.authMode` | Security protocol for **every** Kafka listener (Source and Target) — `sasl_ssl` (production default), `ssl` (TLS only, no OAuth), or `plaintext` (dev/test only) | `sasl_ssl` |
+| `kafkaSrc.oauth.clientId` / `kafkaTarget.oauth.clientId` | Keycloak client ID each broker's `OAuthBearerLoginModule` authenticates as | `dpn-service-client` |
+| `kafkaSrc.oauth.tokenEndpointUrl` / `.jwksUrl` (and the same under `kafkaTarget.oauth`) | Keycloak token/JWKS endpoints used for `OAUTHBEARER` login and token validation when `authMode: sasl_ssl` | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/{token,certs}` |
+| `kafkaSrc.oauth.expectedAudience` / `.expectedIssuer` (and the same under `kafkaTarget.oauth`) | Values the broker validates incoming tokens against | `dpn-service-client` / `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm` |
+| `kafkaSrc.oauth.adminUser` / `kafkaTarget.oauth.adminUser` | Keycloak admin username used for realm bootstrap checks | `admin` |
+| `kafkaSrc.tls.*` / `kafkaTarget.tls.*` | Broker's own TLS keystore/truststore paths and mTLS enforcement (`clientAuth: none` or `required`) — used whenever `authMode` is `ssl` or `sasl_ssl`, independent of the OAuth settings above | see chart defaults |
+
+> **Secrets this depends on.** The `oauth.*` fields above are non-secret config; the actual client secret and passwords are read at runtime from the existing `kafka-secrets` Kubernetes secret — `KAFKA_OAUTH_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `UNIVERSAL_DPN_CERT_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD`. Provisioning `kafka-secrets` itself is out of scope for this playbook — see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
 
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
+
+### Step3e: Configure Redis Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `redis.tls.enabled` | Whether Redis only accepts TLS connections — **on by default** in every environment, not opt-in | `true` |
+| `redis.truststore.path` / `redis.truststore.password` | Client-side truststore the Server/Client use to trust Redis's certificate. Identical for both roles, so set once in `common-configuration.properties` rather than duplicated per role | as received alongside the other TLS material |
+
+Redis's own server certificate is **not** a separate value to configure — it's extracted at pod start-up (by an init container, using `openssl`) from the same shared `dpn-tls` keystore Kafka already uses, whose SAN already covers the in-cluster Redis hostname. Redis is configured for **server-authentication only** (`--tls-auth-clients no`) — there is no client certificate/mTLS requirement for connecting to it, mirroring Kafka's own `SASL_SSL` listener (`KAFKA_SSL_CLIENT_AUTH=none`).
+
+> **No Redis username/password (ACL) authentication.** Earlier releases supported `redis.username`/`redis.password` for Redis's own ACL auth — these have been **removed**. Access control is now enforced entirely at the application layer: every Redis-touching call site (other than the Federator's own IDP token cache, which deliberately bypasses this to avoid a circular dependency) requires a valid Keycloak session before a connection is returned. This is independent of `kafka.authMode` / Keycloak's SASL role for Kafka — Redis TLS and its Keycloak gate apply regardless of that Kafka setting.
+>
+> **Only this component's own Redis is TLS-enabled today.** The REST Federator Gateway's separate `dpn-redis` release (its own cache, not this one) does not yet have TLS — that migration is tracked as a separate, not-yet-delivered enabler.
 
 ---
 
@@ -229,6 +238,7 @@ DPN DEPLOYMENT COMPLETE
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-Jul-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

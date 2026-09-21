@@ -2,9 +2,7 @@
 
 This section describes how to configure and deploy the **DPN Authentication Service** — the platform's OAuth2/OIDC identity provider, **Keycloak** — into a single target environment and DPN cluster on Azure Kubernetes Service (AKS).
 
-> **Deploy this before components that authenticate against it.** The Federator Gateway's Kafka brokers (`kafka.authMode: sasl_ssl`) and the DPN observability UIs authenticate against this Keycloak realm. Deploy the Authentication Service, and create the realm/clients it expects, before enabling Keycloak-based auth on those components.
-
-> **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values throughout.
+> **Deploy this immediately after Vault service deployed.** Deploy the Authentication Service, and create the realm/clients it expects, before enabling Keycloak-based auth on those components.
 
 ---
 
@@ -30,7 +28,7 @@ Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS
 |---|---|
 | In-cluster URL | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443` |
 | External access | Internal Azure Load Balancer (`dpn-keycloak-service-lb`), VNet only |
-| Database | Bundled PostgreSQL (`dpn-keycloak-postgres`) — can be pointed at a managed database instead (see [Step4](#step4-environment-configuration)) |
+| Database | Bundled PostgreSQL on container (`dpn-keycloak-postgres`) used for keycloak configuration (see [Step4](#step4-environment-configuration)) |
 | Secrets | Azure Key Vault via the Secrets Store CSI driver |
 
 Consuming components resolve tokens against a realm on this Keycloak instance, for example the Federator Gateway's Kafka brokers when `kafka.authMode: sasl_ssl` (see [Configure DPN Federator Gateway, Step3d](05-configure-dpn-federator-gateway.md#step3d-configure-kafka-security)).
@@ -61,7 +59,7 @@ The deploy pipeline reads the required secret names out of the rendered `SecretP
 | `KEYCLOAK-ADMIN-PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account |
 | `KC-HTTPS-KEY-STORE-PASSWORD` | `KC_HTTPS_KEY_STORE_PASSWORD` | Opens `keystore.jks` |
 | `KC-HTTPS-TRUST-STORE-PASSWORD` | `KC_HTTPS_TRUST_STORE_PASSWORD` | Opens `truststore.jks` |
-| `KC-SERVICE-CLIENT-SECRET` | `KC_SERVICE_CLIENT_SECRET` | Not CSI-mounted — checked explicitly in Validate, then fed to `configure-keycloak.sh` in Deploy. Sets the secret on the `dpn-service-client` UI client; must match the same Key Vault object already synced by `dpn-health-monitoring-service`'s oauth2-proxy releases (OpenSearch Dashboards, Jaeger, Perses, Portal) and by Kafka UI's own `SecretProviderClass` for its native OIDC login |
+| `KC-SERVICE-CLIENT-SECRET` | `KC_SERVICE_CLIENT_SECRET` | Sets the secret on the `dpn-service-client` UI client; must match the same Key Vault object already synced by `dpn-health-monitoring-service`'s oauth2-proxy releases (OpenSearch Dashboards, Jaeger, Perses, Portal) and by Kafka UI's own `SecretProviderClass` for its native OIDC login |
 
 > **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy.
 
@@ -99,7 +97,7 @@ The CD pipeline loads its Azure targeting and the Keycloak admin/realm details f
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|
 | `ENV_NAME` | Deployment environment abbreviation | `<env>` |
-| `CONTAINER_REGISTRY` | ACR name (no `.azurecr.io` suffix) | `acrdpn<env>uks01` |
+| `CONTAINER_REGISTRY` | ACR name | `acrdpn<env>uks01` |
 | `CONTAINER_REGISTRY_URL` | ACR URL | `acrdpn<env>uks01.azurecr.io` |
 | `BASE_REGISTRY` | Base container registry URL | `acrdpn<env>uks01.azurecr.io` |
 | `AZURE_SUBSCRIPTION_ID` | Subscription where the infrastructure is deployed | `<subscription-id>` |
@@ -144,9 +142,6 @@ config:
   KC_DB_URL: jdbc:postgresql://<server>.postgres.database.azure.com:5432/keycloak_db
   KC_DB_USERNAME: keycloak_db_user
 ```
-
-**Environments provided:** `dev`/`devtest`/`test` (both `dpn01` and `dpn02`); `pdev`/`ptest`/`puat` (single-DPN, `dpn01` only — both pipelines fail fast if `dpn02` is selected for these).
-
 ---
 
 ## Step5: Configure Deployment Parameters
@@ -164,7 +159,7 @@ Root-Repository/
 
 The deploy pipeline runs **Validate** (confirms the Key Vault secrets exist, verifies the TLS certificate and its alias/SANs, `helm lint` + dry run) → **Deploy** (`helm upgrade --install`, records the deployed image digest, then configures the realm/clients — see below) → **Verify** (confirms the load balancer is internal, checks the HTTPS endpoint from inside the cluster, and asserts plaintext HTTP is refused). The Deploy stage is gated on the environment's approver group.
 
-Runtime parameters: `ServiceConnection`, `environment`, `dpnCluster`. There is no `imageTag` parameter — see [Step1](#step1-meet-the-prerequisites).
+Runtime parameters: `ServiceConnection`, `environment`, `dpnCluster`.
 
 The uninstall pipeline (`dpn-keycloak-uninstall-cd.yaml`) retains the PostgreSQL PVC by default so realm data survives a reinstall — pass `deletePvc: true` to destroy it.
 
@@ -174,6 +169,8 @@ The uninstall pipeline (`dpn-keycloak-uninstall-cd.yaml`) retains the PostgreSQL
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+## Review Notes
+
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 

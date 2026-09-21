@@ -124,6 +124,8 @@ The following prerequisites must be completed before beginning the installation 
 Clone the official repositories from GitHub.
 
 ```bash
+git clone https://github.com/energy-dsi/dpn-rest-federator-gateway
+git clone https://github.com/energy-dsi/dpn-authentication-service
 git clone https://github.com/energy-dsi/dpn-federator.git
 git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-data-pipelines.git
@@ -194,6 +196,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
+| DPN Authentication Service | *02-dpn-authentication-service-installation-process.md* | Must be installed and configured before the Health Moniotoring service|
 | DPN Health Monitoring Service | *03-dpn-health-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
 | DPN Federator Certificate Manager | *04-dpn-certificate-manager-installation-process.md* | Depends on Vault |
 | DPN Federator Gateway | *05-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
@@ -340,5 +343,6 @@ Recommended fix: Obtain the updated client secret for the Client ID from DSM by 
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

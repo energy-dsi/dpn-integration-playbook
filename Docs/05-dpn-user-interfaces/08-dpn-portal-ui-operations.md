@@ -34,7 +34,7 @@ The landing page is organised into **cards**, not a flat tile grid. Each card gr
 
 | Card | Component(s) | Links to | Purpose |
 |------|--------------|----------|---------|
-| Users & Roles | Keycloak Console | The Keycloak admin console (master realm) | Manage DPN users, groups, and role assignments — admin-only, see §4 |
+| Users & Roles | Keycloak Console | The Keycloak admin console (dpn-realm realm) | Manage DPN users, groups, and role assignments — admin-only, see §4 |
 | Data / Store | DPN Kafka | The health-monitoring Kafka UI | Browse topics and manage the Kafka clusters — see [Kafka UI Operations](04-kafka-ui-operations.md) / [Kafka Health UI Operations](07-kafka-health-ui-operations.md) |
 | Gateway | GRPC Gateway Client | The gRPC gateway client UI, once deployed | Manage exposure of Data Products to authorised consumers |
 | Data / Pipeline | Pipeline Orchestrator | Apache Airflow | Monitor and manage the DPN data-pipeline DAGs — see [Airflow Scheduler UI Operations](02-apache-airflow-scheduler-ui-operations.md) |
@@ -50,12 +50,12 @@ Each component opens its target UI directly over its own HTTPS address — the p
 
 Card visibility is filtered by the Keycloak group(s) in the `X-Forwarded-Groups` header. Two groups exist today:
 
-| Group | Intended for |
-|-------|--------------|
-| `dpnadmin` | Administrators |
-| `dpnreader` | Read-only operational users |
+| Role | Group | Intended for |
+|------|-------|--------------|
+| dpnadmin | `dpn-admins` | Administrators |
+| dpnreader | `dpn-readers` | Read-only operational users |
 
-**Users & Roles is admin-only** — its card lists only `dpnadmin` in `groups`, so `dpnreader` users never see it or the Keycloak Console link. Every other card lists both groups and is visible to all authenticated users; per-card `groups` remains the mechanism for tightening any of them further if a service should become admin-only later — that is a configuration change to the card's `groups` list, not a code change.
+**Users & Roles is admin-only** — its card lists only `dpn-admins` in `groups`, so `dpn-readers` users never see it or the Keycloak Console link. Every other card lists both groups and is visible to all authenticated users; per-card `groups` remains the mechanism for tightening any of them further if a service should become admin-only later — that is a configuration change to the card's `groups` list, not a code change.
 
 ## 5. Troubleshooting
 
