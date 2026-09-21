@@ -98,6 +98,8 @@ dpn-rest-federator-gateway/
 
 > `dpn-redis`'s own `values.yaml` now honours the chart-wide `imagePullSecret` too (previously only the gateway's own pod did) — no action needed if you already set `imagePullSecret` for the release.
 
+> **`dpn-redis`'s `test-dpn02` AWS values file is still a placeholder.** Unlike `dpn-rest-federator`, whose `values/aws/<environment>-<cluster>.yaml` is populated for all four `dev-dpn01`/`dev-dpn02`/`test-dpn01`/`test-dpn02` combinations, `dpn-redis/values/aws/test-dpn02.yaml` is still the unpopulated stub — populate it (e.g. from `dpn-redis/values/aws/test-dpn01.yaml`) before running **deploy-redis** for `test`/`dpn02` on AWS.
+
 ### Step3a: Configure the Gateway
 
 | Parameter | Purpose | Example (placeholder) |

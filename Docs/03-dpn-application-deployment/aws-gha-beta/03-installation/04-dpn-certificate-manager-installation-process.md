@@ -4,7 +4,7 @@ This document covers the installation of the **DPN Federator Certificate Manager
 
 **Full instructions live in the configuration guide.** The end-to-end Certificate Manager flow — overview, prerequisites, the values/secrets to populate, deployment, and post-deployment verification — is documented in one place:
 
-**[Configure DPN Certificate Manager](../02-configuration/03-configure-dpn-certificate-manager.md)**
+**[Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
@@ -47,7 +47,7 @@ dpn-containerised-deployment-service/
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
+Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/04-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
 
 In summary the following prerequisites must be met.
 
@@ -179,7 +179,7 @@ Federator Certificate Manager custom image is found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-certificate-manager-service | `ghcr.io/energy-dsi/dpn-certificate-manager` | `e.g. 1.0.0` |
+| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/1.0.1/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — see `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from this image by default.
 

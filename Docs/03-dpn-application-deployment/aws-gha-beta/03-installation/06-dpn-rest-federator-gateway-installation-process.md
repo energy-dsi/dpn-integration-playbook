@@ -119,7 +119,7 @@ This enables the `approle` Vault auth method, writes the `rest-federator-policy`
 
 ### Step2d. Execute CD Workflow
 
-Go to **Actions → DPN CD - REST Federator → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** in `dpn-containerised-deployment-service`, and supply:
 
 | Input | Value |
 |-----------|-------|
