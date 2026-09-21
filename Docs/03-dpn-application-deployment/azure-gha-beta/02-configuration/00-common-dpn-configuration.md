@@ -95,21 +95,17 @@ DSI provides predefined endpoints to support the following environments:
 
 - Development
 - Integration Testing
-- Pre-Production
 
 These endpoints are publicly accessible to simplify integration and testing. Organisations must configure their pipelines to use the **appropriate endpoint for the corresponding deployment environment** as provided by DSI.
 
 | Environment | Component | URL |
 |-------------|-----------|-----|
-| Pre Production-Dev (pdev) | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
-| Pre Production-Dev (pdev)| Management Node | https://management.dsm01.dsipreprod1.neso.energy |
-| Pre Production-Dev (pdev)| DSI DPN Producer | https://producer.dpn01.dsipreprod1.neso.energy |
-| Pre Production-Test (ptest)| Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
-| Pre Production-Test (ptest)| Management Node | https://management.dsm01.dsipreprod2.neso.energy |
-| Pre Production-Test (ptest)| DSI DPN Producer | https://producer.dpn01.dsipreprod2.neso.energy |
-| Pre-Production-Uat (puat)| Authentication | https://auth-mtls.dsm01.dsipreprod3.neso.energy |
-| Pre-Production-Uat (puat)| Management Node | https://management.dsm01.dsipreprod3.neso.energy |
-| Pre-Production-Uat (puat)| DSI DPN Producer | https://producer.dpn01.dsipreprod3.neso.energy |
+| Development (dev) | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
+| Development (dev) | Management Node | https://management.dsm01.dsipreprod1.neso.energy |
+| Development (dev) | DSI DPN Producer | https://producer.dpn01.dsipreprod1.neso.energy |
+| Integration Testing (test) | Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
+| Integration Testing (test) | Management Node | https://management.dsm01.dsipreprod2.neso.energy |
+| Integration Testing (test) | DSI DPN Producer | https://producer.dpn01.dsipreprod2.neso.energy |
 
 ---
 
@@ -193,6 +189,8 @@ Refer to the [DPN Federator Certificate Manager](03-configure-dpn-certificate-ma
 
 The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
 
+In addition to that DSM-issued bundle, the platform's own internal mTLS material (the `dpn-tls` / `dpn-health-tls` Kubernetes secrets consumed by Keycloak, Kafka, cert-manager, the `oauth2-proxy` observability gateways, and Health Monitoring Service's Data Prepper) is generated and published by a shared, cloud-aware **DPN CD - Prerequisite Pipeline (Universal TLS)** workflow (`dpn-prerequisite-pipeline.yml`) rather than being created by hand. This pipeline publishes its certificate secrets into **both** the target namespace (`ns-dpn-01`, or whichever `targetNamespace` you use) **and** `ns-dpn-health-01` — Health Monitoring Service components running in that second namespace need their own copy of the same certificate material, so both namespaces must exist (see [AKS Namespace Configuration](#step23-aks-namespace-configuration)) before this pipeline is run.
+
 ---
 
 ### Step5: Network and Ports Configuration
@@ -211,7 +209,7 @@ The following firewall rules must be applied by the organisation before installi
 | DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | DPN Kubernetes VNET | DPN Kubernetes subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 443 | Bi-directional |
 
-> **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `pdev`, `ptest` and `puat` environments.
+> **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `dev` and `test` environments.
 
 > **Note:** DPN uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 load balancer; Layer 7 load balancing may not be supported for this traffic for most of the layer 7 load balancers
 

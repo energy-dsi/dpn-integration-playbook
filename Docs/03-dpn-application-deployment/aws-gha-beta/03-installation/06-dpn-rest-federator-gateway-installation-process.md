@@ -1,14 +1,14 @@
-# DPN Federator Gateway Installation Process
+# DPN REST Federator Gateway Installation Process
 
-This document covers the installation of the **DPN Federator Gateway** (Server, Client, and supporting Kafka/Zookeeper/Redis/Kafka UI services) into a single target environment and a single DPN cluster on Amazon Elastic Kubernetes Service (EKS).
+This document covers the installation of the **DPN REST Federator Gateway** (the REST/HTTPS federation gateway and its `dpn-redis` cache) into a single target environment and a single DPN cluster on Amazon Elastic Kubernetes Service (EKS).
 
-**Full instructions live in the configuration guide.** The end-to-end Federator Gateway flow — overview, prerequisites, Key Vault and Kubernetes secrets, the values to populate, deployment, and verification — is documented in one place:
+**Full instructions live in the configuration guide.** The end-to-end REST Federator Gateway flow — overview, prerequisites, secrets, the values to populate, Vault AppRole setup, autoscaling, and deployment — is documented in one place:
 
-**[Configure DPN Federator Gateway](../02-configuration/04-configure-dpn-federator-gateway.md)**
+**[Configure DPN REST Federator Gateway](../02-configuration/06-configure-dpn-rest-federator-gateway.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and the keystore/truststore passwords directly from Vault (no shared file share is used).
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and keystore/truststore passwords directly from Vault, and its rendered config depends on the `certificate-manager-secrets` Kubernetes secret already existing in the namespace at deploy time (see the configuration guide's [Step2](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step2-configure-secrets)).
 
 ---
 
@@ -19,19 +19,14 @@ This installation page is a quick-reference summary that points to that guide.
 - [Step2: Execute CI/CD](#step2-execute-cicd)
   - [Step2a. CI (component source repository)](#step2a-ci-component-source-repository)
   - [Step2b. Configure GHCR Image Access](#step2b-configure-ghcr-image-access)
-  - [Step2c. Execute CD Workflow](#step2c-execute-cd-workflow)
-  - [Step2d. Verify CD Workflow](#step2d-verify-cd-workflow)
-  - [Step2e. Setup Kafka Topics](#step2e-setup-kafka-topics)
-  - [Step2f: Verify Job Runner Interface](#step2f-verify-job-runner-interface)
+  - [Step2c. One-Time Vault AppRole Setup](#step2c-one-time-vault-approle-setup)
+  - [Step2d. Execute CD Workflow](#step2d-execute-cd-workflow)
+  - [Step2e. Verify CD Workflow](#step2e-verify-cd-workflow)
 - [Step3: Troubleshooting](#step3-troubleshooting)
-  - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
-  - [PKIX Certificate validation error](#pkix-certificate-validation-error)
-  - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
-  - [52x error Due to SSL handshake failure](#52x-error-due-to-ssl-handshake-failure)
-  - [403 OCSP certificate check failure](#403-ocsp-certificate-check-failure)
-  - [Resilience retry due from remote endpoint call.](#resilience-retry-due-from-remote-endpoint-call)
-  - [File or Streaming Data Not Arriving](#file-or-streaming-data-not-arriving)
-  - [Kafka Pod Failure](#kafka-pod-failure)
+  - [Invalid Keystore/Truststore Password](#invalid-keystoretruststore-password)
+  - [Pod CrashLoop on First Deploy — Empty Truststore Password](#pod-crashloop-on-first-deploy--empty-truststore-password)
+  - [403 from the Backend](#403-from-the-backend)
+  - [HPA Not Scaling](#hpa-not-scaling)
 - [Reference: Container Images Used](#reference-container-images-used)
 - [Review Notes](#review-notes)
 
@@ -39,45 +34,45 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** via one GitHub Actions CD workflow run. The release includes the Federator Server and Client plus Zookeeper (source/target), Kafka (source/target), Kafka UI, and Redis.
+The REST Federator Gateway is deployed as **two independently re-runnable jobs** in one GitHub Actions CD workflow run: **deploy-redis** (this chart's own `dpn-redis` cache) followed by **deploy-rest-federator** (the gateway itself).
 
 ```text
 dpn-containerised-deployment-service/
 └── .github/
     └── workflows/
-        └── dpn-federator-gateway-cd.yml
+        ├── dpn-rest-federator-cd.yml
+        └── dpn-rest-federator-role-id-creation.yml
 ```
 
 Key points, detailed in the configuration guide:
-- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the S3 access credentials (and the Vault root token, via `certificate-manager-secrets`) are Key Vault secrets.
-- The **Server and Client use separate S3 buckets** — the **Client uses the File Scan Service source bucket**.
-- The deployment targets a **single DPN cluster** (`dpn01` or `dpn02`).
-- Kafka brokers run `SASL_SSL`/`OAUTHBEARER` against Keycloak by default (`kafka.authMode: sasl_ssl`).
+- Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — set up once per environment/cluster via [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy.
+- Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — both provisioned automatically by the CD workflow.
+- A **HorizontalPodAutoscaler** is on by default (`hpa.enabled: true`) — no separate opt-in step.
+- `certificate-manager-secrets` must already exist in the namespace at deploy time — the rendered config's Vault truststore password is resolved via a Helm `lookup` against it, not an environment variable read at pod start-up.
 
 ---
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
+Confirm the prerequisites are met before starting the REST Federator Gateway installation. See [Configure DPN REST Federator Gateway → Prerequisites](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step1-meet-the-prerequisites).
 
-In summary: 
+In summary:
 
-- Vault and Certificate Manager deployed and in running state
-- Health monitoring service is running state and OTEL Collector healthy
-- `cert-manager-truststore` and `certificate-manager-secrets` secrets present; Vault authentication configured (root token today — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) for the AppRole caveat)
-- S3 access credential secrets are prepared
-- Server and File Scan source S3 buckets provisioned
-- Internal load Balancer IPs are determined
-- IDP client ID is received from DSM
+- Vault and Certificate Manager deployed and in running state, with this gateway's endpoint included in the certificate's SANs
+- `cert-manager-truststore` and `certificate-manager-secrets` secrets present in the target namespace
+- DPN Authentication Service (Keycloak) reachable
+- OAuth2 client ID + Management Node URL + IDP URLs received from DSM
+- Backend service reachable, with a backend API key available
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
+- **Vault AppRole configured for this component** — run the one-time workflow in [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy
 
-**Note:** Organisations must review the CI/CD workflow code for the following. 
+**Note:** Organisations must review the CI/CD workflow code for the following.
 
-- If running your own CI, keep only the relevant build, unit test, and image-push steps — DSI's own CI examples include tool usage such as CheckMarx, SonarQube, and JFrog Xray that your organisation may not need
-- The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
-- The config JSON's environment parameters are pointing to correct deployment environment
+- If running your own CI, keep only the relevant build, unit test, and image-push steps
+- The container image is appropriate and referred from GHCR repository unless the Organisation plans to use a separate image repository of their own
+- The config JSON's environment parameters are pointing to the correct deployment environment
 - The DSM endpoints are correctly pointing to the respective environment
-- Required Firewall rules are applied
+- Required firewall rules are applied
 - Both CI and CD are verified for the above prerequisites before execution
 
 ---
@@ -86,13 +81,12 @@ In summary:
 
 ### Step2a. CI (component source repository)
 
-CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below. Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
+CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-rest-federator-gateway` source repository itself — separately from the CD workflow below.
 
-Once CI pushes new tags, note them for use as `imageTag` in Step2c — the image registry should show:
+Once CI pushes a new tag, note it for use as `imageTag` in [Step2d](#step2d-execute-cd-workflow) — the image registry should show:
 
 ```text
-dpn-federator-client:<image tag>
-dpn-federator-server:<image tag>
+dpn-rest-federator-server:<image tag>
 ```
 
 ### Step2b. Configure GHCR Image Access
@@ -109,9 +103,23 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
-### Step2c. Execute CD Workflow
+### Step2c. One-Time Vault AppRole Setup
 
-Go to **Actions → DPN CD - Federator Gateway → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+**Run this once per `<environment>-<cluster>` combination, before the first `dpn-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
+
+Go to **Actions → DPN CD - REST Federator Role ID Creation → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+
+| Input | Value |
+|-----------|-------|
+| `environment` | `dev` / `test` |
+| `cluster` | `dpn01` / `dpn02` |
+| `cloud` | `aws` |
+
+This enables the `approle` Vault auth method, writes the `rest-federator-policy`, creates/updates the `rest-federator` AppRole role, and publishes `VAULT_APPROLE_ROLE_ID`/`VAULT_APPROLE_SECRET_ID` to AWS Secrets Manager under `dpn/<environment>-<cluster>/rest-federator/`. See [Configure DPN REST Federator Gateway, Step3b](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step3b-configure-vault-authentication) for the full detail and prerequisites (Vault must already be deployed and unsealed, with its admin token in Secrets Manager).
+
+### Step2d. Execute CD Workflow
+
+Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** in `dpn-containerised-deployment-service`, and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -119,124 +127,58 @@ Go to **Actions → DPN CD - Federator Gateway → Run workflow** in `dpn-contai
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag pushed in Step2a |
+| `imageRepository` | Leave blank to use the environment's configured registry |
 
-On success, the deployed image digests are captured as a workflow artifact.
+The workflow runs **deploy-redis** then **deploy-rest-federator**. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running Helm. On success, the deployed image digest is captured as a workflow artifact.
 
----
-
-### Step2d. Verify CD Workflow
-
-After deployment, confirm the following components are running and validate end-to-end connectivity using the container logs. Alternatively, check the logs from DPN health monitoring dashboard. The dashboard starts filling after some time once the heartbit signal flow begins. 
+### Step2e. Verify CD Workflow
 
 ```bash
 kubectl get pods -n <namespace>
-kubectl logs -f dpn-federator-server-1-XXXXXXXXX
-kubectl logs -f dpn-federator-client-1-XXXXXXXXX
-kubectl get svc  -n <namespace>   # confirm Server + Client internal LB IPs
-```
-The kubectl logs should not showcase any [error] message if the deployment is successful. 
-
-### Step2e. Setup Kafka Topics
-
-Once the Federator Gateway service is deployed, the Kafka-UI is acecssible using a private FQDN. To access kafka-ui , Organisation should check the load balancer IP of the kafka-ui service received from the following. 
-
-```bash
-kubectl get svc  -n <namespace>  
-```
-The kafka-ui is reachable using the following FQDN
-
-```text
-http://`<kafka-ui load balancer ip>`:8086
+kubectl logs -f dpn-rest-federator-server-1-XXXXXXXXX
+kubectl get svc -n <namespace>   # confirm the gateway's internal NLB IP
+kubectl get hpa -n <namespace>   # confirm the HPA picked up the deployment
 ```
 
-The login would require nginx proxy authentication credentials to be provided. 
-Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/05-configure-dpn-data-pipelines.md)
-
-For more details on kafka-ui interface refer to [Kafka UI Operations](../../../05-dpn-user-interfaces/04-kafka-ui-operations.md)
-
-
-### Step2f: Verify Job Runner Interface
-
-Once the Federator Gateway service is deployed, the federator client job runner interface is acecssible using a private FQDN. To access job runnner interface , Organisation should check the load balancer IP of the federator client service received from the following. 
-
-```bash
-kubectl get svc  -n <namespace>  
-```
-The job runner interface is reachable using the following FQDN
-
-```text
-http://`<dpn-federator-client-1 load balancer ip>`:8085
-```
-
-For more details on the job runner UI, refer to For more details on kafka-ui interface refer to [Job Runner Interface Operations](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md)
+The kubectl logs should not show any `[error]` messages if the deployment is successful.
 
 ---
 
 ## Step3: Troubleshooting
 
-While working with Federator Gateway Service some known problem could arise. These are given below.
+### Invalid Keystore/Truststore Password
 
-### Invalid Keystore/Trustore Password
+A common error caused by a password mismatch. Follow the Certificate Manager troubleshooting steps for this issue — the REST Federator Gateway shares the same Vault-sourced keystore/truststore material.
 
-This is a common known error occuring due to password mismatch. Please follow the Troubleshooting step for Certificate manager for the same issue.
+### Pod CrashLoop on First Deploy — Empty Truststore Password
 
-### PKIX Certificate validation error
+If the pod fails immediately with a PKCS12/JKS load error on truststore construction, `certificate-manager-secrets` most likely didn't exist in the namespace when this chart was rendered — the config's `vault.truststore.password` is resolved via a Helm `lookup` against that secret at render time, not read live at pod start-up. Deploy Certificate Manager first, then re-run `dpn-rest-federator-cd.yml` so the config is re-rendered with the real password.
 
-Sometimes there could be some sync issue between certificate, ca-chain and key-pair files in the hashicorp vault which can lead to the `PKIX certificate validation` error. Please follow the Troubleshooting step for Certificate manager for the same issue.
+### 403 from the Backend
 
-### 401 Unauthorised error from DSM Auth endpoint
+If the gateway returns `403` on every request, confirm the caller's product subscription and allowed-path configuration in the Management Node, and that the caller's certificate hasn't been revoked (OCSP check). See the configuration guide's [Overview](../02-configuration/06-configure-dpn-rest-federator-gateway.md#overview) for the full authorization flow.
 
-Sometimes the certificate entries in the management-node could get out of sync with the certificates in vault leading to the 401 error from DSM IDP endpoint. Please follow the Troubleshooting step for Certificate manager for the same issue.
+### HPA Not Scaling
 
-### 52x error Due to SSL handshake failure
-
-Sometimes the certificates in keystore.p12 file could hit expiry or out of sync. This can trigger 52x errors from the DPN of other Organisation when the consumer job tries to connect a producer.
-
-### 403 OCSP certificate check failure
-
-When the Federator client connects to a server whose certificate has expired or revoked, it will hit this error from OCSP endpoint in management node, which will cause the transfer job to fail. In this case unsubscribe to the product from UI or ask the producer of the product to get a valid certificate.
-
-### Resilience retry due from remote endpoint call.
-
-This error most likely is caused due to invalid bearer token used or authentication issue at the IDP. In this most of the time the error should go after restarting both certificate manager and federator consecutively.
-
-### File or Streaming Data Not Arriving
-
-This error happens if kafka topic offset is out of sync for certain reasons. In this case it is advised to flush redis cache using the following command. 
-
-```text
-kubectl exec -n ns-dpn-01 <redis-pod-name> -- redis-cli FLUSHALL
-```
-
-### Kafka Pod Failure
-
-In case Kafka is failing , please restart using rollout restart command in sequence 1. Kafka src 2. Kafka-target and then kafka-UI.
-
-```text
-kubectl rollout restart deployment/<deployment-name> -n <namespace>
-```
+Confirm the metrics-server (or equivalent) is installed in the cluster — `hpa.enabled: true` renders the `HorizontalPodAutoscaler`, but it can only act on CPU/memory utilisation targets if a metrics source is available. `kubectl describe hpa dpn-rest-federator-server-hpa -n <namespace>` shows the current vs. target utilisation and any scaling events.
 
 ---
 
 ## Reference: Container Images Used
 
-DPN Federator Gateway service custom images are found in GHCR with following names
+DPN REST Federator Gateway custom images are found in GHCR with the following names:
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| Federator Server | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-server` | `e.g. 1.0.0` |
-| Federator Client | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-client` | `<version>` |
+| REST Federator Server | `ghcr.io/energy-dsi/dpn-rest-federator-server` | `<version>` |
 
-The Federator Gateway service 3rd party platform images are found in GHCR with following names
+The REST Federator Gateway's 3rd party platform images are found in GHCR with the following names:
 
 | Purpose | GHCR Path |
 |---|---|
-| Kafka | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
-| Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
 | Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
-| Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
 
-There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from these images by default.
+There is no separate GHCR-specific workflow to run — [Step2d](#step2d-execute-cd-workflow) above already deploys from these images by default.
 
 ---
 
@@ -244,4 +186,4 @@ There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+| — | — | Draft — pending DSI Assurance review | V0.1.0 |
