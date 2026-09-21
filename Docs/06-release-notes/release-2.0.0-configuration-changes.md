@@ -138,7 +138,7 @@ OpenSearch itself is unchanged in this release — it has been running since Rel
 
 The dashboard is not baked into the OpenSearch Dashboards image or any Helm chart values — it is loaded at runtime as OpenSearch Dashboards **saved objects**, provisioned by a one-shot Kubernetes `Job` (`dpn-dashboard-init`) that `curl`s the saved-objects import API. Applying this fix to an already-running Release 1.0.0 environment is therefore **not** a `helm upgrade` / pod restart / image pull — it is a re-run of that provisioning Job against the already-running OpenSearch Dashboards service, sourced from the corrected `.ndjson` file.
 
-### Steps to apply the fix via CI/CD (recommended path)
+### Steps to apply the fix via CI/CD
 
 Both CI/CD systems provision the dashboard as one stage of the full observability stack pipeline — there is currently no standalone "OpenSearch dashboard only" pipeline. Running either path below re-applies the corrected saved objects to the already-running containers without touching any other component's image or configuration, because every other stage is idempotent against unchanged inputs.
 
