@@ -63,10 +63,10 @@ The distinction matters for what actually gets reverted:
 
 | Component | Standard CD pipeline (Strategy 1) | Dedicated rollback pipeline (Strategy 2) | 
 |-----------|--------------------------------------|-----------------------------------------------|
-| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | Confirmed — both pipelines read directly from the `develop-rollback` branch |
-| DPN Federator Gateway | `azure-dpn-cd.yaml` | None found — use the manual `helm rollback dpn-platform` command in [Part 2](#part-2--dpn-federator-gateway-rollback) |
-| DPN REST Federator Gateway | `rest-federator-cd.yml` | None found — use the manual `helm rollback` commands in [Part 2a](#part-2a--dpn-rest-federator-gateway-rollback) |
-| DPN Authentication Service | `dpn-keycloak-cd.yaml` | None found — use the manual `helm rollback dpn-keycloak` command in [Part 2b](#part-2b--dpn-authentication-service-rollback) |
+| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | Use the manua helm rollback command |
+| DPN Federator Gateway | `azure-dpn-cd.yaml` | Use the manual `helm rollback dpn-platform` command in [Part 2](#part-2--dpn-federator-gateway-rollback) |
+| DPN REST Federator Gateway | `rest-federator-cd.yml` | Use the manual `helm rollback` commands in [Part 2a](#part-2a--dpn-rest-federator-gateway-rollback) |
+| DPN Authentication Service | `dpn-keycloak-cd.yaml` | Use the manual `helm rollback dpn-keycloak` command in [Part 2b](#part-2b--dpn-authentication-service-rollback) |
 | DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `dpn-certificate-manager-rollback.yaml` | 
 | DPN File Scanning Service | `dpn-file-scan-service-cd.yml` | `dpn-file-scan-service-rollback-cd.yml` | 
 | DPN Health Monitoring Service | `monitoring-master-cd.yaml` | `monitoring-master-rollback-cd.yaml` | 
@@ -423,5 +423,6 @@ Organisations should maintain:
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
