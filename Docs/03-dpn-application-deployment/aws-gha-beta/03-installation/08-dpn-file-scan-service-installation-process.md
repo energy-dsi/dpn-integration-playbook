@@ -54,7 +54,7 @@ The following prerequisites must be met.
 
 ## Step2: AWS Resource Setup (SNS/SQS/GuardDuty)
 
-**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must still be provisioned manually** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-file-scan-prerequisites-cd.yml` does have an AWS branch (`cloud: aws`), but it only creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan.
+**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must still be provisioned manually** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-gha-file-scan-prerequisites-cd.yml` does have an AWS branch (`cloud: aws`), but it only creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan.
 
 Once complete, validate:
 
@@ -100,7 +100,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow** in `dpn-contai
 | `imageTag` | The image tag from Step3a |
 | `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-file-scan-service`) — leave blank to use the environment's configured repository |
 
-Workflow file: `.github/workflows/dpn-file-scan-cd.yml`
+Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml`
 
 ---
 
@@ -162,12 +162,12 @@ File scan service image found in GHCR with following name
 |---|---|---|
 | dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
 
-Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-file-scan-cd.yml` already deploys from this image by default.
+Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-gha-file-scan-cd.yml` already deploys from this image by default.
 
 ---
 
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
