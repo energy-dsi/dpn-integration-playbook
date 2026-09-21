@@ -2,6 +2,8 @@
 
 This document covers the installation of the **DPN HashiCorp Vault service** into a single target environment on Azure Kubernetes Service (AKS).
 
+> **The legacy plain-HTTP Vault path has been retired.** The older, non-TLS `vault` Helm chart and its `dpn-vault-cd.yml` workflow have been removed from `dpn-containerised-deployment-service`. `dpn-vault-https-cd.yml` (below) is now the sole Vault deployment workflow on Azure.
+
 **Full instructions live in the configuration guide.** The end-to-end Vault flow — prerequisites, the values/config to populate, the deployment pipelines, post-deployment auto-unseal, and verification — is documented in one place:
 
 **[Configure DPN Vault Service](../02-configuration/01-configure-dpn-vault-service.md)**
