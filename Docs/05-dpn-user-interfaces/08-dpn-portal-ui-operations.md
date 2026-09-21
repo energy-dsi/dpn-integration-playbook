@@ -28,23 +28,25 @@ https://dpn-observability.<namespace>.svc.cluster.local:<portal-port>
 
 Signing in redirects through the Keycloak login page. Once authenticated, the landing page lists every tile your Keycloak group grants you.
 
+![DPN Portal landing page](images/08_dpn_portal_ui.png)
+
 ## 3. Tiles
 
-The landing page is organised into **cards**, not a flat tile grid. Each card groups one or more named **components**, and each component is an independent link:
+The landing page is organised into **cards**, not a flat tile grid. Each card groups one or more named **components**, and each component is an independent link (see the screenshot in [§2](#2-accessing-the-portal)):
 
 | Card | Component(s) | Links to | Purpose |
 |------|--------------|----------|---------|
-| Users & Roles | Keycloak Console | The Keycloak admin console (dpn-realm realm) | Manage DPN users, groups, and role assignments — admin-only, see §4 |
-| Data / Store | DPN Kafka | The health-monitoring Kafka UI | Browse topics and manage the Kafka clusters — see [Kafka UI Operations](04-kafka-ui-operations.md) / [Kafka Health UI Operations](07-kafka-health-ui-operations.md) |
-| Gateway | GRPC Gateway Client | The gRPC gateway client UI, once deployed | Manage exposure of Data Products to authorised consumers |
-| Data / Pipeline | Pipeline Orchestrator | Apache Airflow | Monitor and manage the DPN data-pipeline DAGs — see [Airflow Scheduler UI Operations](02-apache-airflow-scheduler-ui-operations.md) |
-| Security / Services | Certification Vault Service | The Vault UI, once deployed | Foundational authentication/authorisation/policy-enforcement service |
-| Health / Monitoring Service | Log Stack, Traces Stack, Metrics Dashboard, Collector Stack | OpenSearch Dashboards, Jaeger, Perses, Kafka UI respectively | Visibility into a participant's operational and compliance posture — see [OpenSearch Dashboard Operations](05-opensearch-dashboard-ui-operations.md), [Jaeger Dashboard Operations](06-jaeger-dashboard-ui-operations.md) |
+| Users & Roles | Keycloak Console | The Keycloak admin console (dpn-realm realm) | Manage DPN users, groups, and role assignments — admin-only, see §4. Not shown in the screenshot above, since it was captured as a `dpnreader` user |
+| Data / Store (top-left card in the screenshot) | DPN Kafka | The health-monitoring Kafka UI | Browse topics and manage the Kafka clusters — see [Kafka UI Operations](04-kafka-ui-operations.md) / [Kafka Health UI Operations](07-kafka-health-ui-operations.md) |
+| Gateway (top-middle card) | GRPC Gateway Client | The gRPC gateway client UI, once deployed | Manage exposure of Data Products to authorised consumers |
+| Data / Pipeline (top-right card) | Pipeline Orchestrator | Apache Airflow | Monitor and manage the DPN data-pipeline DAGs — see [Airflow Scheduler UI Operations](02-apache-airflow-scheduler-ui-operations.md) |
+| Security / Services (bottom-left card) | Certification Vault Service | The Vault UI, once deployed | Foundational authentication/authorisation/policy-enforcement service |
+| Health / Monitoring Service (bottom-right card) | Log Stack, Traces Stack, Metrics Dashboard, Collector Stack | OpenSearch Dashboards, Jaeger, Perses, Kafka UI respectively | Visibility into a participant's operational and compliance posture — see [OpenSearch Dashboard Operations](05-opensearch-dashboard-ui-operations.md), [Jaeger Dashboard Operations](06-jaeger-dashboard-ui-operations.md) |
 
 Each component opens its target UI directly over its own HTTPS address — the portal is a directory, not a reverse proxy for these UIs' content. Two notes on the table above:
 
 - **Collector Stack and DPN Kafka currently point at the same Kafka UI instance.** They are listed as separate components (one under "Data / Store", one under "Health / Monitoring Service") because they represent two different *purposes* for reaching that UI, not two different services.
-- **Gateway and Security / Services ship with no URL configured today.** Their components render as a non-clickable "No status available" row until a GRPC Gateway Client / Vault UI address is deployed and wired into the portal's `tiles` values for that environment — this is a placeholder for services not yet exposed through the portal, not a bug.
+- **Gateway and Security / Services ship with no URL configured today.** Their components render as a non-clickable "No status available" row until a GRPC Gateway Client / Vault UI address is deployed and wired into the portal's `tiles` values for that environment — this is a placeholder for services not yet exposed through the portal, not a bug. In the screenshot above, both cards instead show their one component in "Normal Operations" for this environment.
 
 ## 4. Access Control (Keycloak Groups)
 
