@@ -41,8 +41,6 @@ New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the n
 
 New single landing page for every DPN component UI, in `dpn-health-monitoring-service`'s `charts/dpn-portal`. Published as `ghcr.io/energy-dsi/dpn-portal:1.0.0`, its first release — see [DPN Internal DNS Configuration](#dpn-internal-dns-configuration) below for how its UI links are configured, and the [GHCR upgrade checklist](#upgrade-checklist) for the image reference.
 
-> **Note:** all three new components currently have gaps in their GHCR delivery. `dpn-authentication-service` and `dpn-rest-federator-gateway` ship only through the ACR/Azure DevOps pipeline path — neither repository has a GitHub Actions / GHCR pipeline yet. `dpn-portal`'s chart still ships with `image.repository`/`image.tag` left blank and no build/push workflow exists yet in `dpn-health-monitoring-service` — confirm the `1.0.0` image has actually been published before relying on it.
-
 ---
 
 ## DPN Vault Service
@@ -91,7 +89,7 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 | Added | `vaultConfig.tlsEnabled`, `vaultConfig.tlsBasePath`, `vaultConfig.tlsKeystoreAlias` | In-memory TLS material construction |
 | Added | `vaultConfig.authMethod` (`approle`\|`token`, default `approle`), `vaultConfig.appRole.roleId`, `.mountPath`, `.useSecretIdRef`, `.secretIdSecretName`, `.secretIdSecretKey`, `.renewalIntervalSecs` | Vault authentication — AppRole is the recommended and default option |
 | Added | `vaultConfig.mountCertFileShare` (default **`true`**) | Backward-compatibility toggle — the file share is **not** removed by default in this chart (unlike the Certificate Manager, where it is fully gone); set to `false` only once all TLS material is confirmed sourced from Vault |
-| Added | `kafkaSrc.oauth.*` / `kafkaTarget.oauth.*` (`clientId`, `jwksUrl`, `tokenEndpointUrl`, `expectedAudience`, `expectedIssuer`, `adminUser`) | Per-broker Keycloak `OAUTHBEARER` settings — six keys each for the source and target Kafka brokers, not a single flat `kafka.oauth.tokenEndpointUrl` |
+| Added | `kafkaSrc.oauth.*` / `kafkaTarget.oauth.*` (`clientId`, `jwksUrl`, `tokenEndpointUrl`, `expectedAudience`, `expectedIssuer`, `adminUser`) | Per-broker Keycloak `OAUTHBEARER` settings used for Oauth Authentication of DPN Federator Gateway components i.e. Redis, Kafka |
 | Added | `kafkaSrc.tls.*` / `kafkaTarget.tls.*` (`keystoreLocation`, `keystoreType`, `truststoreLocation`, `truststoreType`, `keyPassword`, `clientAuth`) | Per-broker TLS material configuration |
 | Added | `kafka.authMode` (`sasl_ssl`\|`ssl`\|`plaintext`) | Single value reconfiguring all Kafka listeners; `sasl_ssl` is the production default, requiring the `kafkaSrc`/`kafkaTarget` OAuth settings above |
 | Removed | `kafkaTopicCreator`, `kafkaTopicPopulator` chart sections | Demo/test-data jobs removed entirely from the chart and templates |
