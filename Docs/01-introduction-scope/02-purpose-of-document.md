@@ -35,7 +35,7 @@ This documentation focuses on the deployment and operation of DPN nodes using th
 - Redis state management
 - Container-based services
 
-The documentation assumes that the DPN node will be deployed within **Azure cloud environment** and **AWS Cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
+The documentation assumes that the DPN node will be deployed within an **Azure cloud environment** or an **AWS Cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
 
 The Azure deployment is completely automated using ADO Pipelines documented in  Azure ADO Beta installation. The AWS deployment is manual using kubectl with detailed step by step instruction to follow.
 
@@ -45,7 +45,7 @@ The Azure deployment is completely automated using ADO Pipelines documented in  
 
 By following the procedures in this documentation, organisations will be able to:
 
-- Successfully deploy a DPN node on either Azure, AWS or GCP. (Support for other clouds upcoming)
+- Successfully deploy a DPN node on either Azure, AWS. (Support for other clouds upcoming)
 - Integrate with the DSI ecosystem
 - Exchange data securely with other participating organisations
 - Operate and maintain the platform within their infrastructure environment
