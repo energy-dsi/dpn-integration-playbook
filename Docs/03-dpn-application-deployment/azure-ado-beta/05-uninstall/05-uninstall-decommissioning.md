@@ -29,6 +29,7 @@
 - [Part 5 — Uninstall DPN Health Monitoring Service](#part-5--uninstall-dpn-health-monitoring-service)
   - [Step 1 — Remove Health Monitoring Sub-Components](#step-1--remove-health-monitoring-sub-components)
   - [Step 2 — Verify Health Monitoring Service Removal](#step-2--verify-health-monitoring-service-removal)
+- [Part 5a — Uninstall DPN Authentication Service](#part-5a--uninstall-dpn-authentication-service)
 - [Part 6 — Post-Uninstallation Cleanup](#part-6--post-uninstallation-cleanup)
   - [Remove Container Images from ACR / GHCR](#remove-container-images-from-acr--ghcr)
   - [Remove Kafka Topics](#remove-kafka-topics)
@@ -50,6 +51,7 @@ The uninstallation process removes the following components:
 - DPN Federator Certificate Manager and Vault service
 - DPN Federator Gateway (Kafka, Zookeeper, Redis, Federator Server and Client)
 - DPN REST Federator Gateway (optional — the REST/HTTPS alternative to the gRPC Federator Gateway, plus its own `dpn-redis` release)
+- DPN Authentication Service (Keycloak and its own PostgreSQL instance)
 - DPN Health Monitoring Service (Kafka-health, OpenTelemetry Collector, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, Nginx-observability)
 - Kubernetes resources and Helm releases
 - Container images in Azure Container Registry / GHCR
@@ -70,6 +72,7 @@ All DPN services deployed as part of the DSI package are in scope for this unins
 - DPN Federator Certificate Manager
 - DPN Federator Gateway
 - DPN REST Federator Gateway (optional)
+- DPN Authentication Service
 - DPN Health Monitoring Service
 
 ---
@@ -97,7 +100,7 @@ At the time of writing, no dedicated uninstall pipeline was found for the DPN He
 **Uninstallation must be performed in the following order**, to respect the same runtime dependencies used elsewhere in DPN's documentation (see the dependency chain in the Rollback and Recovery Process):
 
 ```
-File Scanning Service -> Data Pipeline -> Federator Gateway -> REST Federator Gateway -> Federator Certificate Manager -> Vault 
+File Scanning Service -> Data Pipeline -> Federator Gateway -> REST Federator Gateway -> Federator Certificate Manager -> Vault -> Health Monitoring Service -> Authentication Service
 ```
 
 Because uninstallation removes components rather than reverting them, work **up the chain, from the most dependent component to the most foundational one** — the reverse of the order you would use to install them:
@@ -106,9 +109,10 @@ Because uninstallation removes components rather than reverting them, work **up 
 2. **Data Pipeline** — has no other DPN component depending on it for its own removal, and no longer has anything writing into it once File Scanning Service is gone.
 3. **Federator Certificate Manager (and Vault, removed together)** — safe to remove once nothing downstream still expects it to issue or renew certificates.
 4. **Federator Gateway and REST Federator Gateway** — remove **immediately after** step 3, in either order relative to each other (they don't depend on one another). Once the Certificate Manager and Vault are gone, neither gateway can renew or synchronise certificates, so leaving either running afterward serves no purpose and it will begin to fail on its own.
-5. **Health Monitoring Service** — remove last. It has no other DPN component depending on it to function, and keeping it in place while the components above are removed means its dashboards can still be used to confirm each preceding removal completed cleanly.
+5. **Health Monitoring Service** — remove next-to-last. It has no other DPN component depending on it to function, and keeping it in place while the components above are removed means its dashboards can still be used to confirm each preceding removal completed cleanly.
+6. **DPN Authentication Service** — remove **last**, after Health Monitoring Service. Health Monitoring's `oauth2-proxy`-gated dashboards (OpenSearch, Jaeger, Perses, Portal) require Keycloak SSO to log in — removing Authentication Service any earlier would lock the organisation out of those dashboards before they've been used to confirm the preceding removals completed cleanly.
 
-Parts 1–5 below are ordered to match this sequence (Part 4 covers both gateways) — follow them top to bottom rather than picking an order of convenience.
+Parts 1–5 below are ordered to match this sequence (Part 4 covers both gateways) — follow them top to bottom rather than picking an order of convenience. Part 5a (Authentication Service) follows Part 5, matching step 6 above.
 
 ---
 
@@ -511,6 +515,48 @@ kubectl delete namespace ns-dpn-health-01
 
 ---
 
+## Part 5a — Uninstall DPN Authentication Service
+
+This part removes the Keycloak-based DPN Authentication Service and its own PostgreSQL instance, deployed from the `dpn-authentication-service` repository as a single Helm release in `ns-dpn-01`. It is removed **last**, per [Uninstallation Sequence](#uninstallation-sequence), since Health Monitoring Service's `oauth2-proxy`-gated dashboards depend on it for SSO login while confirming the preceding removals.
+
+A dedicated uninstall pipeline exists for this repository, `dpn-keycloak-uninstall-cd.yaml`:
+
+```
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-keycloak-uninstall-cd.yaml
+```
+
+Trigger the pipeline manually and provide the following runtime parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `ServiceConnection` | Azure service connection for the target environment |
+| `environment` | Target environment |
+| `dpnCluster` | Target DPN cluster (`dpn02` is disabled for `pdev`/`ptest`/`puat`, which only have one DPN) |
+| `deletePvc` | **Destructive** — also deletes the PostgreSQL PVC, permanently losing every realm, user, and client. Leave `false` if any other environment or a future reinstall needs the existing realm data preserved |
+
+The pipeline internally executes the equivalent of:
+
+```bash
+helm uninstall dpn-keycloak -n ns-dpn-01
+```
+
+If `deletePvc: true` was passed, the PostgreSQL PVC is also removed after the Helm uninstall completes.
+
+**Verify removal:**
+
+```bash
+kubectl get pods -n ns-dpn-01   # no dpn-keycloak-* or dpn-keycloak-postgres-* pods should remain
+kubectl get pvc -n ns-dpn-01    # confirm the PostgreSQL PVC is gone, if deletePvc was true
+```
+
+> **Downstream impact:** once removed, Federator Gateway's Kafka OAuth/Kafka UI, Data Pipeline's Airflow SSO, and Health Monitoring Service's `oauth2-proxy` gateways can no longer authenticate — this is expected, since those components should already be removed by this point in the sequence. If any of them are still running for another reason, confirm that is intentional before removing Authentication Service.
+
+---
+
 ## Part 6 — Post-Uninstallation Cleanup
 
 After Parts 1–5 have completed successfully, perform the following manual cleanup steps to remove residual resources from Azure and the Kubernetes cluster.
@@ -610,6 +656,7 @@ Delete all Azure DevOps pipelines associated with the DPN node once uninstallati
 - Federator CI and CD pipelines
 - Federator uninstall CD pipeline
 - REST Federator Gateway CI and CD pipelines (`rest-federator-ci.yaml`, `rest-federator-cd.yml`), if the optional component was deployed — no dedicated uninstall pipeline exists for it (see [Part 4a](#part-4a--uninstall-dpn-rest-federator-gateway))
+- Authentication Service CD and uninstall CD pipelines (`dpn-keycloak-cd.yaml`, `dpn-keycloak-uninstall-cd.yaml`) — see [Part 5a](#part-5a--uninstall-dpn-authentication-service)
 - Certificate Manager CI, CD, and uninstall CD pipelines
 - Data Pipeline CI, CD, and uninstall CD pipelines
 - File Scanning Service CI, CD, and uninstall CD pipelines
@@ -650,5 +697,6 @@ If all commands return no DPN resources, the DPN platform has been successfully 
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
