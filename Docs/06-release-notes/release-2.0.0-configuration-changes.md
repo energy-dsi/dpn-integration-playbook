@@ -52,6 +52,7 @@ See [Configure DPN Vault Service](../03-dpn-application-deployment/azure-ado-bet
 | Added | `vault-approle-setup-cd.yaml` pipeline | New 4th pipeline — provisions a scoped AppRole identity (policy + role + `role_id`/`secret_id`) for the Certificate Manager. Not a generic per-component pipeline: the Federator Gateway is provisioned by running that repository's own `vault/setup-approle.sh` manually, and the REST Federator Gateway has no policy file or setup script yet at all |
 | Added | `VAULT-APPROLE-SECRET-ID` Key Vault secret | Output of the new pipeline; 355-day expiry, requires periodic re-run to rotate |
 | Modified | `storeRootTokenInAkv` (in `vault-https-cd`) | Still required — the bundle-load pipeline always needs the root token — but no longer the *only* credential path for downstream components |
+| Added | Certificate Bootstrapping and Edge Certificates documentation | New section in [DPN Vault Service Installation Process](../03-dpn-application-deployment/azure-ado-beta/03-installation/01-dpn-vault-installation-process.md#certificate-bootstrapping-and-edge-certificates) — ties the Federator bootstrap certificate flow to the existing Step 3C bundle-load pipeline, and adds a placeholder for organisations fronting DPN with an edge proxy: request the long-lived Edge component certificate with a server sign certificate CSR at a **60-day TTL**, reinstated manually at the edge on every renewal (no auto-renew, unlike the Federator bootstrap certificate) |
 
 ---
 

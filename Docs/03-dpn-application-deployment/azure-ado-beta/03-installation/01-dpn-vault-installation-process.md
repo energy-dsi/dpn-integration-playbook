@@ -25,7 +25,7 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Certificate Bootstrapping and Edge Certificates
 
-Every DPN node's certificate is generated and signed from the DSI portal's Certificate Management page, not by Vault itself — see the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md) for the full walkthrough. This section places the two certificate paths in the context of the Vault installation.
+Every DPN node's certificate is generated and signed from the DSI portal's Certificate Management page,see the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md) for the full walkthrough. This section places the two certificate paths in the context of the Vault installation.
 
 ### Bootstrapping the Federator Certificate
 
@@ -39,8 +39,8 @@ Once installed, the Certificate Manager renews this certificate automatically �
 
 **Placeholder** — for organisations that front their DPN deployment with an edge proxy (e.g. Cloudflare) instead of exposing the Federator directly:
 
-1. Generate a **server sign certificate** CSR on the edge component, requested with a **60-day TTL** — longer than the Federator bootstrap certificate's short-lived default, since this certificate fronts the edge listener rather than bootstrapping the Federator.
-2. Request an **Edge component certificate** (portal `Type: MANUAL`, long-lived) from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
+1. Generate a **server sign certificate** CSR on the edge component, requested with a **60-day TTL** longer than the Federator bootstrap certificate's short-lived default, since this certificate fronts the edge listener rather than bootstrapping the Federator.
+2. Request an **Edge component certificate** from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
 3. Install the signed bundle at the edge component.
 
 Unlike the Federator bootstrap certificate, the edge certificate is **not** renewed automatically — it must be manually reinstated at the edge on every renewal.
