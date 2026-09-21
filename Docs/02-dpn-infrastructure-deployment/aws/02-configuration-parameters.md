@@ -162,6 +162,7 @@ eks_bootstrap_cluster_creator_admin_permissions = <true-or-false>
 
 enable_cloudwatch_observability        = <true-or-false>
 cloudwatch_observability_addon_version = "<version>"
+enable_efs                             = <true-or-false>
 enable_efs_csi_driver                  = <true-or-false>
 efs_csi_driver_version                 = "<version>"
 enable_ebs_csi_driver                  = <true-or-false>
@@ -216,7 +217,16 @@ workload_node_group_max_size       = <max-size>
 - The version is an in-place add-on update rather than a replacement. Setting it to the version already installed produces no change.
 - A pinned version can fail the create on a newer Kubernetes release. This is intended: the deployment fails visibly rather than installing a different version.
 
-### 4.3 Auto-Instrumentation
+### 4.3 Shared Storage
+
+`enable_efs` creates the EFS file system, its mount targets and its security group. `enable_efs_csi_driver` and `efs_csi_driver_version` add the Amazon EFS CSI driver to the cluster as an EKS add-on.
+
+- Both parameters are optional and both are off in the environments this deployment currently runs. Set them explicitly rather than leaving them out — an omitted parameter takes the repository's own default, which may create the file system.
+- EFS is the only shared storage here. Block storage attaches to one node at a time, so a workload that needs several pods writing to the same volume needs EFS and cannot use section 4.2.
+- As with block storage, the driver provisions nothing on its own. A StorageClass naming `efs.csi.aws.com` is a separate step and this deployment does not create it.
+- Where enabled, the file system is reachable only from inside the VPC through its mount targets. The mount-target security group must allow TCP 2049 from the node subnets, or every claim sits `Pending` with nothing logged.
+
+### 4.4 Auto-Instrumentation
 
 Use the following parameters to control which deployments the CloudWatch Observability add-on auto-instruments.
 

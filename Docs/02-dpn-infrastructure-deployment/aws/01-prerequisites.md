@@ -90,7 +90,6 @@ The following diagram shows the high-level deployment architecture for the targe
 │  │  • IAM Role for Service Accounts (IRSA)      │   │
 │  │  • AWS Load Balancer Controller              │   │
 │  │  • AWS DB Instance (PostGreSQL)              │   │
-│  │  • Elastic File Service (AWS EFS)            │   │
 │  │  • Management Host                           │   │
 │  │  • Observability Logging S3 Buckets          │   │
 │  └──────────────────────────────────────────────┘   │

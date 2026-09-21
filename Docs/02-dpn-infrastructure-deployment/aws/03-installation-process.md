@@ -497,24 +497,31 @@ aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_node_rol
 
 ### Step 3.5 AWS EFS Details
 
-This deployment uses AWS EFS storage for application storage, with the file share secured through a private endpoint.
+This deployment can add a shared file system for workloads that need several pods writing to the same volume. It is optional and is off in the environments this deployment currently runs.
 
 ### What is created
 
-- AWS EFS
+- The EFS file system, its mount targets and its security group
+- The Amazon EFS CSI driver, installed as an EKS add-on
 
 ### Key configuration values
 
 The following variables are used in the deployment:
 
+- `enable_efs` – creates the file system, its mount targets and its security group.
 - `enable_efs_csi_driver` – The Amazon EFS Container Storage Interface (CSI) driver allows Kubernetes clusters running on AWS to mount Amazon EFS file systems as persistent volumes.
 - `efs_csi_driver_version` – add-on version installed on the cluster, pinned so that clusters built at different times match.
 
 ### Why this matters
 
-- Ensures developer storage is provided as a managed EFS file system
-- Keeps the EFS traffic private inside the VPC
-- Supports secure access to developer storage without exposing the file share over the public internet
+- EFS is the only shared storage in this deployment. Block storage (Step 3.7) attaches to one node at a time and cannot replace it.
+- Set both parameters explicitly. Leaving them out takes the repository's own default rather than switching the file system off.
+- Where enabled, the file system is reachable only from inside the VPC through its mount targets, so the file share is never exposed over the public internet.
+- The driver provisions nothing on its own. A StorageClass naming `efs.csi.aws.com` is a separate step and this deployment does not create it.
+
+### Deployment behavior
+
+Where both parameters are `false`, no file system, mount target, security group or add-on is created, and this step has nothing to validate. Setting them to `false` on an environment that already has them is a destroy, not a disable — see [05-uninstall-decommissioning.md](05-uninstall-decommissioning.md).
 
 ---
 
