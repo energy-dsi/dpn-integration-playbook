@@ -19,7 +19,7 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
 
 ---
-## Release 2.0.0 - 2026-08-31
+## Release 2.0.0 - Sep 2026
 
 **See [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) for a full component-by-component Added/Removed/Modified breakdown of every configuration item.**
 
@@ -49,7 +49,7 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 
 ---
 
-## Release 1.0.0 - 2026-07-31
+## Release 1.0.0 - July 2026
 
 ### Added
 

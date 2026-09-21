@@ -196,14 +196,8 @@ The following parameter needs to be set if key vault is used as secret provider.
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `redis.tls.enabled` | Whether Redis only accepts TLS connections — **on by default** in every environment, not opt-in | `true` |
+| `redis.tls.enabled` | Setup redis on encrypted connection | `true` |
 | `redis.truststore.path` / `redis.truststore.password` | Client-side truststore the Server/Client use to trust Redis's certificate. Identical for both roles, so set once in `common-configuration.properties` rather than duplicated per role | as received alongside the other TLS material |
-
-Redis's own server certificate is **not** a separate value to configure — it's extracted at pod start-up (by an init container, using `openssl`) from the same shared `dpn-tls` keystore Kafka already uses, whose SAN already covers the in-cluster Redis hostname. Redis is configured for **server-authentication only** (`--tls-auth-clients no`) — there is no client certificate/mTLS requirement for connecting to it, mirroring Kafka's own `SASL_SSL` listener (`KAFKA_SSL_CLIENT_AUTH=none`).
-
-> **No Redis username/password (ACL) authentication.** Earlier releases supported `redis.username`/`redis.password` for Redis's own ACL auth — these have been **removed**. Access control is now enforced entirely at the application layer: every Redis-touching call site (other than the Federator's own IDP token cache, which deliberately bypasses this to avoid a circular dependency) requires a valid Keycloak session before a connection is returned. This is independent of `kafka.authMode` / Keycloak's SASL role for Kafka — Redis TLS and its Keycloak gate apply regardless of that Kafka setting.
->
-> **Only this component's own Redis is TLS-enabled today.** The REST Federator Gateway's separate `dpn-redis` release (its own cache, not this one) does not yet have TLS — that migration is tracked as a separate, not-yet-delivered enabler.
 
 ---
 

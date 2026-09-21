@@ -238,9 +238,10 @@ Follow the same verification steps mentioned in step2c and step2d as above.
 
 ---
 
-
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|------------------|--------|---------|
-| 31-Jul-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+

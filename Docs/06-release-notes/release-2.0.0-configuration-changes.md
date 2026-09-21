@@ -41,8 +41,6 @@ New synchronous, HTTPS-based alternative to the gRPC Federator Gateway, in the n
 
 New single landing page for every DPN component UI, in `dpn-health-monitoring-service`'s `charts/dpn-portal`. Published as `ghcr.io/energy-dsi/dpn-portal:1.0.0`, its first release — see [DPN Internal DNS Configuration](#dpn-internal-dns-configuration) below for how its UI links are configured, and the [GHCR upgrade checklist](#upgrade-checklist) for the image reference.
 
-> **Note:** all three new components currently have gaps in their GHCR delivery. `dpn-authentication-service` and `dpn-rest-federator-gateway` ship only through the ACR/Azure DevOps pipeline path — neither repository has a GitHub Actions / GHCR pipeline yet. `dpn-portal`'s chart still ships with `image.repository`/`image.tag` left blank and no build/push workflow exists yet in `dpn-health-monitoring-service` — confirm the `1.0.0` image has actually been published before relying on it.
-
 ---
 
 ## DPN Vault Service
@@ -54,6 +52,7 @@ See [Configure DPN Vault Service](../03-dpn-application-deployment/azure-ado-bet
 | Added | `vault-approle-setup-cd.yaml` pipeline | New 4th pipeline — provisions a scoped AppRole identity (policy + role + `role_id`/`secret_id`) for the Certificate Manager. Not a generic per-component pipeline: the Federator Gateway is provisioned by running that repository's own `vault/setup-approle.sh` manually, and the REST Federator Gateway has no policy file or setup script yet at all |
 | Added | `VAULT-APPROLE-SECRET-ID` Key Vault secret | Output of the new pipeline; 355-day expiry, requires periodic re-run to rotate |
 | Modified | `storeRootTokenInAkv` (in `vault-https-cd`) | Still required — the bundle-load pipeline always needs the root token — but no longer the *only* credential path for downstream components |
+| Added | Certificate Bootstrapping and Edge Certificates documentation | New section in [DPN Vault Service Installation Process](../03-dpn-application-deployment/azure-ado-beta/03-installation/01-dpn-vault-installation-process.md#certificate-bootstrapping-and-edge-certificates) — ties the Federator bootstrap certificate flow to the existing Step 3C bundle-load pipeline, and adds a placeholder for organisations fronting DPN with an edge proxy: request the long-lived Edge component certificate with a server sign certificate CSR at a **60-day TTL**, reinstated manually at the edge on every renewal (no auto-renew, unlike the Federator bootstrap certificate) |
 
 ---
 
@@ -91,7 +90,7 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 | Added | `vaultConfig.tlsEnabled`, `vaultConfig.tlsBasePath`, `vaultConfig.tlsKeystoreAlias` | In-memory TLS material construction |
 | Added | `vaultConfig.authMethod` (`approle`\|`token`, default `approle`), `vaultConfig.appRole.roleId`, `.mountPath`, `.useSecretIdRef`, `.secretIdSecretName`, `.secretIdSecretKey`, `.renewalIntervalSecs` | Vault authentication — AppRole is the recommended and default option |
 | Added | `vaultConfig.mountCertFileShare` (default **`true`**) | Backward-compatibility toggle — the file share is **not** removed by default in this chart (unlike the Certificate Manager, where it is fully gone); set to `false` only once all TLS material is confirmed sourced from Vault |
-| Added | `kafkaSrc.oauth.*` / `kafkaTarget.oauth.*` (`clientId`, `jwksUrl`, `tokenEndpointUrl`, `expectedAudience`, `expectedIssuer`, `adminUser`) | Per-broker Keycloak `OAUTHBEARER` settings — six keys each for the source and target Kafka brokers, not a single flat `kafka.oauth.tokenEndpointUrl` |
+| Added | `kafkaSrc.oauth.*` / `kafkaTarget.oauth.*` (`clientId`, `jwksUrl`, `tokenEndpointUrl`, `expectedAudience`, `expectedIssuer`, `adminUser`) | Per-broker Keycloak `OAUTHBEARER` settings used for Oauth Authentication of DPN Federator Gateway components i.e. Redis, Kafka |
 | Added | `kafkaSrc.tls.*` / `kafkaTarget.tls.*` (`keystoreLocation`, `keystoreType`, `truststoreLocation`, `truststoreType`, `keyPassword`, `clientAuth`) | Per-broker TLS material configuration |
 | Added | `kafka.authMode` (`sasl_ssl`\|`ssl`\|`plaintext`) | Single value reconfiguring all Kafka listeners; `sasl_ssl` is the production default, requiring the `kafkaSrc`/`kafkaTarget` OAuth settings above |
 | Removed | `kafkaTopicCreator`, `kafkaTopicPopulator` chart sections | Demo/test-data jobs removed entirely from the chart and templates |
@@ -107,9 +106,19 @@ See [Configure DPN Federator Gateway](../03-dpn-application-deployment/azure-ado
 
 See [Configure DPN File Scan Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/08-configure-dpn-file-scan-service.md) (Azure) and [Configure DPN File Scan Service](../03-dpn-application-deployment/aws-gha-beta/02-configuration/08-configure-dpn-file-scan-service.md) (AWS).
 
+`CLOUD_PROVIDER_TYPE` (`env.cloudprovidertype` in the Helm chart) selects which listener/storage code path the service starts with. The application (`app/main.py`) recognises exactly three values, case-sensitive:
+
+| `CLOUD_PROVIDER_TYPE` value | Cloud | Listener started |
+|---|---|---|
+| `AZURE` | Azure | Azure Service Bus listener (`app/providers/azure/listener.py`) — the only value currently wired into the Helm chart's `values-*.yaml` |
+| `AWS` | AWS | AWS SQS listener (`app/providers/aws/listener.py`) — application code only, not yet set by any chart values file |
+| `GCP` | GCP | GCP processor (`app/providers/gcp/processor.py`) — application code only, not yet set by any chart values file |
+
+Any other value (including `S3`, which is not a recognised provider type — it names the AWS storage service the AWS path talks to, not the provider itself) raises `Unsupported cloud provider` and the service fails to start.
+
 | Change | Item | Details |
 |--------|------|---------|
-| Added (application code only — **not yet wired into the Helm chart**) | `CLOUD_PROVIDER_TYPE=S3` | Selects the AWS code path in the service |
+| Added (application code only — **not yet wired into the Helm chart**) | `CLOUD_PROVIDER_TYPE=AWS` | Selects the AWS code path in the service — see the cloud provider type table above |
 | Added (application code only — **not yet wired into the Helm chart**) | `AWS_REGION`, `S3_BUCKET_INBOUND`, `S3_BUCKET_OUTBOUND`, `SQS_QUEUE`, `SNS_TOPIC`, `S3_BUCKET_QUARANTINE`, `SQS_ENDPOINT`, `SNS_ENDPOINT` | AWS-specific configuration read by `app/config/settings.py` and `app/providers/aws/*.py`, parallel to the existing Azure settings |
 | Added | `env.otelExporterCertificate`, `env.truststorePath`, `env.otelTlsSecretName` (default `dpn-tls`), `FILESCAN-OTEL-TRUSTSTORE` Key Vault secret | TLS to the OTel Collector, mounted via a new `dpn-tls` secret volume |
 | Modified | `OTEL_ENDPOINT` → `OTEL_EXPORTER_OTLP_ENDPOINT` | Renamed; `env.otelExporterInsecure` removed as part of the same change |
