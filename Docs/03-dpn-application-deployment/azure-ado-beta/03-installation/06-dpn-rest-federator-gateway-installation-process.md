@@ -21,7 +21,16 @@ This installation page is a quick-reference summary that points to that guide.
   - [Step2b. Verify CI Pipeline Execution](#step2b-verify-ci-pipeline-execution)
   - [Step2c. Execute CD Pipeline](#step2c-execute-cd-pipeline)
   - [Step2d. Verify CD Pipeline](#step2d-verify-cd-pipeline)
-- [Step3: Troubleshooting](#step3-troubleshooting)
+- [Step3: Reference Implementation - Demo Runner Server and Client](#step3-reference-implementation---demo-runner-server-and-client)
+  - [Step3a. Prerequisites](#step3a-prerequisites)
+  - [Step3b. Execute CI Pipeline](#step3b-execute-ci-pipeline)
+  - [Step3c. Execute CD Pipeline](#step3c-execute-cd-pipeline)
+  - [Step3d. Verify Deployment](#step3d-verify-deployment)
+- [Step4: Containerized Deployment Using DSI Provided Container Images](#step4-containerized-deployment-using-dsi-provided-container-images)
+  - [Step4a. Configure GHCR Image Access](#step4a-configure-ghcr-image-access)
+  - [Step4b. Execute CD Pipeline](#step4b-execute-cd-pipeline)
+  - [Step4c. Verify CD Pipeline](#step4c-verify-cd-pipeline)
+- [Step5: Troubleshooting](#step5-troubleshooting)
   - [403 from a consumer that should be authorised](#403-from-a-consumer-that-should-be-authorised)
   - [502/504 from the backend proxy](#502504-from-the-backend-proxy)
   - [403 OCSP certificate check failure](#403-ocsp-certificate-check-failure)
@@ -45,7 +54,8 @@ Root-Repository/
 Key points, detailed in the configuration guide:
 - The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used, the same mechanism as the gRPC Federator and Certificate Manager.
 - Vault authentication defaults to **AppRole** in this chart (`vault.authMethod: approle`), not just token.
-- There is no dedicated GHCR-based containerized deployment pipeline for this repository today — only the standard CI/CD pipelines below.
+- The repository also ships a self-contained reference implementation — the Demo Runner Server and Client — used to exercise the gateway end-to-end (see Step3).
+- See Step4 for deploying the DSI-published GHCR container images instead of building via CI.
 
 ---
 
@@ -125,7 +135,137 @@ The kubectl logs should not show any Vault authentication or keystore-build erro
 
 ---
 
-## Step3: Troubleshooting
+## Step3: Reference Implementation - Demo Runner Server and Client
+
+The repository ships a self-contained example integration under `demo/demo-runner-server` and `demo/demo-runner-client`, used to exercise the REST Federator Gateway end-to-end without needing a participant's own backend or consumer application. The sequence follows the MHHS FMAR asset registration specification, with paths prefixed `/api/v1/fmar` for consistency with the gateway's other routes.
+
+**Demo Runner Server** is a minimal Spring Boot backend that sits behind the gateway as the example "producer's backend" (`restFederatorServer.backend.baseUrl`). It terminates its own HTTPS using the shared `dpn-tls` keystore and does not talk to Vault directly. The gateway-to-backend hop is authenticated with a shared API key header (`X-Backend-Api-Key`), sourced from the same `dpn-backend-api-key` Secret the gateway itself is configured with. It exposes an in-memory FMAR asset registration API, Swagger UI (`/swagger-ui.html`), and standard Kubernetes health probes.
+
+**Demo Runner Client** is a one-shot Kubernetes Job that imports the `rest-federator-client` library exactly as a real consumer integration would, and drives a six-step demo sequence against a producer's FMAR endpoints through the gateway:
+
+1. Query the asset before registration (expect not found)
+2. Register the asset (`POST`)
+3. Query the asset after registration (expect found)
+4. Register the same MPAN again (expect conflict)
+5. Call a path outside the product's allowed-path configuration (expect rejection — demonstrates the gateway's own enforcement, not just the client library's)
+6. Register with a payload missing a required field (expect rejection)
+
+By default the client targets every organisation/product it is subscribed to (set specific values in the chart's `values-<env>-<cluster>.yaml` to narrow this). The `mpan`, `postcode`, `assetId`, and `fspId` run parameters below control the registration payload; the client runs as a new Kubernetes Job object each time it is triggered (a Job's pod spec is immutable), and completed Jobs are kept for one hour so their logs remain inspectable.
+
+### Step3a. Prerequisites
+
+- The REST Federator Gateway (`dpn-rest-federator`) already deployed and healthy — the demo client calls through it.
+- `dpn-backend-api-key` Secret created with the same value the gateway sends as `X-Backend-Api-Key`, so the Demo Runner Server accepts the gateway's requests.
+- Vault AppRole/token access provisioned for the Demo Runner Client the same way as the gateway — it builds its own mTLS material from Vault at start-up.
+- At least one organisation/product already registered as a subscription on the Management Node, so the client's registry bootstrap has a target to run against.
+
+### Step3b. Execute CI Pipeline
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── ci-pipelines/
+            └── demo-runner-ci.yml
+```
+
+Builds and scans both the Demo Runner Server and Demo Runner Client images (Checkmarx, FOSSA, unit tests with JaCoCo coverage, SonarQube), then packages, signs, and pushes both images to the configured registry.
+
+### Step3c. Execute CD Pipeline
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── demo-runner-cd.yml
+```
+
+Two independently-toggleable stages, each gated by its own environment approval: **Deploy_DemoRunnerServer** → **Run_DemoRunnerClient**.
+
+| Parameter | Description |
+|-----------|-------------|
+| `ServiceConnection` | Azure service connection for your environment |
+| `environment` | Your target environment |
+| `cluster` | The target DPN cluster — `dpn01` or `dpn02` |
+| `imageTag` | Tag of the Demo Runner images to deploy (the CI run's `Build.BuildId`) |
+| `deployServer` | Deploy the Demo Runner Server (default `true`) |
+| `runClient` | Run the Demo Runner Client Job (default `true`) |
+| `mpan` | Import MPAN, 13 digits (default `1000000000001`) |
+| `postcode` | Postcode (default `SW1A 1AA`) |
+| `assetId` | Asset id — a UUID, or `none` to omit it |
+| `fspId` | FSP id — a UUID, or `none` for a randomly generated one |
+
+### Step3d. Verify Deployment
+
+```bash
+kubectl get pods -n <namespace>          # dpn-demo-runner-server-XXXXXX, plus a completed dpn-demo-runner-client-<buildId> Job
+kubectl logs job/dpn-demo-runner-client-<buildId> -n <namespace>
+```
+
+Expect the six-step FMAR sequence to print through to completion. Each step's outcome (not found / conflict / rejection / bad request) is expected demo behaviour, not a failure — only an unexpected exception or a step succeeding when it should have been rejected indicates a real problem.
+
+---
+
+## Step4: Containerized Deployment Using DSI Provided Container Images
+
+This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` image repository. Organisations using this approach pull DSI-provided images directly rather than building container images via CI pipelines.
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| dpn-rest-federator-server | `ghcr.io/energy-dsi/dpn-rest-federator-server` | `e.g. 1.0.0` |
+| dpn-demo-runner-server | `ghcr.io/energy-dsi/dpn-demo-runner-server` | `e.g. 1.0.0` |
+| dpn-demo-runner-client | `ghcr.io/energy-dsi/dpn-demo-runner-client` | `e.g. 1.0.0` |
+
+### Step4a. Configure GHCR Image Access
+
+All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
+
+Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same. This secret will be used during the image pull.
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+     --docker-server=ghcr.io \
+     --docker-username=<github-username-or-bot-account> \
+     --docker-password=<GitHub PAT with read:packages scope> \
+     -n <namespace>
+```
+
+### Step4b. Execute CD Pipeline
+
+This repository does not yet ship a dedicated GHCR-only CD pipeline (unlike the Certificate Manager's `certificate-manager-ghcr-cd.yaml`). Reuse the existing `rest-federator-cd.yml` (for the gateway) and `demo-runner-cd.yml` (for the demo apps) pipelines — both already resolve their image repository from `CONTAINER_REGISTRY_URL` in the environment's config file. Point that value at `ghcr.io/energy-dsi` for the target environment before running the pipeline, so the deployed `image.repository` resolves against GHCR instead of the environment's ACR.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── rest-federator-cd.yml   (gateway)
+            └── demo-runner-cd.yml      (demo apps, optional)
+```
+
+The CD Pipeline would require the following run time parameters.
+
+| Parameter | Value |
+|-----------|-------|
+| `ServiceConnection` | `A given Service Connection able to deploy the services` |
+| `environment` | `environment abbreviation` |
+| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `imageTag` | Provides the release version or image tag to be pulled from GHCR |
+
+Execute the pipeline(s) to perform deployment.
+
+---
+
+### Step4c. Verify CD Pipeline
+
+Follow the same verification steps mentioned in Step2d (and Step3d if the demo apps were also deployed).
+
+---
+
+## Step5: Troubleshooting
 
 ### 403 from a consumer that should be authorised
 

@@ -161,9 +161,8 @@ The following secrets should be created in Azure Key Vault
 |FILESCAN-CLIENT-ID | Service principal client id |
 |FILESCAN-CLIENT-SECRET | Service principal secret |
 |FILESCAN-OTEL-TRUSTSTORE | OTel PKCS#12 truststore, stored in Key Vault as a base64-encoded secret |
-|FILESCAN-OTEL-TRUSTSTORE-PASSWORD | Password for the truststore above, synced into a native Kubernetes Secret |
 
-> **Note:** the chart also expects a pre-existing Kubernetes Secret named by `env.otelTlsSecretName` as `dpn-tls`) in the target namespace, holding the mounted truststore. This is a common DPN secret used for https based authentication and not a Key Vault secret used in this component.
+> **Note:** the chart also expects a pre-existing Kubernetes Secret named by `env.otelTlsSecretName` (default `dpn-tls`) in the target namespace, holding the mounted truststore. This is a common DPN secret used for https based authentication and not a Key Vault secret used in this component. The truststore's password is **not** a separate Key Vault secret either — `TRUSTSTORE_PASSWORD` is read directly from the shared `tls-auth-secret` Kubernetes Secret (created once by the Certificate Manager's `dpn-tls-cd` pipeline), the same universal DPN platform password every other component reuses.
 
 ---
 
