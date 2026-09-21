@@ -96,6 +96,7 @@ dpn-containerised-deployment-service/
 | `FILESCAN_SQS_QUEUE_URL` | The queue URL from [Step2](#step2-aws-resource-setup-snssqsguardduty) | `https://sqs.<region>.amazonaws.com/<account-id>/dpn-fileupload-scan-results` |
 | `FILESCAN_SNS_TOPIC_ARN` | The topic ARN from [Step2](#step2-aws-resource-setup-snssqsguardduty) | `arn:aws:sns:<region>:<account-id>:dpn-fileupload-scan-results` |
 | `FILESCAN_IRSA_ROLE_ARN` | ARN of the IAM role granting the S3/SQS permissions above | `arn:aws:iam::<account-id>:role/dpn-file-scan-irsa` |
+| OTEL_EXPORTER_OTLP_ENDPOINT | OTel collector's OTLP endpoint. Defaults to the HTTPS endpoint on port `4318` | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
 
 ---
 

@@ -71,10 +71,12 @@ DPN repositories required:
 
 - [DPN-Infra](https://github.com/energy-dsi/dpn-infra-deployment)  
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
-- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator)  
+- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator-gateway)
+- [DPN-Rest-Federator-Gateway](https://github.com/energy-dsi/dpn-rest-federator-gateway)
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
 - [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
 
 ### Optional Tools
 
@@ -236,4 +238,5 @@ The prerequisites described in this document assume the following:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| 15-May-2026 | DSI Assurance   | Draft  | V0.1.0 |
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
