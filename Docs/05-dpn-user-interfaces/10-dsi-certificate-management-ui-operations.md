@@ -85,6 +85,6 @@ The **Certificate History** table sits below the two certificate cards, with **F
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-------------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|-------------------------------------|
+| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |

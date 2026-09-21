@@ -29,7 +29,7 @@
 
 ## Overview
 
-This document describes the planned installation process for the DPN File Scanning Service (the ADR's "DPN File Verification Service"), which inserts a malware-scanning gate in front of the existing DPN Data Pipeline Consumer Extractor. It depends on the DPN Data Pipeline already being installed, since it writes into the same `dp-consumer-stage` container that component already reads from.
+This document describes the planned installation process for the DPN File Scanning Service which inserts a malware-scanning gate in front of the existing DPN Data Pipeline Consumer Extractor. 
 
 ---
 
@@ -39,7 +39,7 @@ The following prerequisites must be met.
 
 - Defender for Cloud Storage is enabled at the subscription level or more
 - The source and target storage accounts are provisioned
-- The target storage account contains a container named `dp-consumer-stage` or other names if modifed
+- The source storage account contains a container `dp-consumer-raw` and target storage account contains a container named `dp-consumer-stage` or other names if modifed
 - An AKS cluster with service connection access to deploy new workloads
 - Azure subscription access sufficient to enable Microsoft Defender for Storage
 - Service connection required roles to create an Event Grid System Topic and provision a Service Bus namespace/topic
@@ -47,14 +47,14 @@ The following prerequisites must be met.
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 - The Service Principal created with the required role assignments and its Client ID/Secret noted (see [Configure DPN File Scan Service → Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-service-principal-in-azure-ad))
 - The per-environment config file (`config/<env>-<cluster>.json`) and Helm values overlay (`values-<env>-<cluster>.yaml`) prepared (see [Configure DPN File Scan Service → Step3](../02-configuration/08-configure-dpn-file-scan-service.md#step3-configure-file-scan-deployment-pipeline) and [Step4](../02-configuration/08-configure-dpn-file-scan-service.md#step4-configure-helm-chart-files))
-- The required Azure Key Vault secrets created — `FILESCAN-CLIENT-ID`, `FILESCAN-CLIENT-SECRET`, `FILESCAN-OTEL-TRUSTSTORE`, `FILESCAN-OTEL-TRUSTSTORE-PASSWORD` — plus the pre-existing `dpn-tls` Kubernetes secret in the target namespace (see [Configure DPN File Scan Service → Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-azure-key-vault--secrets))
+- The required Azure Key Vault secrets created — `FILESCAN-CLIENT-ID`, `FILESCAN-CLIENT-SECRET`, `FILESCAN-OTEL-TRUSTSTORE` — plus the pre-existing `dpn-tls` and `tls-auth-secret` Kubernetes secrets in the target namespace (the latter supplies `TRUSTSTORE_PASSWORD` directly; it is not a separate Key Vault secret for this component) (see [Configure DPN File Scan Service → Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-azure-key-vault--secrets))
 
 **Note:** Organisations must review the CI/CD Pipeline codes for the following. 
 
 - DSI Package contains certain tool usage recommendations to run CI pipeline. For example CheckMarx, SonarQube, JfrogXray etc. These steps should be carefully removed by Organisations and keep only relevant build, unit test and image push step using Helm before running the CI pipeline
 - The agent pool name has been modified to Organisation required agent pool name
 - There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
-- The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
+- The container image is pulled from the environment's ACR by default (`image.repository` resolves from `BASE_REGISTRY` in the environment config file) — see Step5 for pulling the DSI-provided GHCR image instead
 - The environment parameters are pointing to correct deployment environment
 - The DSM endpoints are correctly pointing to the target deployment environment
 - Required Firewall rules are applied
@@ -191,7 +191,7 @@ File scan service images are found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
+| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 2.0.0` |
 
 
 ### Step5a. Configure GHCR Image Access
@@ -228,7 +228,7 @@ The CD Pipeline would require the following run time parameters.
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
 | `dpncluster` | `dpn01` or `dpn02` (`dpn02` applies to `dev`/`devtest`/`test` only; `pdev`/`ptest`/`puat` are single-cluster, `dpn01` only) |
-| `imageTag` | The GHCR image tag to deploy (e.g. `1.0.0`) |
+| `imageTag` | The GHCR image tag to deploy (e.g. `2.0.0`) |
 
 Execute this CD Pipeline to perform deployment.
 
@@ -243,5 +243,6 @@ Follow the same verification steps mentioned in step3c and step3d as above.
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

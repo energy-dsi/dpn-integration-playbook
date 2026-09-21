@@ -16,6 +16,7 @@
   - [Verification](#verification)
 - [Part 2 — DPN Federator Gateway Rollback](#part-2--dpn-federator-gateway-rollback)
 - [Part 2a — DPN REST Federator Gateway Rollback](#part-2a--dpn-rest-federator-gateway-rollback)
+- [Part 2b — DPN Authentication Service Rollback](#part-2b--dpn-authentication-service-rollback)
 - [Part 3 — DPN Federator Certificate Manager Rollback](#part-3--dpn-federator-certificate-manager-rollback)
 - [Part 4 — DPN File Scanning Service Rollback](#part-4--dpn-file-scanning-service-rollback)
 - [Part 5 — DPN Health Monitoring Service Rollback](#part-5--dpn-health-monitoring-service-rollback)
@@ -29,7 +30,7 @@
 
 ## Overview
 
-This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, Data Pipeline, File Scanning Service, and Health Monitoring Service.
+This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, REST Federator Gateway, Authentication Service, Data Pipeline, File Scanning Service, and Health Monitoring Service.
 
 This document uses the Data Pipeline's rollback pipelines as the concrete, technical reference for how DPN's rollback strategy actually works, then generalises the same two-mode approach (Helm revision vs. image tag) to every other component via manual `helm rollback`/`helm upgrade` commands, since no equivalent dedicated pipeline was found for them.
 
@@ -62,9 +63,10 @@ The distinction matters for what actually gets reverted:
 
 | Component | Standard CD pipeline (Strategy 1) | Dedicated rollback pipeline (Strategy 2) | 
 |-----------|--------------------------------------|-----------------------------------------------|
-| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | Confirmed — both pipelines read directly from the `develop-rollback` branch |
-| DPN Federator Gateway | `azure-dpn-cd.yaml` | None found — use the manual `helm rollback dpn-platform` command in [Part 2](#part-2--dpn-federator-gateway-rollback) |
-| DPN REST Federator Gateway | `rest-federator-cd.yml` | None found — use the manual `helm rollback` commands in [Part 2a](#part-2a--dpn-rest-federator-gateway-rollback) |
+| DPN Data Pipeline | `dsi-data-pipelines-cd.yaml` | `dsi-data-pipelines-rollback-cd.yaml` | Use the manua helm rollback command |
+| DPN Federator Gateway | `azure-dpn-cd.yaml` | Use the manual `helm rollback dpn-platform` command in [Part 2](#part-2--dpn-federator-gateway-rollback) |
+| DPN REST Federator Gateway | `rest-federator-cd.yml` | Use the manual `helm rollback` commands in [Part 2a](#part-2a--dpn-rest-federator-gateway-rollback) |
+| DPN Authentication Service | `dpn-keycloak-cd.yaml` | Use the manual `helm rollback dpn-keycloak` command in [Part 2b](#part-2b--dpn-authentication-service-rollback) |
 | DPN Federator Certificate Manager | `certificate-manager-cd.yaml` | `dpn-certificate-manager-rollback.yaml` | 
 | DPN File Scanning Service | `dpn-file-scan-service-cd.yml` | `dpn-file-scan-service-rollback-cd.yml` | 
 | DPN Health Monitoring Service | `monitoring-master-cd.yaml` | `monitoring-master-rollback-cd.yaml` | 
@@ -99,6 +101,9 @@ Vault
         │           └─→ File Scanning Service (writes into Data Pipeline's dp-consumer-stage container)
         └─→ REST Federator Gateway (uses the same issued certs for mTLS; independent of the gRPC Federator Gateway and Data Pipeline)
 
+DPN Authentication Service (Keycloak) — independent of the Vault/certificate chain above. Federator Gateway (Kafka OAuth, Kafka UI), Data Pipeline
+  (Airflow SSO, Kafka OAuth), and Health Monitoring Service (oauth2-proxy UIs, Kafka UI OIDC) all authenticate against the realm it creates.
+
 Health Monitoring Service — independent of the chain above; every other component sends telemetry to it, but nothing above depends on it to function
 ```
 
@@ -107,11 +112,13 @@ Health Monitoring Service — independent of the chain above; every other compon
 When multiple components need rolling back together, work **down the chain, from Vault outward**, for the same reason you'd deploy in that order: a downstream component's current config assumes the upstream one is in a known-good state.
 
 1. **Vault** — only if the certificate bundle itself is suspect (not just the Certificate Manager's code). Restore from a secure offline copy per [Disaster Recovery Considerations](#disaster-recovery-considerations) before touching anything downstream, since every other component's mTLS depends on Vault's contents being valid.
-2. **Federator Certificate Manager** — roll back its deployment (Part 3) if the manager's own code is at fault. This does not affect Vault's stored certificates, so it's safe to do independently of step 1 unless the manager's rollback would reintroduce code that mismanages Vault contents.
-3. **Federator Gateway** — roll back (Part 2) only after Vault/Certificate Manager are confirmed healthy; otherwise the Gateway may roll back into a config that expects certificates Vault no longer has in the expected state.
-4. **Data Pipeline** — roll back (Part 1) once the Federator Gateway is confirmed healthy, since the Data Pipeline hands data off through it.
-5. **File Scanning Service** — roll back (Part 4) last in the chain, since it depends on the Data Pipeline's `dp-consumer-stage` container already existing and being written to correctly.
-6. **Health Monitoring Service** — roll back (Part 5) at any point relative to the above, but do it **after** the others if you still need its dashboards to confirm the other rollbacks succeeded. If Health Monitoring itself is the only thing broken, there's no ordering constraint with the rest of the chain at all.
+2. **DPN Authentication Service** — independent of the Vault/certificate chain, so it can be rolled back at any point relative to step 1. Roll it back (Part 2b) **before** any downstream component that relies on Keycloak-based auth (Kafka OAuth, Kafka UI, Airflow SSO, oauth2-proxy) if the realm/client configuration itself is suspect — those components will fail to authenticate against a realm mid-rollback.
+3. **Federator Certificate Manager** — roll back its deployment (Part 3) if the manager's own code is at fault. This does not affect Vault's stored certificates, so it's safe to do independently of step 1 unless the manager's rollback would reintroduce code that mismanages Vault contents.
+4. **Federator Gateway** — roll back (Part 2) only after Vault/Certificate Manager are confirmed healthy; otherwise the Gateway may roll back into a config that expects certificates Vault no longer has in the expected state.
+4a. **REST Federator Gateway** — if deployed, roll back (Part 2a) at the same point as step 4, independently of the gRPC Federator Gateway and Data Pipeline — it shares Vault/Certificate Manager as a dependency but not the gRPC Federator Gateway itself.
+5. **Data Pipeline** — roll back (Part 1) once the Federator Gateway is confirmed healthy, since the Data Pipeline hands data off through it.
+6. **File Scanning Service** — roll back (Part 4) last in the chain, since it depends on the Data Pipeline's `dp-consumer-stage` container already existing and being written to correctly.
+7. **Health Monitoring Service** — roll back (Part 5) at any point relative to the above, but do it **after** the others if you still need its dashboards to confirm the other rollbacks succeeded. If Health Monitoring itself is the only thing broken, there's no ordering constraint with the rest of the chain at all.
 
 If you're rolling back the *whole platform* to a prior known-good state (e.g. after a bad multi-component release), apply this same order rather than rolling back whichever component's alert fired first — an out-of-order rollback (e.g. Data Pipeline before Federator Gateway) risks the component you just fixed immediately breaking again once its upstream dependency changes under it.
 
@@ -244,6 +251,34 @@ helm history dpn-rest-federator -n <namespace>
 
 ---
 
+## Part 2b — DPN Authentication Service Rollback
+
+Deployed from the `dpn-authentication-service` repository as a single Helm release bundling Keycloak and its own PostgreSQL instance. Unlike most other components, this repository does not build a custom application image via CI — the CD pipeline mirrors fixed upstream versions (`quay.io/keycloak/keycloak`, `docker.io/library/postgres`) into the environment's ACR at deploy time, so there is no build-number image tag to roll back to. A bad release here is almost always a **values/config change**, not a bad image build.
+
+**Strategy 1 — standard CD pipeline (`dpn-keycloak-cd.yaml`):** re-running it redeploys the same pinned Keycloak/PostgreSQL versions against whatever `values-<env>-<cluster>.yaml` currently contains. Useful only after a bad values change has already been reverted in git — it cannot roll back to an older Keycloak/PostgreSQL version on its own, since the pipeline always mirrors the same fixed versions.
+
+**Strategy 2 — no dedicated rollback pipeline was found; manual Helm-revision rollback:**
+
+```bash
+helm rollback dpn-keycloak <rollbackRevision> -n ns-dpn-01
+```
+
+> **Realm/client data is not part of the Helm release.** Rolling back the Helm release reverts the chart and its values (e.g. resource limits, the `KC_UI_HOST_*`/`KC_LOGIN_THEME` overrides baked into the pipeline step), but Keycloak's realm, clients, and users live in the PostgreSQL PVC, which a Helm rollback does not touch. If bad data was written into the realm (e.g. by a bad run of `configure-keycloak.sh`), restoring the PVC — or re-applying the realm configuration by hand — may be needed in addition to the Helm rollback.
+
+**Downstream impact:** Federator Gateway (Kafka OAuth, Kafka UI), Data Pipeline (Airflow SSO, Kafka OAuth), and Health Monitoring Service (oauth2-proxy UIs, Kafka UI OIDC) all authenticate against the realm this service creates. After a rollback, confirm `KC-SERVICE-CLIENT-SECRET` in Key Vault still matches what those components expect — see [Rollback Sequence Across Components](#rollback-sequence-across-components).
+
+**Verification:**
+
+```bash
+kubectl get pods -n ns-dpn-01   # dpn-keycloak-*, dpn-keycloak-postgres-*
+kubectl logs -f deployment/dpn-keycloak -n ns-dpn-01
+helm history dpn-keycloak -n ns-dpn-01
+```
+
+Confirm Keycloak's HTTPS endpoint responds and the realm's discovery endpoint resolves before considering the rollback complete.
+
+---
+
 ## Part 3 — DPN Federator Certificate Manager Rollback
 
 **Strategy 1 — standard CD pipeline (`certificate-manager-cd.yaml`):** re-run with an older `imageTag`.
@@ -354,6 +389,7 @@ Component-specific additions:
 | Federator Certificate Manager / Vault | `kubectl -n <namespace> logs -f deployment/dpn-certificate-manager \| grep -i "keystore\|vault"` — confirm no keystore-build or Vault authentication errors (the keystore/truststore are built in memory, not on disk) |
 | Data Pipeline / Federator Gateway | Kafka UI — confirm topics and message flow |
 | REST Federator Gateway | `kubectl logs -f dpn-rest-federator-server-1-XXXXXXXXX` — confirm no Vault authentication or keystore-build errors, same as the Certificate Manager |
+| Authentication Service | Confirm Keycloak's HTTPS endpoint and realm discovery endpoint resolve, and that a downstream component (e.g. Kafka UI) can still log in via SSO |
 | File Scanning Service | Upload a clean test file and confirm it still lands in `dp-consumer-stage` post-rollback |
 | Health Monitoring Service | `kubectl get hpa -n ns-dpn-health-01` — confirm the OTEL Collector's HPA is healthy post-rollback |
 
@@ -387,5 +423,6 @@ Organisations should maintain:
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
