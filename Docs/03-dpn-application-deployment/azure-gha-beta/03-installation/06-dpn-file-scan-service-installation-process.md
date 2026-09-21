@@ -60,7 +60,7 @@ The following prerequisites must be met.
 
 Go to **Actions → DPN CD - File Scan Prerequisites → Run workflow** in `dpn-containerised-deployment-service`. This workflow is **Azure-specific by design** (Defender for Storage/Event Grid/Service Bus — no AWS/GCP equivalent exists yet), though it still exposes a `cloud` input for consistency. It requires the inputs defined in [File Scan Service Prerequisite Workflow Parameters](../02-configuration/06-configure-dpn-file-scan-service.md#step2a-setup-prerequisite-pipeline-parameters).
 
-Workflow file: `.github/workflows/dpn-file-scan-prerequisites-cd.yml`
+Workflow file: `.github/workflows/dpn-gha-file-scan-prerequisites-cd.yml`
 
 ### Step2a: Validate Prerequisite Workflow Execution
 
@@ -104,7 +104,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow** in `dpn-contai
 | `cloud` | `azure` |
 | `imageTag` | The image tag from Step3a |
 
-Workflow file: `.github/workflows/dpn-file-scan-cd.yml`
+Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml`
 
 ---
 
@@ -166,7 +166,7 @@ File scan service image found in GHCR with following name
 |---|---|---|
 | dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
 
-Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-file-scan-cd.yml` already deploys from this image by default.
+Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-gha-file-scan-cd.yml` already deploys from this image by default.
 
 ---
 
