@@ -22,7 +22,7 @@ DSI provides an **automated method** (Azure DevOps pipelines) that generates the
     - [Step 2a. Environment config JSON — `config/<env>.json`](#step-2a-environment-config-json--configenvjson)
     - [Step 2b. Vault Helm values — `charts/vault-https/values-<env>.yaml`](#step-2b-vault-helm-values--chartsvault-httpsvalues-envyaml)
   - [Step 3: Deployment Configuration](#step-3-deployment-configuration)
-    - [Step 3A: Configure Bootstrap Vault TLS (`vault-tls-bootstrap-cd`)](#step-3a-configure-bootstrap-vault-tls-vault-tls-bootstrap-cd)
+    - [Step 3A: Configure DPN Universal TLS (`dpn-tls-cd`)](#step-3a-configure-dpn-universal-tls-dpn-tls-cd)
     - [Step 3B: Configuration to Initialise Vault (`vault-https-cd`)](#step-3b-configuration-to-initialise-vault-vault-https-cd)
     - [Step 3C: Configure Certificate Bundle (`vault-load-bundle-cd`)](#step-3c-configure-certificate-bundle-vault-load-bundle-cd)
     - [Step 3D: Configure AppRole Authentication (recommended)](#step-3d-configure-approle-authentication-recommended)
@@ -59,7 +59,7 @@ Vault serves over **HTTPS (TLS 1.2+)** internally and uses **Azure Key Vault aut
 
 > **This Vault only stores certificate material — it does not sign certificates.** The `pki-client` mount above is a plain KV v2 secrets engine, not a Vault PKI secrets engine. Signing happens on a **separate** Vault instance run by the DSM Management Node, whose own PKI secrets engine (`pki_int`) holds the CA key material and performs the actual signing when the Certificate Manager submits a CSR. See [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) for the automatic Federator certificate renewal flow, [Requesting a DPN Server Certificate](#requesting-a-dpn-server-certificate) below for the manually-requested long-TTL server/edge certificate signed by that same Management Node PKI engine, and the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md) for the self-service screen that wraps both.
 >
-> **Two different "bootstrap" concepts.** [Step 3A](#step-3a-configure-bootstrap-vault-tls-vault-tls-bootstrap-cd) below bootstraps *this Vault's own TLS listener* — unrelated to a **bootstrap certificate**, which is the Certificate Manager's term for a participant's first Federator certificate (marked with a special OID so it renews immediately — see [Requesting a DPN Server Certificate](#requesting-a-dpn-server-certificate) below and the DSI Certificate Management UI Guide linked above). Don't conflate the two when following this page.
+> **Two different "bootstrap" concepts.** [Step 3A](#step-3a-configure-dpn-universal-tls-dpn-tls-cd) below generates the DPN platform's TLS material, including this Vault's own TLS listener — unrelated to a **bootstrap certificate**, which is the Certificate Manager's term for a participant's first Federator certificate (marked with a special OID so it renews immediately — see [Requesting a DPN Server Certificate](#requesting-a-dpn-server-certificate) below and the DSI Certificate Management UI Guide linked above). Don't conflate the two when following this page.
 
 Two Vault setup methods are available:
 
@@ -75,7 +75,7 @@ The automated flow uses four pipelines from the `dpn-federator-certificate-manag
 
 | Order | Pipeline | Purpose |
 |-------|----------|---------|
-| 1 | `vault-tls-bootstrap-cd.yaml` | Generate the Vault server TLS certificate/key + Certificate Manager truststore, and publish them to Key Vault and Kubernetes |
+| 1 | `dpn-tls-cd.yaml` | Generate the DPN platform's universal TLS material and publish it to Key Vault and Kubernetes — see [Step 3A](#step-3a-configure-dpn-universal-tls-dpn-tls-cd) for what it covers |
 | 2 | `vault-https-cd.yaml` | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
 | 3 | `vault-load-bundle-cd.yaml` | Load the DSM-signed client certificate bundle into Vault |
 | 4 | `vault-approle-setup-cd.yaml` | *(Recommended)* Creates the Certificate Manager's AppRole identity, so it no longer needs the Vault root token. This pipeline is Certificate-Manager-specific — the Federator Gateway and REST Federator Gateway are provisioned differently — see [Step 3D](#step-3d-configure-approle-authentication-recommended) |
@@ -87,7 +87,7 @@ Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── cd-pipelines/
-            ├── vault-tls-bootstrap-cd.yaml
+            ├── dpn-tls-cd.yaml
             ├── vault-https-cd.yaml
             ├── vault-load-bundle-cd.yaml
             └── vault-approle-setup-cd.yaml
@@ -163,24 +163,46 @@ Root-Repository
 
 Configure the following three pipelines in order. Each takes the environment as a runtime parameter and resolves `config/<env>.json` and `values-<env>.yaml` automatically.
 
-#### Step 3A: Configure Bootstrap Vault TLS (`vault-tls-bootstrap-cd`)
+#### Step 3A: Configure DPN Universal TLS (`dpn-tls-cd`)
 
-This pipeline generates a Root CA, the Vault server certificate/key, and the Certificate Manager truststore in a single run, then publishes them to Key Vault and Kubernetes.
+`dpn-tls-cd` is the single pipeline that generates the DPN platform's TLS material and creates every certificate-related secret the rest of the platform depends on. Run it **once per environment/cluster, before** deploying Vault, the Certificate Manager, Keycloak, Kafka, or the Federator Gateway.
+
+**What it covers:**
+
+- Generates one self-signed DPN Root CA and one universal server certificate (wildcard SANs).
+- Publishes to Azure Key Vault: `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD`.
+- Creates the Kubernetes secrets:
+  - `cert-manager-truststore` — trusts Vault's HTTPS endpoint (target namespace)
+  - `dpn-tls` — server keystore/truststore used by Keycloak, Kafka, Federator Gateway, Redis, Airflow (target namespace **and** `ns-dpn-health-01`)
+  - `dpn-health-tls` — `kubernetes.io/tls` certificate for the health-monitoring `oauth2-proxy` gateways (target namespace **and** `ns-dpn-health-01`)
+  - `tls-auth-secret` — the shared `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`/`DPN_CLIENT_P12_PASSWORD` values every component above reads, instead of each syncing its own copy from Key Vault (target namespace **and** `ns-dpn-health-01`)
+
+**Not covered:** `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD`, and `KC-SERVICE-CLIENT-SECRET` are not certificate material — set these in Key Vault manually (see [Configure DPN Authentication Service, Step2](02-configure-dpn-authentication-service.md#step2-configure-secrets)).
+
+Required before running:
+
+- AKS cluster and the environment's Key Vault provisioned
+- Target namespace created (`kubectl create namespace <NAMESPACE>`)
+- Azure service connection configured
+- `config/<env>-<cluster>.json` populated (see [Step 2a](#step-2a-environment-config-json--configenvjson))
+- An Azure DevOps **Environment** created for the run's approval group (`dsi-dev` / `dsi-devtest` / `dsi-ppd`, resolved from the `environment` parameter) — the pipeline is approval-gated before it writes anything
 
 Runtime parameters:
 
-| Parameter | Description |
-|-----------|-------------|
-| `serviceConnection` | Azure service connection for your environment |
-| `environment` | Your target environment (selects `config/<env>.json`) |
-| `country` | CSR subject Country (C) — default `GB` |
-| `org` | CSR subject Organisation (O) — default `DSI` |
-| `sans` | Comma-separated DNS SANs for the Vault URL. **Must include the internal Kubernetes DNS name**, e.g. `vault-https.<namespace>.svc.cluster.local` |
-| `truststorePassword` | Password published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD` — default `changeit` |
+| Parameter | Description | Example (placeholder) |
+|-----------|-------------|------------------------|
+| `ServiceConnection` | Azure service connection for your environment | `sc-dpn-<env>-001` |
+| `environment` | Target environment | `<env>` |
+| `dpnCluster` | Target DPN cluster | `dpn01` |
+| `targetNamespace` | Namespace where Keycloak/Kafka/Federator run | `ns-dpn-01` |
+| `country` | CSR subject Country (C) | `GB` |
+| `org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
+| `keystorePassword` | Password for `keystore.jks`, published as `KEYSTORE-PASSWORD` | `<choose a password>` |
+| `truststorePassword` | Password for `truststore.jks`, published as `TRUSTSTORE-PASSWORD` | `<choose a password>` |
+| `clientP12Password` | Password for `dpn-client.p12`, published as `DPN-CLIENT-P12-PASSWORD` | `<choose a password>` |
+| `extraVaultSans` | Extra comma-separated SANs for Vault's own CSR only | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy` |
 
-On completion it publishes:
-- `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` → Azure Key Vault
-- `truststore.jks` → Kubernetes secret `cert-manager-truststore`
+> **Coordinated cutover.** After this pipeline runs (first time, or a password rotation), restart Vault, Certificate Manager, Keycloak, both Kafka brokers, and both Federators so each picks up the new material.
 
 #### Step 3B: Configuration to Initialise Vault (`vault-https-cd`)
 
@@ -279,6 +301,8 @@ For the **REST Federator Gateway**, the chart already exposes `restFederatorServ
 
 Use this method only if the organisation cannot run the automated pipelines. It requires manual execution to generate the Vault TLS material, publish it to Key Vault and Kubernetes, deploy Vault, then load the certificate bundle. Organisations may still deploy the chart with `vault-https-cd` (or `helm upgrade --install`) so that **auto-unseal remains in effect** — only the TLS-material generation and bundle load are done manually.
 
+> **Scope:** this manual path covers Vault's own TLS only. It does not create `dpn-tls`, `dpn-health-tls`, or `tls-auth-secret` — if not running `dpn-tls-cd`, those must be created manually as well for Keycloak, Kafka, the Federator Gateway, and the health-monitoring `oauth2-proxy` gateways.
+
 **Prerequisite Note**
 
 - The organisation is required to set up the agent pool VM that can reach the private AKS environment.
@@ -360,7 +384,7 @@ keytool -import -trustcacerts -noprompt -alias ca \
 ```bash
 az keyvault secret set --vault-name <KEY_VAULT_NAME> --name VAULT-TLS-CERT --file certs/vault.crt
 az keyvault secret set --vault-name <KEY_VAULT_NAME> --name VAULT-TLS-KEY  --file certs/vault.key
-az keyvault secret set --vault-name <KEY_VAULT_NAME> --name VAULT-TRUSTSTORE-PASSWORD --value <truststore-password>
+az keyvault secret set --vault-name <KEY_VAULT_NAME> --name TRUSTSTORE-PASSWORD --value <truststore-password>
 ```
 
 **Step 2b — Publish the truststore to the Kubernetes secret consumed by the Certificate Manager:**
