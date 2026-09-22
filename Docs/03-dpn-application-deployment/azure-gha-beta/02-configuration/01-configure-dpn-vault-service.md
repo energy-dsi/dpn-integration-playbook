@@ -50,6 +50,8 @@ HashiCorp Vault stores the cryptographic material the Certificate Manager needs 
 
 Vault serves over **HTTPS (TLS 1.2+)** internally and uses **Azure Key Vault auto-unseal** in the automated approach, so it unseals itself on start-up. In case of manual process the unseal key needs to be created separately. DSI provides the community edition of the Vault container; organisations may substitute an enterprise edition per their licensing strategy.
 
+> **The legacy plain-HTTP Vault path has been retired.** An older, non-TLS `vault` Helm chart and its `dpn-vault-cd.yml` workflow have been **removed** from `dpn-containerised-deployment-service`. `vault-https` (HTTPS-only, as described in this guide) is now the sole Vault deployment path on Azure.
+
 Two Vault setup methods are available:
 
 - **[Automated Vault Configuration](#automated-vault-configuration)** *(recommended)* — three GitHub Actions workflows generate the TLS material, deploy and initialise Vault, and load the certificate bundle.

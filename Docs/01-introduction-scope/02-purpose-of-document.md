@@ -50,7 +50,7 @@ This documentation focuses on the deployment and operation of DPN nodes using th
 - AWS GuardDuty for storage for file scan
 
 
-The documentation assumes that the DPN node will be deployed within **Azure cloud environment** and **AWS Cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
+The documentation assumes that the DPN node will be deployed within an **Azure cloud environment** or an **AWS Cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
 
 ---
 
@@ -58,7 +58,7 @@ The documentation assumes that the DPN node will be deployed within **Azure clou
 
 By following the procedures in this documentation, organisations will be able to:
 
-- Successfully deploy a DPN node on either Azure, AWS or GCP. (Support for other clouds upcoming)
+- Successfully deploy a DPN node on either Azure, AWS. (Support for other clouds upcoming)
 - Integrate with the DSI ecosystem
 - Exchange data securely with other participating organisations
 - Operate and maintain the platform within their infrastructure environment

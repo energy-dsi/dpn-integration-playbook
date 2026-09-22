@@ -144,6 +144,18 @@ The workflow runs two jobs in order, each independently re-runnable: **deploy-re
 | `cluster` | The target DPN cluster — `dpn01` or `dpn02` |
 | `cloud` | Target cloud provider — `azure`, `aws`, or `gcp` (gcp not yet supported — config pending). Resolves `.github/config/<cloud>/<environment>-<cluster>.json` |
 | `imageTag` | Tag of the REST Federator Server image to deploy |
+| `imageRepository` | Image path after `ghcr.io/energy-dsi/` — leave blank to use the default `$CONTAINER_REGISTRY_URL/dpn-rest-federator-server` |
+
+The Helm Deploy step now ends with a **post-deploy verification** block: it resolves the deployed `restFederatorServer.name` from the release's Helm values, waits on `kubectl rollout status` for that Deployment (5-minute timeout), then prints its Service and Pods — the workflow fails outright if the rollout doesn't complete, rather than reporting success as soon as `helm upgrade` returns.
+
+> **No separate installation-process page for this component on the Azure path.** Unlike the gRPC Federator Gateway, there is currently no `04-dpn-rest-federator-gateway-installation-process.md` under `azure-gha-beta/03-installation/` — this configuration guide is also the installation reference. To verify a deployment manually:
+>
+> ```bash
+> kubectl get pods -n <namespace>
+> kubectl logs -f dpn-rest-federator-server-1-XXXXXXXXX
+> kubectl get svc -n <namespace>   # confirm the gateway's internal LB IP
+> kubectl get hpa -n <namespace>   # confirm the HPA (Step3c) picked up the deployment
+> ```
 
 ---
 

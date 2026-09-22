@@ -4,11 +4,11 @@ This document covers the installation of the **DPN Federator Gateway** (Server, 
 
 **Full instructions live in the configuration guide.** The end-to-end Federator Gateway flow — overview, prerequisites, Key Vault and Kubernetes secrets, the values to populate, deployment, and verification — is documented in one place:
 
-**[Configure DPN Federator Gateway](../02-configuration/04-configure-dpn-federator-gateway.md)**
+**[Configure DPN Federator Gateway](../02-configuration/05-configure-dpn-federator-gateway.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and the keystore/truststore passwords directly from Vault (no shared file share is used).
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](04-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and the keystore/truststore passwords directly from Vault (no shared file share is used).
 
 ---
 
@@ -58,18 +58,20 @@ Key points, detailed in the configuration guide:
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/04-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
+Confirm the prerequisites are met before starting the federator gateway installation. See [Configure DPN Federator Gateway → Prerequisites](../02-configuration/05-configure-dpn-federator-gateway.md#step1-meet-prerequisites). 
 
 In summary: 
 
 - Vault and Certificate Manager deployed and in running state
 - Health monitoring service is running state and OTEL Collector healthy
-- `cert-manager-truststore` and `certificate-manager-secrets` secrets present; Vault authentication configured (root token today — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) for the AppRole caveat)
+- `cert-manager-truststore`, `certificate-manager-secrets`, and `tls-auth-secret` secrets present; Vault authentication configured (root token today — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) for the AppRole caveat)
 - S3 access credential secrets are prepared
 - Server and File Scan source S3 buckets provisioned
 - Internal load Balancer IPs are determined
 - IDP client ID is received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
+- IAM role for the platform's `ServiceAccount` (IRSA) created, and its ARN set as `serviceAccount.irsaRoleArn` — see [Configure DPN Federator Gateway, Step3e](../02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-aws-serviceaccount-irsa)
+- `dpn-keycloak-secrets` Kubernetes secret present in the namespace (created by the **DPN Authentication Service** deployment) — Kafka Source/Target, Kafka UI, and the Federator Server/Client read the Keycloak admin password and OAuth client secret from it directly; `secretsManager.secretPrefix` is not currently read by any template in this chart
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
 
@@ -150,7 +152,7 @@ http://`<kafka-ui load balancer ip>`:8086
 ```
 
 The login would require nginx proxy authentication credentials to be provided. 
-Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/05-configure-dpn-data-pipelines.md)
+Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/07-configure-dpn-data-pipelines.md)
 
 For more details on kafka-ui interface refer to [Kafka UI Operations](../../../05-dpn-user-interfaces/04-kafka-ui-operations.md)
 
@@ -215,6 +217,8 @@ In case Kafka is failing , please restart using rollout restart command in seque
 ```text
 kubectl rollout restart deployment/<deployment-name> -n <namespace>
 ```
+
+If Kafka Source/Target or Zookeeper Source/Target crash-loop immediately on start with a Python `urllib3` import error, check that the pod's `instrumentation.opentelemetry.io/inject-python` annotation is `"false"` — the cluster's OTel Python auto-instrumentation webhook injects a `urllib3` build incompatible with these images' Python 3.9 startup tooling otherwise. This is set automatically on AWS (`cloudProvider: aws`); if it is missing, re-deploy so the annotation is applied — a live `kubectl patch` alone is reverted by the next `helm upgrade`.
 
 ---
 

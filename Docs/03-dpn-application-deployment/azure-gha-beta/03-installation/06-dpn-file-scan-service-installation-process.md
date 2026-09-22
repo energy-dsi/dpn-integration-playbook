@@ -19,6 +19,7 @@
   - [Verification Service Cannot Read or delete from `dp-consumer-raw`](#verification-service-cannot-read-or-delete-from-dp-consumer-raw)
   - [Verified Files Not Appearing in `dp-consumer-stage`](#verified-files-not-appearing-in-dp-consumer-stage)
   - [Authentication Issue to Storage Account](#authentication-issue-to-storage-account)
+  - [OTEL Truststore Password Errors](#otel-truststore-password-errors)
   - [HPA Not Scaling](#hpa-not-scaling)
 - [Reference: Container Images Used](#reference-container-images-used)
 - [Review Notes](#review-notes)
@@ -59,7 +60,7 @@ The following prerequisites must be met.
 
 Go to **Actions → DPN CD - File Scan Prerequisites → Run workflow** in `dpn-containerised-deployment-service`. This workflow is **Azure-specific by design** (Defender for Storage/Event Grid/Service Bus — no AWS/GCP equivalent exists yet), though it still exposes a `cloud` input for consistency. It requires the inputs defined in [File Scan Service Prerequisite Workflow Parameters](../02-configuration/06-configure-dpn-file-scan-service.md#step2a-setup-prerequisite-pipeline-parameters).
 
-Workflow file: `.github/workflows/dpn-file-scan-prerequisites-cd.yml`
+Workflow file: `.github/workflows/dpn-gha-file-scan-prerequisites-cd.yml`
 
 ### Step2a: Validate Prerequisite Workflow Execution
 
@@ -103,7 +104,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow** in `dpn-contai
 | `cloud` | `azure` |
 | `imageTag` | The image tag from Step3a |
 
-Workflow file: `.github/workflows/dpn-file-scan-cd.yml`
+Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml`
 
 ---
 
@@ -147,6 +148,10 @@ Confirm the Verification Service's Managed Identity has the **Storage Blob Data 
 
 Verify the Service Principal Client ID and Client Secret are correct. Secert is not expired and the connection string has correct storage container name.
 
+### OTEL Truststore Password Errors
+
+If OTel/telemetry export fails with a truststore password error, confirm `keyvault.truststorePasswordSecretName` in your environment's values file points at the correct Key Vault secret — the previous shared secret name, `UNIVERSAL-DPN-CERT-PASSWORD`, has been retired in favour of an environment-specific name (e.g. `KC-HTTPS-TRUST-STORE-PASSWORD` or `TRUSTSTORE-PASSWORD`); see [Configure DPN File Scan Service, Step5](../02-configuration/06-configure-dpn-file-scan-service.md#step5-configure-azure-key-vault--secrets).
+
 ### HPA Not Scaling
 
 If `kubectl get hpa` shows `<unknown>` under `TARGETS`, confirm metrics-server is running (`kubectl get deployment metrics-server -n kube-system`) and that the pod has CPU/memory `requests` set in its Deployment spec.
@@ -161,7 +166,7 @@ File scan service image found in GHCR with following name
 |---|---|---|
 | dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
 
-Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-file-scan-cd.yml` already deploys from this image by default.
+Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-gha-file-scan-cd.yml` already deploys from this image by default.
 
 ---
 

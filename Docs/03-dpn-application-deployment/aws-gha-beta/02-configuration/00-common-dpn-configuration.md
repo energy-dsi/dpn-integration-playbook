@@ -93,21 +93,17 @@ DSI provides predefined endpoints to support the following environments:
 
 - Development
 - Integration Testing
-- Pre-Production
 
 These endpoints are publicly accessible to simplify integration and testing. Organisations must configure their pipelines to use the **appropriate endpoint for the corresponding deployment environment** as provided by DSI.
 
 | Environment | Component | URL |
 |-------------|-----------|-----|
-| Pre Production-Dev (pdev) | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
-| Pre Production-Dev (pdev)| Management Node | https://management.dsm01.dsipreprod1.neso.energy |
-| Pre Production-Dev (pdev)| DSI DPN Producer | https://producer.dpn01.dsipreprod1.neso.energy |
-| Pre Production-Test (ptest)| Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
-| Pre Production-Test (ptest)| Management Node | https://management.dsm01.dsipreprod2.neso.energy |
-| Pre Production-Test (ptest)| DSI DPN Producer | https://producer.dpn01.dsipreprod2.neso.energy |
-| Pre-Production-Uat (puat)| Authentication | https://auth-mtls.dsm01.dsipreprod3.neso.energy |
-| Pre-Production-Uat (puat)| Management Node | https://management.dsm01.dsipreprod3.neso.energy |
-| Pre-Production-Uat (puat)| DSI DPN Producer | https://producer.dpn01.dsipreprod3.neso.energy |
+| Development (dev) | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
+| Development (dev) | Management Node | https://management.dsm01.dsipreprod1.neso.energy |
+| Development (dev) | DSI DPN Producer | https://producer.dpn01.dsipreprod1.neso.energy |
+| Integration Testing (test) | Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
+| Integration Testing (test) | Management Node | https://management.dsm01.dsipreprod2.neso.energy |
+| Integration Testing (test) | DSI DPN Producer | https://producer.dpn01.dsipreprod2.neso.energy |
 
 ---
 
@@ -150,7 +146,7 @@ dpn-containerised-deployment-service/
 
 > **Note:** `environment`, `cluster`, and `cloud` (`aws`) are supplied as `workflow_dispatch` **inputs** when you trigger a run in the Actions tab — they are **not** keys in the JSON file. The Helm **values file** is derived from those inputs: `<chart-dir>/values/aws/<environment>-<cluster>.yaml`.
 >
-> **These AWS values files are currently placeholder stubs.** As of this writing every component's `values/aws/<environment>-<cluster>.yaml` in `dpn-containerised-deployment-service` reads "Azure is the only cloud deployed today" — adapt each component's `values/azure/*.yaml` as a starting template before relying on its CD workflow. Each component's configuration section below calls out the AWS-specific values it actually needs.
+> **Most AWS values files are now populated with real environment values** — no longer the "Azure is the only cloud deployed today" placeholder stubs of earlier releases. Two charts are still pending AWS onboarding as placeholder stubs: the **Vault** chart in `dpn-federator-certificate-manager` (all four `values/aws/*.yaml`) and **`dpn-redis`**'s `test-dpn02` file in `dpn-rest-federator-gateway` — adapt each from its `values/azure/*.yaml` equivalent before relying on its CD workflow. Each component's configuration section below calls out the AWS-specific values it actually needs.
 
 ---
 
@@ -249,7 +245,7 @@ The following firewall rules must be applied by the organisation before installi
 | DPN Kubernetes subnet IP range | DPN Kubernetes VPC | DPN Kubernetes subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | DPN Kubernetes VPC | DPN Kubernetes subnet | Organisation-specific URL for DPN-to-DPN data sharing | N/A | N/A | TLS | 443 | Bi-directional |
 
-> **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `pdev`, `ptest` and `puat` environments.
+> **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `dev` and `test` environments.
 
 > **Note:** DPN uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 network load balancer (an AWS NLB); Layer 7 load balancing may not be supported for this traffic for most layer 7 load balancers (an AWS ALB).
 
