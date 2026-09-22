@@ -108,7 +108,7 @@ Ensure the Azure subscription is ready and validated against the following requi
 - Subscription ID captured (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 - Regional quota available:
   - AKS : 16+ vCPUs (Standard_D16lds_v6)
-  - VM: 4+ vCPUs (Standard_D2lds_v6)
+  - VM: 2 vCPUs (Standard_D2lds_v6)
   - Public IP requirement depends on your organisation network architecture; private deployments may require none
 - Region selected: <azure-region>
 - No conflicting IP ranges; use customer-safe example CIDR such as `10.x.x.x/27`
@@ -163,7 +163,6 @@ Capture the following planning inputs before deployment begins.
 | VNET CIDR                      | _________________ | `10.x.x.x/27`                              |
 | Connectivity Sub ID (optional) | _________________ | For Private DNS zones                      |
 
-> **Azure Airgap:** for an air-gapped Azure deployment, `Environment Name` is restricted to `dev-01`, `dev-02`, `test-01`, `test-02` — `prod-01`/`prod-02` are not available for airgap deployments.
 
 ## 6. Naming Convention
 
