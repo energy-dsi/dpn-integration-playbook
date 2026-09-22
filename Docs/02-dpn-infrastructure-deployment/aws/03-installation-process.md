@@ -24,9 +24,8 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 3.2 Validate Compute Components](#step-32-validate-compute-components)
   - [Step 3.3 S3 Buckets](#step-33-s3-buckets)
   - [Step 3.4 Validate Security Module Components](#step-34-validate-security-module-components)
-  - [Step 3.5 AWS EFS Details](#step-35-aws-efs-details)
-  - [Step 3.6 Observability Logging resources](#step-36-observability-logging-resources)
-  - [Step 3.7 AWS EBS Details](#step-37-aws-ebs-details)
+  - [Step 3.5 Observability Logging resources](#step-35-observability-logging-resources)
+  - [Step 3.6 AWS EBS Details](#step-36-aws-ebs-details)
 - [Post-Deployment Configuration](#post-deployment-configuration)
   - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
   - [10.2 Maintainance Operations](#102-maintainance-operations)
@@ -499,37 +498,7 @@ aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_node_rol
 ```
 ---
 
-### Step 3.5 AWS EFS Details
-
-This deployment can add a shared file system for workloads that need several pods writing to the same volume. It is optional and is off in the environments this deployment currently runs.
-
-### What is created
-
-- The EFS file system, its mount targets and its security group
-- The Amazon EFS CSI driver, installed as an EKS add-on
-
-### Key configuration values
-
-The following variables are used in the deployment:
-
-- `enable_efs` – creates the file system, its mount targets and its security group.
-- `enable_efs_csi_driver` – The Amazon EFS Container Storage Interface (CSI) driver allows Kubernetes clusters running on AWS to mount Amazon EFS file systems as persistent volumes.
-- `efs_csi_driver_version` – add-on version installed on the cluster, pinned so that clusters built at different times match.
-
-### Why this matters
-
-- EFS is the only shared storage in this deployment. Block storage (Step 3.7) attaches to one node at a time and cannot replace it.
-- Set both parameters explicitly. Leaving them out takes the repository's own default rather than switching the file system off.
-- Where enabled, the file system is reachable only from inside the VPC through its mount targets, so the file share is never exposed over the public internet.
-- The driver provisions nothing on its own. A StorageClass naming `efs.csi.aws.com` is a separate step and this deployment does not create it.
-
-### Deployment behavior
-
-Where both parameters are `false`, no file system, mount target, security group or add-on is created, and this step has nothing to validate. Setting them to `false` on an environment that already has them is a destroy, not a disable — see [05-uninstall-decommissioning.md](05-uninstall-decommissioning.md).
-
----
-
-### Step 3.6. Observability Logging resources 
+### Step 3.5 Observability Logging resources
 
 This deployment includes Cloudwatch log groups and dedicated S3 buckets for observability logging, used to centralize log and diagnostic export separately from application and file scanning storage.
 
@@ -556,7 +525,7 @@ The following variables are used in the deployment:
 
 ---
 
-### Step 3.7 AWS EBS Details
+### Step 3.6 AWS EBS Details
 
 This deployment can add block storage for workloads that require a volume attached to a single node rather than a shared file system.
 

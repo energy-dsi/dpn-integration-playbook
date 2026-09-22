@@ -13,8 +13,7 @@ This section defines the configuration parameters used during infrastructure dep
 - [4. EKS Parameters](#4-eks-parameters)
   - [4.1 Kubernetes Platform Resources](#41-kubernetes-platform-resources)
   - [4.2 Block Storage](#42-block-storage)
-  - [4.3 Shared Storage](#43-shared-storage)
-  - [4.4 Auto-Instrumentation](#44-auto-instrumentation)
+  - [4.3 Auto-Instrumentation](#43-auto-instrumentation)
 - [5. Database Parameters](#5-database-parameters)
 - [6. Security Parameters](#6-security-parameters)
   - [6.1 WAF Parameters](#61-waf-parameters)
@@ -184,9 +183,6 @@ eks_bootstrap_cluster_creator_admin_permissions = <true-or-false>
 
 enable_cloudwatch_observability        = <true-or-false>
 cloudwatch_observability_addon_version = "<version>"
-enable_efs                             = <true-or-false>
-enable_efs_csi_driver                  = <true-or-false>
-efs_csi_driver_version                 = "<version>"
 enable_ebs_csi_driver                  = <true-or-false>
 ebs_csi_driver_version                 = "<version>"
 
@@ -238,17 +234,9 @@ workload_node_group_max_size       = <max-size>
 - Pin the version. An unpinned create takes whatever version AWS defaults to on the day, so clusters built weeks apart end up on different versions.
 - The version is an in-place add-on update rather than a replacement. Setting it to the version already installed produces no change.
 - A pinned version can fail the create on a newer Kubernetes release. This is intended: the deployment fails visibly rather than installing a different version.
+- Block storage is the only storage this deployment provides, and it attaches to one node at a time. There is no shared file system and no parameter to add one, so a workload that needs several pods writing to the same volume has nothing to claim here — see [05-uninstall-decommissioning.md](05-uninstall-decommissioning.md) if an earlier release left a file system behind.
 
-### 4.3 Shared Storage
-
-`enable_efs` creates the EFS file system, its mount targets and its security group. `enable_efs_csi_driver` and `efs_csi_driver_version` add the Amazon EFS CSI driver to the cluster as an EKS add-on.
-
-- Both parameters are optional and both are off in the environments this deployment currently runs. Set them explicitly rather than leaving them out — an omitted parameter takes the repository's own default, which may create the file system.
-- EFS is the only shared storage here. Block storage attaches to one node at a time, so a workload that needs several pods writing to the same volume needs EFS and cannot use section 4.2.
-- As with block storage, the driver provisions nothing on its own. A StorageClass naming `efs.csi.aws.com` is a separate step and this deployment does not create it.
-- Where enabled, the file system is reachable only from inside the VPC through its mount targets. The mount-target security group must allow TCP 2049 from the node subnets, or every claim sits `Pending` with nothing logged.
-
-### 4.4 Auto-Instrumentation
+### 4.3 Auto-Instrumentation
 
 Use the following parameters to control which deployments the CloudWatch Observability add-on auto-instruments.
 
