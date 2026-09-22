@@ -29,6 +29,7 @@
   - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
   - [HPA Not Scaling](#hpa-not-scaling)
+  - [TRUSTSTORE_PASSWORD / Kafka TLS Handshake Errors](#truststore_password--kafka-tls-handshake-errors)
   - [Kafka Topic Issues](#kafka-topic-issues)
 - [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
   - [Platform & Third-Party Images](#platform--third-party-images)
@@ -257,6 +258,8 @@ kubectl logs <pod-name> -n <namespace>
 ### Step3a. Verify Prerequisites
 
 - Verify the `SCHEDULER_BACKEND` is set as `kafka-trigger` (automated, software-triggered scheduling using Apache Airflow)
+- The Airflow webserver now terminates TLS itself: provision a `dpn-health-tls` Secret (`kubernetes.io/tls`, SAN covering `*.ns-dpn-01.svc.cluster.local`) before deploying — its Service/LoadBalancer port has also moved from `80` to `8080` (`https`)
+- Confirm the `dpn-keycloak-secrets` secret exists with a `KC_SERVICE_CLIENT_SECRET` key — both the Kafka OAuth client and the webserver's Keycloak SSO client secret now read from it, replacing the previous shared use of `kafka-secrets`/`KAFKA_OAUTH_CLIENT_SECRET`
 - Airflow environment configuration must be made for the deployment environment in the following location.
 
 ```
@@ -387,6 +390,10 @@ If `kubectl get hpa` shows `<unknown>` under `TARGETS`:
 If metrics are available but replica count never changes, confirm `hpa.minReplicas`/`hpa.maxReplicas` allow room to scale, and that current load is actually crossing the configured `targetCPUUtilizationPercentage`/`targetMemoryUtilizationPercentage` threshold.
 
 ---
+
+### TRUSTSTORE_PASSWORD / Kafka TLS Handshake Errors
+
+If a pod fails to authenticate to Kafka with an error reading the truststore password, confirm the fixed `kafka-secrets` secret carries the `KC_HTTPS_TRUST_STORE_PASSWORD` key — the previous key name, `UNIVERSAL_DPN_CERT_PASSWORD`, was retired. If the failure is instead on the OAuth2 client secret, confirm `dpn-keycloak-secrets` carries `KC_SERVICE_CLIENT_SECRET` (replacing `kafka-secrets`/`KAFKA_OAUTH_CLIENT_SECRET`).
 
 ### Kafka Topic Issues
 

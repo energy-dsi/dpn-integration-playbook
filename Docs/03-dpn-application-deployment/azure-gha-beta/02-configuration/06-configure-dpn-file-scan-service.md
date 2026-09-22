@@ -163,6 +163,9 @@ The following secrets should be created in Azure Key Vault
 |-------------|---------|
 |FILESCAN-CLIENT-ID | Service principal client id |
 |FILESCAN-CLIENT-SECRET | Service principal secret |
+| *(value of `keyvault.truststorePasswordSecretName`)* | Password for the `dpn-tls` JKS truststore (`truststore.jks`), synced into a native Kubernetes Secret and injected as `TRUSTSTORE_PASSWORD` |
+
+> **Note:** the shared secret name `UNIVERSAL-DPN-CERT-PASSWORD` previously used for the truststore password above has been retired in favour of an environment-specific Key Vault secret name (e.g. `KC-HTTPS-TRUST-STORE-PASSWORD` or `TRUSTSTORE-PASSWORD`, depending on the cluster). Set `keyvault.truststorePasswordSecretName` in your environment's values file to whichever secret name your Key Vault actually uses — do not assume the old universal name still applies.
 
 ---
 
