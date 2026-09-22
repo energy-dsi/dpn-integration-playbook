@@ -125,11 +125,10 @@ No per-environment values file currently overrides these — every environment i
 
 ## Step4: Configure Deployment Parameters
 
-Deployed with the `dpn-rest-federator-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`:
+Deployed with the `dpn-rest-federator-cd.yml` GitHub Actions workflow:
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+github-pipeline/
     └── workflows/
         └── dpn-rest-federator-cd.yml
 ```

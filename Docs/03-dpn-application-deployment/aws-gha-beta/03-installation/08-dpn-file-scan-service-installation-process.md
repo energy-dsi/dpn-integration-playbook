@@ -90,7 +90,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step3c. Execute CD Workflow
 
-Go to **Actions → DPN CD - File Scan Service → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+Go to **Actions → DPN CD - File Scan Service → Run workflow**, and supply:
 
 | Input | Value |
 |-----------|-------|
