@@ -99,9 +99,7 @@ The following cloud services and licenses are required to run DPN nodes on the A
 - A Docker.io **user account** and **password** to fetch from docker repository
 - Azure **Pay-As-You-Go** or equivalent **Enterprise subscription**  
 - An active **Azure Tenant and Subscription**  
-- **Write access to the `dpn-containerised-deployment-service` GitHub repository's Actions** (to trigger `workflow_dispatch` deployment pipelines)
 - An **Windows Azure Virtual Machine** deployed in the same Azure Network where the DPN components are deployed with minimal configuration (Preferred SKU B8ms or equivalent)
-- A **Bastion Host** to connect to the virtual machine
 
 ---
 ## Accessibility Prerequisites
@@ -137,7 +135,7 @@ A **Service Principal in Azure AD** with the following role permissions:
 
 #### GitHub Actions OIDC Federated Credential
 
-- A **federated identity credential** on the Service Principal's Azure AD App Registration, trusting the GitHub OIDC token issuer for the `dpn-containerised-deployment-service` repository (subject: the environment/branch that will run the deployment workflows). This is what the pipeline's `cloud-login` composite action uses to run `az login --service-principal --federated-token` — no client secret or service connection object to create or rotate.
+- A **federated identity credential** on the Service Principal's Azure AD App Registration, the pipeline's `cloud-login` composite action uses to run `az login --service-principal --federated-token` — no client secret or service connection object to create or rotate.
 - The App Registration's `AZURE_CLIENT_ID` and Azure AD `AZURE_TENANT_ID` stored as GitHub Actions secrets on the repository (or the relevant GitHub Environment).
 
 #### AKS Access
@@ -231,12 +229,12 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 
 The prerequisites described in this document assume the following:
 
-- The organisation plans to deploy **DPN on an airgapped Azure cloud infrastructure**  
-- Deployment (CD) runs via the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, executed on the shared self-hosted runner pool, into the organisation's Azure landing zone
+- The organisation plans to deploy **DPN on an Azure cloud infrastructure**  
+- Deployment (CD) runs via GitHub Actions pipeline**, executed on the shared self-hosted runner pool, into the organisation's Azure landing zone
 
 ---
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| 15-May-2026 | DSI Assurance   | Draft  | V0.1.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
