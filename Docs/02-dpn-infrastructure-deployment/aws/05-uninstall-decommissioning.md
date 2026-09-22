@@ -108,6 +108,6 @@ Use the following checklist to verify the decommissioning process is fully compl
 Refer to the following documentation for detailed product guidance.
 
 - [OpenTofu Destroy Documentation](https://opentofu.org/docs/cli/commands/destroy/)
-- [AWS CLI Documentation](//https://docs.aws.amazon.com/cli/)
+- [AWS CLI Documentation](https://docs.aws.amazon.com/cli/)
 
 Deployment Complete! 🎉
