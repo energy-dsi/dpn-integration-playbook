@@ -30,7 +30,7 @@
 
 This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, Data Pipeline, File Scanning Service, and Health Monitoring Service.
 
-**None of the DPN components have a dedicated rollback GitHub Actions workflow today** — `dpn-containerised-deployment-service` has one CD workflow per component (or, for Health Monitoring, one orchestrator that chains the sub-component workflows), and that same workflow is what you re-run to roll forward or back. This document generalises a two-mode approach (Helm revision vs. image tag) to every component via a mix of re-running the standard CD workflow and manual `helm rollback`/`helm upgrade` commands.
+**None of the DPN components have a dedicated rollback GitHub Actions workflow today** —  has one CD workflow per component (or, for Health Monitoring, one orchestrator that chains the sub-component workflows), and that same workflow is what you re-run to roll forward or back. This document generalises a two-mode approach (Helm revision vs. image tag) to every component via a mix of re-running the standard CD workflow and manual `helm rollback`/`helm upgrade` commands.
 
 All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Strategy](#rollback-strategy).
 
@@ -116,7 +116,7 @@ If you're rolling back the *whole platform* to a prior known-good state (e.g. af
 
 ### Strategy 1 — Redeploy a Previous Build via the Standard CD Workflow
 
-Go to **Actions → DPN CD - Data Pipelines → Run workflow** in `dpn-containerised-deployment-service` — the same workflow used for every normal deployment, not a rollback-specific one.
+Go to **Actions → DPN CD - Data Pipelines → Run workflow** — the same workflow used for every normal deployment, not a rollback-specific one.
 
 | Input | Purpose | Values |
 |-----------|---------|--------|
@@ -342,5 +342,5 @@ Organisations should maintain:
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

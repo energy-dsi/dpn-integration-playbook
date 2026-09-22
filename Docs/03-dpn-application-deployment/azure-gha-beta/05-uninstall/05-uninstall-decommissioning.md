@@ -68,7 +68,7 @@ All DPN services deployed as part of the DSI package are in scope for this unins
 
 ## Uninstallation Approach
 
-There is no uninstall workflow for any component in `dpn-containerised-deployment-service` — only CD (deploy) workflows exist. For every part below, uninstallation is a direct `helm uninstall <release> -n <namespace>` command, scoped to the Helm release that component owns, leaving other components unaffected. [Part 5](#part-5--uninstall-dpn-health-monitoring-service) gives the same pattern applied per sub-component, following the removal order described below.
+There is no uninstall workflow for any component — only CD (deploy) workflows exist. For every part below, uninstallation is a direct `helm uninstall <release> -n <namespace>` command, scoped to the Helm release that component owns, leaving other components unaffected. [Part 5](#part-5--uninstall-dpn-health-monitoring-service) gives the same pattern applied per sub-component, following the removal order described below.
 
 ---
 
@@ -417,7 +417,7 @@ Remove any certificates and secrets from **Azure Key Vault** that are no longer 
 
 ### Disable the Deployment Workflows
 
-Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files in `dpn-containerised-deployment-service` (`.github/workflows/*.yml`) — there's no separate "registered pipeline" object to delete. Once uninstallation is confirmed complete:
+Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files  (`.github/workflows/*.yml`) — there's no separate "registered pipeline" object to delete. Once uninstallation is confirmed complete:
 
 - If this organisation's DPN was the only consumer of that repository's workflows, revoke or remove the repository's OIDC federated credentials/access to the target Azure subscription and AKS cluster (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#github-actions-oidc-federated-credential)) so the workflows can no longer authenticate, rather than deleting the workflow files themselves (other environments may still use them).
 - If you want to actively prevent accidental re-runs, disable the individual workflows from the GitHub UI (**Actions → select workflow → "..." → Disable workflow**) rather than deleting the files.
@@ -445,5 +445,5 @@ If all commands return no DPN resources, the DPN platform has been successfully 
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

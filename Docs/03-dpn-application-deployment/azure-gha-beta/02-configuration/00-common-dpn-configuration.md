@@ -37,7 +37,7 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
   - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission, authenticated via Keycloak (`SASL_SSL`/`OAUTHBEARER`) by default.
 - **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes, either via the streamed gRPC Federator or the synchronous REST Federator Gateway.
 
-DPN components on an airgapped Azure environment are deployed using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
+DPN components on an airgapped Azure environment are deployed using the **GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
@@ -75,7 +75,7 @@ Organisations may use alternative container registries if permitted by their int
 
 ### Continuous Deployment (CD)
 
-The **Continuous Deployment (CD)** pipeline deploys the container images to the **Azure Kubernetes Service (AKS)** cluster using Helm. Each DPN component has its own `workflow_dispatch`-triggered GitHub Actions workflow in `dpn-containerised-deployment-service` (e.g. `dpn-vault-https-cd.yml`), all taking the same core inputs — `environment` (dev/test), `cluster` (dpn01/dpn02), and `cloud` (`azure` for this path) — plus any component-specific inputs (image tag, etc.) documented in that component's section below.
+The **Continuous Deployment (CD)** pipeline deploys the container images to the **Azure Kubernetes Service (AKS)** cluster using Helm. Each DPN component has its own `workflow_dispatch`-triggered GitHub Actions workflow (e.g. `dpn-vault-https-cd.yml`), all taking the same core inputs — `environment` (dev/test), `cluster` (dpn01/dpn02), and `cloud` (`azure` for this path) — plus any component-specific inputs (image tag, etc.) documented in that component's section below.
 
 During deployment, the pipeline performs the following steps:
 
@@ -115,7 +115,7 @@ The provided pipelines require the following configuration to perform **CI and C
 
 #### Step2.1: Self-Hosted Runner Set Up
 
-Every CD workflow in `dpn-containerised-deployment-service` runs on the shared self-hosted GitHub Actions runner pool:
+Every CD workflow runs on the shared self-hosted GitHub Actions runner pool:
 
 ```yaml
 runs-on: [self-hosted, vmss]
@@ -127,11 +127,10 @@ This runner pool is hosted in Azure and reaches both the Azure airgap and AWS ai
 
 #### Step2.2: Azure Environment Configuration
 
-Every CD workflow reads its Azure targeting from a single, consistently-named JSON config file in `dpn-containerised-deployment-service`. **Update this file with your environment's values before running any pipeline** for that environment/cluster.
+Every CD workflow reads its Azure targeting from a single, consistently-named JSON config file. **Update this file with your environment's values before running any pipeline** for that environment/cluster.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+github-pipeline/
     └── config/
         └── azure/
             └── <environment>-<cluster>.json     # e.g. dev-dpn01.json, test-dpn02.json
