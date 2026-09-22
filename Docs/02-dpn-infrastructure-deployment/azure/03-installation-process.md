@@ -147,11 +147,11 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 #### D. Virtual Network
 
-> Obtain from the connectivity/networking team. These resources must exist before the bootstrap pipeline runs.
+> `VNET_RESOURCE_GROUP` and `VNET_NAME` identify the **base VNet** (provided by the connectivity/networking team) that must exist before the bootstrap pipeline runs. This pipeline does **not** create the base VNet itself — it deploys the segmented subnets into it (see [01-prerequisites.md §1 "What You'll Deploy"](01-prerequisites.md#what-youll-deploy)), starting with the OpenTofu state private endpoint subnet during bootstrap. Use the CIDR captured under [01-prerequisites.md §5 "Planning Inputs"](01-prerequisites.md#5-planning-inputs) to size `TFSTATE_SUBNET_PREFIX` and subsequent subnets so they fit within the base VNet's address space.
 
-- `VNET_RESOURCE_GROUP` — Resource group of the pre-existing VNet for this environment. Example: `<vnet-resource-group-name>`
-- `VNET_NAME` — Name of the pre-existing VNet. Example: `<vnet-name>`
-- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the OpenTofu state private endpoint subnet. Example: `<subnet-cidr>/28`
+- `VNET_RESOURCE_GROUP` — Resource group of the pre-existing base VNet for this environment. Example: `<vnet-resource-group-name>`
+- `VNET_NAME` — Name of the pre-existing base VNet. Example: `<vnet-name>`
+- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block, carved from the VNet CIDR captured during planning, allocated by the networking team for the OpenTofu state private endpoint subnet. Example: `<subnet-cidr>/28`
 
 ---
 
@@ -581,7 +581,6 @@ After infrastructure deployment completes successfully, prepare handoff document
 OpenTofu outputs contain critical information needed for application deployment configuration. Export these values:
 
 ```bash
-# Retrieve OpenTofu outputs for application team
 tofu output -json > infrastructure-outputs.json
 
 # Extract key values
@@ -640,3 +639,5 @@ The application deployment guide references:
 ---
 
 Continue with [04-rollback-procedures.md](04-rollback-procedures.md)
+
+Installation Complete! 🎉

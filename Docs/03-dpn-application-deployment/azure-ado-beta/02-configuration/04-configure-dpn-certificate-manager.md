@@ -145,7 +145,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `cert.subject.org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
 | `cert.subject.cn` | CSR subject Common Name (CN) | `dpn-<env>-01` |
 | `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
-| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `100` |
+| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
 > **In-memory keystore — no `certDest`/`mtls`/`fileShare` parameters.** Earlier chart versions wrote P12 files to a shared file share and exposed `certDest.*`/`mtls.*`/`fileShare.*` values to configure that path. These no longer exist: the keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account.
 
