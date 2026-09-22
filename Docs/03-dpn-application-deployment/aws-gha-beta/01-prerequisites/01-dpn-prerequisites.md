@@ -73,10 +73,12 @@ DPN repositories required:
 
 - [DPN-Infra](https://github.com/energy-dsi/dpn-infra-deployment)  
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
-- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator)  
+- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator-gateway)
+- [DPN-Rest-Federator-Gateway](https://github.com/energy-dsi/dpn-rest-federator-gateway)
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
-- [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
 
 ### Optional Tools
 
@@ -98,7 +100,6 @@ The following cloud services and licenses are required to run DPN nodes on the A
 - A Git Hub user account and **PAT token** to fetch from GitHub.
 - A Docker.io **user account** and **password** to fetch from docker repository
 - An active **AWS account** with sufficient service quotas for EKS, EC2, S3, IAM, and KMS
-- **Write access to the `dpn-containerised-deployment-service` GitHub repository's Actions** (to trigger `workflow_dispatch` deployment pipelines)
 - An **administrative EC2 instance** deployed in the same VPC where the DPN components are deployed with minimal configuration, for any local/manual operations (Session Manager access, no public IP required)
 - **AWS Systems Manager (SSM) Session Manager** to connect to that instance without a bastion host or exposed SSH
 
@@ -225,16 +226,9 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 - AWS Administrator  
 
 ---
-## Assumptions
 
-The prerequisites described in this document assume the following:
-
-- The organisation plans to deploy **DPN on an airgapped AWS cloud infrastructure**  
-- Deployment (CD) runs via the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, executed on the shared self-hosted runner pool, into the organisation's AWS landing zone (EKS)
-
----
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| 15-May-2026 | DSI Assurance   | Draft  | V0.1.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
