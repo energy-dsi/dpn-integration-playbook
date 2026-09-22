@@ -2,6 +2,28 @@
 
 This section defines the configuration parameters used during infrastructure deployment.
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Environment tfvars File (Required)](#environment-tfvars-file-required)
+  - [Repository Structure for Infrastructure](#repository-structure-for-infrastructure)
+- [1. Core Environment Parameters](#1-core-environment-parameters)
+- [2. Networking and Subnet Parameters](#2-networking-and-subnet-parameters)
+- [3. Application Parameters](#3-application-parameters)
+- [4. EKS Parameters](#4-eks-parameters)
+  - [4.1 Kubernetes Platform Resources](#41-kubernetes-platform-resources)
+  - [4.2 Block Storage](#42-block-storage)
+  - [4.3 Shared Storage](#43-shared-storage)
+  - [4.4 Auto-Instrumentation](#44-auto-instrumentation)
+- [5. Database Parameters](#5-database-parameters)
+- [6. Security Parameters](#6-security-parameters)
+  - [6.1 WAF Parameters](#61-waf-parameters)
+  - [6.2 Other Security Settings](#62-other-security-settings)
+- [7. Service Account Settings](#7-service-account-settings)
+  - [7.1 File Scan Service](#71-file-scan-service)
+- [8. Tags](#8-tags)
+- [9. Backend configuration](#9-backend-configuration)
+- [10. Validation Checklist Before Apply](#10-validation-checklist-before-apply)
 
 ## Purpose
 
@@ -9,7 +31,7 @@ This document consolidates common OpenTofu variable patterns used during deploym
 
 Parameter keys in your repository may differ. Treat the examples below as a reference model and map them to your `variables.tf`.
 
-The values defined in sections 1-8 should be placed in `infrastructure/opentofu/environments/<env>.tfvars` file that specify environment-specific parameters. See section 10 for details
+The values defined in sections 1-8 should be placed in `infrastructure/opentofu/environments/<env>.tfvars` file that specify environment-specific parameters. See [Environment tfvars File (Required)](#environment-tfvars-file-required) for details.
 
 Values from section 9 should be placed in `infrastructure/opentofu/backend/<env>.hcl` file that specify backend (to be used at init)
 
@@ -389,7 +411,7 @@ consumer_buckets = {
 - The role is inert until the Kubernetes service account carries the role ARN annotation and the namespace exists. This deployment creates the infrastructure half only.
 - Consumer bucket names carry `prevent_destroy`, so renaming one produces a failed plan rather than a rename. Choose the names once.
 
-The application half of the file scan service is covered in [Configure DPN File Scan Service](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/06-configure-dpn-file-scan-service.md) and [File Scan Service Installation Process](../../03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-file-scan-service-installation-process.md).
+The application half of the file scan service is covered in [Configure DPN File Scan Service](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/08-configure-dpn-file-scan-service.md) and [File Scan Service Installation Process](../../03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md).
 
 ## 8. Tags
 
@@ -423,7 +445,7 @@ kms_key_id = "<YOUR-KMS-KEY-ID>"
 Backend note: keep backend/state storage values aligned with your bootstrap output and pipeline variables.
 
 
-## 12. Validation Checklist Before Apply
+## 10. Validation Checklist Before Apply
 
 Review the following checks to confirm the configuration is ready for execution.
 

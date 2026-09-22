@@ -201,7 +201,7 @@ tofu init
 
 - After the initial bootstrap is deployed:
     1. Verify S3 state bucket and DynamoDB lock table are created.
-    2. Uncomment the below s3 backend code block in backend-bootstrap-tf
+    2. Uncomment the below s3 backend code block in backend-bootstrap.tf
         ```
         # terraform {
         #   backend "s3" {
@@ -212,13 +212,16 @@ tofu init
         #     encrypt        = true
         #   }
         # }
-    3. Run terraform init to migrate
-      ```
-      cd infrastructure/Tofu/bootstrap
-      tofu init  # Select "yes" to migrate state
+        ```
+    3. Run tofu init to migrate
+        ```
+        cd infrastructure/Tofu/bootstrap
+        tofu init  # Select "yes" to migrate state
+        ```
     4. Verify state migration to S3
-      ```
-      tofu state list       
+        ```
+        tofu state list
+        ```
 
 - Migrating bootstrap state to S3 provides
   - Centralized state management
@@ -249,7 +252,8 @@ Get backend configuration from outputs:
 
 Then copy the output and update infrastructure/Tofu/backend.tf.
 
-# Initialize with remote backend
+**Initialize with remote backend:**
+
 Create infrastructure/Tofu/backend.tf:
 
 Uncomment the S3 backend block in backend-bootstrap.tf and update it with correct values
@@ -265,7 +269,7 @@ terraform {
 }
 ```
 
-Run terraform init to migrate:
+Run tofu init to migrate:
 ```bash
   cd infrastructure/Tofu/bootstrap
   tofu init
