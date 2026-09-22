@@ -141,4 +141,4 @@ Refer to the following documentation for detailed product guidance.
 - [OpenTofu Destroy Documentation](https://opentofu.org/docs/cli/commands/destroy/)
 - [Azure CLI Documentation](https://learn.microsoft.com/en-us/cli/azure/)
 
-Deployment Complete! 🎉
+Uninstallation Complete! 🎉

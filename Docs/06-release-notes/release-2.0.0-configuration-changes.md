@@ -13,6 +13,7 @@ This page covers **configuration and deployment surface only** (Helm values, pip
 - [DPN Certificate Manager](#dpn-certificate-manager)
 - [DPN Federator Gateway](#dpn-federator-gateway)
 - [DPN File Scan Service](#dpn-file-scan-service)
+- [OpenSearch Dashboard](#opensearch-dashboard)
 - [DPN Observability UIs](#dpn-observability-uis)
 - [DPN Internal DNS Configuration](#dpn-internal-dns-configuration)
 - [Upgrade Checklist](#upgrade-checklist)
@@ -125,6 +126,45 @@ Any other value (including `S3`, which is not a recognised provider type — it 
 
 ---
 
+## OpenSearch Dashboard
+
+OpenSearch itself is unchanged in this release — it has been running since Release 1.0.0. What changed is the **content** of the DPN Pipeline Monitoring dashboard: a set of defects in the shipped saved objects (`config/opensearch/dashboard-provisioning/log-status-dashboard.ndjson`) have been fixed. See [OpenSearch Dashboard Operations](../05-dpn-user-interfaces/05-opensearch-dashboard-ui-operations.md) for the dashboard's normal end-user operation.
+
+| Change | Item | Details |
+|--------|------|---------|
+| Fixed | `log-status-dashboard.ndjson` saved objects (index-patterns, visualizations, searches, dashboards) | Defect fixes only — no new panels, no schema/index-template change, no OpenSearch or OpenSearch Dashboards version bump |
+
+### Why no container image change is involved
+
+The dashboard is not baked into the OpenSearch Dashboards image or any Helm chart values — it is loaded at runtime as OpenSearch Dashboards **saved objects**, provisioned by a one-shot Kubernetes `Job` (`dpn-dashboard-init`) that `curl`s the saved-objects import API. Applying this fix to an already-running Release 1.0.0 environment is therefore **not** a `helm upgrade` / pod restart / image pull — it is a re-run of that provisioning Job against the already-running OpenSearch Dashboards service, sourced from the corrected `.ndjson` file.
+
+### Steps to apply the fix via CI/CD
+
+Both CI/CD systems provision the dashboard as one stage of the full observability stack pipeline — there is currently no standalone "OpenSearch dashboard only" pipeline. Running either path below re-applies the corrected saved objects to the already-running containers without touching any other component's image or configuration, because every other stage is idempotent against unchanged inputs.
+
+**Azure DevOps** — run the `monitoring-master-cd` pipeline (`.pipelines/azure-pipelines/cd-pipelines/monitoring-master-cd.yaml`, manual trigger only):
+
+1. From the Azure DevOps portal, select **Run pipeline** on `monitoring-master-cd`.
+2. Choose the parameters for the target environment: `ServiceConnection`, `environment` (`dev`/`devtest`/`test`/`pdev`/`ptest`/`puat`), `cluster` (`dpn01`/`dpn02`), `approval_group`.
+3. Approve the run at the approval gate (owned by the selected `approval_group`).
+4. The `opensearch-cd.yaml` stage will:
+   - Refresh the `dpn-dashboard-provisioning-files` ConfigMap from the corrected `log-status-dashboard.ndjson`.
+   - Delete and recreate the `dpn-dashboard-init` Job (Jobs are immutable once run).
+   - Wait for the Job to reach `condition=complete` and print its logs.
+5. Confirm success in the pipeline logs — the Job's own output lists the dashboard URLs it re-imported (`/app/dashboards#/view/dpn-dashboard-pipeline-monitoring`, `/app/dashboards#/view/dpn2-dashboard`).
+
+**GitHub Actions** — run the `DPN Health Monitoring` workflow (`dpn-health-monitoring-azure-cd-install.yml`, `workflow_dispatch`):
+
+1. From the GitHub Actions tab, select **Run workflow** on `DPN Health Monitoring`.
+2. Choose `environment` (`dev`/`test`), `cluster` (`dpn01`/`dpn02`), and `imageTag`.
+3. The reusable `DPN CD - OpenSearch` workflow (`dpn-cd-opensearch.yml`) runs the same ConfigMap-refresh / Job-recreate steps as the Azure DevOps path above.
+
+### What happens to existing dashboard state
+
+The provisioning script deletes the previous versions of every DPN saved object **by ID** before re-importing with `overwrite=true`, so re-running it against a live environment always leaves a clean copy — no manual cleanup is required. Any ad hoc changes a user made directly in OpenSearch Dashboards to these specific saved objects (rather than through this pipeline) will be overwritten by the fixed version.
+
+---
+
 ## DPN Observability UIs
 
 See [DPN Portal Operations](../05-dpn-user-interfaces/08-dpn-portal-ui-operations.md), [Kafka UI Operations](../05-dpn-user-interfaces/04-kafka-ui-operations.md), [Kafka Health UI Operations](../05-dpn-user-interfaces/07-kafka-health-ui-operations.md), [OpenSearch Dashboard Operations](../05-dpn-user-interfaces/05-opensearch-dashboard-ui-operations.md), and [Jaeger Dashboard Operations](../05-dpn-user-interfaces/06-jaeger-dashboard-ui-operations.md).
@@ -159,9 +199,10 @@ For an organisation moving from Release 1.0.0:
 3. **Federator Gateway**: remove any file-share-related overrides once you've moved fully to Vault (`vaultConfig.mountCertFileShare` defaults to `true` for backward compatibility — set it to `false` explicitly when ready). Decide on `kafka.authMode` — set to `sasl_ssl` and populate the new per-broker `kafkaSrc.oauth.*`/`kafkaTarget.oauth.*` and `kafkaSrc.tls.*`/`kafkaTarget.tls.*` settings if you want Keycloak-authenticated Kafka; deploy the [DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/02-configure-dpn-authentication-service.md) first if so as it has a dependency.
 4. **New components**: deploy the DPN Authentication Service and/or the REST Federator Gateway only if you need a REST-based integration pattern
 5. **File Scan Service**: no action for Azure deployments. The AWS/GuardDuty code path exists is added in the application and to be deployed via GitHub Actions in ADO
-6. **Observability UIs**: New HTTPS addresses and a Keycloak login in place of HTTP Basic Auth.
-7. **Internal DNS**: publish `dpn-observability.ns-dpn-health-01.svc.cluster.local` and `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` in your VNet/corporate DNS, resolving to their static internal Load Balancer IPs, before rolling out the DPN Portal or any Keycloak-fronted UI — see [Step6: DPN Internal Domain Naming (DNS) Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step6-dpn-internal-domain-naming-dns-configuration). If you plan to use your own corporate hostnames instead, follow the certificate/`externalUrl`/Keycloak redirect URI steps in that section rather than only adding a DNS record.
-8. **REST Federator Gateway firewall rule**: if deploying the REST Federator Gateway, open the new `producer-rest01.dpn01.dsi(xxx).neso.energy` endpoint on TCP 443 in addition to the existing gRPC producer rule — see [Step5: Network and Ports Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration).
+6. **OpenSearch Dashboard**: no `helm upgrade` needed — re-run the CI/CD pipeline (`monitoring-master-cd` on Azure DevOps, or `DPN Health Monitoring` on GitHub Actions) for your environment/cluster to refresh the dashboard-provisioning ConfigMap and re-run the `dpn-dashboard-init` Job against the already-running OpenSearch Dashboards containers — see [OpenSearch Dashboard](#opensearch-dashboard) above.
+7. **Observability UIs**: New HTTPS addresses and a Keycloak login in place of HTTP Basic Auth.
+8. **Internal DNS**: publish `dpn-observability.ns-dpn-health-01.svc.cluster.local` and `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` in your VNet/corporate DNS, resolving to their static internal Load Balancer IPs, before rolling out the DPN Portal or any Keycloak-fronted UI — see [Step6: DPN Internal Domain Naming (DNS) Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step6-dpn-internal-domain-naming-dns-configuration). If you plan to use your own corporate hostnames instead, follow the certificate/`externalUrl`/Keycloak redirect URI steps in that section rather than only adding a DNS record.
+9. **REST Federator Gateway firewall rule**: if deploying the REST Federator Gateway, open the new `producer-rest01.dpn01.dsi(xxx).neso.energy` endpoint on TCP 443 in addition to the existing gRPC producer rule — see [Step5: Network and Ports Configuration](../03-dpn-application-deployment/azure-ado-beta/02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration).
 
 ### Upgrading a GHCR-based deployment from 1.0.0 to 2.0.0
 
