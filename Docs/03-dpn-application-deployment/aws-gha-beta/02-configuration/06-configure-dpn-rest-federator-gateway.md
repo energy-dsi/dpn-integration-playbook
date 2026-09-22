@@ -150,7 +150,7 @@ Re-run this workflow to rotate the `secret-id`, then re-run `dpn-rest-federator-
 | `hpa.scaleUp.cpuUtilization` / `.memoryUtilization` | Target average utilisation (%) that triggers scale-up | `80` / `80` |
 | `hpa.scaleUpBehavior.stabilizationWindowSeconds` / `hpa.scaleDown.stabilizationWindowSeconds` | How long a scale-up/scale-down decision must hold before acting | `60` / `300` |
 
-No per-environment values file currently overrides these — every environment inherits the chart defaults above. Unlike the AppRole/`ServiceAccount`/`SecretProviderClass` work in [Step3b](#step3b-configure-vault-authentication) and [Step3d](#step3d-configure-aws-serviceaccount-irsa), the HPA template and its defaults are identical on the Azure path — see [Configure DPN REST Federator Gateway (Azure), Step3c](../../azure-gha-beta/02-configuration/08-configure-dpn-rest-federator-gateway.md#step3c-configure-autoscaling).
+No per-environment values file currently overrides these — every environment inherits the chart defaults above. Unlike the AppRole/`ServiceAccount`/`SecretProviderClass` work in [Step3b](#step3b-configure-vault-authentication) and [Step3d](#step3d-configure-aws-serviceaccount-irsa), the HPA template and its defaults are identical on the Azure path — see [Configure DPN REST Federator Gateway (Azure), Step3c](../../azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md#step3c-configure-autoscaling).
 
 ### Step3d: Configure AWS ServiceAccount (IRSA)
 
