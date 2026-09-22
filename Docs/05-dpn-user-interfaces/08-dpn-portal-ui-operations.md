@@ -18,15 +18,19 @@
 
 The DPN Portal is a single landing page linking out to every DPN service UI, grouped into cards, served over **HTTPS**. It replaces separately bookmarking each UI's own address with one authenticated starting point.
 
-The portal itself carries **no authentication logic**. Like the other observability UIs, it sits behind its own `oauth2-proxy` sidecar, which terminates OIDC login against the DPN Authentication Service (Keycloak realm `dpn-realm` — see [Configure DPN Authentication Service](../03-dpn-application-deployment/azure-ado-beta/02-configuration/07-configure-dpn-authentication-service.md)). `oauth2-proxy` forwards the authenticated request to the portal application with `X-Forwarded-User` and `X-Forwarded-Groups` headers already attached; the portal only reads those headers to decide which cards to show.
-
 ## 2. Accessing the Portal
+
+DPN users need to open the DPN Unified portal user interface from the following FQDN. This is internal kubernetes FQDN and only accessible from a private network windows VM in the same VNET of the DPN Kubernetes cluster
 
 ```text
 https://dpn-observability.<namespace>.svc.cluster.local:<portal-port>
 ```
 
-Signing in redirects through the Keycloak login page. Once authenticated, the landing page lists every tile your Keycloak group grants you.
+Signing in redirects through the Keycloak login page. 
+
+![DPN Portal Keycloak page](images/08_dpn_portal_ui_auth.png)
+
+Once authenticated, the landing page lists tiles based on the user role assigned to you.
 
 ![DPN Portal landing page](images/08_dpn_portal_ui.png)
 
