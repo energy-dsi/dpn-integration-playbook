@@ -29,6 +29,7 @@
   - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
   - [HPA Not Scaling](#hpa-not-scaling)
+  - [TRUSTSTORE_PASSWORD / Kafka TLS Handshake Errors](#truststore_password--kafka-tls-handshake-errors)
   - [Kafka Topic Issues](#kafka-topic-issues)
 - [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
   - [Platform & Third-Party Images](#platform--third-party-images)
@@ -84,10 +85,11 @@ Deployment itself runs directly against the `dpn-containerised-deployment-servic
 Ensure the following prerequisites are completed before deployment:
 
 - EKS cluster provisioned and accessible, with the **metrics-server** add-on running (required for HPA)
-- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/05-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
+- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with a per-stage IAM role created for each file-based adaptor/schema_mapper/extractor's S3 access — see [ServiceAccount / IRSA (AWS only)](../02-configuration/07-configure-dpn-data-pipelines.md#step3a-set-up-producer-helm-charts-for-file-based-pathways) in the Configuration Guide. This replaces static AWS access-key credentials for S3 access
+- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
 - DPN Health Monitoring Service deployed and OTEL collector container is in running state
-- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
-- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/05-configure-dpn-data-pipelines.md#step8-configure-secrets))
+- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
+- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step8-configure-secrets))
 - Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (GitHub Actions access, GHCR access — see Step2 below)
 
@@ -192,6 +194,7 @@ Go to **Actions → DPN CD - Data Pipelines → Run workflow** in `dpn-container
 | `productType` | The product type, e.g. `eq`, `dl`, `eqbd`, `ssh` — default `default` |
 | `schemaType` | The schema type — default `default` |
 | `imageTag` | The image tag to deploy |
+| `imageName` | Optional — override the computed image name for this run only. Leave blank to auto-derive per service as today |
 
 > **Notes:**
 > - Organisations must determine which data templates they require for processing. The workflow is generic — it dynamically discovers and Helm-installs every chart matching the `configType`/`processType`/`productType` combination under `dpn-data-pipelines/`.
@@ -257,6 +260,7 @@ kubectl logs <pod-name> -n <namespace>
 ### Step3a. Verify Prerequisites
 
 - Verify the `SCHEDULER_BACKEND` is set as `kafka-trigger` (automated, software-triggered scheduling using Apache Airflow)
+- For an AWS deployment of the Airflow chart itself (`cloudProvider: aws`), confirm the IRSA role referenced by `serviceAccount.irsaRoleArn` exists and that the 4 secrets under `secretsManager.secretPrefix` (`FERNET_KEY`, `WEB_SECRET_KEY`, `AIR_POSTGRES_PASSWORD`, `AIRFLOW_ADMIN_PASSWORD`) are present in AWS Secrets Manager
 - Airflow environment configuration must be made for the deployment environment in the following location.
 
 ```
@@ -279,6 +283,12 @@ Go to **Actions → DPN CD - Airflow → Run workflow** in `dpn-containerised-de
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
+| `airflowImageRepository` | Optional — Airflow image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-airflow`). Leave blank to use the environment's configured repository |
+| `airflowImageTag` | Optional — Airflow image tag. Leave blank to use the environment's configured tag |
+| `postgresImageRepository` | Optional — Postgres image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/postgres`). Leave blank to use the environment's configured repository |
+| `postgresImageTag` | Optional — Postgres image tag. Leave blank to use the environment's configured tag |
+| `redisImageRepository` | Optional — Redis image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/redis`). Leave blank to use the environment's configured repository |
+| `redisImageTag` | Optional — Redis image tag. Leave blank to use the environment's configured tag |
 
 ### Step3c. Verify CD Workflow Execution
 
@@ -387,6 +397,10 @@ If `kubectl get hpa` shows `<unknown>` under `TARGETS`:
 If metrics are available but replica count never changes, confirm `hpa.minReplicas`/`hpa.maxReplicas` allow room to scale, and that current load is actually crossing the configured `targetCPUUtilizationPercentage`/`targetMemoryUtilizationPercentage` threshold.
 
 ---
+
+### TRUSTSTORE_PASSWORD / Kafka TLS Handshake Errors
+
+If a pod fails to authenticate to Kafka with an error reading the truststore password, confirm the `kafkaOauthSecretName` secret carries the `KC_HTTPS_TRUST_STORE_PASSWORD` key — the previous key name, `UNIVERSAL_DPN_CERT_PASSWORD`, was retired, and a secret still using the old key name will fail to populate `TRUSTSTORE_PASSWORD`. Also confirm the `dpn-tls` secret carries both `ca.crt` and `truststore.jks`, since it is now mounted as a directory at `/etc/kafka/secrets` rather than a single-file `truststore.jks` subPath.
 
 ### Kafka Topic Issues
 

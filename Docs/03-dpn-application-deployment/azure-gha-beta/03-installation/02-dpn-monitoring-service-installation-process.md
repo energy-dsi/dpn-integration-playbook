@@ -22,15 +22,19 @@
 
 ## Overview
 
-This describes installation using the GitHub Actions orchestrator workflow `dpn-health-monitoring-cd-install.yml` (`environment`+`cluster`+`cloud` inputs, an 11-job dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → Nginx Observability Proxy → Validate — plus the OTEL Collector HPA) against your airgapped Azure environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
+This describes installation using the GitHub Actions orchestrator workflow `dpn-health-monitoring-cd-install.yml` (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your airgapped Azure environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
+
+> The Nginx Observability Proxy job has been retired; DPN Portal (tile landing page) and one `oauth2-proxy` Keycloak-gateway release per remaining UI (OpenSearch, Jaeger, Perses, Portal) replace it. Prometheus and Thanos publish directly on the namespace's shared internal LoadBalancer with no gateway at all — see [Configuration, Continuous Deployment (CD)](../02-configuration/02-configure-dpn-health-mon-service.md#continuous-deployment-cd).
 
 ## Prerequisites
 
 - An AKS cluster matching the target environment's config, with `ns-dpn-health-01` already created.
 - Completed [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step2-github-actions-configuration) for the target environment.
+- The `dpn-health-tls` Secret (`kubernetes.io/tls`, with `tls.crt`/`tls.key`/`ca.crt`) already present in `ns-dpn-health-01` — consumed by every `oauth2-proxy` release and the OTel Collector's TLS OTLP receivers.
+- The Keycloak `dpn-service-client` credential already present in Azure Key Vault (object `KC-SERVICE-CLIENT-SECRET`) — `oauth2-proxy`'s own SecretProviderClass reads it from there; see [Configure DPN Authentication Service](../02-configuration/07-configure-dpn-authentication-service.md).
+- A DPN Portal container image already built and pushed to GHCR, with its repository path and tag ready to supply as the workflow's `portalImageRepository`/`portalImageTag` inputs — this chart ships no default image and the workflow requires both.
 - Access to the environment-specific container registry for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
 - A required-reviewer rule on the GitHub Environment (`<environment>-<cluster>`) if you want a manual approval gate before deployment — there is no ADO-style environment approval built into the workflow itself.
-- A **freshly generated** `.htpasswd` for the dashboard proxy — do not reuse anything currently committed elsewhere.
 - The real Thanos storage account name/SAS Token for the target environment.
 - SMTP relay details and an alert recipient address.
 - The metrics-server running in the cluster (standard on AKS) — required for the OTEL Collector's HPA.
@@ -67,8 +71,10 @@ Go to **Actions → DPN Health Monitoring → Run workflow** in `dpn-containeris
 | `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment — organisations may keep only one, e.g. `dpn01`, to run a single DPN cluster) |
 | `cloud` | `azure` |
 | `imageTag` | OTel Collector image tag — default `0.95.0` |
+| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — **required**, no default |
+| `portalImageTag` | DPN Portal container image tag — **required**, no default |
 
-The workflow's `init` job reads `.github/config/azure/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, Nginx Observability Proxy, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
+The workflow's `init` job reads `.github/config/azure/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, DPN Portal, OAuth2 Proxy ×4, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
 
 - The container image repository referred to in each chart's values is correct, unless the organisation plans to use a different image repository
 - The config JSON's environment fields point to the correct deployment environment
@@ -83,7 +89,7 @@ The workflow's `init` job reads `.github/config/azure/<environment>-<cluster>.js
 2. Confirm the init pods completed the job
 2. Confirm resource labels reflect the correct environment name 
 
-**Note: The nginx pod may appear in error state initially as it also grants access to kafka-ui under federator service. Once federator service is up, the nginx will automatically be in run state. If not then the issue to be investigated.
+**Note:** the `oauth2-proxy-portal` release depends on the DPN Portal Deployment being ready, which in turn depends on the backend UIs (OpenSearch, Jaeger, Perses) it links to, as well as the Kafka UI federator-side services on the shared LoadBalancer. If DPN Portal comes up before those are ready, its tile health probes may briefly report an unhealthy tile — this resolves on its own once those backends are up; investigate only if it persists.
 
 ---
 
@@ -102,6 +108,14 @@ Confirm the config JSON used the **corrected** environment values for this run.
 ### Kafka/Zookeeper Image Pull Fails
 
 Confirm `BASE_REGISTRY` in `.github/config/azure/<environment>-<cluster>.json` uses a fully-resolved hostname like `acrdpnXXXX.azurecr.io` (or `ghcr.io`), not a bare placeholder like `acrdpnXXXX`.
+
+### OTel Collector Metrics Never Show Up in Prometheus
+
+The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheus' `dpn-prometheus-health-ui` Service on port `9081` (the externally-published port, not Prometheus' own `9090`). If Prometheus was deployed without `enableRemoteWriteReceiver: true` in its values, every remote-write POST 404s; if the Service/port in the collector's config drifts from the one Prometheus actually publishes on for a given environment, every write instead times out. Confirm both match for the environment you deployed.
+
+### DPN Portal Pod Fails to Pull Image
+
+`charts/dpn-portal/values.yaml` (and this branch's per-cluster `values-dpn01.yaml`/`values-dpn02.yaml`) ship no default `image.repository`/`image.tag`. Confirm `portalImageRepository` and `portalImageTag` were both actually supplied when the workflow was triggered.
 
 ---
 
@@ -125,7 +139,10 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | Grafana | `ghcr.io/energy-dsi/grafana:<latest or DSI provided stable version>` |
 | StatsD Exporter | `ghcr.io/energy-dsi/statsd-exporter:<latest or DSI provided stable version>` |
 | Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
-| Nginx (dashboard proxy) | `ghcr.io/energy-dsi/nginx:<latest or DSI provided stable version>` |
+| Thanos | `ghcr.io/energy-dsi/thanos:<latest or DSI provided stable version>` |
+| DPN Portal | `ghcr.io/energy-dsi/<your-repository-path>/dpn-portal:<tag supplied via portalImageTag>` — this chart ships no default, so both path and tag must be supplied explicitly |
+
+> **Nginx (dashboard proxy) has been removed** from this service — replaced by the DPN Portal + `oauth2-proxy` releases above.
 
  **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports. Image access, pull verification, and the workflow trigger are all covered above in [Step1](#step1-run-dpn-health-monitoring-cd-installyml) — there is no separate GHCR-specific workflow to run, the one workflow already deploys from these GHCR images by default.
 

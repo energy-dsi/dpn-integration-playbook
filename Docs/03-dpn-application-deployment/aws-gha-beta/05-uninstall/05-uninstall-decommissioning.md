@@ -290,10 +290,10 @@ This part removes the Health Monitoring Service stack deployed in `ns-dpn-health
 
 ### Step 1 — Remove Health Monitoring Sub-Components
 
-Remove each Helm release in the **reverse of the deployment dependency order** used to install them (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper/Jaeger → Perses → OTel → NginxObservability`), so no component is left pointing at a dependency that's already gone:
+Remove each Helm release in the **reverse of the deployment dependency order** used to install them (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper/Jaeger → Perses → OTel → DPN Portal`), so no component is left pointing at a dependency that's already gone:
 
 ```bash
-helm uninstall nginx-observability -n ns-dpn-health-01
+helm uninstall dpn-portal -n ns-dpn-health-01
 helm uninstall otel-collector -n ns-dpn-health-01
 helm uninstall perses -n ns-dpn-health-01
 helm uninstall jaeger -n ns-dpn-health-01
@@ -304,7 +304,7 @@ helm uninstall opensearch -n ns-dpn-health-01
 helm uninstall kafka-health -n ns-dpn-health-01
 ```
 
-> **Note:** Removing `nginx-observability` first also removes proxied access to the Federator's Kafka UI mentioned in the [Pre-Uninstallation Checklist](#pre-uninstallation-checklist) — complete any Kafka topic checks before this step.
+> **Note:** `dpn-portal` (a tile landing page linking out to the observability UIs) has replaced the retired `nginx-observability` reverse proxy as the first release removed here; it is fronted by its own `oauth2-proxy` gateway rather than being the reverse proxy itself. The Kafka UI's `oauth2-proxy` gateway has also been retired — Kafka UI now uses native Keycloak OIDC login and is exposed on its own internal load balancer, so removing `dpn-portal` no longer affects Kafka UI access. Complete the Kafka topic checks from the [Pre-Uninstallation Checklist](#pre-uninstallation-checklist) against that Kafka UI endpoint before proceeding regardless.
 
 ---
 

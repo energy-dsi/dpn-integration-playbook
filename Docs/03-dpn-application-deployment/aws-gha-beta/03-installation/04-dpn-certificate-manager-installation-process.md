@@ -4,7 +4,7 @@ This document covers the installation of the **DPN Federator Certificate Manager
 
 **Full instructions live in the configuration guide.** The end-to-end Certificate Manager flow — overview, prerequisites, the values/secrets to populate, deployment, and post-deployment verification — is documented in one place:
 
-**[Configure DPN Certificate Manager](../02-configuration/03-configure-dpn-certificate-manager.md)**
+**[Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md)**
 
 This installation page is a quick-reference summary that points to that guide.
 
@@ -25,13 +25,17 @@ This installation page is a quick-reference summary that points to that guide.
   - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
+  - [Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)](#pod-fails-to-trust-vaults-https-endpoint-vault_ssl_trust_store_password-missing)
+  - [CSI Mount Failure With `fileShare.create: true`](#csi-mount-failure-with-filesharecreate-true)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-certificate-manager-cd.yml`, in `dpn-containerised-deployment-service`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used.
+The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-certificate-manager-cd.yml`, in `dpn-containerised-deployment-service`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
+
+Set `cloudProvider: aws` in the environment values file — the chart's own default is `azure`, which otherwise selects an Azure Key Vault `SecretProviderClass` and Azure File PV/PVC shape instead of the AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC).
 
 ```text
 dpn-containerised-deployment-service/
@@ -43,16 +47,16 @@ dpn-containerised-deployment-service/
 
 ## Step1: Verify Prerequisites
 
-Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/03-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
+Confirm the prerequisites before starting — see [Configure DPN Certificate Manager → Prerequisites](../02-configuration/04-configure-dpn-certificate-manager.md#step1-meet-the-prerequisites). 
 
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
 - `cert-manager-truststore` secret present
-- Vault credentials ready — `VAULT-TOKEN` (only supported method on this path today), plus `VAULT-TRUSTSTORE-PASSWORD`
+- Vault credentials ready — root token (`VAULT-TOKEN`/`VAULT_TOKEN`) or an AppRole identity from `dpn-certificate-manager-role-id-creation.yml`, plus the truststore password
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
-- Populated config JSON and values file for the `<environment>-<cluster>` combination
+- Populated config JSON and values file for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
 
@@ -100,8 +104,11 @@ Go to **Actions → DPN CD - Certificate Manager → Run workflow** in `dpn-cont
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag pushed in Step2a |
+| `imageRepository` | Optional — overrides `image.repository` for this run only |
 
 On success, the deployed image digest is captured as a workflow artifact.
+
+> **No `--wait`/`--timeout` on `helm upgrade` for this path.** Long-lived watches against the EKS API from the self-hosted runner were unreliable and timed out even when the rollout had actually completed. The Deploy and rolling-restart steps instead fire the Helm/kubectl command without waiting, then poll `kubectl rollout status --timeout=60s` up to five times with a short pause between attempts, printing `kubectl describe`/PVC/`SecretProviderClass`/namespace-events diagnostics if all five attempts fail.
 
 ---
 
@@ -149,13 +156,30 @@ Sometimes there could be some sync issue between certificate, ca-chain and key-p
 
 Sometimes the certificate entries in the management-node could get out of sync with the certificates in vault leading to the 401 error from IDP endpoint. In that case please refresh/resync the certificates in vault by downloading a bootstrap bundle from DSM and uploading it again to vault. Also make sure to delete existing contents from vault before uploading the bootstrap certificates.
 
+### Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)
+
+The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD` and not `OTEL_TRUSTSTORE_PASSWORD` (an old `SecretProviderClass` alias to the latter has been removed; it never actually supplied a trust-store password to the app on either cloud). If Vault TLS handshakes fail at startup, confirm the rendered `SecretProviderClass`/Secret actually populates `VAULT_SSL_TRUST_STORE_PASSWORD`:
+
+```bash
+kubectl get secret certificate-manager-secrets -n <namespace> -o jsonpath='{.data.VAULT_SSL_TRUST_STORE_PASSWORD}' | base64 -d
+```
+
+### CSI Mount Failure With `fileShare.create: true`
+
+If the EFS-backed PVC sits `Pending`, confirm the `efs-sc` StorageClass exists and carries a real EFS filesystem ID for this cluster (see [Step2.3: EKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-eks-namespace-configuration)), and that the EFS mount-target security group allows TCP 2049 from the worker node subnets:
+
+```bash
+kubectl describe pvc <fileShare.pvcName> -n <namespace>
+kubectl get storageclass efs-sc -o yaml
+```
+
 ---
 
 Federator Certificate Manager custom image is found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-certificate-manager-service | `ghcr.io/energy-dsi/dpn-certificate-manager` | `e.g. 1.0.0` |
+| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/1.0.1/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — see `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from this image by default.
 

@@ -70,6 +70,7 @@ In summary:
 - Internal load Balancer IPs are determined
 - IDP client ID is received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
+- Kafka's own Key Vault secrets are provisioned — now just `KEYSTORE-PASSWORD` and `TRUSTSTORE-PASSWORD` (consolidated from 5 entries down to 2; the Keycloak admin password and Kafka OAuth client secret are read directly from `dpn-keycloak-secrets` instead)
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
 

@@ -49,7 +49,7 @@ In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
 - `cert-manager-truststore` secret present
-- Vault credentials ready — `VAULT-TOKEN` (only supported method on this path today), plus `VAULT-TRUSTSTORE-PASSWORD`
+- Vault credentials ready — `VAULT-TOKEN` (root token) or an AppRole identity from `dpn-certificate-manager-role-id-creation.yml`, plus `TRUSTSTORE-PASSWORD` (renamed from `VAULT-TRUSTSTORE-PASSWORD` — see [Configure DPN Certificate Manager, Step3a](../02-configuration/03-configure-dpn-certificate-manager.md#step3a-set-up-helm-values))
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
