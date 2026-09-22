@@ -70,21 +70,12 @@ Also verify all S3 buckets are handled as expected:
 - Application/workload S3 buckets
 - Observability logging S3 buckets
 
-This deployment no longer creates a shared file system. An environment built from an earlier release may
-still have one, and it is not removed by an uninstall of the current code, so check for it and delete it by
-hand:
-
 ```bash
-# Confirm no file system is left behind
-aws efs describe-file-systems \
-  --query "FileSystems[*].[Name,FileSystemId]" \
-  --output table
-
 # Confirm all specific S3 buckets are removed (if not retained) including observability S3 buckets.
 aws s3 ls s3://<bucket-name>
 ```
 
-perform manual cleanup if needed. 
+Perform manual cleanup if needed.
 
 ## 6. Restore Previous State (If Required)
 

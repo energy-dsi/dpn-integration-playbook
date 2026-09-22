@@ -191,7 +191,7 @@ Symptom: a claim stays `Pending` with no error naming a cause, and the pod using
 Three separate causes present identically from a pending claim. Check them in order.
 
 - No CSI driver for the storage the claim requests. Confirm the driver pods are running and that `enable_ebs_csi_driver` is set.
-- A StorageClass naming a provisioner that is not installed. A `gp2` class still naming the removed in-tree provisioner never binds, and neither does an `efs-sc` class naming `efs.csi.aws.com` — this deployment installs no EFS driver, so the class must name `ebs.csi.aws.com`.
+- A StorageClass naming a provisioner that is not installed. A `gp2` class still naming the removed in-tree provisioner never binds, so the class must name `ebs.csi.aws.com`.
 - No default StorageClass on the cluster. A claim that omits `storageClassName` stays `Pending` indefinitely where no class is marked default.
 
 ```bash
