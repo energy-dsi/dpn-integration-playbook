@@ -75,7 +75,7 @@ DPN repositories required:
 - [DPN-Rest-Federator-Gateway](https://github.com/energy-dsi/dpn-rest-federator-gateway)
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
-- [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
 - [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
 
 ### Optional Tools

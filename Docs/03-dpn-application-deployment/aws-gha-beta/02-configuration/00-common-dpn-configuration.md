@@ -26,18 +26,20 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
 
 ![DPN Architecture Blocks](../../../04-dpn-architecture/images/dpn_components.png)
 
+- **DPN User Interface** - A unified user interface experience for DPN with embedded links for individual DPN component User interfaces for example, Opensearch dashboard, Apache Perses, Jaeger, DPN Vault service, User and Role management, Kafka UI and Federator Job runner
+- **DPN Health Monitoring Service** - Provides health monitoring view of DPN components, metric, traces and logs collector with Open Telemetry data format, Kafka for log consolidation, Opensearch, Jaeger and Apache Perses for logs, Traces and metrics view of individual DPN components in health dashboard
+- **DPN Data Pipelines** — Responsible for producing and consuming data products of an organisation.Scheduler to control DPN data pipeline manual and automatic scheduling
+- **DPN Gateway Service** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes, either via the streamed gRPC Federator or the synchronous REST Federator Gateway.
+- **DPN Data Store Service**
+  - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate material, and Redis caching data.
+  - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission, authenticated via Keycloak (`SASL_SSL`/`OAUTHBEARER`) by default.
 - **DPN Security Service**
   - Vault Service — Certificate regeneration for DSM communication and storage, and the store the Certificate Manager and Federator Gateway build their mTLS keystore/truststore from in memory (no shared file share).
   - Digital Certificate Manager — Manages recycling of certificates at a predefined interval from the DSI Management Node.
   - DPN Authentication Service — Keycloak-based OAuth2/OIDC Identity Provider used for Kafka broker authentication and Keycloak SSO on the DPN observability UIs.
-  - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using GuardDuty Malware Protection for S3 on AWS (Defender for Cloud Storage on Azure)
-- **DPN Data Pipelines** — Responsible for producing and consuming data products of an organisation.
-- **DPN Data Store Service**
-  - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate material, and Redis caching data.
-  - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission, authenticated via Keycloak (`SASL_SSL`/`OAUTHBEARER`) by default.
-- **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes, either via the streamed gRPC Federator or the synchronous REST Federator Gateway.
+  - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using Defender for Cloud Storage on Azure or GuardDuty Malware Protection for S3 on AWS
 
-DPN components on an airgapped AWS environment are deployed using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
+DPN components on an airgapped AWS environment are deployed using the **GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
@@ -73,7 +75,7 @@ Organisations may use their own container registry (e.g. Amazon ECR) if permitte
 
 ### Continuous Deployment (CD)
 
-The **Continuous Deployment (CD)** pipeline deploys the container images to the **Amazon EKS** cluster using Helm. Each DPN component has its own `workflow_dispatch`-triggered GitHub Actions workflow in `dpn-containerised-deployment-service` (e.g. `dpn-vault-https-cd.yml`), all taking the same core inputs — `environment` (dev/test), `cluster` (dpn01/dpn02), and `cloud` (`aws` for this path) — plus any component-specific inputs (image tag, etc.) documented in that component's section below.
+The **Continuous Deployment (CD)** pipeline deploys the container images to the **Amazon EKS** cluster using Helm. 
 
 During deployment, the pipeline performs the following steps:
 
