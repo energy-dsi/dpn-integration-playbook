@@ -39,7 +39,7 @@ Cloud engineers responsible for:
 - Provisioning Cloud infrastructure on Azure/AWS/GCP
 - Managing virtual networks and firewall rules
 - Configuring identity and access management
-- Managing Azure Kubernetes Service (AKS) or Elastic Kubernetes Service (EKS) or Google Kubernetes Engine (GKE)
+- Managing the Kubernetes Platform Service
 
 ---
 

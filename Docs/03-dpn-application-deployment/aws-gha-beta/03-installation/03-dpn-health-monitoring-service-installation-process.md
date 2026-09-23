@@ -22,7 +22,7 @@
 
 ## Overview
 
-This describes installation using the GitHub Actions orchestrator workflow `dpn-health-monitoring-cd-install.yml` (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your airgapped AWS environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
+This describes installation using the GitHub Actions orchestrator workflow `dpn-gha-health-monitoring-cd-install.yml` (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your airgapped AWS environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
 
 > The Nginx Observability Proxy job has been retired; DPN Portal (tile landing page) and one `oauth2-proxy` Keycloak-gateway release per remaining UI (OpenSearch, Jaeger, Perses, Portal) replace it. Prometheus and Thanos publish directly on an internal AWS NLB with no gateway at all — see [Configuration, Continuous Deployment (CD)](../02-configuration/03-configure-dpn-health-monitoring-service.md#continuous-deployment-cd).
 
@@ -32,7 +32,7 @@ This describes installation using the GitHub Actions orchestrator workflow `dpn-
 - Completed [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step2-github-actions-configuration) for the target environment.
 - The Kubernetes Secret backing Thanos' long-term object storage (`dpn-mon-storage-connection-string`, key `objstore.yml`) created in `ns-dpn-health-01` — no workflow creates it; see [Configure DPN Health Monitoring Service, Step 1](../02-configuration/03-configure-dpn-health-monitoring-service.md#step-1-prepare-environment-configuration-file) for the caveat on what mechanism (static keys vs. IRSA) it should actually encode.
 - The `dpn-health-tls` Secret (`kubernetes.io/tls`, with `tls.crt`/`tls.key`/`ca.crt`) already present in `ns-dpn-health-01` — consumed by every `oauth2-proxy` release and the OTel Collector's TLS OTLP receivers.
-- The Keycloak `dpn-service-client` credential already present in AWS Secrets Manager at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` (created by `dpn-keycloak-cd.yml`'s AWS deploy path) — `dpn-cd-oauth2-proxy.yml` provisions its own IRSA role and its own private copy of this secret automatically, but the underlying Keycloak-side secret has to exist first.
+- The Keycloak `dpn-service-client` credential already present in AWS Secrets Manager at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` (created by `dpn-gha-keycloak-cd.yml`'s AWS deploy path) — `dpn-cd-oauth2-proxy.yml` provisions its own IRSA role and its own private copy of this secret automatically, but the underlying Keycloak-side secret has to exist first.
 - A DPN Portal container image already built and pushed to GHCR, with its tag (a short git-SHA) ready to supply as the workflow's `portalImageTag` input.
 - Access to the environment-specific container registry for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
 - A required-reviewer rule on the GitHub Environment (`<environment>-<cluster>`) if you want a manual approval gate before deployment — there is no ADO-style environment approval built into the workflow itself.
@@ -63,7 +63,7 @@ See [Reference: Container Images Used](#reference-container-images-used) below f
 
 #### Step1b: Trigger the Workflow
 
-Go to **Actions → DPN Health Monitoring → Run workflow** in `dpn-containerised-deployment-service`, on the branch you want to deploy, and supply:
+Go to **Actions → DPN Health Monitoring → Run workflow** , on the branch you want to deploy, and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -152,5 +152,5 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

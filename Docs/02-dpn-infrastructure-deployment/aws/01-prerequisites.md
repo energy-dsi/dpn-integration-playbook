@@ -16,7 +16,7 @@ This section introduces the prerequisites for infrastructure deployment.
   - [7. Pre-Deployment Decisions](#7-pre-deployment-decisions)
     - [Minimum Identity Requirements](#minimum-identity-requirements)
     - [Why this matters:](#why-this-matters)
-  - [9. Access and Authentication](#9-access-and-authentication)
+  - [8. Access and Authentication](#8-access-and-authentication)
   
 
 ## Purpose
@@ -90,7 +90,6 @@ The following diagram shows the high-level deployment architecture for the targe
 │  │  • IAM Role for Service Accounts (IRSA)      │   │
 │  │  • AWS Load Balancer Controller              │   │
 │  │  • AWS DB Instance (PostGreSQL)              │   │
-│  │  • Elastic File Service (AWS EFS)            │   │
 │  │  • Management Host                           │   │
 │  │  • Observability Logging S3 Buckets          │   │
 │  └──────────────────────────────────────────────┘   │
@@ -181,7 +180,7 @@ The security module establishes the foundational security infrastructure for the
 - Separates developer access from runtime deployment permissions
 - Supports controlled least-privilege access
 
-## 9. Access and Authentication
+## 8. Access and Authentication
 
 Complete the following access and authentication steps before running deployment commands.
 

@@ -210,7 +210,6 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | imageTag | Image tag to deploy | `latest` |
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
 | PRODUCT_NAME | Runtime env var alias of `productType` — same value, consumed by application code rather than Helm templating (see [Step1](#step1-setup-a-new-data-product-from-blueprint)) | `eq-sample-1` |
-| orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
 
 **Storage**
@@ -295,7 +294,6 @@ The values.yaml file created in Step 1 for a specific data product running in a 
 | imageTag | Image tag to deploy | `latest` |
 | productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
 | PRODUCT_NAME | Runtime env var alias of `productType` — same value, consumed by application code rather than Helm templating (see [Step1](#step1-setup-a-new-data-product-from-blueprint)) | `eq-sample-1` |
-| orgName | Organisation name abbreviation (no spaces) | `orga` |
 | schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
 
 > **Note:** a manual reference `values.yaml` for this pathway's adaptor may set only `PRODUCT_NAME` and omit `productType`/`cloudProviderType` outright. Confirm whether those are injected by the CI pipeline in your environment before assuming they can be dropped.
@@ -357,7 +355,6 @@ The values.yaml file created in Step 2 for all data products running in a specif
 |-----------|---------|---------|
 | awsEndpointUrl | Custom S3 endpoint URL. Leave empty to use the AWS default — when blank, the chart now derives `https://s3.<awsRegion>.amazonaws.com` automatically instead of requiring a local MinIO endpoint to be configured | `""` (leave empty to use the derived AWS default) |
 | awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
-| awsAccessSecret | Kubernetes secret holding AWS access credentials. Real S3 access now comes from the pod's IRSA-bound ServiceAccount (see **ServiceAccount / IRSA (AWS only)** below) — this secret is kept only as an empty-string placeholder to satisfy the application's config validator, and defaults to `aws-access-secret` if left unset | `aws-access-secret` |
 
 **ServiceAccount / IRSA (AWS only)**
 
@@ -588,29 +585,12 @@ Two secret objects are created for storage access — one for Producer and one f
 
 **Producer Secrets**
 
-The producer secrets contain the storage account connection strings and SAS tokens for each stage. The connection string format is:
-
-```text
-https://<storage-account>.blob.core.windows.net/?<sas-token>
-```
-
-The secret object `producer-<processType>-dp-secret` contains the following. If the same storage account is used for all stages, the same connection string value may be used for all three:
-
-| Variable | Description |
-|----------|-------------|
-| SRC_CONNECTION_STRING | Blob Storage connection string for the source storage account |
-| MAPPER_CONNECTION_STRING | Blob Storage connection string for the mapper storage account |
-| TARGET_CONNECTION_STRING | Blob Storage connection string for the target storage account |
-
-Create the producer secret using the following command:
-
-```bash
-kubectl create secret generic producer-file-dp-secret \
-  --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string>' | base64)" \
-  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string>' | base64)" \
-  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string>' | base64)" \
-  -n <your namespace>
-```
+The producer secrets contain the storage account connection strings and SAS tokens for each stage. Below mentioned roles needs to define in secrets to access s3 bucket: 
+> - dpn-consumer-file-extractor  
+> - dpn-consumer-file-mapper
+> - dpn-producer-bp-natural-gas-adaptor
+> - dpn-producer-bp-natural-gas-mapper
+ 
 
 **Consumer Secrets**
 
@@ -743,6 +723,6 @@ Example:
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
