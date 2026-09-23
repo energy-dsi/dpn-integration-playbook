@@ -104,7 +104,6 @@ Go to **Actions → DPN CD - Certificate Manager → Run workflow** in `dpn-cont
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag pushed in Step2a |
-| `imageRepository` | Optional — overrides `image.repository` for this run only |
 
 On success, the deployed image digest is captured as a workflow artifact.
 
@@ -162,15 +161,6 @@ The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — no
 
 ```bash
 kubectl get secret certificate-manager-secrets -n <namespace> -o jsonpath='{.data.VAULT_SSL_TRUST_STORE_PASSWORD}' | base64 -d
-```
-
-### CSI Mount Failure With `fileShare.create: true`
-
-If the EFS-backed PVC sits `Pending`, confirm the `efs-sc` StorageClass exists and carries a real EFS filesystem ID for this cluster (see [Step2.3: EKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-eks-namespace-configuration)), and that the EFS mount-target security group allows TCP 2049 from the worker node subnets:
-
-```bash
-kubectl describe pvc <fileShare.pvcName> -n <namespace>
-kubectl get storageclass efs-sc -o yaml
 ```
 
 ---
