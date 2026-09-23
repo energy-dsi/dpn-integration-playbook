@@ -176,6 +176,7 @@ Configure the following three pipelines in order. Each takes the environment as 
   - `dpn-tls` — server keystore/truststore used by Keycloak, Kafka, Federator Gateway, Redis, Airflow (target namespace **and** `ns-dpn-health-01`)
   - `dpn-health-tls` — `kubernetes.io/tls` certificate for the health-monitoring `oauth2-proxy` gateways (target namespace **and** `ns-dpn-health-01`)
   - `tls-auth-secret` — the shared `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`/`DPN_CLIENT_P12_PASSWORD` values every component above reads, instead of each syncing its own copy from Key Vault (target namespace **and** `ns-dpn-health-01`)
+- Publishes `certs/vault.csr` and `certs/vault.key` as a pipeline artifact — this is Vault's own DSM bootstrap CSR (separate from the platform TLS material above). Sign `vault.csr` at the DSM Vault to obtain `certificate.pem`/`ca-chain.pem`, then upload them together with this same `vault.key` as the Secure Files [Step 3C](#step-3c-configure-certificate-bundle-vault-load-bundle-cd) expects.
 
 **Not covered:** `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD`, and `KC-SERVICE-CLIENT-SECRET` are not certificate material — set these in Key Vault manually (see [Configure DPN Authentication Service, Step2](02-configure-dpn-authentication-service.md#step2-configure-secrets)).
 
@@ -238,6 +239,8 @@ Runtime parameters: `serviceConnection`, `environment`.
 
 > **Prerequisites for this step:** 
 
+- `vault.key` — this is the same `certs/vault.key` `dpn-tls-cd` (Step 3A) published as a pipeline artifact, not a separately generated key
+- `certificate.pem`/`ca-chain.pem` — obtained by signing that run's `certs/vault.csr` at the DSM Vault
 - Vault deployed and unsealed (Step 3B)
 - `VAULT-TOKEN` present in Key Vault (from Step 3B with `storeRootTokenInAkv: true`)
 - KV v2 enabled at `pki-client`
