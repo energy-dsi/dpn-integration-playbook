@@ -89,7 +89,6 @@ The following diagram shows the high-level deployment architecture for the targe
 │  │  • Application/Developer S3 Accounts         │   │
 │  │  • IAM Role for Service Accounts (IRSA)      │   │
 │  │  • AWS Load Balancer Controller              │   │
-│  │  • AWS DB Instance (PostGreSQL)              │   │
 │  │  • Management Host                           │   │
 │  │  • Observability Logging S3 Buckets          │   │
 │  └──────────────────────────────────────────────┘   │
@@ -107,7 +106,6 @@ Ensure the AWS Account is ready and validated against the following requirements
 - Regional quota available: Examples
   - EKS Clusters: >= 1
   - EC2 Instances: >= 10 (for Auto Scaling Group)
-  - RDS Instances >= 1
   - VPC/Security Groups: Standard Limits
   - Public IP requirement depends on your organisation network architecture; private deployments may require none
 - Region selected: <aws-region>
@@ -155,9 +153,9 @@ Capture the following planning inputs before deployment begins.
 
 Use the following naming patterns to keep deployed resources consistent.
 
-Resource names combine the project name and environment. Network, KMS and node group resources additionally carry a `Name` tag that leads with a short resource-type prefix.
+Resource names combine the project name and environment. Network, KMS and node group resources also carry a `Name` tag, which leads with a short prefix for the resource type.
 
-Resource names created by the deployment:
+The following resource names are created by the deployment:
 
 | Resource                                         | Name                                           |
 |--------------------------------------------------|------------------------------------------------|
@@ -172,7 +170,7 @@ Resource names created by the deployment:
 | Workload service account roles                   | `<project>-<env>-<service-account>`            |
 | Container registry repository                    | `<project>/workloads/<env>`                    |
 
-`Name` tags applied by the deployment:
+The following `Name` tags are applied by the deployment:
 
 | Resource                 | Tag                                                        |
 |--------------------------|------------------------------------------------------------|
@@ -189,11 +187,11 @@ Resource names created by the deployment:
 | KMS key                  | `kms-<project>-core-<env>`                                 |
 | Node groups              | `ng-<project>-<env>-system`, `ng-<project>-<env>-workload` |
 
-Subnet tiers are `public`, `app`, `mgmt` and `data`.
+In these patterns `<project>` is the project name, `<env>` the environment and `<region>` the deployment region. `<az>` is the availability zone letter, `<tier>` is one of `public`, `app`, `mgmt` or `data`, `<service>` is the AWS service a VPC endpoint targets, `<service-account>` is the Kubernetes service account name, and `<seq>` numbers a state bucket where an environment has more than one.
 
-The following names are chosen by the deploying organisation rather than generated, so the patterns below are a convention rather than a constraint:
+The following values are chosen by the deploying organisation rather than generated, so treat these patterns as a convention rather than a constraint:
 
-| Input            | Convention                      |
+| Value            | Convention                      |
 |------------------|---------------------------------|
 | EKS cluster name | `eks-<project>-<env>-<region>`  |
 | State bucket     | `<project>-tfstate-<env>-<seq>` |
