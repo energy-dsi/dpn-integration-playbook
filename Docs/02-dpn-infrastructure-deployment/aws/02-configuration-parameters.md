@@ -269,11 +269,13 @@ An annotation on the pod template takes precedence over both maps. A deployment 
 
 ## 5. Database Parameters
 
-No managed database is deployed by the infrastructure layer, so there are no database parameters to set here.
+This deployment creates no managed database, so there are no database parameters to set here.
 
-The authentication service (Keycloak) ships a bundled PostgreSQL container on a persistent volume and is deployed that way by default. A managed database may optionally be used for Keycloak instead, by setting `postgres.enabled` to false and pointing `KC_DB_URL` and `KC_DB_USERNAME` at an external endpoint. These are application values rather than infrastructure parameters, and are covered in [DPN Authentication Service (Keycloak) Configuration](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/02-configure-dpn-authentication-service.md).
+The authentication service (Keycloak) ships a bundled PostgreSQL container on a persistent volume and is deployed that way by default. A managed database can be used for Keycloak instead, by setting `postgres.enabled` to false and pointing `KC_DB_URL` and `KC_DB_USERNAME` at an external endpoint. These are application values rather than infrastructure parameters, and are covered in [DPN Authentication Service (Keycloak) Configuration](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/02-configure-dpn-authentication-service.md).
 
-Where a managed database is chosen, the deploying organisation provisions it themselves. The DynamoDB table created during bootstrap holds the OpenTofu state lock only, and no application data.
+Where a managed database is chosen, the deploying organisation provisions it themselves.
+
+The DynamoDB table created during bootstrap holds the OpenTofu state lock only. It stores no application data.
 
 
 ## 6. Security Parameters

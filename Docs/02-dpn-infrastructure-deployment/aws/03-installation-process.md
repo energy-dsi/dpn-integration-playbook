@@ -441,9 +441,6 @@ kubectl get pods -A
 kubectl get nodes -o wide
 kubectl get namespaces
 
-# Database
-psql -h {database-endpoint} -U admin -d postgres -c "SELECT version();"
-
 # Container Registry
 aws ecr describe-repositories
 
