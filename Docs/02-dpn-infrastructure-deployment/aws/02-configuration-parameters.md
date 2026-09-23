@@ -269,19 +269,11 @@ An annotation on the pod template takes precedence over both maps. A deployment 
 
 ## 5. Database Parameters
 
-Use the folowing parameters to configure application database
+No managed database is deployed by the infrastructure layer, so there are no database parameters to set here.
 
-```hcl
-db_name                  = "<db-name>"
-db_engine_version        = "<eng-version>" #example: "16.3"
-db_instance_class        = "<db-size>"
-db_allocated_storage     = <db-storage-in-GB>
-db_max_allocated_storage = <db-max-storage-in-GB>
-db_admin_username   = "<db-admin-username>"
-backup_retention_days    = <db-retention>
+The authentication service (Keycloak) ships a bundled PostgreSQL container on a persistent volume and is deployed that way by default. A managed database may optionally be used for Keycloak instead, by setting `postgres.enabled` to false and pointing `KC_DB_URL` and `KC_DB_USERNAME` at an external endpoint. These are application values rather than infrastructure parameters, and are covered in [DPN Authentication Service (Keycloak) Configuration](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/02-configure-dpn-authentication-service.md).
 
-db_admin_secret_name = "<path-to-secret>"
-```
+Where a managed database is chosen, the deploying organisation provisions it themselves. The DynamoDB table created during bootstrap holds the OpenTofu state lock only, and no application data.
 
 
 ## 6. Security Parameters

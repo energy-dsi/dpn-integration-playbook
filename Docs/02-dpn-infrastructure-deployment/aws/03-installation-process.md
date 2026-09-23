@@ -51,7 +51,7 @@ Replace all placeholder values before running commands.
 Gather all the required information before any deployment activity:
 
 - `AWS_ACCOUNT_ID` — AWS Account ID where DPN infrastructure will be deployed. Example: `<your-aws-account-id>`
-- `AWS_REGION` — AWS region agreed with DSI for this environment. Example: `<aws-region>` (e.g. `eu-central-1`)
+- `AWS_REGION` — AWS region agreed with DSI for this environment. Example: `<aws-region>`
 - `ENVIRONMENT` — Short label matching the tfvars filename prefix. Example: `<env-name>` (e.g. `dev-01`)
 - `TFSTATE_BUCKET_NAME` — S3 Bucket name for OpenTofu remote state 
   - Pattern: `dpn-tfstate-<env>-01`
@@ -83,7 +83,7 @@ Add the following secrets to your client environment:
 AWS_ACCOUNT_ID           - Your AWS account ID
 AWS_ACCESS_KEY_ID        - AWS IAM user access key
 AWS_SECRET_ACCESS_KEY    - AWS IAM user secret key
-AWS_REGION               - Target AWS region (e.g., eu-west-2)
+AWS_REGION               - Target AWS region (e.g., <aws-region>)
 Recommended: Use AWS IAM roles with OIDC instead of access keys for better security.
 ```
 
@@ -177,7 +177,7 @@ tofu init
   #   bucket="dpn-state-..."
   #   dynamodb_table="dpn-lock-..."
   #   key="part"
-  #   region="eu-west-2"
+  #   region="<aws-region>"
 ```
 
 - (Optional) Bootstrap Validation
@@ -206,7 +206,7 @@ tofu init
         #   backend "s3" {
         #     bucket         = "dpn-tfstate-bootstrap"
         #     key            = "bootstrap/terraform.tfstate"
-        #     region         = "eu-west-2"
+        #     region         = "<aws-region>"
         #     dynamodb_table = "dpn-tfstate-lock"
         #     encrypt        = true
         #   }
@@ -261,7 +261,7 @@ terraform {
   backend "s3" {
     bucket         = "dpn-tfstate-part-001"
     key            = "part/terraform.tfstate"
-    region         = "eu-west-2"
+    region         = "<aws-region>"
     dynamodb_table = "dpn-tfstate-lock"
     encrypt        = true
   }
@@ -430,7 +430,7 @@ Example:
 ```
 aws eks update-kubeconfig \
     --name <cluster-name> \
-    --region eu-west-2
+    --region <aws-region>
 ```
 
 ```bash
@@ -452,7 +452,7 @@ aws elbv2 describe-load-balancers \
   --names dpn-alb-part
 
 # WAF
-aws wafv2 list-web-acls --region eu-west-2
+aws wafv2 list-web-acls --region <aws-region>
 ```
 ---
 
@@ -477,7 +477,7 @@ Expected output examples:
 
 ```text
 --- Region ---
-us-east-2
+<aws-region>
 --- Versioning ---
 Enabled
 --- Encryption ---
@@ -599,7 +599,7 @@ Perform maintainance operations as required.
 # Update EKS cluster version (monthly)
 aws eks update-cluster-version \
   --name dpn-eks-part \
-  --kubernetes-version 1.34
+  --kubernetes-version 1.35
 
 # Update node AMI (monthly)
 aws eks update-nodegroup-version \

@@ -155,7 +155,50 @@ Capture the following planning inputs before deployment begins.
 
 Use the following naming patterns to keep deployed resources consistent.
 
-[Place Holder]
+Resource names combine the project name and environment. Network, KMS and node group resources additionally carry a `Name` tag that leads with a short resource-type prefix.
+
+Resource names created by the deployment:
+
+| Resource                                         | Name                                           |
+|--------------------------------------------------|------------------------------------------------|
+| EKS cluster IAM role                             | `<project>-eks-cluster-<env>`                  |
+| EKS node IAM role                                | `<project>-eks-node-<env>`                     |
+| Node security group                              | `<project>-eks-node-<env>`                     |
+| Management host role, instance profile and group | `<project>-mgmt-host-<env>`                    |
+| VPC endpoint security group                      | `<project>-vpce-<env>`                         |
+| VPC flow log role and policy                     | `<project>-vpc-flow-logs-<env>`                |
+| Load balancer controller role                    | `<project>-<env>-aws-load-balancer-controller` |
+| Block storage driver role                        | `<project>-<env>-ebs-csi-driver`               |
+| Workload service account roles                   | `<project>-<env>-<service-account>`            |
+| Container registry repository                    | `<project>/workloads/<env>`                    |
+
+`Name` tags applied by the deployment:
+
+| Resource                 | Tag                                                        |
+|--------------------------|------------------------------------------------------------|
+| VPC                      | `vpc-<project>-<env>-<region>`                             |
+| Internet gateway         | `igw-<project>-<env>-<region>`                             |
+| Subnets                  | `sn-<project>-<tier>-<az>-<env>`                           |
+| Route tables             | `rt-<project>-<tier>-<az>-<env>`                           |
+| Network ACL              | `nacl-<project>-public-<env>`                              |
+| Security groups          | `sg-<project>-eks-node-<env>`, `sg-<project>-vpce-<env>`   |
+| NAT gateway              | `nat-<project>-<az>-<env>`                                 |
+| NAT gateway elastic IP   | `eip-<project>-nat-<az>-<env>`                             |
+| Load balancer elastic IP | `eip-<project>-nlb-<az>-<env>`                             |
+| VPC endpoints            | `vpce-<project>-<env>-<service>`                           |
+| KMS key                  | `kms-<project>-core-<env>`                                 |
+| Node groups              | `ng-<project>-<env>-system`, `ng-<project>-<env>-workload` |
+
+Subnet tiers are `public`, `app`, `mgmt` and `data`.
+
+The following names are chosen by the deploying organisation rather than generated, so the patterns below are a convention rather than a constraint:
+
+| Input            | Convention                      |
+|------------------|---------------------------------|
+| EKS cluster name | `eks-<project>-<env>-<region>`  |
+| State bucket     | `<project>-tfstate-<env>-<seq>` |
+| State lock table | `<project>-tfstate-lock-<env>`  |
+| State key        | `<env>/terraform.tfstate`       |
 
 ## 7. Pre-Deployment Decisions
 
@@ -194,7 +237,7 @@ Complete the following access and authentication steps before running deployment
     # Output should show your Account ID and ARN
 
     # Verify region is set
-    aws configure get region  # Should output: eu-west-2
+    aws configure get region  # Should output: <aws-region>
    ```
 
 - Verify Repository Structure:
