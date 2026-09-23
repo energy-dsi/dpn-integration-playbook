@@ -245,8 +245,9 @@ Complete the following access and authentication steps before running deployment
 
     # List Modules
     ls -la modules/
-    # Output should show compliance, container_registry, database, eks, ingress, 
-    # networking, observability, security, workload_identity
+    # Modules used by the deployment: app_irsa, aws_load_balancer_controller_irsa,
+    # container_registry, eks, kubernetes_platform, management_host, management_host_iam,
+    # networking, observability, security, storage, workload_identity
 
     # Check environment config exists
     ls -la environments/part.tfvars

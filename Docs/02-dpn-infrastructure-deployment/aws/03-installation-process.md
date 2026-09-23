@@ -579,13 +579,6 @@ aws cloudwatch put-metric-alarm \
   --period 300 \
   --threshold 80 \
   --comparison-operator GreaterThanThreshold
-
-# Create alarm for RDS connections
-aws cloudwatch put-metric-alarm \
-  --alarm-name dpn-db-connections \
-  --metric-name DatabaseConnections \
-  --namespace AWS/RDS \
-  --threshold 80
 ```
 
 ### 10.2 Maintainance Operations
@@ -607,10 +600,6 @@ aws eks update-nodegroup-version \
 aws ec2 describe-images \
   --image-ids <ami-id> \
   --query "Images[0].DeprecationTime"
-
-# Rotate RDS master password (quarterly)
-aws secretsmanager rotate-secret \
-  --secret-id dpn/part/rds/password
 
 # Review Security Hub findings (weekly)
 aws securityhub get-insights
