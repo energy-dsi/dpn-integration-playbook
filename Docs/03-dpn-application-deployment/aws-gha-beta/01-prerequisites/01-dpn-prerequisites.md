@@ -26,9 +26,9 @@
 
 ## Overview
 
-This section lists the prerequisites that must be completed **before installing DPN nodes into an airgapped AWS environment using the automated GitHub Actions deployment pipeline**.
+This section lists the prerequisites that must be completed **before installing DPN nodes into an AWS environment using the automated GitHub Actions deployment pipeline**.
 
-This is the path for organisations deploying a DPN into their own **AWS airgapped environment** (an AWS account outside NESO's own cloud, reachable only via the shared self-hosted GitHub Actions runner). It does not apply to DPN instances hosted directly on NESO's own Azure cloud — see [Azure (ADO)](../azure-ado-beta/01-prerequisites/01-dpn-prerequisites.md) for that path instead.
+This is the path for organisations deploying a DPN into their own **AWS environment** (an AWS account outside NESO's own cloud, reachable only via the shared self-hosted GitHub Actions runner). It does not apply to DPN instances hosted directly on NESO's own Azure cloud — see [Azure (ADO)](../azure-ado-beta/01-prerequisites/01-dpn-prerequisites.md) for that path instead.
 
 The prerequisites are grouped into the following categories:
 
@@ -129,7 +129,7 @@ The following access configurations are required for DPN deployment.
 An **IAM role in your target AWS account**, named `oidc_github_runner_admin`, with:
 
 - A trust policy allowing the centrally-managed hub role (`arn:aws:iam::950639282434:role/oidc_github_runner_hub`) to assume it via `sts:AssumeRole`
-- Permissions scoped to what DPN deployment actually needs — at minimum EKS cluster access, plus IAM/S3/EFS/KMS permissions for whichever components' prerequisites your organisation provisions (Thanos IRSA role, S3 buckets, Vault KMS auto-unseal key, etc.)
+- Permissions scoped to what DPN deployment actually needs — at minimum EKS cluster access, plus IAM/S3/EFS/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
 
 See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential) below for how this fits into the pipeline's authentication chain.
 
@@ -137,7 +137,7 @@ See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-cr
 
 - The **hub role** (`arn:aws:iam::950639282434:role/oidc_github_runner_hub`) is centrally managed by the DSI/NESO platform team — your organisation does not create or manage it.
 - The pipeline's shared `cloud-login` composite action authenticates by having the runner's GitHub OIDC token assume the hub role, which then role-chains into your organisation's own `oidc_github_runner_admin` role (see [AWS IAM OIDC Role](#aws-iam-oidc-role)) — no client secret or long-lived AWS access key to create or rotate.
-- **Azure Key Vault stays in the picture even for this AWS path.** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **Azure Key Vault** regardless of which cloud the target cluster is in, because the organisation's central secrets store is Azure Key Vault, not an AWS-native one. Confirm `KEY_VAULT_NAME` is present in `.github/config/aws/<environment>-<cluster>.json` before relying on the pipeline.
+- **AWS Secret Manager** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **AWS Secret Manager**. 
 
 #### EKS Access
 
@@ -157,7 +157,7 @@ The following security practices must be implemented before deploying DPN nodes.
 
 - Adoption of a **Zero Trust security model**  
 - **Mutual TLS (mTLS)** enforced for communication between organisations DPNs and DSM  
-- Storage of secrets in **Azure Key Vault** (the org's central secrets store, used cross-cloud) or an equivalent secure secret store  
+- Storage of secrets in **AWS Secret Manager** (the org's central secrets store, used cross-cloud) or an equivalent secure secret store  
 - Regular **rotation of secrets and encryption keys**  
 - Regular **rotation of certificates used for communication**
 
@@ -227,8 +227,14 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 
 ---
 
+The prerequisites described in this document assume the following:
+
+- The organisation plans to deploy **DPN on an AWS cloud infrastructure**  
+- Deployment (CD) runs via the GitHub Actions pipeline, executed on the shared self-hosted runner pool, into the organisation's AWS landing zone (EKS)
+
+---
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

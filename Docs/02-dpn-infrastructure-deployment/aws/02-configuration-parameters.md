@@ -2,6 +2,27 @@
 
 This section defines the configuration parameters used during infrastructure deployment.
 
+## Table of Contents
+
+- [Purpose](#purpose)
+- [Environment tfvars File (Required)](#environment-tfvars-file-required)
+  - [Repository Structure for Infrastructure](#repository-structure-for-infrastructure)
+- [1. Core Environment Parameters](#1-core-environment-parameters)
+- [2. Networking and Subnet Parameters](#2-networking-and-subnet-parameters)
+- [3. Application Parameters](#3-application-parameters)
+- [4. EKS Parameters](#4-eks-parameters)
+  - [4.1 Kubernetes Platform Resources](#41-kubernetes-platform-resources)
+  - [4.2 Block Storage](#42-block-storage)
+  - [4.3 Auto-Instrumentation](#43-auto-instrumentation)
+- [5. Database Parameters](#5-database-parameters)
+- [6. Security Parameters](#6-security-parameters)
+  - [6.1 WAF Parameters](#61-waf-parameters)
+  - [6.2 Other Security Settings](#62-other-security-settings)
+- [7. Service Account Settings](#7-service-account-settings)
+  - [7.1 File Scan Service](#71-file-scan-service)
+- [8. Tags](#8-tags)
+- [9. Backend configuration](#9-backend-configuration)
+- [10. Validation Checklist Before Apply](#10-validation-checklist-before-apply)
 
 ## Purpose
 
@@ -9,7 +30,7 @@ This document consolidates common OpenTofu variable patterns used during deploym
 
 Parameter keys in your repository may differ. Treat the examples below as a reference model and map them to your `variables.tf`.
 
-The values defined in sections 1-8 should be placed in `infrastructure/opentofu/environments/<env>.tfvars` file that specify environment-specific parameters. See section 10 for details
+The values defined in sections 1-8 should be placed in `infrastructure/opentofu/environments/<env>.tfvars` file that specify environment-specific parameters. See [Environment tfvars File (Required)](#environment-tfvars-file-required) for details.
 
 Values from section 9 should be placed in `infrastructure/opentofu/backend/<env>.hcl` file that specify backend (to be used at init)
 
@@ -162,8 +183,6 @@ eks_bootstrap_cluster_creator_admin_permissions = <true-or-false>
 
 enable_cloudwatch_observability        = <true-or-false>
 cloudwatch_observability_addon_version = "<version>"
-enable_efs_csi_driver                  = <true-or-false>
-efs_csi_driver_version                 = "<version>"
 enable_ebs_csi_driver                  = <true-or-false>
 ebs_csi_driver_version                 = "<version>"
 
@@ -215,6 +234,7 @@ workload_node_group_max_size       = <max-size>
 - Pin the version. An unpinned create takes whatever version AWS defaults to on the day, so clusters built weeks apart end up on different versions.
 - The version is an in-place add-on update rather than a replacement. Setting it to the version already installed produces no change.
 - A pinned version can fail the create on a newer Kubernetes release. This is intended: the deployment fails visibly rather than installing a different version.
+- Block storage is the only storage this deployment provides, and it attaches to one node at a time. There is no shared file system and no parameter to add one, so a workload that needs several pods writing to the same volume has nothing to claim here — see [05-uninstall-decommissioning.md](05-uninstall-decommissioning.md) if an earlier release left a file system behind.
 
 ### 4.3 Auto-Instrumentation
 
@@ -379,7 +399,7 @@ consumer_buckets = {
 - The role is inert until the Kubernetes service account carries the role ARN annotation and the namespace exists. This deployment creates the infrastructure half only.
 - Consumer bucket names carry `prevent_destroy`, so renaming one produces a failed plan rather than a rename. Choose the names once.
 
-The application half of the file scan service is covered in [Configure DPN File Scan Service](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/06-configure-dpn-file-scan-service.md) and [File Scan Service Installation Process](../../03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-file-scan-service-installation-process.md).
+The application half of the file scan service is covered in [Configure DPN File Scan Service](../../03-dpn-application-deployment/aws-gha-beta/02-configuration/08-configure-dpn-file-scan-service.md) and [File Scan Service Installation Process](../../03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md).
 
 ## 8. Tags
 
@@ -413,7 +433,7 @@ kms_key_id = "<YOUR-KMS-KEY-ID>"
 Backend note: keep backend/state storage values aligned with your bootstrap output and pipeline variables.
 
 
-## 12. Validation Checklist Before Apply
+## 10. Validation Checklist Before Apply
 
 Review the following checks to confirm the configuration is ready for execution.
 

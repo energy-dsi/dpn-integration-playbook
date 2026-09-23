@@ -49,7 +49,7 @@ downstream consumers read from Kafka and store the data in the appropriate backe
 
 ```
 Applications (dpn-data-pipelines)
-    │  OTLP (gRPC :4317 / HTTP :4318)
+    │  OTLP (gRPC :4317 / HTTPS :4318)
     ▼
 OpenTelemetry Collector
     │

@@ -24,9 +24,8 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 3.2 Validate Compute Components](#step-32-validate-compute-components)
   - [Step 3.3 S3 Buckets](#step-33-s3-buckets)
   - [Step 3.4 Validate Security Module Components](#step-34-validate-security-module-components)
-  - [Step 3.5 AWS EFS Details](#step-35-aws-efs-details)
-  - [Step 3.6 Observability Logging resources](#step-36-observability-logging-resources)
-  - [Step 3.7 AWS EBS Details](#step-37-aws-ebs-details)
+  - [Step 3.5 Observability Logging resources](#step-35-observability-logging-resources)
+  - [Step 3.6 AWS EBS Details](#step-36-aws-ebs-details)
 - [Post-Deployment Configuration](#post-deployment-configuration)
   - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
   - [10.2 Maintainance Operations](#102-maintainance-operations)
@@ -201,7 +200,7 @@ tofu init
 
 - After the initial bootstrap is deployed:
     1. Verify S3 state bucket and DynamoDB lock table are created.
-    2. Uncomment the below s3 backend code block in backend-bootstrap-tf
+    2. Uncomment the below s3 backend code block in backend-bootstrap.tf
         ```
         # terraform {
         #   backend "s3" {
@@ -212,13 +211,16 @@ tofu init
         #     encrypt        = true
         #   }
         # }
-    3. Run terraform init to migrate
-      ```
-      cd infrastructure/Tofu/bootstrap
-      tofu init  # Select "yes" to migrate state
+        ```
+    3. Run tofu init to migrate
+        ```
+        cd infrastructure/Tofu/bootstrap
+        tofu init  # Select "yes" to migrate state
+        ```
     4. Verify state migration to S3
-      ```
-      tofu state list       
+        ```
+        tofu state list
+        ```
 
 - Migrating bootstrap state to S3 provides
   - Centralized state management
@@ -249,7 +251,8 @@ Get backend configuration from outputs:
 
 Then copy the output and update infrastructure/Tofu/backend.tf.
 
-# Initialize with remote backend
+**Initialize with remote backend:**
+
 Create infrastructure/Tofu/backend.tf:
 
 Uncomment the S3 backend block in backend-bootstrap.tf and update it with correct values
@@ -265,7 +268,7 @@ terraform {
 }
 ```
 
-Run terraform init to migrate:
+Run tofu init to migrate:
 ```bash
   cd infrastructure/Tofu/bootstrap
   tofu init
@@ -495,30 +498,7 @@ aws iam get-role --role-name $(echo "arn:aws:iam::123456789012:role/eks_node_rol
 ```
 ---
 
-### Step 3.5 AWS EFS Details
-
-This deployment uses AWS EFS storage for application storage, with the file share secured through a private endpoint.
-
-### What is created
-
-- AWS EFS
-
-### Key configuration values
-
-The following variables are used in the deployment:
-
-- `enable_efs_csi_driver` – The Amazon EFS Container Storage Interface (CSI) driver allows Kubernetes clusters running on AWS to mount Amazon EFS file systems as persistent volumes.
-- `efs_csi_driver_version` – add-on version installed on the cluster, pinned so that clusters built at different times match.
-
-### Why this matters
-
-- Ensures developer storage is provided as a managed EFS file system
-- Keeps the EFS traffic private inside the VPC
-- Supports secure access to developer storage without exposing the file share over the public internet
-
----
-
-### Step 3.6. Observability Logging resources 
+### Step 3.5 Observability Logging resources
 
 This deployment includes Cloudwatch log groups and dedicated S3 buckets for observability logging, used to centralize log and diagnostic export separately from application and file scanning storage.
 
@@ -545,7 +525,7 @@ The following variables are used in the deployment:
 
 ---
 
-### Step 3.7 AWS EBS Details
+### Step 3.6 AWS EBS Details
 
 This deployment can add block storage for workloads that require a volume attached to a single node rather than a shared file system.
 
