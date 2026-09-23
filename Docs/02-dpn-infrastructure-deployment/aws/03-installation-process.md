@@ -28,7 +28,7 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 3.6 AWS EBS Details](#step-36-aws-ebs-details)
 - [Post-Deployment Configuration](#post-deployment-configuration)
   - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
-  - [10.2 Maintainance Operations](#102-maintainance-operations)
+  - [10.2 Maintenance Operations](#102-maintenance-operations)
   - [10.3 Document Deployment](#103-document-deployment)
   - [10.4 Prepare for Application Deployment](#104-prepare-for-application-deployment)
 
@@ -445,8 +445,7 @@ kubectl get namespaces
 aws ecr describe-repositories
 
 # Load Balancer
-aws elbv2 describe-load-balancers \
-  --names dpn-alb-part
+aws elbv2 describe-load-balancers
 
 # WAF
 aws wafv2 list-web-acls --region <aws-region>
@@ -581,9 +580,9 @@ aws cloudwatch put-metric-alarm \
   --comparison-operator GreaterThanThreshold
 ```
 
-### 10.2 Maintainance Operations
+### 10.2 Maintenance Operations
 
-Perform maintainance operations as required.
+Perform maintenance operations as required.
 
 ```bash
 # Update EKS cluster version (monthly)

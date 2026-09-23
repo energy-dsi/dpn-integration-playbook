@@ -189,20 +189,20 @@ ebs_csi_driver_version                 = "<version>"
 eks_access_entries = {
   admin = {
     principal_arn     = "<principal-arn>"
-    policy_arn        = "<policy-arn>y"
-    access_scope_type = "<acces-scope>" #example: "cluster"
+    policy_arn        = "<policy-arn>"
+    access_scope_type = "<access-scope>" #example: "cluster"
   }
 
   devops = {
     principal_arn     = "<principal-arn>"
-    policy_arn        = "<policy-arn>y"
-    access_scope_type = "<acces-scope>" #example: "cluster"
+    policy_arn        = "<policy-arn>"
+    access_scope_type = "<access-scope>" #example: "cluster"
   }
 
   developer = {
     principal_arn     = "<principal-arn>"
-    policy_arn        = "<policy-arn>y"
-    access_scope_type = "<acces-scope>" #example: "namespace"
+    policy_arn        = "<policy-arn>"
+    access_scope_type = "<access-scope>" #example: "namespace"
     namespaces        = [<list-of-namespaces>]
   }
 }
