@@ -266,7 +266,7 @@ Common causes:
 Verify Kafka topics using the Kafka UI:
 
 ```
-http://kafka-ui:8085
+http://kafka-ui:8086
 ```
 
 Check that:
