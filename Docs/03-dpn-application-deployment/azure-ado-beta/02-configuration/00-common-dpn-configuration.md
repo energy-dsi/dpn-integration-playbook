@@ -188,7 +188,6 @@ Create the following Kubernetes namespaces in AKS. This setup needs to be done m
 
 - ns-dpn-01
 - ns-dpn-health-01
-- ns-dpn-dp-01
 
 ```bash
 kubectl create namespace <NAMESPACE>    # e.g. ns-dpn-01
