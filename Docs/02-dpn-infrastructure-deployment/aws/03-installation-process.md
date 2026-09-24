@@ -28,7 +28,7 @@ This section describes the end-to-end infrastructure installation process.
   - [Step 3.6 AWS EBS Details](#step-36-aws-ebs-details)
 - [Post-Deployment Configuration](#post-deployment-configuration)
   - [10.1 Configure Monitoring Alerts](#101-configure-monitoring-alerts)
-  - [10.2 Maintainance Operations](#102-maintainance-operations)
+  - [10.2 Maintenance Operations](#102-maintenance-operations)
   - [10.3 Document Deployment](#103-document-deployment)
   - [10.4 Prepare for Application Deployment](#104-prepare-for-application-deployment)
 
@@ -51,7 +51,7 @@ Replace all placeholder values before running commands.
 Gather all the required information before any deployment activity:
 
 - `AWS_ACCOUNT_ID` — AWS Account ID where DPN infrastructure will be deployed. Example: `<your-aws-account-id>`
-- `AWS_REGION` — AWS region agreed with DSI for this environment. Example: `<aws-region>` (e.g. `eu-central-1`)
+- `AWS_REGION` — AWS region agreed with DSI for this environment. Example: `<aws-region>`
 - `ENVIRONMENT` — Short label matching the tfvars filename prefix. Example: `<env-name>` (e.g. `dev-01`)
 - `TFSTATE_BUCKET_NAME` — S3 Bucket name for OpenTofu remote state 
   - Pattern: `dpn-tfstate-<env>-01`
@@ -83,7 +83,7 @@ Add the following secrets to your client environment:
 AWS_ACCOUNT_ID           - Your AWS account ID
 AWS_ACCESS_KEY_ID        - AWS IAM user access key
 AWS_SECRET_ACCESS_KEY    - AWS IAM user secret key
-AWS_REGION               - Target AWS region (e.g., eu-west-2)
+AWS_REGION               - Target AWS region (e.g., <aws-region>)
 Recommended: Use AWS IAM roles with OIDC instead of access keys for better security.
 ```
 
@@ -177,7 +177,7 @@ tofu init
   #   bucket="dpn-state-..."
   #   dynamodb_table="dpn-lock-..."
   #   key="part"
-  #   region="eu-west-2"
+  #   region="<aws-region>"
 ```
 
 - (Optional) Bootstrap Validation
@@ -206,7 +206,7 @@ tofu init
         #   backend "s3" {
         #     bucket         = "dpn-tfstate-bootstrap"
         #     key            = "bootstrap/terraform.tfstate"
-        #     region         = "eu-west-2"
+        #     region         = "<aws-region>"
         #     dynamodb_table = "dpn-tfstate-lock"
         #     encrypt        = true
         #   }
@@ -261,7 +261,7 @@ terraform {
   backend "s3" {
     bucket         = "dpn-tfstate-part-001"
     key            = "part/terraform.tfstate"
-    region         = "eu-west-2"
+    region         = "<aws-region>"
     dynamodb_table = "dpn-tfstate-lock"
     encrypt        = true
   }
@@ -430,7 +430,7 @@ Example:
 ```
 aws eks update-kubeconfig \
     --name <cluster-name> \
-    --region eu-west-2
+    --region <aws-region>
 ```
 
 ```bash
@@ -441,18 +441,14 @@ kubectl get pods -A
 kubectl get nodes -o wide
 kubectl get namespaces
 
-# Database
-psql -h {database-endpoint} -U admin -d postgres -c "SELECT version();"
-
 # Container Registry
 aws ecr describe-repositories
 
 # Load Balancer
-aws elbv2 describe-load-balancers \
-  --names dpn-alb-part
+aws elbv2 describe-load-balancers
 
 # WAF
-aws wafv2 list-web-acls --region eu-west-2
+aws wafv2 list-web-acls --region <aws-region>
 ```
 ---
 
@@ -477,7 +473,7 @@ Expected output examples:
 
 ```text
 --- Region ---
-us-east-2
+<aws-region>
 --- Versioning ---
 Enabled
 --- Encryption ---
@@ -582,24 +578,17 @@ aws cloudwatch put-metric-alarm \
   --period 300 \
   --threshold 80 \
   --comparison-operator GreaterThanThreshold
-
-# Create alarm for RDS connections
-aws cloudwatch put-metric-alarm \
-  --alarm-name dpn-db-connections \
-  --metric-name DatabaseConnections \
-  --namespace AWS/RDS \
-  --threshold 80
 ```
 
-### 10.2 Maintainance Operations
+### 10.2 Maintenance Operations
 
-Perform maintainance operations as required.
+Perform maintenance operations as required.
 
 ```bash
 # Update EKS cluster version (monthly)
 aws eks update-cluster-version \
   --name dpn-eks-part \
-  --kubernetes-version 1.34
+  --kubernetes-version 1.35
 
 # Update node AMI (monthly)
 aws eks update-nodegroup-version \
@@ -610,10 +599,6 @@ aws eks update-nodegroup-version \
 aws ec2 describe-images \
   --image-ids <ami-id> \
   --query "Images[0].DeprecationTime"
-
-# Rotate RDS master password (quarterly)
-aws secretsmanager rotate-secret \
-  --secret-id dpn/part/rds/password
 
 # Review Security Hub findings (weekly)
 aws securityhub get-insights
