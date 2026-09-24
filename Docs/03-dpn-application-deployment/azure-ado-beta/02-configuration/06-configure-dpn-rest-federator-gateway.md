@@ -114,7 +114,7 @@ This release delivers **endpoint registration, method-listing, GET/POST proxying
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed**, with this gateway's endpoint included in the certificate's SANs | e.g. `producer-rest01.<dpn>...` alongside the gRPC Federator's `producer.<dpn>...`/`consumer.<dpn>...` — see [Configure DPN Certificate Manager, Step3a](04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the Vault `vault-tls-bootstrap-cd` pipeline; trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; trusts Vault's HTTPS endpoint |
 | 4 | **Vault AppRole identity provisioned** *(recommended)*, or the root token | No policy file or setup script ships in this repository yet — the Vault-side AppRole role must be authored/created manually. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **DPN Authentication Service (Keycloak) reachable** | Inbound JWTs are validated against its JWKS endpoint. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) |
 | 6 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
@@ -134,6 +134,8 @@ Only the backend API key is provisioned outside the chart — everything else (c
 |--------|-----------|---------|
 | Backend API key | Kubernetes `Secret` (`restFederatorServer.backend.apiKeySecret`, default name `dpn-backend-api-key`), or synced from Key Vault (`BACKEND-API-KEY`) via the CSI driver when `keyvault.enabled: true` | Authenticates the gateway to the internal backend (`X-Backend-Api-Key` header) |
 | Vault credentials | AppRole `secret-id` (recommended) or root token, via `certificate-manager-secrets` — same mechanism as the gRPC Federator Gateway | Reads certificate material and keystore/truststore passwords from Vault |
+
+> **Vault truststore password (deploy-time).** The gateway CD pipeline reads **`TRUSTSTORE-PASSWORD`** from Key Vault and injects it as `restFederatorServer.vault.truststorePassword`, rendered into the backend's config at deploy time. This secret is written by the `dpn-tls-cd` pipeline on every certificate renewal — no manual creation needed, provided `dpn-tls-cd` has already run (see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd)). As with the gRPC Federator Gateway, this value is captured at deploy time — re-run this CD pipeline after a `dpn-tls-cd` password rotation to pick up the new value.
 
 ---
 

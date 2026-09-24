@@ -433,11 +433,14 @@ The DPN platform is deployed in two layers — infrastructure and application �
 
 The platform follows several core security principles:
 
-- **Zero Trust architecture**
-- **Mutual TLS (mTLS) communication between nodes**
-- **Role-Based Access Control (RBAC)**
-- **Secure secret storage using Azure Key Vault (Azure) or Hashicorp Vault (AWS)**
-- **Secure container image repositories**
+- **Zero Trust architecture** — No user, device, or service is trusted by default; every request is authenticated and authorized regardless of network location.
+- **Mutual TLS (mTLS) communication between nodes** — Both client and server verify each other's certificates, encrypting and authenticating all inter-node traffic.
+- **Role-Based Access Control (RBAC)** — Access to resources and actions is granted based on a user's or service's assigned role, limiting permissions to only what's needed. The User Interfaces & Operations layer is guarded by RBAC mechanism.
+- **Secure secret storage using Azure Key Vault (Azure) or Hashicorp Vault (AWS)** — Sensitive credentials and keys are stored in a dedicated, encrypted vault rather than in code or config files.
+- **Secure container image repositories** — Container images are stored and scanned in access-controlled registries to prevent tampering or use of vulnerable images.
+- **Logging and Auditing** — All system activity and access events are recorded to provide traceability and support security investigations or compliance reviews.
+- **Network Security** — Network traffic is segmented and restricted through firewalls, isolated subnets, and controlled ingress/egress to limit exposure between components.
+- **Data Protection – Encryption at Rest and in Transit** — Data is encrypted both while stored and while moving across the network, preventing unauthorized access if intercepted or compromised.
 
 Code provided by DSI is security scanned using tools including:
 

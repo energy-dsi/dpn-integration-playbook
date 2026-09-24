@@ -194,6 +194,8 @@ On completion it publishes:
 - `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` → Azure Key Vault
 - `truststore.jks` → Kubernetes secret `cert-manager-truststore`
 - The full working set (including private keys) as a 1-day-retention workflow artifact — download and secure it, then delete the artifact
+- `vault.csr` → CSR file for doing bootstrap from DSM
+- `server.csr` → CSR file for server certificate. Although vault.csr can be used as well for server certificate with large TTL
 
 #### Step 3B: Deploy and Initialise Vault (`dpn-gha-vault-https-cd.yml`)
 

@@ -55,8 +55,8 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Vault running over HTTPS, KV v2 enabled at `pki-client`, and the certificate bundle loaded into `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
-| 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the Vault `vault-tls-bootstrap-cd` pipeline |
-| 3 | **Vault credentials available** | Either `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init stage) or, if using the recommended AppRole method, `VAULT-APPROLE-SECRET-ID` plus a `role_id` — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication). `VAULT-TRUSTSTORE-PASSWORD` (from the Vault bootstrap) is required either way |
+| 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-tls-cd` pipeline — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd) |
+| 3 | **Vault credentials available** | Either `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init stage) or, if using the recommended AppRole method, `VAULT-APPROLE-SECRET-ID` plus a `role_id` — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication). `tls-auth-secret` (from `dpn-tls-cd`) supplies the truststore password either way |
 | 4 | **AKS cluster** + (if using Azure Key Vault for secrets) a **user-assigned managed identity** and the **Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
 | 5 | **OAuth2 client ID, client secret, and Management Node URL** | Received from DSM during onboarding to establish the DPN connection |
 | 6 | **Certificate Manager container image available** | Built via the DSI-provided CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD pipeline as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
@@ -145,7 +145,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `cert.subject.org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
 | `cert.subject.cn` | CSR subject Common Name (CN) | `dpn-<env>-01` |
 | `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
-| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `100` |
+| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
 > **In-memory keystore — no `certDest`/`mtls`/`fileShare` parameters.** Earlier chart versions wrote P12 files to a shared file share and exposed `certDest.*`/`mtls.*`/`fileShare.*` values to configure that path. These no longer exist: the keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account.
 
@@ -173,7 +173,7 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 
 #### Option B - Through Vault truststore (Kubernetes secret)
 
-The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (default `cert-manager-truststore`) and mounted at `vaultTruststore.mountPath`. This secret is **created automatically by the Vault `vault-tls-bootstrap-cd` pipeline** — no manual `kubectl create secret` is required.
+The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (default `cert-manager-truststore`) and mounted at `vaultTruststore.mountPath`. This secret is **created automatically by the `dpn-tls-cd` pipeline** — no manual `kubectl create secret` is required.
 
 ---
 
