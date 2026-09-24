@@ -40,8 +40,8 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **AKS cluster**, a **user-assigned managed identity**, and the **Secrets Store CSI driver** | The managed identity needs *get* access to the four CSI-mounted Key Vault secrets below (`KC-SERVICE-CLIENT-SECRET` is fetched separately by the pipeline, not via CSI) |
-| 2 | **`dpn-tls` Kubernetes secret present in the namespace** | An `Opaque` secret holding `keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret) — created before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
-| 3 | **Five Key Vault secrets populated** | See [Step2: Configure Secrets](#step2-configure-secrets) |
+| 2 | **`dpn-tls` and `tls-auth-secret` present in the namespace** | Created automatically by the `dpn-tls-cd` pipeline (`dpn-federator-certificate-manager` repository) — run it before deploying Keycloak. See [Step3: Configure TLS](#step3-configure-tls) |
+| 3 | **Three Key Vault secrets populated** | See [Step2: Configure Secrets](#step2-configure-secrets) |
 | 4 | **No image tag input needed** | The pipeline hardcodes upstream `quay.io/keycloak/keycloak:26.3.2` (and `postgres:16-alpine`) and imports both into ACR itself during Deploy — there is no `imageTag` parameter to supply |
 | 5 | **`config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml` populated** | See [Step4: Environment Configuration](#step4-environment-configuration) |
 
@@ -51,15 +51,15 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 ## Step2: Configure Secrets
 
-The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error. Create these five secrets in the environment's Key Vault before the first deploy:
+The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error. Create these three secrets in the environment's Key Vault before the first deploy:
 
 | Key Vault secret | Becomes | Used by |
 |-------------------|---------|---------|
 | `KC-DB-PASSWORD` | `KC_DB_PASSWORD` | Keycloak, and PostgreSQL via `POSTGRES_PASSWORD_FILE` |
 | `KEYCLOAK-ADMIN-PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account - This password would be required for DPN Admin to login keycloak and set up new users as admin or reader or operator |
-| `KC-HTTPS-KEY-STORE-PASSWORD` | `KC_HTTPS_KEY_STORE_PASSWORD` | Opens `keystore.jks` |
-| `KC-HTTPS-TRUST-STORE-PASSWORD` | `KC_HTTPS_TRUST_STORE_PASSWORD` | Opens `truststore.jks` |
 | `KC-SERVICE-CLIENT-SECRET` | `KC_SERVICE_CLIENT_SECRET` | Sets the secret on the `dpn-service-client` UI client; must match the same Key Vault object already synced by `dpn-health-monitoring-service`'s oauth2-proxy releases (OpenSearch Dashboards, Jaeger, Perses, Portal) and by Kafka UI's own `SecretProviderClass` for its native OIDC login |
+
+> **Keystore/truststore passwords are not a separate Key Vault secret.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read directly from the shared `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`), created by `dpn-tls-cd`.
 
 > **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy.
 
@@ -67,22 +67,22 @@ The deploy pipeline reads the required secret names out of the rendered `SecretP
 
 ## Step3: Configure TLS
 
-Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted read-only at `/cert`) rather than from Vault or the Certificate Manager — this is a platform/ingress-style certificate, not the DPN's DSM-signed federation certificate.
+Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted read-only at `/cert`) rather than from Vault or the Certificate Manager — this is a platform/ingress-style certificate, not the DPN's DSM-signed federation certificate. `dpn-tls` is created automatically by the `dpn-tls-cd` pipeline — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd). Run it before deploying Keycloak.
 
-1. Create `dpn-tls` in the target namespace as an `Opaque` secret with two keys, `keystore.jks` and `truststore.jks`.
-2. Find the alias of the server key inside `keystore.jks`:
+1. Find the alias of the server key inside `keystore.jks`:
 
    ```sh
    kubectl get secret dpn-tls -n <namespace> \
      -o jsonpath='{.data.keystore\.jks}' | base64 -d > keystore.jks
 
-   keytool -list -keystore keystore.jks \
-     -storepass "$(az keyvault secret show --vault-name <KEY_VAULT_NAME> \
-       --name KC-HTTPS-KEY-STORE-PASSWORD --query value -o tsv)"
+   KEYSTORE_PASSWORD=$(kubectl get secret tls-auth-secret -n <namespace> \
+     -o jsonpath='{.data.KEYSTORE_PASSWORD}' | base64 -d)
+
+   keytool -list -keystore keystore.jks -storepass "$KEYSTORE_PASSWORD"
    ```
 
-3. Set `config.KC_HTTPS_KEY_ALIAS` to that alias in the environment values file — Keycloak aborts at startup if the alias does not exist.
-4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. It defaults to the in-cluster FQDN (`https://dpn-keycloak.<namespace>.svc.cluster.local:8443`); a shared platform certificate often covers a public DNS name instead — the deploy pipeline prints the certificate's SANs so you can check.
+2. Set `config.KC_HTTPS_KEY_ALIAS` to that alias in the environment values file — Keycloak aborts at startup if the alias does not exist.
+3. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. It defaults to the in-cluster FQDN (`https://dpn-keycloak.<namespace>.svc.cluster.local:8443`); a shared platform certificate often covers a public DNS name instead — the deploy pipeline prints the certificate's SANs so you can check.
 
 ---
 

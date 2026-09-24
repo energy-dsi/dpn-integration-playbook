@@ -66,9 +66,35 @@ DPN Health Monitoring requires the following Kubernetes secrets to be created fo
 |secret-name| Secret value | Secret-Creation-Step |
 |-----------|--------------|----------------------|
 | dpn-mon-storage-connection-string | An `objstore.yml` file containing the Thanos object-storage config (storage account name, container, and a SAS-token-based connection string) for the storage account used by Thanos | Kubernetes Secret using volume mount i.e. kubectl create secret generic <secret-name> --from-file=`<path-to-file>` |
-| dpn-health-tls | A `kubernetes.io/tls` Secret holding `tls.crt`, `tls.key`, and `ca.crt` — the browser-facing HTTPS certificate for the UIs in this namespace, also used by Kafka UI for its own TLS termination and for OpenSearch/Keycloak TLS trust | Pre-existing in `ns-dpn-health-01`; not created by any chart in this repository |
+| dpn-health-tls | A `kubernetes.io/tls` Secret holding `tls.crt`, `tls.key`, and `ca.crt` — the browser-facing HTTPS certificate for the UIs in this namespace, also used by Kafka UI for its own TLS termination and for OpenSearch/Keycloak TLS trust | Created automatically in `ns-dpn-health-01` by the `dpn-tls-cd` pipeline (`dpn-federator-certificate-manager` repository, not this repository) — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd) |
 
-> **`KC-SERVICE-CLIENT-SECRET` (Azure Key Vault, not a `kubectl` secret).** The `dpn-service-client` Keycloak client's secret must exist as this object in the environment's Key Vault before deployment — each `oauth2-proxy` release and Kafka UI's own `SecretProviderClass` sync it independently via the Secrets Store CSI driver. A fresh environment's deploy pipeline fails at its Validate stage until this object exists and the required redirect URIs/callbacks are registered on the Keycloak client.
+**Azure Key Vault secrets (not `kubectl` secrets).** Populate these before running `monitoring-master-cd.yaml` — its Validate Required Secrets stage checks all four and fails a fresh environment without them.
+
+| Key Vault secret | Used by | How to create |
+|-------------------|---------|----------------|
+| `KC-SERVICE-CLIENT-SECRET` | Every `oauth2-proxy` release, Kafka UI's native OIDC login | Must match the `dpn-service-client` client secret — see [Configure DPN Authentication Service, Step2](02-configure-dpn-authentication-service.md#step2-configure-secrets) |
+| `KC-OPENSEARCH-ADMIN-PASSWORD` | OpenSearch `admin` internal user (superuser) | See below |
+| `KC-OPENSEARCH-KIBANASERVER-PASSWORD` | OpenSearch `kibanaserver` internal user (Dashboards backend account) | See below |
+| `KC-OPENSEARCH-DATAWRITER-PASSWORD` | OpenSearch `datawriter` internal user (Data Prepper, init jobs) | See below |
+
+**Creating the three `KC-OPENSEARCH-*` secrets.** Each plaintext value must match a bcrypt hash already committed in `charts/opensearch/opensearch-community-values.yaml` — the CD pipeline always uses this one file, with no per-environment override, so the same three passwords apply to every environment until the hashes below are changed.
+
+1. Generate a bcrypt hash for a chosen password (repeat per user — `admin`, `kibanaserver`, `datawriter`):
+
+   ```bash
+   docker run --rm opensearchproject/opensearch:2.11.0 ./plugins/opensearch-security/tools/hash.sh -p "<plaintext-password>"
+   ```
+
+   (one line, works unchanged in bash, PowerShell, or cmd)
+
+2. Replace that user's `hash:` value in `charts/opensearch/opensearch-community-values.yaml` (under `internal_users.yml` → `admin` / `kibanaserver` / `datawriter`).
+3. Store the same plaintext in Key Vault:
+
+   ```bash
+   az keyvault secret set --vault-name <KEY_VAULT_NAME> --name KC-OPENSEARCH-ADMIN-PASSWORD --value '<plaintext-password>'
+   az keyvault secret set --vault-name <KEY_VAULT_NAME> --name KC-OPENSEARCH-KIBANASERVER-PASSWORD --value '<plaintext-password>'
+   az keyvault secret set --vault-name <KEY_VAULT_NAME> --name KC-OPENSEARCH-DATAWRITER-PASSWORD --value '<plaintext-password>'
+   ```
 
 **Access model, by UI:**
 

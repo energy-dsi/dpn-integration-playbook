@@ -53,8 +53,8 @@ Confirm the prerequisites before starting — see [Configure DPN Certificate Man
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
-- `cert-manager-truststore` secret present
-- Vault credentials ready — `VAULT-APPROLE-SECRET-ID` + `role_id` (recommended) or `VAULT-TOKEN`, plus `VAULT-TRUSTSTORE-PASSWORD`
+- `cert-manager-truststore` and `tls-auth-secret` present (created by `dpn-tls-cd`)
+- Vault credentials ready — `VAULT-APPROLE-SECRET-ID` + `role_id` (recommended) or `VAULT-TOKEN`
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
 - Populated `config/<env>.json` and `values-<env>.yaml`
