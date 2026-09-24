@@ -87,12 +87,6 @@ The documentation assumes that the organisation intends to deploy DPN nodes usin
 - Azure Kubernetes Service (AKS)
 - Azure Container Registry (ACR)
 
-### Azure Platform Using `(GitHub Actions)` Tool
-
-- GitHub Actions flows
-- Azure Kubernetes Service (AKS)
-- GitHub Container Registry (GHCR)
-
 ### AWS Platform with `(GitHub Actions)` Tool
 
 - Elastic Kubernetes Service (EKS)

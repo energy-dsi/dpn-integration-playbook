@@ -26,7 +26,7 @@
 
 ## Overview
 
-This document describes the installation process for the DPN File Scanning Service on AWS, which inserts a malware-scanning gate in front of the existing DPN Data Pipeline Consumer Extractor. It depends on the DPN Data Pipeline already being installed, since it writes into the same inbound/outbound S3 buckets that component reads from. Unlike Azure (Microsoft Defender for Storage), this path uses **Amazon GuardDuty Malware Protection for S3** with scan results delivered via an **SNS → SQS** fan-out.
+This document describes the installation process for the DPN File Scanning Service on AWS, which inserts a malware-scanning gate in front of the existing DPN Data Pipeline Consumer Extractor. It depends on the DPN Data Pipeline already being installed, since it writes into the same inbound/outbound S3 buckets that component reads from. This path uses **Amazon GuardDuty Malware Protection for S3** with scan results delivered via an **SNS → SQS** fan-out.
 
 ---
 
@@ -98,9 +98,9 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow**, and supply:
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag from Step3a |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-file-scan-service`) — leave blank to use the environment's configured repository |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-file-scan-service`) — leave blank to use the environment's configured repository |
 
-Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml`
+Workflow file: `root/.pipeline/github-action-pipelines/workflows/dpn-gha-file-scan-cd.yml`
 
 ---
 

@@ -39,12 +39,7 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
   - DPN Authentication Service — Keycloak-based OAuth2/OIDC Identity Provider used for Kafka broker authentication and Keycloak SSO on the DPN observability UIs.
   - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using Defender for Cloud Storage on Azure or GuardDuty Malware Protection for S3 on AWS
 
-DPN components on an airgapped AWS environment are deployed using the **GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
-
-- **Continuous Integration (CI)**
-- **Continuous Deployment (CD)**
-
-The CI pipeline builds the application artefacts, while the CD pipeline deploys them to the target infrastructure.
+DPN components on an AWS environment are deployed using the **GitHub Actions pipeline**, running on a self-hosted runner pool. 
 
 This document describes the configuration parameters required for deploying **DPN nodes on Amazon Elastic Kubernetes Service (EKS)**. These parameters must be configured before running the deployment pipelines.
 
@@ -60,16 +55,7 @@ The configuration covers the following areas:
 
 ### Continuous Integration (CI)
 
-The **Continuous Integration (CI)** pipeline is optional. Participants can either use it to build container components from the provided DPN source code, or replace it entirely by obtaining pre-built DPN containers directly from the DSI-provided **GitHub Container Registry (GHCR)**.
-
-The **Continuous Integration (CI)** pipeline performs the following activities:
-
-1. Build the application source code.
-2. Produce container image artefacts.
-3. Tag the generated container images.
-4. Push the images to a container registry.
-
-Organisations may use their own container registry (e.g. Amazon ECR) if permitted by their internal network and security policies, though DSI-provided images are published to GHCR by default.This is participant responsibility to define and run CI pipelines on their own
+The **Continuous Integration (CI)** is not part of this GitHub Actions based deployment. Participants may refer the `azure-ado-beta` for referring to CI pipelines. AWS deployment is considered using the Containised Deployment strategy from the images placed in [GHCR](https://github.com/orgs/energy-dsi/packages) and deployment on the EKS platform 
 
 ---
 
