@@ -77,7 +77,7 @@ DPN repositories required:
 - [DPN-Rest-Federator-Gateway](https://github.com/energy-dsi/dpn-rest-federator-gateway)
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
-- [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
 - [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
 
 ### Optional Tools
@@ -226,12 +226,11 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 - AWS Administrator  
 
 ---
-## Assumptions
 
 The prerequisites described in this document assume the following:
 
 - The organisation plans to deploy **DPN on an AWS cloud infrastructure**  
-- Deployment (CD) runs via the GitHub Actions pipeline**, executed on the shared self-hosted runner pool, into the organisation's AWS landing zone (EKS)
+- Deployment (CD) runs via the GitHub Actions pipeline, executed on the shared self-hosted runner pool, into the organisation's AWS landing zone (EKS)
 
 ---
 ## Review Notes
