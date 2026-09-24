@@ -112,13 +112,6 @@ Typical deployments use:
 - **Azure Container Registry (ACR)** for container image management
 - **Helm charts** for Kubernetes deployments
 
-### Azure Deployment Using Github Actions Execution `(GHA)`
-
-- **Azure Kubernetes Service (AKS)** for container orchestration
-- **GitHub Actions based Workflow** for automated deployment
-- **GitHub Container Registry (GHCR)** for container image management
-- **Helm charts** for Kubernetes deployments
-
 ### AWS Deployment with Github Actions Execution `(GHA)`
 
 - **GitHub Actions based Workflow** for automated deployment
