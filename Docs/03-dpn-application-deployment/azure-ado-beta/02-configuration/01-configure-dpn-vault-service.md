@@ -173,7 +173,10 @@ Configure the following three pipelines in order. Each takes the environment as 
 
 **What it covers:**
 
-- Generates one self-signed DPN Root CA and one universal server certificate (wildcard SANs).
+- Generates one self-signed DPN Root CA and one universal server certificate (wildcard SANs) in pipeline artifact under `/ca/dpn-root.crt`. 
+
+  **Note** This root CA certificate is required to be installed in the VM or location from where the internl DPN User interfaces are operated under the certificate store (Trusted Root Authority)
+  
 - Publishes to Azure Key Vault: `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD`.
 - Creates the Kubernetes secrets:
   - `cert-manager-truststore` — trusts Vault's HTTPS endpoint (target namespace)
