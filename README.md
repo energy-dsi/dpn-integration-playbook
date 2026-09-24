@@ -186,20 +186,24 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 **Azure (ADO) components:**
 
 - [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
-- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
-- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
-- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
-- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
+- [Authentication Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/02-dpn-authentication-service-installation-process.md#step5-troubleshooting)
+- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-health-monitoring-service-installation-process.md#step4-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
+- [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step5-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 **AWS (GitHub Actions) components:**
 
 - [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
-- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
-- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/03-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
-- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
-- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
+- [Authentication Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/02-dpn-authentication-service-installation-process.md#step4-troubleshooting)
+- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/03-dpn-health-monitoring-service-installation-process.md#step3-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
+- [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step3-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 ---
 
