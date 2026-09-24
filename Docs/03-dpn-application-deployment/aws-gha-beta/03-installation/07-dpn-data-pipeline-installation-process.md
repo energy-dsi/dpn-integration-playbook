@@ -111,18 +111,16 @@ Ensure the following prerequisites are completed before deployment:
 All CD workflows and their per-cloud configuration live in `dpn-containerised-deployment-service`:
 
 ```
-dpn-containerised-deployment-service/
-└── .github/
-    ├── workflows/
-    │   ├── dpn-cd-data-pipelines.yml
-    │   └── dpn-cd-airflow.yml
-    └── config/
-        └── aws/<environment>-<cluster>.json
+root/
+└── .pipelines/
+    └── github-actions-pipelines/
+      ├── workflows/
+      │   ├── dpn-cd-data-pipelines.yml
+      │   └── dpn-cd-airflow.yml
+      └── config/
+          └── aws/<environment>-<cluster>.json
 ```
 
-CI (build/test/scan for the pipeline component's own source) is not yet migrated to GitHub Actions in `dpn-data-pipelines` — build images via your own CI process, or use the DSI-provided prebuilt GHCR images (see [Step5](#step5-containerized-deployment-using-dsi-provided-container-images)).
-
----
 
 ### Step1d. Configure Environment Approval Gates
 
@@ -198,7 +196,7 @@ Go to **Actions → DPN CD - Data Pipelines → Run workflow** in `dpn-container
 > **Notes:**
 > - Organisations must determine which data templates they require for processing. The workflow is generic — it dynamically discovers and Helm-installs every chart matching the `configType`/`processType`/`productType` combination under `dpn-data-pipelines/`.
 > - Before running this workflow, confirm the `SCHEDULER_BACKEND` value set on each product's `values.yaml` (`kafka-trigger` for automated, software-triggered scheduling, or `airflow` for orchestrator-driven scheduling — see [Step3](#step3-optional-deploy-the-scheduler-backend-using-apache-airflow))
-> - A separate, narrower proof-of-concept workflow (`dpn-cd-data-pipelines-aws-poc.yml`, no `cloud` input — hardcoded to `aws` with its own bespoke Helm logic) also exists in the repository; it is **not** the workflow described here — use the generic `dpn-cd-data-pipelines.yml` above for the standard azure/aws/gcp-selectable path, even when targeting AWS.
+> - A separate, narrower proof-of-concept workflow (`dpn-cd-data-pipelines-aws-poc.yml`, no `cloud` input — hardcoded to `aws` with its own bespoke Helm logic) also exists in the repository; it is **not** the workflow described here — use the generic `dpn-cd-data-pipelines.yml` above for the standard aws-selectable path, even when targeting AWS.
 
 ---
 
