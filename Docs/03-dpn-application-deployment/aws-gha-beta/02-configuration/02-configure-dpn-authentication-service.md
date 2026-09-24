@@ -15,7 +15,7 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 - [Step2: Configure Secrets](#step2-configure-secrets)
 - [Step3: Configure TLS](#step3-configure-tls)
 - [Step4: Environment Configuration](#step4-environment-configuration)
-  - [Step4a: Horizontal Pod Autoscaling (optional)](#step4a-horizontal-pod-autoscaling-optional)
+  - [Step4a: Horizontal Pod Autoscaling](#step4a-horizontal-pod-autoscaling)
 - [Step5: Configure Deployment Parameters](#step5-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -23,14 +23,14 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 
 ## Overview
 
-Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer (NLB) only. It runs as a **StatefulSet** (each replica gets its own PersistentVolumeClaim, see [Step4a](#step4a-horizontal-pod-autoscaling-optional)) and is bundled with its own PostgreSQL instance on a persistent volume.
+Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer (NLB) only. It runs as a **StatefulSet** (each replica gets its own PersistentVolumeClaim, see [Step4a](#step4a-horizontal-pod-autoscaling)) and is bundled with its own PostgreSQL instance on a persistent volume.
 
 | | |
 |---|---|
 | In-cluster URL | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443` |
 | External access | Internal NLB (`dpn-keycloak-service-lb`), VPC only |
 | Database | Bundled PostgreSQL (`dpn-keycloak-postgres`) — can be pointed at a managed database instead (see [Step4](#step4-environment-configuration)) |
-| Secrets | **Native AWS Secrets Manager** see [Step2](#step2-configure-secrets) |
+| Secrets | AWS Secrets Manager see [Step2](#step2-configure-secrets) |
 | Cloud provider | `cloudProvider: aws` must be set explicitly in the environment values file. See [Step4](#step4-environment-configuration) |
 
 ---
@@ -45,7 +45,7 @@ Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS
 | 4 | **Container image tag available** | Keycloak pulled via GHCR; pinned in the environment values file — the CD workflow does not take an `imageTag` input for this component |
 | 5 | **Config JSON and values file populated for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set** | See [Step4: Environment Configuration](#step4-environment-configuration) |
 
-> **One-time setup:** create the target namespace (`kubectl create namespace <namespace>`) and complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) before running the CD workflow — it does not create the namespace for you.
+> **One-time setup:** create the target namespace ns-dpn-01 and ns-dpn-health-01 (`kubectl create namespace <namespace>`) and complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) before running the CD workflow — it does not create the namespace for you.
 
 ---
 
@@ -100,11 +100,11 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
 Set the parameters below in your environment/cluster's values file.
 
 ```text
-dpn-authentication-service/
+root/
   └── charts/
         └── keycloak/
-              ├── values.yaml                              <- Reference file; do not edit directly
-              └── values/aws/<environment>-<cluster>.yaml <- Your environment + cluster overrides
+              ├── values.yaml    <- Reference file; do not edit directly
+              └── values-<environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 | Parameter | Purpose | Example (placeholder) |
@@ -120,7 +120,7 @@ dpn-authentication-service/
 
 ---
 
-### Step4a: Horizontal Pod Autoscaling (optional)
+### Step4a: Horizontal Pod Autoscaling
 
 Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past a single replica is safe: `volumeClaimTemplates` gives every pod its own PersistentVolumeClaim, avoiding the `ReadWriteOnce` Multi-Attach failure a shared claim would hit. All of Keycloak's actual state (realms, clients, users, sessions) lives in the one shared Postgres every replica already points at — each pod's own PVC only holds its local JTA transaction-log recovery store.
 
@@ -150,9 +150,13 @@ The workflow runs `helm lint` + dry run, then `helm upgrade --install` (rolling 
 
 `workflow_dispatch` inputs: `environment`, `cluster`, `cloud` — there is no `imageTag` input for this component; pin the image tag in the environment values file instead (see [Step4](#step4-environment-configuration)).
 
-> **Realm configuration is automatic, not manual.** After the Helm deploy, the workflow's "Configure Realm, Client, Roles and Audit Logging" step port-forwards to the internal Service and runs `charts/keycloak/scripts/configure-keycloak.sh`, which creates/updates the `dpn-realm` realm, the `DPN-Client` machine client, the shared `dpn-service-client` UI client (with every observability UI's redirect URI/web origin), realm roles (`dpnreader`, `dpnadmin`, and now **`dpnoperator`** — trigger/enable/disable DAGs and manage task state without edit/delete rights), matching groups, and session/audit settings — idempotently, on every deploy. `KC_ADMIN_PASSWORD` and `KC_SERVICE_CLIENT_SECRET` are read from the secrets backend selected in [Step2](#step2-configure-secrets) (`aws secretsmanager get-secret-value --secret-id <secretPrefix>/keycloak/...` when `cloud: aws`).
->
-> **UI redirect hosts are resolved dynamically on AWS.** Rather than relying solely on `configure-keycloak.sh`'s own placeholder defaults (`dpn-observability.ns-dpn-health-01.svc.cluster.local:<port>` — unreachable from a browser), the AWS path looks up each UI's real LoadBalancer hostname (`kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'`) for Airflow, Jaeger, OpenSearch Dashboards, Perses, Portal and the Kafka UI, and passes it to the script via `KC_UI_HOST_*` environment variables. A UI not yet deployed is simply left at the script's own default rather than failing the step. Two additional UI hosts are now registered unconditionally: `KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2` — the Federator Gateway's Job Runner dashboards, which authenticate directly against `dpn-service-client` (no `oauth2-proxy` sidecar).
+**Realm configuration is automatic, not manual.** 
+
+After the Helm deploy, the workflow's "Configure Realm, Client, Roles and Audit Logging" step port-forwards to the internal Service and runs `charts/keycloak/scripts/configure-keycloak.sh`, which creates/updates the `dpn-realm` realm, the `DPN-Client` machine client, the shared `dpn-service-client` UI client (with every observability UI's redirect URI/web origin), realm roles (`dpnreader`, `dpnadmin`, and now **`dpnoperator`** — trigger/enable/disable DAGs and manage task state without edit/delete rights), matching groups, and session/audit settings — idempotently, on every deploy. `KC_ADMIN_PASSWORD` and `KC_SERVICE_CLIENT_SECRET` are read from the secrets backend selected in [Step2](#step2-configure-secrets) (`aws secretsmanager get-secret-value --secret-id <secretPrefix>/keycloak/...` when `cloud: aws`).
+
+**UI redirect hosts are resolved dynamically on AWS.** 
+
+Rather than relying solely on `configure-keycloak.sh`'s own placeholder defaults (`dpn-observability.ns-dpn-health-01.svc.cluster.local:<port>` — unreachable from a browser), the AWS path looks up each UI's real LoadBalancer hostname (`kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'`) for Airflow, Jaeger, OpenSearch Dashboards, Perses, Portal and the Kafka UI, and passes it to the script via `KC_UI_HOST_*` environment variables. A UI not yet deployed is simply left at the script's own default rather than failing the step. Two additional UI hosts are now registered unconditionally: `KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2` — the Federator Gateway's Job Runner dashboards, which authenticate directly against `dpn-service-client` (no `oauth2-proxy` sidecar).
 >
 > **Branding.** The realm now sets a custom login theme (`KC_LOGIN_THEME`, default `dpn-portal`, packaged from `charts/keycloak/themes/dpn-portal` by `templates/theme-configmap.yaml`) and header markup (`KC_DISPLAY_NAME_HTML`). Override either as an environment variable on the `configure-keycloak.sh` step if you need different branding per environment.
 >
