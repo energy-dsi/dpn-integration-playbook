@@ -88,7 +88,7 @@ Ensure the organisation satisfies the required infrastructure, security, and acc
 |---|---|---|
 | Cluster sizing | 16+ vCPUs (e.g. `Standard_D16lds_v6`) | Equivalent EKS managed node group sizing |
 | Secrets management | Azure Key Vault/Kubernetes Secrets | Hashicorp Vault/Kubernetes Secrets |
-| Ingress / networking | Requires GRPC/HTTP2 traffic supported ingress/Layer 4 Network load balancer for Federator Server ingress | Same as Azure |
+| Ingress / networking | Requires GRPC/HTTP2 traffic supported ingress/Layer 4 Network load balancer for GRPC/REST Federator Server ingress | Same as Azure |
 | Container registry | GitHub Container Registry (GHCR) for DSI-provided pre-built images, or Azure Container Registry (ACR) if the organisation runs its own CI pipeline | GitHub Container Registry (GHCR) |
 
 Full detail is in the platform-specific prerequisites documents linked below.
@@ -238,21 +238,23 @@ The repository is organised into structured documentation sections that guide or
 │   │   │   ├── 02-configuration
 │   │   │   │   ├── 00-common-dpn-configuration.md
 │   │   │   │   ├── 01-configure-dpn-vault-service.md
-│   │   │   │   ├── 02-configure-dpn-health-mon-service.md
-│   │   │   │   ├── 03-configure-dpn-certificate-manager.md
-│   │   │   │   ├── 04-configure-dpn-federator-gateway.md
-│   │   │   │   ├── 05-configure-dpn-data-pipelines.md
-│   │   │   │   ├── 06-configure-dpn-file-scan-service.md
-│   │   │   │   ├── 07-configure-dpn-authentication-service.md
-│   │   │   │   └── 08-configure-dpn-rest-federator-gateway.md
+│   │   │   │   ├── 02-configure-dpn-authentication-service.md
+│   │   │   │   ├── 03-configure-dpn-health-monitoring-service.md
+│   │   │   │   ├── 04-configure-dpn-certificate-manager.md
+│   │   │   │   ├── 05-configure-dpn-federator-gateway.md
+│   │   │   │   ├── 06-configure-dpn-rest-federator-gateway.md
+│   │   │   │   ├── 07-configure-dpn-data-pipelines.md
+│   │   │   │   └── 08-configure-dpn-file-scan-service.md
 │   │   │   ├── 03-installation
 │   │   │   │   ├── 00-dpn-common-installation-process.md
 │   │   │   │   ├── 01-dpn-vault-installation-process.md
-│   │   │   │   ├── 02-dpn-monitoring-service-installation-process.md
-│   │   │   │   ├── 03-dpn-certificate-manager-installation-process.md
-│   │   │   │   ├── 04-dpn-federator-gateway-installation-process.md
-│   │   │   │   ├── 05-dpn-data-pipeline-installation-process.md
-│   │   │   │   └── 06-dpn-file-scan-service-installation-process.md
+│   │   │   │   ├── 02-dpn-authentication-service-installation-process.md
+│   │   │   │   ├── 03-dpn-health-monitoring-service-installation-process.md
+│   │   │   │   ├── 04-dpn-certificate-manager-installation-process.md
+│   │   │   │   ├── 05-dpn-federator-gateway-installation-process.md
+│   │   │   │   ├── 06-dpn-rest-federator-gateway-installation-process.md
+│   │   │   │   ├── 07-dpn-data-pipeline-installation-process.md
+│   │   │   │   └── 08-dpn-file-scan-service-installation-process.md
 │   │   │   ├── 04-rollback
 │   │   │   │   └── 04-rollback-procedures.md
 │   │   │   └── 05-uninstall
@@ -264,21 +266,23 @@ The repository is organised into structured documentation sections that guide or
 │   │       ├── 02-configuration
 │   │       │   ├── 00-common-dpn-configuration.md
 │   │       │   ├── 01-configure-dpn-vault-service.md
-│   │       │   ├── 02-configure-dpn-health-mon-service.md
-│   │       │   ├── 03-configure-dpn-certificate-manager.md
-│   │       │   ├── 04-configure-dpn-federator-gateway.md
-│   │       │   ├── 05-configure-dpn-data-pipelines.md
-│   │       │   ├── 06-configure-dpn-file-scan-service.md
-│   │       │   ├── 07-configure-dpn-authentication-service.md
-│   │       │   └── 08-configure-dpn-rest-federator-gateway.md
+│   │       │   ├── 02-configure-dpn-authentication-service.md
+│   │       │   ├── 03-configure-dpn-health-monitoring-service.md
+│   │       │   ├── 04-configure-dpn-certificate-manager.md
+│   │       │   ├── 05-configure-dpn-federator-gateway.md
+│   │       │   ├── 06-configure-dpn-rest-federator-gateway.md
+│   │       │   ├── 07-configure-dpn-data-pipelines.md
+│   │       │   └── 08-configure-dpn-file-scan-service.md
 │   │       ├── 03-installation
 │   │       │   ├── 00-dpn-common-installation-process.md
 │   │       │   ├── 01-dpn-vault-installation-process.md
-│   │       │   ├── 02-dpn-monitoring-service-installation-process.md
-│   │       │   ├── 03-dpn-certificate-manager-installation-process.md
-│   │       │   ├── 04-dpn-federator-gateway-installation-process.md
-│   │       │   ├── 05-dpn-data-pipeline-installation-process.md
-│   │       │   └── 06-dpn-file-scan-service-installation-process.md
+│   │       │   ├── 02-dpn-authentication-service-installation-process.md
+│   │       │   ├── 03-dpn-health-monitoring-service-installation-process.md
+│   │       │   ├── 04-dpn-certificate-manager-installation-process.md
+│   │       │   ├── 05-dpn-federator-gateway-installation-process.md
+│   │       │   ├── 06-dpn-rest-federator-gateway-installation-process.md
+│   │       │   ├── 07-dpn-data-pipeline-installation-process.md
+│   │       │   └── 08-dpn-file-scan-service-installation-process.md
 │   │       ├── 04-rollback
 │   │       │   └── 04-rollback-procedures.md
 │   │       └── 05-uninstall
@@ -303,8 +307,16 @@ The repository is organised into structured documentation sections that guide or
 │   └── 06-release-notes                        # Per-release configuration deltas
 │       └── release-2.0.0-configuration-changes.md
 │
+├── ACKNOWLEDGEMENTS.md
 ├── CHANGELOG.md
-└── README.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE.md
+├── MAINTAINERS.md
+├── NOTICE.md
+├── OGL_LICENSE.md
+├── README.md
+└── SECURITY.md
 ```
 
 ---
@@ -317,10 +329,10 @@ The DPN platform is composed of multiple containerised services, grouped as foll
 
 | Component | Purpose |
 |----------|---------|
+| Authentication Service | Keycloak — User and Role Management |
 | Vault | Secrets manager — stores certificate material and keystore/truststore passwords used for mTLS |
 | Certificate Manager | Automates X.509 certificate lifecycle management — renews the DSM-signed certificate and builds keystore/truststore P12 files |
-| Shared File Service | SMB-based (Azure) or shared-volume (AWS) storage between the Certificate Manager and Federator Gateway for certificate P12 files |
-| File Scan Service | Cloud-native file scan for files arriving on the Federator Gateway (Azure Defender for Cloud Storage). **Azure only, as of today** |
+| File Scan Service | Cloud-native file scan for files arriving on the Federator Gateway (Azure Defender for Cloud Storage and AWS GuardDuty for S3). **Azure and AWS only, as of today** |
 
 ## Federator Gateway
 
@@ -330,8 +342,10 @@ The DPN platform is composed of multiple containerised services, grouped as foll
 | Kafka (Source / Target) | Message broker for producer and consumer environments |
 | Kafka UI | Kafka monitoring interface |
 | Redis | Offset and transmission tracking |
-| Federator Server | Handles outbound data transmission to other DPNs |
-| Federator Client | Handles inbound data reception from other DPNs |
+| Federator Server | Handles outbound data transmission to other DPNs using GRPC |
+| Federator Client | Handles inbound data reception from other DPNs using GRPC |
+| REST Federator Server | Handles outbound data transmission to other DPNs using REST protocol |
+| REST Federator Client | Handles inbound data reception from other DPNs using REST Protocol |
 
 ## Data Processing Pipelines
 
@@ -356,7 +370,6 @@ The mapper component can also be extended for more capabilities, for example tra
 | Prometheus + Thanos | Metrics collection and long-term storage |
 | Jaeger | Distributed tracing UI |
 | Perses | Dashboarding |
-| Nginx proxy | Observability stack ingress/reverse proxy |
 
 ## Data Store
 
@@ -426,6 +439,7 @@ The DPN platform is deployed in two layers — infrastructure and application �
 | Vault | Secrets manager for certificate material and mTLS keystore/truststore passwords |
 | Docker | Container packaging |
 | S3 Bucket | Data store |
+| AWS GuardDuty for S3 | AWS GuardDuty file scan service |
 
 ---
 
