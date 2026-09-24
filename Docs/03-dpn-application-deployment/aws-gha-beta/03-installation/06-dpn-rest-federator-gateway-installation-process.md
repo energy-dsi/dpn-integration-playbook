@@ -127,7 +127,6 @@ Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** in `dpn-c
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag pushed in Step2a |
-| `imageRepository` | Leave blank to use the environment's configured registry |
 
 The workflow runs **deploy-redis** then **deploy-rest-federator**. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running Helm. On success, the deployed image digest is captured as a workflow artifact.
 
