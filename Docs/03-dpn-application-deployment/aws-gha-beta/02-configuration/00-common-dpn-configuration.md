@@ -39,7 +39,7 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
   - DPN Authentication Service — Keycloak-based OAuth2/OIDC Identity Provider used for Kafka broker authentication and Keycloak SSO on the DPN observability UIs.
   - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using Defender for Cloud Storage on Azure or GuardDuty Malware Protection for S3 on AWS
 
-DPN components on an airgapped AWS environment are deployed using the **GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
+DPN components on an AWS environment are deployed using the **GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
