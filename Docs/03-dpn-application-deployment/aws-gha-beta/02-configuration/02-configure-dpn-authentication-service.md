@@ -140,10 +140,11 @@ Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past
 Deployed with the `dpn-keycloak-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`:
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
-    └── workflows/
-        └── dpn-keycloak-cd.yml
+root/
+└── .pipelines/
+    └── github-actions-pipelines/
+      └── workflows/
+          └── dpn-keycloak-cd.yml
 ```
 
 The workflow runs `helm lint` + dry run, then `helm upgrade --install` (rolling out `dpn-keycloak-postgres` as a Deployment and `dpn-keycloak` itself as a StatefulSet — the rollout-status check uses the matching resource kind for each), then **automatically configures the realm** (see below), and records the deployed image digest as a workflow artifact. There is no ADO-style approval gate built in — configure a required reviewer on the GitHub Environment (`<environment>-<cluster>`) if you want a manual sign-off before deploy.
