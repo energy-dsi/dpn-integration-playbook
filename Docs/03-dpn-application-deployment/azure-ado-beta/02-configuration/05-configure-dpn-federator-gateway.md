@@ -71,7 +71,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the Vault `vault-tls-bootstrap-cd` pipeline; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
 | 4 | **Vault AppRole identity provisioned** *(recommended)* | No CD pipeline exists for this yet — run this repository's `vault/setup-approle.sh` manually against the Vault pod, then set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId`. `token` remains available for backward compatibility. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | The managed identity must have *get* access to the Key Vault secrets |
 | 6 | **Azure Key Vault secrets created** | The two storage connection strings — see [Step2: Configure Secrets](#step2-configure-secrets) |
@@ -109,9 +109,9 @@ https://<storage-account>.blob.core.windows.net/?<sas-token>
 
 > **Note:** The keystore/truststore P12 passwords are **not** provisioned here — the gateway reads them from Vault at runtime. Only the storage connection strings live in Key Vault for the Federator Gateway.
 
-> **Vault truststore password (deploy-time):** The gateway CD pipeline reads **`VAULT-TRUSTSTORE-PASSWORD`** from this Key Vault (`az keyvault secret show`) and injects it as `vaultConfig.truststorePassword`, which is rendered into the Federator common config at deploy time. This secret is created earlier by the Vault `vault-tls-bootstrap-cd` pipeline — confirm it exists in Key Vault before deploying the gateway.
+> **Vault truststore password (deploy-time):** The gateway CD pipeline reads **`TRUSTSTORE-PASSWORD`** from this Key Vault (`az keyvault secret show`) and injects it as `vaultConfig.truststorePassword`, which is rendered into the Federator common config at deploy time. This secret is written by the `dpn-tls-cd` pipeline on every certificate renewal — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd).
 >
-> **Rotating this password:** it is captured **at deploy time** and baked into the rendered config, so restarting the Federator pods keeps the **old** value. To rotate it: update `VAULT-TRUSTSTORE-PASSWORD` in Key Vault (via `vault-tls-bootstrap-cd`), then **re-run the gateway CD pipeline** (`azure-dpn-cd`) so the config is re-rendered with the new value — a pod restart alone is not sufficient.
+> **Rotating this password:** it is captured **at deploy time** and baked into the rendered config, so restarting the Federator pods keeps the **old** value. To rotate it: re-run `dpn-tls-cd` with the new `truststorePassword`, then **re-run the gateway CD pipeline** (`azure-dpn-cd`) so the config is re-rendered with the new value — a pod restart alone is not sufficient.
 
 ---
 
@@ -124,7 +124,7 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 | `federator-server-secrets` | CSI driver from AKV `STORAGE-CONNECTION-STRING` (Server `SecretProviderClass`) | Server storage connection string |
 | `federator-client-secrets` | CSI driver from AKV `CLIENT-STORAGE-CONNECTION-STRING` (Client `SecretProviderClass`) | Client storage connection string |
 | `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — the AppRole `secret-id` (recommended, `vaultConfig.authMethod: approle`) or the root token (`VAULT_TOKEN`, `authMethod: token`) |
-| `cert-manager-truststore` | Created by the Vault **`vault-tls-bootstrap-cd`** pipeline | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
+| `cert-manager-truststore` | Created by the **`dpn-tls-cd`** pipeline | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
 
 ---
 
@@ -188,7 +188,7 @@ The following parameter needs to be set if key vault is used as secret provider.
 | `kafkaSrc.oauth.adminUser` / `kafkaTarget.oauth.adminUser` | Keycloak admin username used for realm bootstrap checks | `admin` |
 | `kafkaSrc.tls.*` / `kafkaTarget.tls.*` | Broker's own TLS keystore/truststore paths and mTLS enforcement (`clientAuth: none` or `required`) — used whenever `authMode` is `ssl` or `sasl_ssl`, independent of the OAuth settings above | see chart defaults |
 
-> **Secrets this depends on.** The `oauth.*` fields above are non-secret config; the actual client secret and passwords are read at runtime from the existing `kafka-secrets` Kubernetes secret — `KAFKA_OAUTH_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `UNIVERSAL_DPN_CERT_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD`. Provisioning `kafka-secrets` itself is out of scope for this playbook — see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
+> **Secrets this depends on.** The `oauth.*` fields above are non-secret config; the actual client secret and passwords are read at runtime from two existing secrets — `dpn-keycloak-secrets` (`KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`) and `tls-auth-secret` (`KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, created by `dpn-tls-cd`). Provisioning `dpn-keycloak-secrets` is out of scope for this playbook — see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
 
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
 
