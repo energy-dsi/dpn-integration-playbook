@@ -203,7 +203,7 @@ root/
 └── .pipelines/
     └── github-actions-pipelines/
       └── workflows/
-          └── dpn-certificate-manager-cd.yml
+          └── dpn-gha-certificate-manager-cd.yml
 ```
 
 Trigger it via **Actions → DPN CD - Certificate Manager → Run workflow**. The workflow runs `helm lint` + dry-run, then `helm upgrade --install`, followed by a rolling restart (`kubectl rollout restart deployment/dpn-certificate-manager`) and a rollout status check. There is no approval-gate concept built in — configure a required reviewer on the GitHub Environment (`<environment>-<cluster>`) if you want a manual sign-off before deploy.
