@@ -75,12 +75,14 @@ The automated flow uses four pipelines from the `dpn-federator-certificate-manag
 
 | Order | Pipeline | Purpose |
 |-------|----------|---------|
-| 1 | `dpn-tls-cd.yaml` | Generate the DPN platform's universal TLS material and publish it to Key Vault and Kubernetes — see [Step 3A](#step-3a-configure-dpn-universal-tls-dpn-tls-cd) for what it covers |
+| 1 | `dpn-tls-cd.yaml` | Generate the DPN platform's universal TLS material and publish it to Key Vault and Kubernetes — see [Step 3A](#step-3a-configure-dpn-universal-tls-dpn-tls-cd). This pipeline also creates the bootstrap and server csr files for participants |
 | 2 | `vault-https-cd.yaml` | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
 | 3 | `vault-load-bundle-cd.yaml` | Load the DSM-signed client certificate bundle into Vault |
-| 4 | `vault-approle-setup-cd.yaml` | *(Recommended)* Creates the Certificate Manager's AppRole identity, so it no longer needs the Vault root token. This pipeline is Certificate-Manager-specific — the Federator Gateway and REST Federator Gateway are provisioned differently — see [Step 3D](#step-3d-configure-approle-authentication-recommended) |
+| 4 | `vault-approle-setup-cd.yaml` | Creates the Certificate Manager's AppRole identity, so it no longer needs the Vault root token. This pipeline is Certificate-Manager-specific — the Federator Gateway and REST Federator Gateway are provisioned differently — see [Step 3D](#step-3d-configure-approle-authentication-recommended) |
 
-All four are located in `dpn-federator-certificate-manager` repository
+All four are located in `dpn-federator-certificate-manager` repository. 
+
+**Note** The earlier `vault-tls-bootstrap-cd` is no longer used in this release and replaced by `dpn-tls-cd` with more functionalities to support DPN internal https configurations
 
 ```text
 Root-Repository/
@@ -167,6 +169,8 @@ Configure the following three pipelines in order. Each takes the environment as 
 
 `dpn-tls-cd` is the single pipeline that generates the DPN platform's TLS material and creates every certificate-related secret the rest of the platform depends on. Run it **once per environment/cluster, before** deploying Vault, the Certificate Manager, Keycloak, Kafka, or the Federator Gateway.
 
+**Note** The `vault-tls-bootstrap-cd.yaml` has been decommissioned in this release and this new pipeline is augmented with more feature capabilities
+
 **What it covers:**
 
 - Generates one self-signed DPN Root CA and one universal server certificate (wildcard SANs).
@@ -176,9 +180,9 @@ Configure the following three pipelines in order. Each takes the environment as 
   - `dpn-tls` — server keystore/truststore used by Keycloak, Kafka, Federator Gateway, Redis, Airflow (target namespace **and** `ns-dpn-health-01`)
   - `dpn-health-tls` — `kubernetes.io/tls` certificate for the health-monitoring `oauth2-proxy` gateways (target namespace **and** `ns-dpn-health-01`)
   - `tls-auth-secret` — the shared `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`/`DPN_CLIENT_P12_PASSWORD` values every component above reads, instead of each syncing its own copy from Key Vault (target namespace **and** `ns-dpn-health-01`)
-- Publishes `certs/vault.csr` and `certs/vault.key` as a pipeline artifact — this is Vault's own DSM bootstrap CSR (separate from the platform TLS material above). Sign `vault.csr` at the DSM Vault to obtain `certificate.pem`/`ca-chain.pem`, then upload them together with this same `vault.key` as the Secure Files [Step 3C](#step-3c-configure-certificate-bundle-vault-load-bundle-cd) expects.
-
-**Not covered:** `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD`, and `KC-SERVICE-CLIENT-SECRET` are not certificate material — set these in Key Vault manually (see [Configure DPN Authentication Service, Step2](02-configure-dpn-authentication-service.md#step2-configure-secrets)).
+- Publishes `certs/vault.csr` and `certs/vault.key` as a pipeline artifact.
+**Note** this is the DSM bootstrap CSR to be used. Sign `vault.csr` at the DSM Vault to obtain the `certificate.pem`/`ca-chain.pem` package, then upload them together with this same `vault.key` as the Secure Files [Step 3C](#step-3c-configure-certificate-bundle-vault-load-bundle-cd) expects.
+- The above `certs/vault.csr` and `certs/vault.key` to be used for server sign as well as part of longer TTL certificate requrirement for participants to set in Edge Proxy 
 
 Required before running:
 
@@ -201,7 +205,7 @@ Runtime parameters:
 | `keystorePassword` | Password for `keystore.jks`, published as `KEYSTORE-PASSWORD` | `<choose a password>` |
 | `truststorePassword` | Password for `truststore.jks`, published as `TRUSTSTORE-PASSWORD` | `<choose a password>` |
 | `clientP12Password` | Password for `dpn-client.p12`, published as `DPN-CLIENT-P12-PASSWORD` | `<choose a password>` |
-| `extraVaultSans` | Extra comma-separated SANs for Vault's own CSR only | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy` |
+| `extraVaultSans` | Participant producer host endpoints GRPC/REST | `producer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
 
 > **Coordinated cutover.** After this pipeline runs (first time, or a password rotation), restart Vault, Certificate Manager, Keycloak, both Kafka brokers, and both Federators so each picks up the new material.
 
