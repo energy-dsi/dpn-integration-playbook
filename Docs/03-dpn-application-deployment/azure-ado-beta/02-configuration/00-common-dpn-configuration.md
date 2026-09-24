@@ -259,6 +259,8 @@ The two AKS namespaces that host DPN UIs are `ns-dpn-01` and `ns-dpn-health-01` 
 
 #### DPN component UI DNS reference (configured via the DPN Portal / Unified UI service)
 
+The following internal URLs will be default for accessing the DPN User interfaces. Participants must install the dpn-root certificate generated during the Vault set up process in the respective systems from where DPN portal is accessed. Refer section 3A in [DPN Vault Service](01-configure-dpn-vault-service.md)
+
 | DPN Portal Tile | Component | DNS Name | Port | Namespace | Access |
 |------------------|-----------|----------|------|-----------|--------|
 | Users & Roles | Keycloak Console | `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` | 8443 | ns-dpn-01 | `dpnadmin` only |
