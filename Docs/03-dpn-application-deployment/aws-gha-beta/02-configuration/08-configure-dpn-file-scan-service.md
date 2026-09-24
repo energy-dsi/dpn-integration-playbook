@@ -158,4 +158,4 @@ When `secretsManager.enabled: true`, both `FILESCAN_CLIENT_ID` and `FILESCAN_CLI
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
