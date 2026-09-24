@@ -69,17 +69,17 @@ The **Continuous Integration (CI)** pipeline performs the following activities:
 3. Tag the generated container images.
 4. Push the images to a container registry.
 
-Organisations may use their own container registry (e.g. Amazon ECR) if permitted by their internal network and security policies, though DSI-provided images are published to GHCR by default.
+Organisations may use their own container registry (e.g. Amazon ECR) if permitted by their internal network and security policies, though DSI-provided images are published to GHCR by default.This is participant responsibility to define and run CI pipelines on their own
 
 ---
 
 ### Continuous Deployment (CD)
 
-The **Continuous Deployment (CD)** pipeline deploys the container images to the **Amazon EKS** cluster using Helm. 
+The **Continuous Deployment (CD)** pipeline deploys the container images to the **AWS EKS** cluster using Helm. 
 
 During deployment, the pipeline performs the following steps:
 
-1. Read the environment/cluster config JSON (`.github/config/aws/<environment>-<cluster>.json`) into the job.
+1. Read the environment/cluster config JSON (`.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`) into the job.
 2. Authenticate to AWS via the shared `cloud-login` composite action — a two-step OIDC role chain (runner → hub role → your account's `oidc_github_runner_admin` role), no long-lived access key involved. See [AWS IAM OIDC Role](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role).
 3. Retrieve credentials for the target EKS cluster (`aws eks update-kubeconfig`).
 4. Validate Helm charts using `helm lint` and a Helm **dry-run**.
@@ -115,13 +115,11 @@ The provided pipelines require the following configuration to perform **CI and C
 
 #### Step2.1: Self-Hosted Runner Set Up
 
-Every CD workflow in `dpn-containerised-deployment-service` runs on the shared self-hosted GitHub Actions runner pool:
+Every CD workflow in `dpn-containerised-deployment-service` runs on the shared self-hosted GitHub Actions runner pool. This runner set up is participant responsibility
 
 ```yaml
 runs-on: [self-hosted, vmss]
 ```
-
-This runner pool is hosted in Azure and reaches both the Azure airgap and AWS airgap environments' clusters via per-cloud OIDC (see [AWS IAM OIDC Role](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role)) — there is no separate agent pool to register or maintain per environment, and nothing in the workflow files needs editing to point at a different pool.
 
 ---
 
@@ -257,6 +255,7 @@ The following firewall rules must be applied by the organisation before installi
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+
