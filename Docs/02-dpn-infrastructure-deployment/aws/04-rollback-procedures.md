@@ -16,9 +16,6 @@ This section explains how to roll back failed or partial infrastructure deployme
   - [Issue: Nodes Not Joining Cluster](#issue-nodes-not-joining-cluster)
   - [Issue: Pods Crash After Observability Is Enabled](#issue-pods-crash-after-observability-is-enabled)
   - [Issue: Persistent Volume Claim Remains Pending](#issue-persistent-volume-claim-remains-pending)
-  - [Issue: Pipeline Fails with Authorization Errors](#issue-pipeline-fails-with-authorization-errors)
-  - [Issue: File Scanning Service Component Fails to Provision](#issue-file-scanning-service-component-fails-to-provision)
-  - [Issue: Observability Logging Storage Account Fails to Provision](#issue-observability-logging-storage-account-fails-to-provision)
 - [6. Full Environment Rollback (Last Resort)](#6-full-environment-rollback-last-resort)
 - [7. Post-Rollback Validation](#7-post-rollback-validation)
 - [8. Rollback Checklist](#8-rollback-checklist)
@@ -193,8 +190,8 @@ Symptom: a claim stays `Pending` with no error naming a cause, and the pod using
 
 Three separate causes present identically from a pending claim. Check them in order.
 
-- No CSI driver for the storage the claim requests. Confirm the driver pods are running and that `enable_ebs_csi_driver` or `enable_efs_csi_driver` is set for that storage type.
-- A StorageClass naming a provisioner that no longer exists. A `gp2` class still naming the removed in-tree provisioner never binds; the class must name `ebs.csi.aws.com`.
+- No CSI driver for the storage the claim requests. Confirm the driver pods are running and that `enable_ebs_csi_driver` is set.
+- A StorageClass naming a provisioner that is not installed. A `gp2` class still naming the removed in-tree provisioner never binds, so the class must name `ebs.csi.aws.com`.
 - No default StorageClass on the cluster. A claim that omits `storageClassName` stays `Pending` indefinitely where no class is marked default.
 
 ```bash

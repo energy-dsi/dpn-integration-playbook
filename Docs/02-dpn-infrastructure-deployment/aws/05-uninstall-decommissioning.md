@@ -70,19 +70,12 @@ Also verify all S3 buckets are handled as expected:
 - Application/workload S3 buckets
 - Observability logging S3 buckets
 
-Verify AWS EFS cleanup:
-
 ```bash
-# Confirm file share is removed
-aws efs describe-file-systems \
-  --query "FileSystems[?Name=='<efs-name>'].FileSystemId" \
-  --output table
-
 # Confirm all specific S3 buckets are removed (if not retained) including observability S3 buckets.
 aws s3 ls s3://<bucket-name>
 ```
 
-perform manual cleanup if needed. 
+Perform manual cleanup if needed.
 
 ## 6. Restore Previous State (If Required)
 
@@ -108,6 +101,6 @@ Use the following checklist to verify the decommissioning process is fully compl
 Refer to the following documentation for detailed product guidance.
 
 - [OpenTofu Destroy Documentation](https://opentofu.org/docs/cli/commands/destroy/)
-- [AWS CLI Documentation](//https://docs.aws.amazon.com/cli/)
+- [AWS CLI Documentation](https://docs.aws.amazon.com/cli/)
 
 Deployment Complete! 🎉
