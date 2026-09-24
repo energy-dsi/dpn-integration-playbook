@@ -13,7 +13,6 @@
     - [Access Requirements](#access-requirements)
       - [GitHub Access](#github-access)
       - [AWS IAM OIDC Role](#aws-iam-oidc-role)
-      - [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential)
       - [EKS Access](#eks-access)
       - [Data Pipeline Access](#data-pipeline-access)
   - [Security Prerequisites](#security-prerequisites)
@@ -126,18 +125,9 @@ The following access configurations are required for DPN deployment.
 
 #### AWS IAM OIDC Role
 
-An **IAM role in your target AWS account**, named `oidc_github_runner_admin`, with:
+An **IAM role in your target AWS account**, with:
 
-- A trust policy allowing the centrally-managed hub role (`arn:aws:iam::950639282434:role/oidc_github_runner_hub`) to assume it via `sts:AssumeRole`
-- Permissions scoped to what DPN deployment actually needs — at minimum EKS cluster access, plus IAM/S3/EFS/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
-
-See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential) below for how this fits into the pipeline's authentication chain.
-
-#### GitHub Actions OIDC Federated Credential
-
-- The **hub role** (`arn:aws:iam::950639282434:role/oidc_github_runner_hub`) is centrally managed by the DSI/NESO platform team — your organisation does not create or manage it.
-- The pipeline's shared `cloud-login` composite action authenticates by having the runner's GitHub OIDC token assume the hub role, which then role-chains into your organisation's own `oidc_github_runner_admin` role (see [AWS IAM OIDC Role](#aws-iam-oidc-role)) — no client secret or long-lived AWS access key to create or rotate.
-- **AWS Secret Manager** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **AWS Secret Manager**. 
+- Permissions scoped to DPN deployment actually needs at minimum EKS cluster access, plus IAM/S3/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
 
 #### EKS Access
 
