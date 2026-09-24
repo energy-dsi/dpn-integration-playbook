@@ -179,4 +179,4 @@ There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| 31-Jul-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Sep-2026    | DSI Assurance    | Final  | V1.0.0  |
