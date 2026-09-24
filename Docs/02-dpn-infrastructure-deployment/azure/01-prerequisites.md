@@ -108,7 +108,7 @@ Ensure the Azure subscription is ready and validated against the following requi
 - Subscription ID captured (`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 - Regional quota available:
   - AKS : 16+ vCPUs (Standard_D16lds_v6)
-  - VM: 4+ vCPUs (Standard_D2lds_v6) 
+  - VM: 2 vCPUs (Standard_D2lds_v6) 
   - Public IP requirement depends on your organisation network architecture; private deployments may require none
 - Region selected: <azure-region>
 - No conflicting IP ranges; use customer-safe example CIDR such as `10.x.x.x/24`

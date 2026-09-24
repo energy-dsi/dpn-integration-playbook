@@ -2,7 +2,7 @@
 
 This section describes how to configure and deploy the **DPN Authentication Service** — the platform's OAuth2/OIDC identity provider, **Keycloak** — into a single target environment and DPN cluster on Amazon Elastic Kubernetes Service (EKS).
 
-> **Deploy this before components that authenticate against it.** The Federator Gateway's Kafka brokers (`kafka.authMode: sasl_ssl`) and the DPN observability UIs authenticate against this Keycloak realm. Deploy the Authentication Service, and create the realm/clients it expects, before enabling Keycloak-based auth on those components.
+**Deploy this immediately after Vault service deployed.** Deploy the Authentication Service, and create the realm/clients it expects, before enabling Keycloak-based auth on those components.
 
 > **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values throughout.
 
@@ -25,17 +25,15 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 
 ## Overview
 
-Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false` — there is no plaintext listener), reachable in-cluster and through an internal AWS Network Load Balancer (NLB) only. It runs as a **StatefulSet** (each replica gets its own PersistentVolumeClaim, see [Step4a](#step4a-horizontal-pod-autoscaling-optional)) and is bundled with its own PostgreSQL instance on a persistent volume.
+Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer (NLB) only. It runs as a **StatefulSet** (each replica gets its own PersistentVolumeClaim, see [Step4a](#step4a-horizontal-pod-autoscaling-optional)) and is bundled with its own PostgreSQL instance on a persistent volume.
 
 | | |
 |---|---|
 | In-cluster URL | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443` |
 | External access | Internal NLB (`dpn-keycloak-service-lb`), VPC only |
 | Database | Bundled PostgreSQL (`dpn-keycloak-postgres`) — can be pointed at a managed database instead (see [Step4](#step4-environment-configuration)) |
-| Secrets | Either Azure Key Vault (the org's central secrets store, used cross-cloud) or **native AWS Secrets Manager** — both via the Secrets Store CSI driver. Selected by `cloudProvider` in the values file; see [Step2](#step2-configure-secrets) |
-| Cloud provider | `cloudProvider: aws` **must be set explicitly** in the environment values file — the chart's own default is `azure`, which on an EKS cluster produces an Azure-style Key Vault SecretProviderClass and `azure-load-balancer-internal` Service annotation that AWS ignores, silently leaving the NLB non-internal. See [Step4](#step4-environment-configuration) |
-
-Consuming components resolve tokens against a realm on this Keycloak instance, for example the Federator Gateway's Kafka brokers when `kafka.authMode: sasl_ssl` (see [Configure DPN Federator Gateway, Step3d](04-configure-dpn-federator-gateway.md#step3d-configure-kafka-security)).
+| Secrets | **Native AWS Secrets Manager** see [Step2](#step2-configure-secrets) |
+| Cloud provider | `cloudProvider: aws` must be set explicitly in the environment values file. See [Step4](#step4-environment-configuration) |
 
 ---
 
@@ -43,10 +41,10 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 | # | Prerequisite | Notes |
 |---|--------------|-------|
-| 1 | **EKS cluster** and either (a) an identity that can reach Azure Key Vault, or (b) an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets) — pick one backend per `cloudProvider`/`secretsManager.enabled` |
-| 2 | **`dpn-tls` Kubernetes secret present in the namespace** | An `Opaque` secret holding `keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret) — created before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
+| 1 | **EKS cluster** with an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets) — pick one backend per `cloudProvider`/`secretsManager.enabled` |
+| 2 | **`dpn-tls` Kubernetes secret present in the namespace** | An `Opaque` secret holding `keystore.jks`/`truststore.jks` and must be created before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
 | 3 | **Five secrets populated in the chosen backend** | See [Step2: Configure Secrets](#step2-configure-secrets) |
-| 4 | **Container image tag available** | Stock upstream Keycloak pulled via GHCR; pinned in the environment values file — the CD workflow does not take an `imageTag` input for this component |
+| 4 | **Container image tag available** | Keycloak pulled via GHCR; pinned in the environment values file — the CD workflow does not take an `imageTag` input for this component |
 | 5 | **Config JSON and values file populated for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set** | See [Step4: Environment Configuration](#step4-environment-configuration) |
 
 > **One-time setup:** create the target namespace (`kubectl create namespace <namespace>`) and complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) before running the CD workflow — it does not create the namespace for you.

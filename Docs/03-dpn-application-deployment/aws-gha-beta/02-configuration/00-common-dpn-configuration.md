@@ -94,18 +94,17 @@ During deployment, the pipeline performs the following steps:
 DSI provides predefined endpoints to support the following environments:
 
 - Development
-- Integration Testing
+- Integration Testing (upcoming)
+- Pre-Production (upcoming)
 
 These endpoints are publicly accessible to simplify integration and testing. Organisations must configure their pipelines to use the **appropriate endpoint for the corresponding deployment environment** as provided by DSI.
 
 | Environment | Component | URL |
 |-------------|-----------|-----|
-| Development (dev) | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
-| Development (dev) | Management Node | https://management.dsm01.dsipreprod1.neso.energy |
-| Development (dev) | DSI DPN Producer | https://producer.dpn01.dsipreprod1.neso.energy |
-| Integration Testing (test) | Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
-| Integration Testing (test) | Management Node | https://management.dsm01.dsipreprod2.neso.energy |
-| Integration Testing (test) | DSI DPN Producer | https://producer.dpn01.dsipreprod2.neso.energy |
+| Pre Production-Dev (pdev) | Authentication | https://auth-mtls.dsm01.dsipreprod1.neso.energy |
+| Pre Production-Dev (pdev)| Management Node | https://management.dsm01.dsipreprod1.neso.energy |
+| Pre Production-Dev (pdev)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod1.neso.energy |
+| Pre Production-Dev (pdev)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod1.neso.energy |
 
 ---
 
@@ -115,7 +114,7 @@ The provided pipelines require the following configuration to perform **CI and C
 
 #### Step2.1: Self-Hosted Runner Set Up
 
-Every CD workflow in `dpn-containerised-deployment-service` runs on the shared self-hosted GitHub Actions runner pool. This runner set up is participant responsibility
+Every CD workflow runs on a self-hosted GitHub Actions runner pool as DPN environment is private and no access from outside internet. This runner set up is participant responsibility
 
 ```yaml
 runs-on: [self-hosted, vmss]
@@ -125,14 +124,15 @@ runs-on: [self-hosted, vmss]
 
 #### Step2.2: AWS Environment Configuration
 
-Every CD workflow reads its AWS targeting from a single, consistently-named JSON config file in `dpn-containerised-deployment-service`. **Update this file with your environment's values before running any pipeline** for that environment/cluster.
+Every CD workflow reads its AWS targeting from a single, consistently-named JSON config file in respective DPN repositories published in GitHub. **Update this file with your environment's values before running any pipeline** for that environment/cluster.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+root/
+└── .pipelines/
+  └── github-actions-pipelines/
     └── config/
         └── aws/
-            └── <environment>-<cluster>.json     # e.g. dev-dpn01.json, test-dpn02.json
+            └── <environment>-<cluster>.json     # e.g. dev-dpn01.json
 ```
 
 | Key | Description | Example (placeholder) |
@@ -142,11 +142,6 @@ dpn-containerised-deployment-service/
 | EKS_CLUSTER | Name of the EKS cluster | `eks-dpn-<env>-<region>` |
 | NAMESPACE | Kubernetes namespace for the deployment | `ns-dpn-01` |
 | IMAGE_REGISTRY | Base container registry URL | `ghcr.io` (or your own) |
-| KEY_VAULT_NAME | Azure Key Vault for secrets and certificates — **still required on AWS**, since Vault/Certificate Manager/Federator Gateway read secrets from the org's central Azure Key Vault regardless of target cloud (see [AWS IAM OIDC Role](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role)); not present in the sample AWS config, so you likely need to add it | `kv-dpn-<env>-<region>-<seq>` |
-
-> **Note:** `environment`, `cluster`, and `cloud` (`aws`) are supplied as `workflow_dispatch` **inputs** when you trigger a run in the Actions tab — they are **not** keys in the JSON file. The Helm **values file** is derived from those inputs: `<chart-dir>/values/aws/<environment>-<cluster>.yaml`.
->
-> **Most AWS values files are now populated with real environment values** — no longer the "Azure is the only cloud deployed today" placeholder stubs of earlier releases. Two charts are still pending AWS onboarding as placeholder stubs: the **Vault** chart in `dpn-federator-certificate-manager` (all four `values/aws/*.yaml`) and **`dpn-redis`**'s `test-dpn02` file in `dpn-rest-federator-gateway` — adapt each from its `values/azure/*.yaml` equivalent before relying on its CD workflow. Each component's configuration section below calls out the AWS-specific values it actually needs.
 
 ---
 
@@ -161,23 +156,7 @@ Create the following Kubernetes namespaces in EKS, along with the shared storage
 kubectl create namespace <NAMESPACE>    # e.g. ns-dpn-01
 ```
 
-An **AWS EFS CSI driver** must be installed on the cluster (as an EKS add-on or Helm chart), with an EFS filesystem created and mount targets in the subnets your worker nodes run in — `gp2`'s in-tree `kubernetes.io/aws-ebs` provisioner was removed from Kubernetes in 1.27+, so every component's charts target an EFS-backed StorageClass (`efs-sc`) instead:
-
-```bash
-kubectl apply -f - <<'EOF'
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: efs-sc
-provisioner: efs.csi.aws.com
-parameters:
-  provisioningMode: efs-ap
-  fileSystemId: <EFS_FILESYSTEM_ID>
-  directoryPerms: "700"
-EOF
-```
-
-A shared `federator-server` Kubernetes ServiceAccount is used by several components' pods:
+A shared `federator-server` Kubernetes ServiceAccount is used by several components  pods to authenticate across components:
 
 ```bash
 kubectl create serviceaccount federator-server -n ns-dpn-01
@@ -205,8 +184,8 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 Sensitive credentials must **not be stored in source code repositories**. They must be stored securely in one of the following vaults:
 
-- **HashiCorp Vault** — provided with the DSI DPN package
-- **Azure Key Vault** — the org's central secrets store, used by several components regardless of target cloud (see [Step2.2](#step22-aws-environment-configuration))
+- **HashiCorp Vault** — provided with the DSI DPN package as community edition
+- **AWS Secrets Manager** — AWS native secrets store for credentials
 - **AWS IAM Roles for Service Accounts (IRSA)** — used where a component needs direct AWS API access (S3, SQS, KMS) without a stored credential
 
 Organisations **must change the default values of secrets** — i.e. sample values such as `changeit`, `admin-password`, `admin-admin`, etc.
@@ -225,7 +204,7 @@ During the organisation's onboarding process, an initial certificate package con
 
 Refer to the [DPN Federator Certificate Manager](03-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
 
-The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the Federator Gateway and Certificate Lifecycle Manager.
+The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the GRPC/REST Federator Gateway and Certificate Lifecycle Manager.
 
 ---
 
@@ -247,9 +226,7 @@ The following firewall rules must be applied by the organisation before installi
 
 > **Note:** The organisation-specific URL in the final row defines the target organisation with which data sharing will occur. These firewall rules must be opened from both organisations' network perspectives. The `dsi(xxx)` notation refers to the `dev` and `test` environments.
 
-> **Note:** DPN uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 network load balancer (an AWS NLB); Layer 7 load balancing may not be supported for this traffic for most layer 7 load balancers (an AWS ALB).
-
-> **Note:** the EFS mount-target security group must allow TCP **2049** from the worker node subnets, or every EFS-backed PVC sits `Pending` indefinitely.
+> DPN GRPC Federator Gateway uses HTTP/2 traffic over gRPC on port **443**. HTTP/2 traffic requires TCP passthrough to a Layer 4 network load balancer (an AWS NLB); Layer 7 load balancing may not be supported for this traffic for most layer 7 load balancers.
 
 ---
 
