@@ -260,6 +260,18 @@ The two AKS namespaces that host DPN UIs are `ns-dpn-01` and `ns-dpn-health-01` 
 
 The following internal URLs will be default for accessing the DPN User interfaces. Participants must install the dpn-root certificate generated during the Vault set up process in the respective systems from where DPN portal is accessed. Refer section 3A in [DPN Vault Service](01-configure-dpn-vault-service.md)
 
+These URLs operate on Kuberenetes DNS. To access these URLs, a local host entry needs to be made in the system/Windows VM. The host file is generally present in `C:\Windows\System32\drivers\etc\hosts` location. Open the file in a notepad with admin credential and put the below entries against their load balancer IP. 
+
+```
+10.XXX.XXX.XXX dpn-airflow-webserver-external.ns-dpn-01.svc.cluster.local	
+10.XXX.XXX.XXX dpn-kafka-ui-external.ns-dpn-01.svc.cluster.local
+10.XXX.XXX.XXX dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local
+10.XXX.XXX.XXX dpn-federator-client-1-external.ns-dpn-01.svc.cluster.local
+10.XXX.XXX.XXX dpn-observability.ns-dpn-health-01.svc.cluster.local
+10.XXX.XXX.XXX dpn-vault-https-lb.ns-dpn-01.svc.cluster.local
+
+```
+
 | DPN Portal Tile | Component | DNS Name | Port | Namespace | Access |
 |------------------|-----------|----------|------|-----------|--------|
 | Users & Roles | Keycloak Console | `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` | 8443 | ns-dpn-01 | `dpnadmin` only |
@@ -300,7 +312,6 @@ The following secrets are shared by DPN components to use encryption in transit 
 | `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD` | Canonical keystore/truststore/mTLS-client-cert passwords, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Certificate Manager, Federator Gateway, REST Federator Gateway, File Scan Service, Health Monitoring Service (Kafka UI, Data Prepper) |
 | `certificate-manager-secrets` | `VAULT_TOKEN`, `VAULT_APPROLE_SECRET_ID` | `VAULT-TOKEN`, `VAULT-APPROLE-SECRET-ID` | Vault credentials for PKI/mTLS bootstrap | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
 | `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` | `KC-SERVICE-CLIENT-SECRET` (set manually — see note below), `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD` | `dpn-service-client` OIDC client secret, plus Keycloak's own admin and database passwords | ns-dpn-01 | Authentication Service (Keycloak), Data Pipelines (Airflow SSO + Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
-| `dpn-keycloak-shared-akv` | `client-secret` | `KC-SERVICE-CLIENT-SECRET` (same Key Vault object as above, independently synced) | Same `dpn-service-client` secret, a separate copy synced into the health-monitoring namespace | ns-dpn-health-01 | Health Monitoring Service's `oauth2-proxy` releases (Portal, OpenSearch, Jaeger, Perses) and Kafka UI OIDC RBAC |
 | `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a Key Vault secret | Universal DPN server TLS identity, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis, Airflow |
 | `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a Key Vault secret | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
 | `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |

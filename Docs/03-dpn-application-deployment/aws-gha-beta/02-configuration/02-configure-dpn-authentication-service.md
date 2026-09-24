@@ -13,8 +13,6 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 - [Overview](#overview)
 - [Step1: Meet the Prerequisites](#step1-meet-the-prerequisites)
 - [Step2: Configure Secrets](#step2-configure-secrets)
-  - [Option A — Azure Key Vault (`secretsManager.enabled: false`)](#option-a--azure-key-vault-secretsmanagerenabled-false)
-  - [Option B — AWS Secrets Manager (`secretsManager.enabled: true`)](#option-b--aws-secrets-manager-secretsmanagerenabled-true)
 - [Step3: Configure TLS](#step3-configure-tls)
 - [Step4: Environment Configuration](#step4-environment-configuration)
   - [Step4a: Horizontal Pod Autoscaling (optional)](#step4a-horizontal-pod-autoscaling-optional)
@@ -53,25 +51,11 @@ Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS
 
 ## Step2: Configure Secrets
 
-The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error (the `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` value is checked the same way even though it isn't CSI-mounted — it's fetched separately and handed to `configure-keycloak.sh`, see [Step5](#step5-configure-deployment-parameters)). Populate **five** secrets before the first deploy, in whichever backend `secretsManager.enabled` selects:
+The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error (the `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` value is checked the same way even though it isn't CSI-mounted — it's fetched separately and handed to `configure-keycloak.sh`, see [Step5](#step5-configure-deployment-parameters)). 
 
-### Option A — Azure Key Vault (`secretsManager.enabled: false`)
+**AWS Secrets Manager**
 
-The default backend — still the org's central secrets store, usable cross-cloud.
-
-| Key Vault secret | Becomes | Used by |
-|-------------------|---------|---------|
-| `KC-DB-PASSWORD` | `KC_DB_PASSWORD` | Keycloak, and PostgreSQL via `POSTGRES_PASSWORD_FILE` |
-| `KEYCLOAK-ADMIN-PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account |
-| `KEYSTORE-PASSWORD` | `KC_HTTPS_KEY_STORE_PASSWORD` | Opens `keystore.jks` — **universal DPN platform keystore password**, the same secret name other components in this namespace also read |
-| `TRUSTSTORE-PASSWORD` | `KC_HTTPS_TRUST_STORE_PASSWORD` | Opens `truststore.jks` — universal DPN platform truststore password |
-| `KC-SERVICE-CLIENT-SECRET` | `KC_SERVICE_CLIENT_SECRET` | `dpn-service-client`'s client secret. Asserted onto that client by `configure-keycloak.sh` on every deploy, and separately republished into the `dpn-keycloak-secrets` Kubernetes secret so Kafka/federator-client/federator-server/Airflow in this namespace can reference it directly instead of each pulling their own copy from the vault |
-
-> **Renamed from earlier releases.** The keystore/truststore secrets were previously named `KC-HTTPS-KEY-STORE-PASSWORD`/`KC-HTTPS-TRUST-STORE-PASSWORD`. They are now `KEYSTORE-PASSWORD`/`TRUSTSTORE-PASSWORD` — a single pair of platform-wide secrets shared with other DPN components in the namespace (e.g. the Certificate Manager's OTEL truststore, see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md)) — rename or recreate them in Key Vault before deploying this chart version.
-
-### Option B — AWS Secrets Manager (`secretsManager.enabled: true`)
-
-Native AWS backend — no cross-cloud Key Vault dependency. Requires `serviceAccount.create: true` with a valid IRSA role ARN annotated on the ServiceAccount (`eks.amazonaws.com/role-arn`), and `automountServiceAccountToken: true`. Secrets must exist under `secretsManager.secretPrefix/<KEY_NAME>` in Secrets Manager:
+AWS Secrets Manager is a cloud native AWS component that requires a service account with a valid IRSA role ARN annotated on the ServiceAccount (`eks.amazonaws.com/role-arn`), and `automountServiceAccountToken: true`. Secrets must exist under `secretsManager.secretPrefix/<KEY_NAME>` in Secrets Manager:
 
 | Secrets Manager entry (under `secretPrefix/`) | Becomes | Used by |
 |---|---|---|
@@ -82,8 +66,6 @@ Native AWS backend — no cross-cloud Key Vault dependency. Requires `serviceAcc
 | `KC_SERVICE_CLIENT_SECRET` | `KC_SERVICE_CLIENT_SECRET` | Same purpose as the Key Vault entry above |
 
 Example `secretPrefix`: `dpn/<environment>-<cluster>/keycloak`.
-
-> **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy. This applies to either secrets backend.
 
 ---
 
@@ -98,11 +80,6 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
    kubectl get secret dpn-tls -n <namespace> \
      -o jsonpath='{.data.keystore\.jks}' | base64 -d > keystore.jks
 
-   # Azure Key Vault backend:
-   keytool -list -keystore keystore.jks \
-     -storepass "$(az keyvault secret show --vault-name <KEY_VAULT_NAME> \
-       --name KEYSTORE-PASSWORD --query value -o tsv)"
-
    # AWS Secrets Manager backend:
    keytool -list -keystore keystore.jks \
      -storepass "$(aws secretsmanager get-secret-value \
@@ -111,9 +88,10 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
    ```
 
 3. Set `config.KC_HTTPS_KEY_ALIAS` to that alias in the environment values file — Keycloak aborts at startup if the alias does not exist.
+
 4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. It defaults to the in-cluster FQDN (`https://dpn-keycloak.<namespace>.svc.cluster.local:8443`); a shared platform certificate often covers a public DNS name instead — the deploy workflow prints the certificate's SANs so you can check.
 
-   > **Pin `KC_HOSTNAME` rather than leaving it empty when a browser-facing consumer is involved.** With `KC_HOSTNAME` left dynamic, Keycloak derives its OIDC issuer/redirect URLs from whichever `Host` header the request arrived on — including internal server-to-server calls, which arrive on the in-cluster `svc.cluster.local` name. That unresolvable hostname can then leak into a browser-facing authorize redirect (seen as `DNS_PROBE_FINISHED_NXDOMAIN` for consumers such as Airflow's Keycloak SSO login). Pin `KC_HOSTNAME` to the externally-reachable NLB hostname once it's known, and keep `KC_HOSTNAME_STRICT: "false"` so in-cluster callers still work.
+   > **Note** Update `KC_HOSTNAME` rather than leaving it empty when a browser-facing consumer is involved.** With `KC_HOSTNAME` left dynamic, Keycloak derives its OIDC issuer/redirect URLs from whichever `Host` header the request arrived on — including internal server-to-server calls, which arrive on the in-cluster `svc.cluster.local` name. That unresolvable hostname can then leak into a browser-facing authorize redirect (seen as `DNS_PROBE_FINISHED_NXDOMAIN` for consumers such as Airflow's Keycloak SSO login). Pin `KC_HOSTNAME` to the externally-reachable NLB hostname i.e.`https://dpn-keycloak-service-lb.<namespace>.svc.cluster.local:8443` and keep `KC_HOSTNAME_STRICT: "false"` so in-cluster callers still work.
 
 ---
 
@@ -136,22 +114,9 @@ dpn-authentication-service/
 | `config.KC_HOSTNAME_STRICT` | Whether Keycloak rejects requests whose `Host` header doesn't match `KC_HOSTNAME`. Leave `"false"` while `KC_HOSTNAME` itself is left empty | `"false"` |
 | `config.KC_HTTPS_KEY_ALIAS` | Alias of the server key inside `keystore.jks` | *(from Step3)* |
 | `service.loadBalancer.loadBalancerIP` | Static IP for Keycloak's LoadBalancer Service. Leave empty on first deploy — AWS auto-assigns one — then pin the assigned IP here so it survives a Service recreation. Ignored when `cloudProvider: aws` (the NLB annotation path does not support pinning a frontend IP the way Azure's does) | `""`, then the assigned IP after first deploy |
-| `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, identity client ID, tenant ID — only used when `secretsManager.enabled: false` | `kv-dpn-<env>-<region>-<seq>` / `<client-id>` / `<tenant-id>` |
-| `secretsManager.enabled` / `secretsManager.secretPrefix` | Use AWS Secrets Manager instead of AKV (see [Step2, Option B](#option-b--aws-secrets-manager-secretsmanagerenabled-true)) | `true` / `dpn/<env>-<cluster>/keycloak` |
+| `secretsManager.enabled` / `secretsManager.secretPrefix` | Use AWS Secrets Manager | `true` / `dpn/<env>-<cluster>/keycloak` |
 | `serviceAccount.create` / `serviceAccount.automountServiceAccountToken` / `serviceAccount.annotations` | IRSA ServiceAccount — required when `secretsManager.enabled: true` | `true` / `true` / `eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` |
 | `image.repository` | GHCR path for the Keycloak image | `ghcr.io/energy-dsi/keycloak` |
-
-**Using a managed database instead of the bundled PostgreSQL:**
-
-```yaml
-postgres:
-  enabled: false
-config:
-  KC_DB_URL: jdbc:postgresql://<rds-endpoint>.rds.amazonaws.com:5432/keycloak_db
-  KC_DB_USERNAME: keycloak_db_user
-```
-
-**Environments provided:** `dev`/`devtest`/`test` (both `dpn01` and `dpn02`).
 
 ---
 
@@ -161,12 +126,12 @@ Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past
 
 | Parameter | Purpose | Default |
 |-----------|---------|---------|
-| `hpa.enabled` | Turn on the `HorizontalPodAutoscaler` | `false` |
+| `hpa.enabled` | Turn on the `HorizontalPodAutoscaler` | `true` |
 | `hpa.minReplicas` / `hpa.maxReplicas` | Scaling bounds | `1` / `3` |
 | `hpa.cpuUtilization` / `hpa.memoryUtilization` | Target average utilization (%) that triggers scaling | `80` / `80` |
 | `hpa.scaleStep` | Pods added/removed per scaling step | `1` |
 
-> **`persistence.existingClaim` only works at `replicaCount: 1`.** If set, every replica would otherwise mount the same named claim — the exact Multi-Attach problem `volumeClaimTemplates` exists to avoid. Leave it unset to let the StatefulSet provision a claim per replica.
+> **`persistence.existingClaim` only works at `replicaCount: 1`.** If set, every replica would otherwise mount the same named claim. Leave it unset to let the StatefulSet provision a claim per replica.
 
 ---
 
@@ -199,6 +164,6 @@ There is no dedicated uninstall workflow for this component yet — to remove it
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
