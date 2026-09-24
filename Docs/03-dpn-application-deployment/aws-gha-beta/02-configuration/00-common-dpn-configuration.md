@@ -26,18 +26,20 @@ Data Preparation Node (DPN) consists of the following components in the DSI pack
 
 ![DPN Architecture Blocks](../../../04-dpn-architecture/images/dpn_components.png)
 
+- **DPN User Interface** - A unified user interface experience for DPN with embedded links for individual DPN component User interfaces for example, Opensearch dashboard, Apache Perses, Jaeger, DPN Vault service, User and Role management, Kafka UI and Federator Job runner
+- **DPN Health Monitoring Service** - Provides health monitoring view of DPN components, metric, traces and logs collector with Open Telemetry data format, Kafka for log consolidation, Opensearch, Jaeger and Apache Perses for logs, Traces and metrics view of individual DPN components in health dashboard
+- **DPN Data Pipelines** — Responsible for producing and consuming data products of an organisation.Scheduler to control DPN data pipeline manual and automatic scheduling
+- **DPN Gateway Service** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes, either via the streamed gRPC Federator or the synchronous REST Federator Gateway.
+- **DPN Data Store Service**
+  - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate material, and Redis caching data.
+  - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission, authenticated via Keycloak (`SASL_SSL`/`OAUTHBEARER`) by default.
 - **DPN Security Service**
   - Vault Service — Certificate regeneration for DSM communication and storage, and the store the Certificate Manager and Federator Gateway build their mTLS keystore/truststore from in memory (no shared file share).
   - Digital Certificate Manager — Manages recycling of certificates at a predefined interval from the DSI Management Node.
   - DPN Authentication Service — Keycloak-based OAuth2/OIDC Identity Provider used for Kafka broker authentication and Keycloak SSO on the DPN observability UIs.
-  - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using GuardDuty Malware Protection for S3 on AWS (Defender for Cloud Storage on Azure)
-- **DPN Data Pipelines** — Responsible for producing and consuming data products of an organisation.
-- **DPN Data Store Service**
-  - Storage — Contains storage accounts or S3 buckets to store files produced by DPN data pipelines, certificate material, and Redis caching data.
-  - Streaming Service — DPN uses Kafka as a streaming service for managing events and topics during data transmission, authenticated via Keycloak (`SASL_SSL`/`OAUTHBEARER`) by default.
-- **DPN Federator Gateway** — Responsible for DSM and DPN authentication, and data transfer between DPN nodes, either via the streamed gRPC Federator or the synchronous REST Federator Gateway.
+  - DPN File Scan Service - Cloud native file scan service for files arriving on Federator Gateway, using Defender for Cloud Storage on Azure or GuardDuty Malware Protection for S3 on AWS
 
-DPN components on an airgapped AWS environment are deployed using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
+DPN components on an airgapped AWS environment are deployed using the **GitHub Actions pipeline**, running on a shared self-hosted runner pool. Deployment is organised into two stages:
 
 - **Continuous Integration (CI)**
 - **Continuous Deployment (CD)**
@@ -67,17 +69,17 @@ The **Continuous Integration (CI)** pipeline performs the following activities:
 3. Tag the generated container images.
 4. Push the images to a container registry.
 
-Organisations may use their own container registry (e.g. Amazon ECR) if permitted by their internal network and security policies, though DSI-provided images are published to GHCR by default.
+Organisations may use their own container registry (e.g. Amazon ECR) if permitted by their internal network and security policies, though DSI-provided images are published to GHCR by default.This is participant responsibility to define and run CI pipelines on their own
 
 ---
 
 ### Continuous Deployment (CD)
 
-The **Continuous Deployment (CD)** pipeline deploys the container images to the **Amazon EKS** cluster using Helm. Each DPN component has its own `workflow_dispatch`-triggered GitHub Actions workflow in `dpn-containerised-deployment-service` (e.g. `dpn-vault-https-cd.yml`), all taking the same core inputs — `environment` (dev/test), `cluster` (dpn01/dpn02), and `cloud` (`aws` for this path) — plus any component-specific inputs (image tag, etc.) documented in that component's section below.
+The **Continuous Deployment (CD)** pipeline deploys the container images to the **AWS EKS** cluster using Helm. 
 
 During deployment, the pipeline performs the following steps:
 
-1. Read the environment/cluster config JSON (`.github/config/aws/<environment>-<cluster>.json`) into the job.
+1. Read the environment/cluster config JSON (`.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`) into the job.
 2. Authenticate to AWS via the shared `cloud-login` composite action — a two-step OIDC role chain (runner → hub role → your account's `oidc_github_runner_admin` role), no long-lived access key involved. See [AWS IAM OIDC Role](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role).
 3. Retrieve credentials for the target EKS cluster (`aws eks update-kubeconfig`).
 4. Validate Helm charts using `helm lint` and a Helm **dry-run**.
@@ -113,13 +115,11 @@ The provided pipelines require the following configuration to perform **CI and C
 
 #### Step2.1: Self-Hosted Runner Set Up
 
-Every CD workflow in `dpn-containerised-deployment-service` runs on the shared self-hosted GitHub Actions runner pool:
+Every CD workflow in `dpn-containerised-deployment-service` runs on the shared self-hosted GitHub Actions runner pool. This runner set up is participant responsibility
 
 ```yaml
 runs-on: [self-hosted, vmss]
 ```
-
-This runner pool is hosted in Azure and reaches both the Azure airgap and AWS airgap environments' clusters via per-cloud OIDC (see [AWS IAM OIDC Role](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role)) — there is no separate agent pool to register or maintain per environment, and nothing in the workflow files needs editing to point at a different pool.
 
 ---
 
@@ -255,6 +255,7 @@ The following firewall rules must be applied by the organisation before installi
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+

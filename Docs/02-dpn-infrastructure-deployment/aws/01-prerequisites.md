@@ -16,7 +16,7 @@ This section introduces the prerequisites for infrastructure deployment.
   - [7. Pre-Deployment Decisions](#7-pre-deployment-decisions)
     - [Minimum Identity Requirements](#minimum-identity-requirements)
     - [Why this matters:](#why-this-matters)
-  - [9. Access and Authentication](#9-access-and-authentication)
+  - [8. Access and Authentication](#8-access-and-authentication)
   
 
 ## Purpose
@@ -89,8 +89,6 @@ The following diagram shows the high-level deployment architecture for the targe
 │  │  • Application/Developer S3 Accounts         │   │
 │  │  • IAM Role for Service Accounts (IRSA)      │   │
 │  │  • AWS Load Balancer Controller              │   │
-│  │  • AWS DB Instance (PostGreSQL)              │   │
-│  │  • Elastic File Service (AWS EFS)            │   │
 │  │  • Management Host                           │   │
 │  │  • Observability Logging S3 Buckets          │   │
 │  └──────────────────────────────────────────────┘   │
@@ -108,7 +106,6 @@ Ensure the AWS Account is ready and validated against the following requirements
 - Regional quota available: Examples
   - EKS Clusters: >= 1
   - EC2 Instances: >= 10 (for Auto Scaling Group)
-  - RDS Instances >= 1
   - VPC/Security Groups: Standard Limits
   - Public IP requirement depends on your organisation network architecture; private deployments may require none
 - Region selected: <aws-region>
@@ -156,7 +153,50 @@ Capture the following planning inputs before deployment begins.
 
 Use the following naming patterns to keep deployed resources consistent.
 
-[Place Holder]
+Resource names combine the project name and environment. Network, KMS and node group resources also carry a `Name` tag, which leads with a short prefix for the resource type.
+
+The following resource names are created by the deployment:
+
+| Resource                                         | Name                                           |
+|--------------------------------------------------|------------------------------------------------|
+| EKS cluster IAM role                             | `<project>-eks-cluster-<env>`                  |
+| EKS node IAM role                                | `<project>-eks-node-<env>`                     |
+| Node security group                              | `<project>-eks-node-<env>`                     |
+| Management host role, instance profile and group | `<project>-mgmt-host-<env>`                    |
+| VPC endpoint security group                      | `<project>-vpce-<env>`                         |
+| VPC flow log role and policy                     | `<project>-vpc-flow-logs-<env>`                |
+| Load balancer controller role                    | `<project>-<env>-aws-load-balancer-controller` |
+| Block storage driver role                        | `<project>-<env>-ebs-csi-driver`               |
+| Workload service account roles                   | `<project>-<env>-<service-account>`            |
+| Container registry repository                    | `<project>/workloads/<env>`                    |
+
+The following `Name` tags are applied by the deployment:
+
+| Resource                 | Tag                                                        |
+|--------------------------|------------------------------------------------------------|
+| VPC                      | `vpc-<project>-<env>-<region>`                             |
+| Internet gateway         | `igw-<project>-<env>-<region>`                             |
+| Subnets                  | `sn-<project>-<tier>-<az>-<env>`                           |
+| Route tables             | `rt-<project>-<tier>-<az>-<env>`                           |
+| Network ACL              | `nacl-<project>-public-<env>`                              |
+| Security groups          | `sg-<project>-eks-node-<env>`, `sg-<project>-vpce-<env>`   |
+| NAT gateway              | `nat-<project>-<az>-<env>`                                 |
+| NAT gateway elastic IP   | `eip-<project>-nat-<az>-<env>`                             |
+| Load balancer elastic IP | `eip-<project>-nlb-<az>-<env>`                             |
+| VPC endpoints            | `vpce-<project>-<env>-<service>`                           |
+| KMS key                  | `kms-<project>-core-<env>`                                 |
+| Node groups              | `ng-<project>-<env>-system`, `ng-<project>-<env>-workload` |
+
+In these patterns `<project>` is the project name, `<env>` the environment and `<region>` the deployment region. `<az>` is the availability zone letter, `<tier>` is one of `public`, `app`, `mgmt` or `data`, `<service>` is the AWS service a VPC endpoint targets, `<service-account>` is the Kubernetes service account name, and `<seq>` numbers a state bucket where an environment has more than one.
+
+The following values are chosen by the deploying organisation rather than generated, so treat these patterns as a convention rather than a constraint:
+
+| Value            | Convention                      |
+|------------------|---------------------------------|
+| EKS cluster name | `eks-<project>-<env>-<region>`  |
+| State bucket     | `<project>-tfstate-<env>-<seq>` |
+| State lock table | `<project>-tfstate-lock-<env>`  |
+| State key        | `<env>/terraform.tfstate`       |
 
 ## 7. Pre-Deployment Decisions
 
@@ -181,7 +221,7 @@ The security module establishes the foundational security infrastructure for the
 - Separates developer access from runtime deployment permissions
 - Supports controlled least-privilege access
 
-## 9. Access and Authentication
+## 8. Access and Authentication
 
 Complete the following access and authentication steps before running deployment commands.
 
@@ -195,7 +235,7 @@ Complete the following access and authentication steps before running deployment
     # Output should show your Account ID and ARN
 
     # Verify region is set
-    aws configure get region  # Should output: eu-west-2
+    aws configure get region  # Should output: <aws-region>
    ```
 
 - Verify Repository Structure:
@@ -205,8 +245,9 @@ Complete the following access and authentication steps before running deployment
 
     # List Modules
     ls -la modules/
-    # Output should show compliance, container_registry, database, eks, ingress, 
-    # networking, observability, security, workload_identity
+    # Modules used by the deployment: app_irsa, aws_load_balancer_controller_irsa,
+    # container_registry, eks, kubernetes_platform, management_host, management_host_iam,
+    # networking, observability, security, storage, workload_identity
 
     # Check environment config exists
     ls -la environments/part.tfvars
