@@ -8,7 +8,7 @@ This document covers the installation of the **DPN REST Federator Gateway** (the
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and keystore/truststore passwords directly from Vault, and its rendered config depends on the `certificate-manager-secrets` Kubernetes secret already existing in the namespace at deploy time (see the configuration guide's [Step2](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step2-configure-secrets)).
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](04-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and keystore/truststore passwords directly from Vault, and its rendered config depends on the `certificate-manager-secrets` Kubernetes secret already existing in the namespace at deploy time (see the configuration guide's [Step2](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step2-configure-secrets)).
 
 ---
 
@@ -16,12 +16,11 @@ This installation page is a quick-reference summary that points to that guide.
 
 - [Overview](#overview)
 - [Step1: Verify Prerequisites](#step1-verify-prerequisites)
-- [Step2: Execute CI/CD](#step2-execute-cicd)
-  - [Step2a. CI (component source repository)](#step2a-ci-component-source-repository)
-  - [Step2b. Configure GHCR Image Access](#step2b-configure-ghcr-image-access)
-  - [Step2c. One-Time Vault AppRole Setup](#step2c-one-time-vault-approle-setup)
-  - [Step2d. Execute CD Workflow](#step2d-execute-cd-workflow)
-  - [Step2e. Verify CD Workflow](#step2e-verify-cd-workflow)
+- [Step2: Execute CD](#step2-execute-cd)
+  - [Step2a. Configure GHCR Image Access](#step2a-configure-ghcr-image-access)
+  - [Step2b. One-Time Vault AppRole Setup](#step2b-one-time-vault-approle-setup)
+  - [Step2c. Execute CD Workflow](#step2c-execute-cd-workflow)
+  - [Step2d. Verify CD Workflow](#step2d-verify-cd-workflow)
 - [Step3: Troubleshooting](#step3-troubleshooting)
   - [Invalid Keystore/Truststore Password](#invalid-keystoretruststore-password)
   - [Pod CrashLoop on First Deploy — Empty Truststore Password](#pod-crashloop-on-first-deploy--empty-truststore-password)
@@ -37,15 +36,16 @@ This installation page is a quick-reference summary that points to that guide.
 The REST Federator Gateway is deployed as **two independently re-runnable jobs** in one GitHub Actions CD workflow run: **deploy-redis** (this chart's own `dpn-redis` cache) followed by **deploy-rest-federator** (the gateway itself).
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
-    └── workflows/
-        ├── dpn-rest-federator-cd.yml
-        └── dpn-rest-federator-role-id-creation.yml
+root/
+└── .pipelines/
+  └── github-actions-pipelines/
+      └── workflows/
+          ├── dpn-gha-rest-federator-cd.yml
+          └── dpn-gha-rest-federator-role-id-creation.yaml
 ```
 
 Key points, detailed in the configuration guide:
-- Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — set up once per environment/cluster via [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy.
+- Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — set up once per environment/cluster via [Step2b](#step2b-one-time-vault-approle-setup) before the first deploy.
 - Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — both provisioned automatically by the CD workflow.
 - A **HorizontalPodAutoscaler** is on by default (`hpa.enabled: true`) — no separate opt-in step.
 - `certificate-manager-secrets` must already exist in the namespace at deploy time — the rendered config's Vault truststore password is resolved via a Helm `lookup` against it, not an environment variable read at pod start-up.
@@ -64,7 +64,7 @@ In summary:
 - OAuth2 client ID + Management Node URL + IDP URLs received from DSM
 - Backend service reachable, with a backend API key available
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
-- **Vault AppRole configured for this component** — run the one-time workflow in [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy
+- **Vault AppRole configured for this component** — run the one-time workflow in [Step2b](#step2b-one-time-vault-approle-setup) before the first deploy
 
 **Note:** Organisations must review the CI/CD workflow code for the following.
 
@@ -73,23 +73,13 @@ In summary:
 - The config JSON's environment parameters are pointing to the correct deployment environment
 - The DSM endpoints are correctly pointing to the respective environment
 - Required firewall rules are applied
-- Both CI and CD are verified for the above prerequisites before execution
+- The CD pipeline is verified for the above prerequisites before execution
 
 ---
 
-## Step2: Execute CI/CD
+## Step2: Execute CD
 
-### Step2a. CI (component source repository)
-
-CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-rest-federator-gateway` source repository itself — separately from the CD workflow below.
-
-Once CI pushes a new tag, note it for use as `imageTag` in [Step2d](#step2d-execute-cd-workflow) — the image registry should show:
-
-```text
-dpn-rest-federator-server:<image tag>
-```
-
-### Step2b. Configure GHCR Image Access
+### Step2a. Configure GHCR Image Access
 
 All custom and third-party images are pulled from `ghcr.io/energy-dsi`. Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably.
 
@@ -103,11 +93,11 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
-### Step2c. One-Time Vault AppRole Setup
+### Step2b. One-Time Vault AppRole Setup
 
-**Run this once per `<environment>-<cluster>` combination, before the first `dpn-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
+**Run this once per `<environment>-<cluster>` combination, before the first `dpn-gha-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
 
-Go to **Actions → DPN CD - REST Federator Role ID Creation → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+Go to **root/.pipelines/github-actions-pipelines/workflows/dpn-gha-rest-federator-role-id-creation.yaml**, and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -117,9 +107,17 @@ Go to **Actions → DPN CD - REST Federator Role ID Creation → Run workflow** 
 
 This enables the `approle` Vault auth method, writes the `rest-federator-policy`, creates/updates the `rest-federator` AppRole role, and publishes `VAULT_APPROLE_ROLE_ID`/`VAULT_APPROLE_SECRET_ID` to AWS Secrets Manager under `dpn/<environment>-<cluster>/rest-federator/`. See [Configure DPN REST Federator Gateway, Step3b](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step3b-configure-vault-authentication) for the full detail and prerequisites (Vault must already be deployed and unsealed, with its admin token in Secrets Manager).
 
-### Step2d. Execute CD Workflow
+### Step2c. Execute CD Workflow
 
-Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+Go to following location to find the CD pipeline and execute on Github Runner
+
+```text
+root/
+└── .pipelines/
+  └── github-actions-pipelines/
+      └── workflows/
+          └── dpn-gha-rest-federator-cd.yaml
+```
 
 | Input | Value |
 |-----------|-------|
@@ -127,11 +125,10 @@ Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** in `dpn-c
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | The image tag pushed in Step2a |
-| `imageRepository` | Leave blank to use the environment's configured registry |
 
 The workflow runs **deploy-redis** then **deploy-rest-federator**. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running Helm. On success, the deployed image digest is captured as a workflow artifact.
 
-### Step2e. Verify CD Workflow
+### Step2d. Verify CD Workflow
 
 ```bash
 kubectl get pods -n <namespace>
@@ -178,7 +175,7 @@ The REST Federator Gateway's 3rd party platform images are found in GHCR with th
 |---|---|
 | Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
 
-There is no separate GHCR-specific workflow to run — [Step2d](#step2d-execute-cd-workflow) above already deploys from these images by default.
+There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from these images by default.
 
 ---
 
@@ -186,4 +183,4 @@ There is no separate GHCR-specific workflow to run — [Step2d](#step2d-execute-
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

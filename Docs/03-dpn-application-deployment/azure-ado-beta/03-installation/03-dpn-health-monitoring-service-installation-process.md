@@ -17,6 +17,7 @@
   - [Config File Not Found for Specific Environment](#config-file-not-found-for-specific-environment)
   - [Deployed Resources Show the Wrong Environment Label](#deployed-resources-show-the-wrong-environment-label)
   - [Kafka/Zookeeper Image Pull Fails](#kafkazookeeper-image-pull-fails)
+  - [OAuth2 Proxy Gateway Fails to Get a LoadBalancer Address (IP/Port Already Claimed)](#oauth2-proxy-gateway-fails-to-get-a-loadbalancer-address-ipport-already-claimed)
 - [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
   - [Step5a. Configure GHCR Image Access](#step5a-configure-ghcr-image-access)
   - [Step5b. Execute CD Pipeline](#step5b-execute-cd-pipeline)
@@ -139,6 +140,29 @@ Confirm Step2a used the **corrected** `ENV_NAME` values
 ### Kafka/Zookeeper Image Pull Fails
 
 Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder must uses a fully-resolved hostname like `acrdpnXXXX.azurecr.io`,, not a literal like only `acrdpnXXXX` placeholder 
+
+### OAuth2 Proxy Gateway Fails to Get a LoadBalancer Address (IP/Port Already Claimed)
+
+**Scenario:** the `OAuth2Proxy` stage's last job (the gateway sharing a port with another internal service — see below) fails, typically during `helm upgrade --wait`, with the Service stuck with no LoadBalancer address, or Azure rejecting the request outright.
+
+**Why this happens:** every `oauth2-proxy` release in `ns-dpn-health-01` shares one fixed internal `loadBalancerIP` (from `OBSERVABILITY_LB_IP`), differing only by port — that's why the jobs are chained rather than parallel (see the comment in `oauth2-proxy-cd.yaml`). That address is only "reserved" by convention, in this pipeline's own config — nothing reserves it at the Azure/subnet level ahead of time. Any other Service in the same subnet that is deployed independently — by a different pipeline, a different repository, possibly into a different namespace, with no `dependsOn` relationship to this one at all — can claim that same address if its own `loadBalancerIP` has not yet been pinned to something else. Left empty (the common "auto-assign on first deploy, then pin whatever Azure gave it" pattern), Azure is free to hand that Service *any* available address in the subnet on its first deploy, including the exact one `OBSERVABILITY_LB_IP` expects to reserve. Whichever Service asks first wins it — this is not specific to any one component; it can be Keycloak, or equally any other independently-deployed internal LoadBalancer Service sharing the subnet. If that Service's port also happens to match one of the oauth2-proxy gateways' ports, that gateway's job then fails to claim the address it expected.
+
+**Fix (unblock the failed deploy):**
+
+1. Identify which other Service actually holds `OBSERVABILITY_LB_IP` right now (e.g. `kubectl get svc -A -o json | jq` filtering on `.status.loadBalancer.ingress[].ip`, across every namespace in the cluster, not just this one).
+2. Do **not** move `OBSERVABILITY_LB_IP` itself — the other oauth2-proxy gateways sharing it on different ports are typically already deployed and working, and moving it would break all of them instead of just the one that failed.
+3. Instead, relocate the other Service off the address it accidentally took:
+   - Identify a genuinely free static IP in the subnet (check with whoever manages that VNet/subnet).
+   - Pin it explicitly in that Service's own chart values (its `loadBalancerIP` field, wherever that chart exposes it) — do not leave it empty.
+   - Redeploy that component so its Service picks up the newly pinned address. Expect a brief outage for it during the LoadBalancer cutover.
+   - If any manual/external DNS record points at that Service's old address, update it to the new one.
+4. Re-run the failed `OAuth2Proxy` stage (or just the one failed job) — the earlier gateway releases are idempotent and unaffected.
+
+**Prevention:**
+
+- Never leave `loadBalancerIP` empty on any internal LoadBalancer Service beyond its very first deploy in a new environment, regardless of which component it belongs to or which pipeline deploys it. The "deploy once with it empty, then pin whatever Azure assigned" convention is exactly what allows one component to silently take an address reserved by convention for another. Pin every fixed-IP Service explicitly before any other component that might race it into existence.
+- Treat `OBSERVABILITY_LB_IP` (and any other fixed internal IP convention) as reserved across the *entire* environment and every namespace in it, not just within the namespace one pipeline deploys into — a collision can come from any independently-deployed component, in any other namespace, deployed by any other pipeline.
+- Where practical, extend a deploy pipeline's own pre-flight port-conflict check to look across all namespaces in the cluster, not only the one it is deploying into — a check scoped to a single namespace cannot catch a cross-namespace collision like this one, regardless of which other component ends up on the other side of it.
 
 ---
 

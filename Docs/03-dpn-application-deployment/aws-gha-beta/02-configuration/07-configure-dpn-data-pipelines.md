@@ -509,9 +509,11 @@ Scheduling configuration on Airflow is **not created automatically** — a Direc
 Root-Repository
   └── charts
         └── airflow/
-              ├── values/aws/<environment>-<cluster>.yaml   <- Environment-specific Airflow overrides
-              └── dags/
-                    └── {product_type}.py   <- One DAG per data product
+          └── values/
+              └── aws/           
+                  ├── <environment>-<cluster>.yaml   <- Environment-specific Airflow overrides
+          └── dags/
+               └── {product_type}.py   <- One DAG per data product
 ```
 
 Every existing DAG under `charts/airflow/dags/` is a copy of the same template — a four-task chain (`trigger_adaptor` → `wait_adaptor_done` → `trigger_schema_mapper` → `wait_schema_mapper_done`) driving the already-running adaptor/schema_mapper pods over Kafka. The `file`-pathway reference DAG (`dpn_producer_file_bp_natural_gas.py`) documents this explicitly in its own docstring and isolates everything that changes per product into one block:
@@ -624,10 +626,11 @@ Every stage that connects to Kafka — producer adaptor/schema mapper and consum
 | KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
 | KAFKA_SSL_CA_LOCATION | Path of a plain CA certificate PEM mounted inside the pod. `build_kafka_client_config()` now reads this PEM directly for TLS trust — the previous fallback that extracted a CA from a password-protected `truststore.jks` (`utils/kafka_truststore.py`) has been removed | `/etc/kafka/secrets/ca.crt` |
 | kafkaTlsSecretName | Kubernetes secret providing the `dpn-tls` volume. It is now mounted as a directory at `/etc/kafka/secrets` (carrying both `ca.crt` and `truststore.jks`), rather than a single `truststore.jks` subPath at `/etc/secrets/truststore.jks` | `dpn-tls` |
-| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
+| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials — must contain a `KC_SERVICE_CLIENT_SECRET` key. (The truststore password is separate — see the note below, sourced from `tls-auth-secret`) | `dpn-keycloak-secrets` (the chart's own default) |
 | OTEL_TRUSTSTORE_PATH | Explicit path to the OTLP truststore, since the application's own default lookup path (`/etc/secrets/truststore.jks`) is no longer where `dpn-tls` is mounted | `/etc/kafka/secrets/truststore.jks` |
 
-> **Note:** the `TRUSTSTORE_PASSWORD` env var (used to open the PKCS12 `truststore.jks` for the OTLP exporter) now reads from the `kafkaOauthSecretName` secret's `KC_HTTPS_TRUST_STORE_PASSWORD` key — the previous key name, `UNIVERSAL_DPN_CERT_PASSWORD`, has been retired. A second `dpn-tls` mount also places the CA at `/etc/pki/tls/certs/ca-bundle.crt`: this confluent-kafka wheel's statically-linked OpenSSL ignores `ssl.ca.location` for OIDC token-endpoint/broker TLS verification and expects a CentOS-style default cert path instead, so the real CA is placed there directly rather than relying on the env var being honoured. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
+> **Note:** the `TRUSTSTORE_PASSWORD` env var (used to open the PKCS12 `truststore.jks` for the OTLP exporter) reads from the **`tls-auth-secret`** secret's `TRUSTSTORE_PASSWORD` key — the same platform-wide secret used elsewhere (see [Configure DPN Vault Service](01-configure-dpn-vault-service.md)), not from `kafkaOauthSecretName`. A second `dpn-tls` mount also places the CA at `/etc/pki/tls/certs/ca-bundle.crt`: this confluent-kafka wheel's statically-linked OpenSSL ignores `ssl.ca.location` for OIDC token-endpoint/broker TLS verification and expects a CentOS-style default cert path instead, so the real CA is placed there directly rather than relying on the env var being honoured. Exact secret key names and the OAuth token exchange flow are documented in the chart's own `README.md` under "Kafka Authentication" — refer there before provisioning `kafkaTlsSecretName` / `kafkaOauthSecretName` for a new environment.
+
 
 ---
 

@@ -28,8 +28,7 @@ The DPN Hashicorp Vault service 3rd party platform images are found in GHCR with
 
 | Purpose | GHCR Path |
 |---|---|
-| Vault | `ghcr.io/energy-dsi/1.0.1/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — see `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) |
-
+| Vault | `ghcr.io/energy-dsi/vault:<latest or DSI provided stable version>` |
 
 ---
 
@@ -57,7 +56,7 @@ Confirm the cluster nodes have outbound HTTPS access to `ghcr.io`, then test a p
 
 ```bash
 kubectl run ghcr-pull-test --rm -it \
-  --image=ghcr.io/energy-dsi/1.0.1/vault:<version> \
+  --image=ghcr.io/energy-dsi/vault:<version> \
   --namespace=<namespace> \
   --command -- echo "Image pull successful"
 ```
@@ -66,13 +65,14 @@ kubectl run ghcr-pull-test --rm -it \
 
 ### Execute CD Pipeline
 
-Trigger the `dpn-vault-https-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists.
+Trigger the `dpn-gha-vault-https-cd.yml` GitHub Actions workflow. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
-    └── workflows/
-        └── dpn-vault-https-cd.yml
+root/
+└── .pipelines/
+  └── github-actions-pipelines/
+      └── workflows/
+          └── dpn-gha-vault-https-cd.yml
 ```
 
 Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
@@ -83,7 +83,7 @@ Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 | `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
 | `cloud` | `aws` |
 | `vaultImageTag` | Release version or image tag to pull from GHCR — default `1.16` |
-| `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `1.0.1/vault`) — leave blank to use the environment's configured repository |
+| `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `vault`) — leave blank to use the environment's configured repository |
 | `runVaultInit` | Enable KV v2 + audit logging — default `true`, safe to re-run |
 | `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`; on Azure, `VAULT-TOKEN` in Key Vault. See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
 
@@ -109,4 +109,4 @@ The kubectl logs should not showcase any [error] message if the deployment is su
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
