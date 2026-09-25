@@ -107,8 +107,9 @@ Set the parameters below in your environment/cluster's values file. The CD workf
 dpn-federator-cert-manager/
   └── charts/
         └── certificate-manager/
-              ├── values.yaml   <- Reference file; do not edit directly
-              └── values-<environment>-<cluster>.yaml <- Your environment overrides
+          └── values/
+              └── aws/   
+                └── <environment>-<cluster>.yaml <- Your environment overrides
 ```
 
 DSI proposes only the selective changes below; other parameters may be customised if required. All of these map to container environment variables via the chart ConfigMap.

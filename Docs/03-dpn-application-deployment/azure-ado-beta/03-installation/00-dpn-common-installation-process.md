@@ -33,6 +33,7 @@ This document is the starting point for installing and deploying **DPN component
 
 The deployment uses the following repositories:
 
+- https://github.com/energy-dsi/dpn-authentication-service
 - https://github.com/energy-dsi/dpn-federator.git
 - https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 - https://github.com/energy-dsi/dpn-data-pipelines.git
