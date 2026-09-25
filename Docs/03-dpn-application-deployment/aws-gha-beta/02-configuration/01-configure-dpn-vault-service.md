@@ -78,6 +78,24 @@ _**Note:** Organisations operating DPNs behind Cloudflare or equivalent infrastr
 
 ---
 
+### Where secrets live
+
+This page touches five genuinely different secret stores — use this table to check where any given item actually lives before searching for it in the wrong place:
+
+| Item | Where it lives | Notes |
+|---|---|---|
+| `keypair`, `certificate`, `ca-chain`, `intermediate-ca`, `keystore-password`, `truststore-password` | **Vault's own KV-v2 store** (`pki-client/node-net/client/*`) | Not a Kubernetes Secret, not Secrets Manager — internal to Vault itself |
+| `VAULT_TLS_CERT`, `VAULT_TLS_KEY` (`secretsManager.secretPrefix`) | **AWS Secrets Manager**, synced via the CSI `SecretProviderClass` | Mounted into the Vault pod at `/vault/tls` |
+| `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` (Step 3A's actual publish target today) | **Azure Key Vault only**, even when `cloud: aws` | Known limitation — see [Step 2b](#step-2b-vault-helm-values) |
+| `truststore.jks` (Step 3A output) | **Kubernetes Secret** `cert-manager-truststore` | Plain K8s object, not Secrets Manager |
+| `vault.csr`, `server.csr`, full Step 3A working set (incl. private keys) | **GitHub Actions workflow artifact** (1-day retention) | Ephemeral CI download — download and delete, not a persistent store |
+| `VAULT_TOKEN` (root token, Step 3B) | **AWS Secrets Manager** `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`, or **Azure Key Vault** `VAULT-TOKEN` | Cloud-branched, only written if `storeRootTokenInSecretsBackend: true` |
+| Full Vault init output (root token + recovery keys) | **GitHub Actions workflow artifact** `vault-init-output-<environment>-<cluster>` (1-day retention) | Separate from the `VAULT_TOKEN` copy above |
+| `VAULT_KEY`, `CERTIFICATE_PEM`, `CA_CHAIN_PEM` (Step 3C inputs) | **GitHub Actions secrets** (repo/environment level) | A fourth, distinct store |
+| `VAULT_APPROLE_ROLE_ID`, `VAULT_APPROLE_SECRET_ID` | **AWS Secrets Manager**, component-suffixed path (e.g. `.../certificate-manager/VAULT_APPROLE_SECRET_ID`) | Or Azure Key Vault, component-suffixed name |
+
+---
+
 ## Automated Vault Configuration
 
 The automated flow uses four GitHub Actions workflows:
@@ -260,11 +278,11 @@ The Vault root token is a single, all-privileges credential — every component 
 >
 > That said, Vault token authentication is **not** the only option available today: the Federator Gateway's real AWS environment already runs on AppRole by **pointing `vaultConfig.appRole.roleId` directly at the Certificate Manager's own `role_id`** and reusing its `secret_id` — no dedicated provisioning workflow needed, since the identity already exists. This shares one component's scoped credential with another rather than giving the Federator Gateway its own least-privilege policy, so treat it as a pragmatic stopgap rather than the end-state design below — but it works, and is what's actually deployed. See [Configure DPN Federator Gateway, Step1](05-configure-dpn-federator-gateway.md#step1-meet-prerequisites).
 
-Once available, the workflow would run once per component, per environment, **after** Vault is deployed and initialised (Step 3B), taking `environment`, `cluster`, `cloud`, and `component` (the Vault-consuming component to provision an AppRole identity for, e.g. `certificate-manager`) as inputs. It would run `setup-approle.sh` inside the Vault pod (using the admin `VAULT-TOKEN` from Key Vault) to:
+Once available, the workflow would run once per component, per environment, **after** Vault is deployed and initialised (Step 3B), taking `environment`, `cluster`, `cloud`, and `component` (the Vault-consuming component to provision an AppRole identity for, e.g. `certificate-manager`) as inputs. It would run `setup-approle.sh` inside the Vault pod, using the admin token from the cloud secrets backend (AWS Secrets Manager dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN, or Azure Key Vault VAULT-TOKEN), to: 
 
 1. Write a least-privilege policy scoped to that component's own paths under `pki-client/node-net/client/*`.
 2. Create/update an AppRole role bound to that policy (`token_ttl=1h`, `token_max_ttl=4h`, non-expiring `secret_id`).
-3. Publish the generated **secret-id** to Key Vault as `VAULT-APPROLE-SECRET-ID` (consumed automatically by the component's `SecretProviderClass`), and print the **role-id** for you to copy into that component's Helm values.
+3. Publish the generated **secret-id** to the same cloud secrets backend, component-suffixed (AWS: dpn/<environment>-<cluster>/<component>/VAULT_APPROLE_SECRET_ID) consumed automatically by the component's `SecretProviderClass`, and print the **role-id** for you to copy into that component's Helm values.
 
 > **Key Vault governance note:** the `VAULT-APPROLE-SECRET-ID` Key Vault secret is stamped with a 355-day expiry to satisfy Key Vault's maximum-validity policy. The underlying Vault secret-id itself does not expire — **re-run this pipeline before the Key Vault copy expires** to rotate it, then redeploy the component to pick up the refreshed value.
 
@@ -276,7 +294,7 @@ vault:
   appRole:
     roleId: <role_id from the setup output>
     useSecretIdRef: true
-    secretIdSecretName: <component>-secrets   # synced from Key Vault via the CSI driver
+    secretIdSecretName: <component>-secrets # synced from the cloud secrets backend via the CSI driver
     secretIdSecretKey: VAULT_APPROLE_SECRET_ID
 ```
 
