@@ -140,17 +140,18 @@ The workflows resolve environment settings from `.github/config/aws/<environment
 Set the values below in your environment/cluster's values file. DSI proposes only these selective changes; other parameters may be customised if required.
 
 ```text
-dpn-federator-cert-manager/
+root/
   └── charts/
-        └── vault-https/
-              ├── values.yaml                            <- Reference file; do not edit directly
-              └── values/aws/<environment>-<cluster>.yaml <- Your environment overrides
+        └── vault-https/  
+          └── values/
+              └── aws/          
+                 └──<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `cloudProvider` | **Set to `aws`.** Selects AWS KMS auto-unseal, the IRSA ServiceAccount, the AWS-native `SecretProviderClass`, and the NLB service annotations below; the chart's own default is `azure` | `aws` |
-| `image.repository` | Complete URL of the Vault image | `ghcr.io/energy-dsi/1.0.1/vault` |
+| `image.repository` | Complete URL of the Vault image | `ghcr.io/energy-dsi/vault` |
 | `image.tag` | Vault image tag (also overridable at runtime) | `1.16` |
 | `namespace` | Kubernetes namespace | `ns-dpn-01` |
 | `persistence.storageClassName` | Persistent volume StorageClass — an EBS-backed class (`gp2`/`gp3`), **not** the `efs-sc` class used by Certificate Manager's file share; Vault needs a `ReadWriteOnce` volume | `gp3` |

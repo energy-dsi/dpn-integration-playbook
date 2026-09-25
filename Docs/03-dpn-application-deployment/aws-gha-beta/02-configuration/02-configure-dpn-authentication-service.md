@@ -103,8 +103,9 @@ Set the parameters below in your environment/cluster's values file.
 root/
   └── charts/
         └── keycloak/
-              ├── values.yaml    <- Reference file; do not edit directly
-              └── values-<environment>-<cluster>.yaml <- Your environment + cluster overrides
+          └── values/
+              └── aws/           
+                └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 | Parameter | Purpose | Example (placeholder) |
@@ -144,7 +145,7 @@ root/
 └── .pipelines/
     └── github-actions-pipelines/
       └── workflows/
-          └── dpn-keycloak-cd.yml
+          └── dpn-gha-keycloak-cd.yml
 ```
 
 The workflow runs `helm lint` + dry run, then `helm upgrade --install` (rolling out `dpn-keycloak-postgres` as a Deployment and `dpn-keycloak` itself as a StatefulSet — the rollout-status check uses the matching resource kind for each), then **automatically configures the realm** (see below), and records the deployed image digest as a workflow artifact. There is no ADO-style approval gate built in — configure a required reviewer on the GitHub Environment (`<environment>-<cluster>`) if you want a manual sign-off before deploy.

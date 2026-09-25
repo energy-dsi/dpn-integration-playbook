@@ -34,14 +34,16 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-Keycloak is deployed with the `dpn-keycloak-cd.yml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
+Keycloak is deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
 
 Unlike the source-built DPN components, this service does **not** build a custom image via a CI pipeline — it deploys stock upstream images (`keycloak/keycloak` and `postgres`), pulled via GHCR by default, so there is no separate CI stage to configure.
 
 ```text
-github-pipeline/
-    └── workflows/
-        └── dpn-keycloak-cd.yml
+root/
+└── .pipelines/
+  └── github-actions-pipelines/
+      └── workflows/
+          └── dpn-gha-keycloak-cd.yml
 ```
 
 ---
