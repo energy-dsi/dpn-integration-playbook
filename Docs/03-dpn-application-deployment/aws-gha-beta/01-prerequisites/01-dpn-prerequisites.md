@@ -13,7 +13,6 @@
     - [Access Requirements](#access-requirements)
       - [GitHub Access](#github-access)
       - [AWS IAM OIDC Role](#aws-iam-oidc-role)
-      - [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential)
       - [EKS Access](#eks-access)
       - [Data Pipeline Access](#data-pipeline-access)
   - [Security Prerequisites](#security-prerequisites)
@@ -28,7 +27,7 @@
 
 This section lists the prerequisites that must be completed **before installing DPN nodes into an AWS environment using the automated GitHub Actions deployment pipeline**.
 
-This is the path for organisations deploying a DPN into their own **AWS environment** (an AWS account outside NESO's own cloud, reachable only via the shared self-hosted GitHub Actions runner). It does not apply to DPN instances hosted directly on NESO's own Azure cloud — see [Azure (ADO)](../azure-ado-beta/01-prerequisites/01-dpn-prerequisites.md) for that path instead.
+This is the path for organisations deploying a DPN into their own **AWS environment** 
 
 The prerequisites are grouped into the following categories:
 
@@ -71,13 +70,13 @@ The following softwares must be available on the machine(s) used to configure DP
 
 DPN repositories required:
 
-- [DPN-Infra](https://github.com/energy-dsi/dpn-infra-deployment)  
+- [DPN-Infra](https://github.com/energy-dsi/dpn-infrastructure-aws)  
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
 - [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator-gateway)
 - [DPN-Rest-Federator-Gateway](https://github.com/energy-dsi/dpn-rest-federator-gateway)
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
-- [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
 - [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
 
 ### Optional Tools
@@ -110,7 +109,7 @@ The following configuration is recommended to securely operate DPN nodes on the 
 DSI recommends this approach as a **secure and best-practice model**.
 
 - Use private subnets and VPC endpoints wherever possible  
-- Use the shared **self-hosted GitHub Actions runner pool** (`[self-hosted, vmss]`) rather than GitHub-hosted runners — note this runner pool is itself hosted in Azure and reaches this AWS account over OIDC, the same pool used for the Azure airgap path  
+- Use **self-hosted GitHub Actions runner pool** (`[self-hosted, vmss]`) rather than GitHub-hosted runners 
 - Use **Identity and Access Management (IAM) Roles** instead of long-lived static credentials  
 - Enable **encryption of data at rest and in transit**  
 - Follow a **Zero Trust security model**
@@ -126,18 +125,9 @@ The following access configurations are required for DPN deployment.
 
 #### AWS IAM OIDC Role
 
-An **IAM role in your target AWS account**, named `oidc_github_runner_admin`, with:
+An **IAM role in your target AWS account**, with:
 
-- A trust policy allowing the centrally-managed hub role (`arn:aws:iam::950639282434:role/oidc_github_runner_hub`) to assume it via `sts:AssumeRole`
-- Permissions scoped to what DPN deployment actually needs — at minimum EKS cluster access, plus IAM/S3/EFS/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
-
-See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential) below for how this fits into the pipeline's authentication chain.
-
-#### GitHub Actions OIDC Federated Credential
-
-- The **hub role** (`arn:aws:iam::950639282434:role/oidc_github_runner_hub`) is centrally managed by the DSI/NESO platform team — your organisation does not create or manage it.
-- The pipeline's shared `cloud-login` composite action authenticates by having the runner's GitHub OIDC token assume the hub role, which then role-chains into your organisation's own `oidc_github_runner_admin` role (see [AWS IAM OIDC Role](#aws-iam-oidc-role)) — no client secret or long-lived AWS access key to create or rotate.
-- **AWS Secret Manager** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **AWS Secret Manager**. 
+- Permissions scoped to DPN deployment actually needs at minimum EKS cluster access, plus IAM/S3/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
 
 #### EKS Access
 
@@ -210,11 +200,9 @@ If a certificate expires before automatic renewal has taken place — for exampl
 
 Organisations should factor this recovery process into their operational runbooks so that certificate expiry does not result in extended loss of connectivity to the DSI network.
 
-While the DSM is capable of issuing short-lived certificates and the DPN includes built-in capability to renew them automatically before expiry, the current certificate validity period is set to 60 days. This decision is driven by a known constraint affecting organisations that deploy their DPN behind Cloudflare or an equivalent reverse proxy or edge security layer. In such deployments, enterprise security policies may be configured to terminate mTLS at the Cloudflare boundary rather than passing it through end-to-end. Where mTLS is terminated at Cloudflare, the certificate installed at that layer is outside the DPN's automated renewal process — meaning that when a certificate is renewed by the DPN, the updated certificate must also be manually installed at the Cloudflare boundary. A shorter certificate lifetime would increase the frequency of this manual intervention. Setting the validity period to 60 days balances the security benefit of certificate rotation against the operational burden of manual installation at the proxy layer.
+While the DPN certificates expire in every 24 Hrs, there may be a need for participants to install certificates to their Edge Proxies e.g. Cloudflare or Akamai to do mTLS negotiation. A 24 Hrs TTL certificate is too short life time . Considering this challenge DSM also provides a server sign certificate with 60 days TTL. The server sign certificate generation process is similar and can be referenced from the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md).
 
-This constraint is under active review. Solutions have been identified that are expected to address 24 hrs certificate TTL back from 60 days while issuing a different certificate for proxy-terminated mTLS deployments. The additional long term TTL certificate to be provided from a different endpoint and serves only the purpose of client authentication at edge proxies for DPN. This longer TTL certificate can not be used for DSM authentication or any client certificate. This change is targeted for delivery in PI4.
-
-_**Note:** Organisations operating DPNs behind Cloudflare or equivalent infrastructure should factor the current manual renewal process into their operational runbooks until this capability is available and also actively monitor the expiry of the certificate installed outside the DPN certificate manager component since DSI does not generate any alert on certificate expiry at this moment._
+_**Note:** Organisations operating DPNs behind Cloudflare or equivalent infrastructure should factor the manual renewal process into their operational runbooks until this capability is available and also actively monitor the expiry of the certificate installed outside the DPN certificate manager component since DSI does not generate any alert on certificate expiry at this moment.Also this server certificate can not be used in the DPN Federtor Gateway client to do authentication with DSM_
 
 ---
 ## Skills Prerequisites
@@ -231,7 +219,7 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 The prerequisites described in this document assume the following:
 
 - The organisation plans to deploy **DPN on an AWS cloud infrastructure**  
-- Deployment (CD) runs via the GitHub Actions pipeline**, executed on the shared self-hosted runner pool, into the organisation's AWS landing zone (EKS)
+- Deployment (CD) runs via the GitHub Actions pipeline, executed on the shared self-hosted runner pool, into the organisation's AWS landing zone (EKS)
 
 ---
 ## Review Notes
