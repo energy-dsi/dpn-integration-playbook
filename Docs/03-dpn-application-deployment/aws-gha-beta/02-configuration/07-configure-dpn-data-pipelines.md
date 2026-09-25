@@ -509,9 +509,11 @@ Scheduling configuration on Airflow is **not created automatically** — a Direc
 Root-Repository
   └── charts
         └── airflow/
-              ├── values/aws/<environment>-<cluster>.yaml   <- Environment-specific Airflow overrides
-              └── dags/
-                    └── {product_type}.py   <- One DAG per data product
+          └── values/
+              └── aws/           
+                  ├── <environment>-<cluster>.yaml   <- Environment-specific Airflow overrides
+          └── dags/
+               └── {product_type}.py   <- One DAG per data product
 ```
 
 Every existing DAG under `charts/airflow/dags/` is a copy of the same template — a four-task chain (`trigger_adaptor` → `wait_adaptor_done` → `trigger_schema_mapper` → `wait_schema_mapper_done`) driving the already-running adaptor/schema_mapper pods over Kafka. The `file`-pathway reference DAG (`dpn_producer_file_bp_natural_gas.py`) documents this explicitly in its own docstring and isolates everything that changes per product into one block:

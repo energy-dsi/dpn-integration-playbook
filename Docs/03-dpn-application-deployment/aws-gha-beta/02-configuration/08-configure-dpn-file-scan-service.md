@@ -94,11 +94,11 @@ dpn-containerised-deployment-service/
 | `AWS_ACCOUNT_ID` | AWS account ID | `<account-id>` |
 | `EKS_CLUSTER` | EKS cluster name | `eks-dpn-dev-01-eu-west-2` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
-| `IMAGE_REGISTRY` | Base registry URL | `ghcr.io/energy-dsi/1.0.1` |
+| `IMAGE_REGISTRY` | Base registry URL | `ghcr.io/energy-dsi` |
 | `FILESCAN_SOURCE_BUCKET` | S3 bucket GuardDuty scans (source/raw uploads) | `dp-consumer-raw-dev-01-<account-id>-<region>` |
 | `FILESCAN_DEST_BUCKET` | S3 bucket clean files are copied to | `dpn-dev-01-dp-consumer-stage-<account-id>-<region>` |
-| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings2` |
-| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-dev-01-file-scan-results2` |
+| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings` |
+| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-dev-01-file-scan-results` |
 
 > **No `KEY_VAULT_NAME` or IRSA-role-ARN key in this JSON file.** The IAM permissions come entirely from the IRSA role already attached to the ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)), which this config file does not need to reference — there is no `FILESCAN_IRSA_ROLE_ARN`-style key. This component's real AWS config file also carries no `KEY_VAULT_NAME` entry at all: nothing in its GitHub Actions workflow reads one.
 | OTEL_EXPORTER_OTLP_ENDPOINT | OTel collector's OTLP endpoint. Defaults to the HTTPS endpoint on port `4318` | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
@@ -113,8 +113,9 @@ Set the parameters below in your environment/cluster's values file. The CD workf
 dpn-file-scan/
   └── charts/
         └── file-scan-service/
-              ├── values.yaml                              <- Reference file; do not edit directly
-              └── values/aws/<environment>-<cluster>.yaml <- Your environment overrides
+          └── values/
+              └── aws/           
+                ├──<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
 The following values to be modified in that file
@@ -150,7 +151,7 @@ The service's OAuth client credentials (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SE
 
 When `secretsManager.enabled: true`, both `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` must already exist under `secretsManager.secretPrefix` before the first deploy, and the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) must additionally grant `secretsmanager:GetSecretValue` on that prefix. Leave `secretsManager.enabled: false` (the default) for an environment that isn't provisioned for this yet.
 
-> **Note:** `dpn-file-scan-prerequisites-cd.yml` (run with `cloud: aws`) can create both Secrets Manager entries for you if they don't already exist — it seeds each with a `REPLACE_ME` placeholder value, which must be updated with the real credential before the service relies on it. It leaves an existing secret's value untouched.
+> **Note:** `dpn-gha-file-scan-prerequisites-cd.yml` (run with `cloud: aws`) can create both Secrets Manager entries for you if they don't already exist — it seeds each with a `REPLACE_ME` placeholder value, which must be updated with the real credential before the service relies on it. It leaves an existing secret's value untouched.
 
 ---
 
