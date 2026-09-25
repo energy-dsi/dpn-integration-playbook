@@ -22,7 +22,6 @@
   - [Emergency Certificate Rotation Process](#emergency-certificate-rotation-process)
   - [Certificate Sync Job Failing](#certificate-sync-job-failing)
   - [Federator Connection Failing](#federator-connection-failing)
-  - [Invalid Client Credential](#invalid-client-credential)
 - [Review Notes](#review-notes)
 
 ---
@@ -328,16 +327,6 @@ u.g.d.n.f.c.s.i.IdpTokenServiceMtlsImpl - No cached token in Redis for default m
 ```
 
 Verify that the mutual TLS certificates are correctly loaded in Vault and that the Vault and certificate manager pods are in a healthy running state — the keystore/truststore are built in memory from that Vault material, so there is no on-disk path to inspect.
-
----
-
-### Invalid Client Credential
-
-An "Invalid client credential" error can arise due to a mismatch in the IDP client secret (`OAUTH2-CLIENT-SECRET`), which may occur following a periodic rotation carried out at the DSM side that renders the secret invalid at the DPN end.
-
-```
-Recommended fix: Obtain the updated client secret for the Client ID from DSM by raising a request with the DSM team.
-```
 
 ---
 
