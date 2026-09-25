@@ -58,7 +58,7 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-tls-cd` pipeline — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd) |
 | 3 | **Vault credentials available** | Either `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init stage) or, if using the recommended AppRole method, `VAULT-APPROLE-SECRET-ID` plus a `role_id` — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication). `tls-auth-secret` (from `dpn-tls-cd`) supplies the truststore password either way |
 | 4 | **AKS cluster** + (if using Azure Key Vault for secrets) a **user-assigned managed identity** and the **Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
-| 5 | **OAuth2 client ID, client secret, and Management Node URL** | Received from DSM during onboarding to establish the DPN connection |
+| 5 | **OAuth2 client ID and Management Node URL** | Received from DSM during onboarding to establish the DPN connection — authentication is JWT-based, no client secret is issued |
 | 6 | **Certificate Manager container image available** | Built via the DSI-provided CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD pipeline as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
 | 7 | **`config/<env>.json` and `values-<env>.yaml` populated** | See [Pre-Deployment Configuration](#step3-environment-configuration) |
 
@@ -167,7 +167,6 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 |------------|-------------------------|---------|-----------------------|
 | `VAULT-APPROLE-SECRET-ID` *(recommended)* | `certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID` | AppRole secret-id for the Certificate Manager, from `vault-approle-setup-cd` | `<generated secret-id>` |
 | `VAULT-TOKEN` | `certificate-manager-secrets` / `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault (from Vault init) — only used when `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
-| `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `OAUTH2_CLIENT_SECRET` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
 
 > **Note:** `VAULT-APPROLE-SECRET-ID` is produced by the `vault-approle-setup-cd` pipeline (see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended)). `VAULT-TOKEN` is produced during Vault setup by the Vault init stage (`storeRootTokenInAkv: true`) and is only needed if you have not migrated to AppRole. Confirm whichever you use exists in Key Vault before deploying.
 

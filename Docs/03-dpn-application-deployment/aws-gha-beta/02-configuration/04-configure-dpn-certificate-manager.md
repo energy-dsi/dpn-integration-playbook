@@ -53,7 +53,7 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-vault-tls-bootstrap-cd.yml` workflow |
 | 3 | **Vault credentials available** | `VAULT-TOKEN`/`VAULT_TOKEN` (root token) and the truststore password required either way — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication) and [Step3b](#step3b-configure-secrets) for where each lives per secrets backend |
 | 4 | **EKS cluster** + either a AWS Secrets Manager-reachable identity or an IRSA-annotated ServiceAccount | Required `secretsManager.enabled: true` |
-| 5 | **OAuth2 client ID, client secret, and Management Node URL** | Received from DSM during onboarding to establish the DPN connection |
+| 5 | **OAuth2 client ID and Management Node URL** | Received from DSM during onboarding to establish the DPN connection — authentication is JWT-based, no client secret is issued |
 | 6 | **Certificate Manager container image available** | Prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD workflow as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
 | 7 | **Config JSON and values file populated, with `cloudProvider: aws` set** | See [Pre-Deployment Configuration](#step3-environment-configuration) — the chart's own `cloudProvider` default is `azure` |
 
@@ -185,7 +185,6 @@ The `SecretProviderClass` pulls the following from `<secretsManager.secretPrefix
 | `MTLS_KEYSTORE_PASSWORD` | `MTLS_KEYSTORE_PASSWORD` | Reserved for a future/manual keystore path — unused while the in-memory keystore is ephemeral |
 | `MTLS_TRUSTSTORE_PASSWORD` | `MTLS_TRUSTSTORE_PASSWORD` | Same, for the truststore |
 | `VAULT_TOKEN` | `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault — required while `vault.authentication: TOKEN` |
-| `OAUTH2_CLIENT_SECRET` | `OAUTH2_CLIENT_SECRET` | Client secret for the Management Node OAuth2 client |
 | `VAULT_TRUSTSTORE_PASSWORD` | `VAULT_SSL_TRUST_STORE_PASSWORD` | Password for `truststore.jks` — same app-side env var as the Azure path above |
 | `VAULT_APPROLE_SECRET_ID` *(only when `vault.authentication: APPROLE`)* | `VAULT_APPROLE_SECRET_ID` | AppRole secret-id, from `dpn-certificate-manager-role-id-creation.yml` (see [Step2](#step2-configure-vault-authentication)) |
 
