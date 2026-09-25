@@ -29,7 +29,7 @@
 
 ## Overview
 
-This document is the starting point for installing and deploying **DPN components into an airgapped AWS environment** using the **`dpn-containerised-deployment-service` GitHub Actions pipeline** — the same pipeline mechanism used for the Azure airgap path, run with `cloud: aws`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
+This document is the starting point for installing and deploying **DPN components into an AWS environment** using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, run with `cloud: aws`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
 
 The deployment uses the following repositories:
 
