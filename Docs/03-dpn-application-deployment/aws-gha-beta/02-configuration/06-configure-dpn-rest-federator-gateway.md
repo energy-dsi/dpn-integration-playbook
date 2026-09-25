@@ -88,8 +88,9 @@ Set the parameters below in your environment/cluster's values file.
 dpn-rest-federator-gateway/
   └── charts/
         └── dpn-rest-federator/
-              ├── values.yaml    <- Reference file; do not edit directly
-              └── values-<environment>-<cluster>.yaml <- Your environment + cluster overrides
+          └── values/
+              └── aws/   
+                └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 ### Step3a: Configure the Gateway

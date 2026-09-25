@@ -55,7 +55,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 
 - The keystore/truststore **passwords are read from Vault** at start-up (`vaultConfig.keystorePasswordPath` / `truststorePasswordPath`) — they are **not** stored as Federator Key Vault secrets.
 
-- The gateway can authenticate to Vault either via the Vault root token (`vaultConfig.authMethod: token`) or, on this AWS path, by **sharing the Certificate Manager's own AppRole identity** (`vaultConfig.authMethod: approle`, `vaultConfig.appRole.roleId` set to the Certificate Manager's `role_id`) — there is no dedicated per-component AppRole-provisioning workflow for the Federator Gateway yet, but reusing an already-provisioned identity works today and is the pattern the real AWS environment uses. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available).
+- The gateway can authenticate to Vault either via the Vault root token (`vaultConfig.authMethod: token`) or, on this AWS path, by **sharing the Certificate Manager's own AppRole identity** (`vaultConfig.authMethod: approle`, `vaultConfig.appRole.roleId` set to the Certificate Manager's `role_id`) — there is no dedicated per-component AppRole-provisioning workflow for the Federator Gateway yet, but reusing an already-provisioned identity works today and is the pattern the real AWS environment uses. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication).
 
 - The only Federator secrets in Key Vault are the **S3 access credentials** (one for the Server, a separate one for the Client) and, if using AppRole, the Vault `secret-id`.
 
@@ -76,7 +76,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
-| 4 | **Vault authentication configured** | Set `vaultConfig.authMethod:` `approle` reusing the Certificate Manager's already-provisioned `role_id`/`secret_id`. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) |
+| 4 | **Vault authentication configured** | Set `vaultConfig.authMethod:` `approle` reusing the Certificate Manager's already-provisioned `role_id`/`secret_id`. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication) |
 | 5 | **EKS cluster**, and an identity that can reach Azure Key Vault | Needed if using Key Vault-sourced secrets; see [Step2](#step2-configure-secrets) |
 | 6 | **S3 bucket credentials created** | The two IAM credentials/roles — see [Step2: Configure Secrets](#step2-configure-secrets) |
 | 7 | **S3 buckets provisioned** | The **Server's** bucket, and the **File Scan Service source** bucket used by the **Client** |
@@ -117,8 +117,9 @@ The gateway chart is `dpn-federator-gateway/charts/dpn-platform` in `dpn-contain
 dpn-federator-gateway/
   └── charts/
         └── dpn-platform/
-              ├── values.yaml                              <- Default settings for all components; do not edit directly
-              └── values/aws/<environment>-<cluster>.yaml <- Your environment + cluster overrides
+          └── values/
+              └── aws/   
+                └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 > All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at the container registry via `image.repository`. Set these to your registry, e.g. `ghcr.io/energy-dsi/<image>`. Only the parameters most likely to change per deployment are listed below.
@@ -196,7 +197,7 @@ root/
 └── .pipelines/
     └── github-actions-pipelines/
       └── workflows/
-          └── dpn-federator-gateway-cd.yml
+          └── dpn-gha-federator-gateway-cd.yml
 ```
 
 `workflow_dispatch` inputs:
@@ -207,8 +208,8 @@ root/
 | `cluster` | The **single** target DPN cluster — `dpn01` or `dpn02`. Deploy one cluster at a time; the Client is configured for this one cluster |
 | `cloud` | `aws` |
 | `imageTag` | Tag of the Federator images to deploy (from the CI build or prebuilt DSI image) |
-| `serverImageRepository` | Optional — override the Server image path after `ghcr.io/energy-dsi/` for this run only (e.g. `1.0.1/dpn-federator-server`). Leave blank to use the environment's configured repository |
-| `clientImageRepository` | Optional — same override for the Client image path (e.g. `1.0.1/dpn-federator-client`). Leave blank to use the environment's configured repository |
+| `serverImageRepository` | Optional — override the Server image path after `ghcr.io/energy-dsi/` for this run only (e.g. `dpn-federator-server`). Leave blank to use the environment's configured repository |
+| `clientImageRepository` | Optional — same override for the Client image path (e.g. `dpn-federator-client`). Leave blank to use the environment's configured repository |
 
 To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as a workflow artifact.
 
