@@ -51,7 +51,8 @@ Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS
 
 ## Step2: Configure Secrets
 
-The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error (the `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` value is checked the same way even though it isn't CSI-mounted — it's fetched separately and handed to `configure-keycloak.sh`, see [Step5](#step5-configure-deployment-parameters)). 
+
+The deploy pipeline reads the required secret names out of the rendered `SecretProviderClass` and fails fast if any is missing, rather than letting the pod fail with an opaque CSI mount error. All five secrets below — including `KC_SERVICE_CLIENT_SECRET` — are CSI-mounted into the pod the same way, via the <release>-keycloak-secrets Kubernetes Secret. `KC_SERVICE_CLIENT_SECRET` is additionally re-fetched a second time, directly from AWS Secrets Manager, by the CD workflow itself — since `configure-keycloak.sh` runs on the GitHub Actions runner via port-forward, not inside the pod, it needs its own copy rather than reading it out of the pod's env (see [Step5] (#step5-configure-deployment-parameters)).
 
 **AWS Secrets Manager**
 
@@ -63,9 +64,12 @@ AWS Secrets Manager is a cloud native AWS component that requires a service acco
 | `KEYCLOAK_ADMIN_PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account |
 | `KC_HTTPS_KEY_STORE_PASSWORD` | `KC_HTTPS_KEY_STORE_PASSWORD` | Opens `keystore.jks` |
 | `KC_HTTPS_TRUST_STORE_PASSWORD` | `KC_HTTPS_TRUST_STORE_PASSWORD` | Opens `truststore.jks` |
-| `KC_SERVICE_CLIENT_SECRET` | `KC_SERVICE_CLIENT_SECRET` | Same purpose as the Key Vault entry above |
+| `KC_SERVICE_CLIENT_SECRET` | `KC_SERVICE_CLIENT_SECRET` | Keycloak pod (via `envFrom`) and `configure-keycloak.sh` (fetched separately by the CD workflow) 
 
 Example `secretPrefix`: `dpn/<environment>-<cluster>/keycloak`.
+
+> **Note — two different secret sources on this page.** Everything in the table above lives in **AWS Secrets Manager** and is synced into the cluster automatically via the CSI Secrets Store driver — nothing here needs a manual `kubectl create secret`. `dpn-tls` (Step1 prerequisite #2, configured in [Step3](#step3-configure-tls)) is a different, unrelated thing: a plain **Kubernetes** `Opaque` Secret created ahead of time by a separate TLS bootstrap process, not part of this AWS Secrets Manager flow at all.
+
 
 ---
 
