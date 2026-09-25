@@ -214,6 +214,7 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 - AWS Administrator  
 
 ---
+## Assumptions
 
 The prerequisites described in this document assume the following:
 
