@@ -20,6 +20,7 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
   - [Step3a: Configure the Gateway](#step3a-configure-the-gateway)
   - [Step3b: Configure Vault Authentication](#step3b-configure-vault-authentication)
   - [Step3c: Configure Autoscaling](#step3c-configure-autoscaling)
+  - [Step3d: Configure OTel Collector Security](#step3d-configure-otel-collector-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Integrating a Consumer](#integrating-a-consumer)
 - [Review Notes](#review-notes)
@@ -183,7 +184,14 @@ Root-Repository
 
 No per-environment values file currently overrides these — every environment inherits the chart defaults above.
 
----
+### Step3d: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.otel.tls.enabled` | Whether OTLP export to the Collector uses HTTPS. **Off by default** — zero change for any environment not opting in, and harmless if the OTLP endpoint is blank/unset either way | `false` |
+| `restFederatorServer.otel.oauth2.enabled` | Attach an `Authorization: Bearer` token to OTLP export, via the same `dpn-service-client` Keycloak client used elsewhere in this chart — no separate client/secret is provisioned. **Off by default** | `false` |
+
+> **Currently unverified — treat as not production-ready.** Setting `otel.tls.enabled: true` reuses the common DPN certificate/truststore already mounted for Vault (no new secret or volume needed), but the environment values files that have turned this on carry the author's own caveat that it was shipped without confirming the Collector side actually terminates TLS on its receiver. More fundamentally, the `dpn-otel-collector` Helm chart that this would connect to **has no CD pipeline in this repository at all** — there is currently no automated, documented way to actually deploy a Collector instance that matches this configuration. Do not enable either flag in a real environment until that gap is closed.
 
 ## Step4: Configure Deployment Parameters
 
