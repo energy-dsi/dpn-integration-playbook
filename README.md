@@ -202,7 +202,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
 - [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step-04-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 ---
