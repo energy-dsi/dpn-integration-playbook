@@ -23,8 +23,6 @@
   - [Figure 3 - Point 1: Producer and Consumer Selection](#figure-3---point-1-producer-and-consumer-selection)
   - [Figure 3 - Point 2: Run Count](#figure-3---point-2-run-count)
   - [Figure 3 - Point 3: Run History Table](#figure-3---point-3-run-history-table)
-  - [Duration](#duration)
-  - [Cycle](#cycle)
 - [Figure 4: Adaptor Logs](#figure-4-adaptor-logs)
   - [Purpose](#purpose-4)
 - [Troubleshooting Workflow](#troubleshooting-workflow)
@@ -281,7 +279,7 @@ Use this page to review the latest runs of all producer and consumer pipelines.
 | **Event** | The result of the step. Value seen: `completed` |
 | **Trigger** | What started the run. Value seen: `interval` |
 | **Operation** | The operation. Value seen: `adaptor_window` |
-| **Duration (ms)** | A cycle is one run of the pipeline from start to finish. |
+| **Duration (ms)** | A cycle is one complete pipeline run where the system wakes up, performs its task, records a summary in Run History, and stops, regardless of what triggered it. |
 | **Cycle** | A cycle is one complete pipeline run where the system wakes up, performs its task, records a summary in Run History, and stops, regardless of what triggered it. |
 | **Run ID** | A short run identifier |
 | **Detail** | Extra log details |
