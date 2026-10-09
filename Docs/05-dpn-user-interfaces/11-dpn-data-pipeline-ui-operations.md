@@ -12,6 +12,9 @@
   - [Figure 1 - Point 4: Row Actions](#figure-1---point-4-row-actions)
   - [Execution Modes](#execution-modes)
   - [Create New Data Product Form](#create-new-data-product-form)
+    - [Step 1: Name & Details](#step-1-name--details)
+    - [Case 1: Topic-Based Data Product](#case-1-topic-based-data-product)
+    - [Case 2: File-Based Data Product](#case-2-file-based-data-product)
 - [Figure 2: Consumer Pipelines](#figure-2-consumer-pipelines)
   - [Purpose](#purpose-2)
   - [Figure 2 - Point 1: Consumer Pipeline Table](#figure-2---point-1-consumer-pipeline-table)
@@ -20,6 +23,8 @@
   - [Figure 3 - Point 1: Producer and Consumer Selection](#figure-3---point-1-producer-and-consumer-selection)
   - [Figure 3 - Point 2: Run Count](#figure-3---point-2-run-count)
   - [Figure 3 - Point 3: Run History Table](#figure-3---point-3-run-history-table)
+  - [Duration](#duration)
+  - [Cycle](#cycle)
 - [Figure 4: Adaptor Logs](#figure-4-adaptor-logs)
   - [Purpose](#purpose-4)
 - [Troubleshooting Workflow](#troubleshooting-workflow)
@@ -38,7 +43,7 @@ This playbook explains how to use the **DPN Data Products** page to:
 - Review the latest pipeline runs.
 - Read the adaptor container logs of a data product.
 
-The page is titled **DPN Data Products** and is footed with **DSI Data Preparation Node · Self-Service**. It is a different UI from Apache Airflow. For Airflow, see the [Apache Airflow guide](02-apache-airflow-scheduler-ui-operations.md).
+The page is titled **DPN Data Products** and is footed with **DSI Data Preparation Node · Self-Service**.
 
 ### Accessing the DPN Data Products UI
 
@@ -50,6 +55,11 @@ The page is opened through an OAuth2 proxy that signs users in with Keycloak.
 4. The **DPN Data Products** page opens on the **Producer Pipelines** tab.
 
 The signed-in user name and a **Log out** link are shown at the top right of every page.
+
+The **Logo Placeholder** box at the top left of every page links to the Unified dashboard. Click it to go there. Any company or organisation can replace the placeholder with its own logo or branding.
+
+When you click the logo, the browser goes to the DPN observability address (`https://dpn-observability.<namespace>.svc.cluster.local:8443/`). This is the same address as the **Home** link in the left menu. See the [DPN Portal guide](08-dpn-portal-ui-operations.md).
+
 
 The left menu has **Home**, **Users & Roles** and **Data Products**. **Home** opens the DPN observability portal. **Users & Roles** opens the Keycloak admin console. **Data Products** opens this page.
 
@@ -145,22 +155,79 @@ To start a run by hand:
 
 ## Create New Data Product Form
 
-Click **Create New Data Product** to open the **New Data Product** form. It has two steps, **Name & Details** and **Review Names**.
+Click **Create New Data Product** to open the **New Data Product** form. The form has two steps: **Name & Details** and **Review Names**. The two steps are shown side by side. The right side shows "Complete Step 1 to proceed." until Step 1 is done.
 
-Step 1 shows these items:
+> Note: For this guide the form was filled in and stopped at **Review Names**. **Create & Launch** was never clicked, and no data product was created.
+
+### Step 1: Name & Details
+
+![New Data Product, Step 1, File pathway](./images/data_products_new_file_step1.png)
 
 | Item | Description |
 |---|---|
-| **Organisation** | Shown as read only. Value seen: `dpn`. |
-| **Cloud provider** | Shown as read only. Value seen: `aws`. |
-| **Data Product Name** | Required text box. |
+| **Organisation** | Shown as read only. Value seen: `dpn`. It is set from your organisation. |
+| **Cloud provider** | Shown as read only. Value seen: `aws`. It is set from your cloud service provider. |
+| **Data Product Name** | Required text box. When the name is accepted, a green tick appears at the end of the box. |
 | **Integration Pathway** | Choose **File** or **Topic**. **File** is selected by default. |
-| **Execution** | **Automatic** or **Manual**. **Automatic** is the default. |
+| **Execution** | **Automatic** or **Manual**. **Automatic** is the default. **Automatic** runs at the interval in **Schedule (seconds)**. **Manual** runs only when a user clicks **Run now** in the producer pipeline list. |
 | **Schedule (seconds)** | Required number. Default `60`. Allowed range `5` to `3600`. |
 
-Click **Cancel** to return to **Producer Pipelines**. Click **Next: Review Names** to continue. The button appears after a name is entered.
+Click **Cancel** to return to **Producer Pipelines**. Click **Next: Review Names** to continue. The button appears after a name is entered. While the page prepares the next step, the button is disabled.
 
-> Note: Step 2, **Review Names**, and the creation of a data product were not documented, because creating a product changes the environment.
+The fields in Step 1 are the same for **File** and **Topic**. Only Step 2 is different: **File** asks for a source container, a target container and a notification topic, while **Topic** asks for a source topic and a target topic.
+
+### Case 1: Topic-Based Data Product
+
+1. Enter a **Data Product Name**. The example used here is `doc-example-file`.
+2. Select **Topic** under **Integration Pathway**.
+3. Leave **Execution** as **Automatic** and **Schedule (seconds)** as `60`, or change them.
+4. Click **Next: Review Names**.
+
+![New Data Product, Step 1, Topic pathway selected](./images/data_products_new_topic_step1.png)
+
+Step 2 opens on the right side of the page.
+
+![New Data Product, Step 2, Topic pathway](./images/data_products_new_topic_step2.png)
+
+**Step 2: Review Names** reads: "Review the storage names that will be used for this data product." The names are based on the product name. You can change them to match your organisation's naming standards. The names must refer to the resources this data product should use.
+
+| Field | Value shown for `doc-example-file` | Description |
+|---|---|---|
+| **Source Topic** | `dpn-producer-doc-example-file-stage` | Required. It must not already exist. The platform only creates brand-new topics, so an existing source or target name is rejected as a collision. The consumer group id is calculated from the product name. There is nothing to set for it. |
+| **Target Topic** | `dpn-producer-doc-example-file-target` | Required. Enriched messages are produced straight to this topic. There is no intermediate RAW topic. |
+
+A green tick appears at the end of each name when the name is accepted.
+
+The last button is **Create & Launch**. Click it only when you want to create the data product. This guide did not click it.
+
+> Note: The first two attempts to open Step 2 failed with a gateway error (502). The third attempt worked. If **Next: Review Names** seems to do nothing, wait and click it again.
+
+### Case 2: File-Based Data Product
+
+1. Enter a **Data Product Name**. The example used here is `test-container-dpn02`.
+2. Keep **File** selected under **Integration Pathway**. It is the default.
+3. Leave **Execution** as **Automatic** and **Schedule (seconds)** as `60`, or change them.
+4. Click **Next: Review Names**.
+
+![New Data Product, Step 2, File pathway](./images/data_products_new_file_step2.png)
+
+Step 2 opens on the right side of the page, next to Step 1. The example above uses the product name `test-container-dpn02`.
+
+**Step 2: Review Names** reads: "Review the storage names that will be used for this data product." The names are based on the product name you entered earlier. You can change them to match your organisation's naming standards. The names must refer to the storage resources this data product should use.
+
+| Field | Value shown for `test-container-dpn02` | Description |
+|---|---|---|
+| **Source Container** | `test-container-dpn02-stage` | Required. The container the data product reads its source files from. |
+| **Target Container** | `test-container-dpn02-target` | Required. The container where processed files are written. |
+| **Target Notification Topic** | `dpn-producer-file-test-container-dpn02-target` | Required. The topic that receives a message when a new file is written to the target container. Subscribed systems use these messages to detect and process new data. |
+
+A green tick appears at the end of each name when the name is accepted.
+
+The last button is **Create & Launch**. Click it only when you want to create the data product. This guide did not click it.
+
+> Note: The screenshot above was taken on a deployment where **Cloud provider** is `azure` and signed in as a different user. The Step 2 layout and fields are the same on `aws`. Only the **Cloud provider** value in Step 1 changes.
+>
+> The File pathway also checks that the container and topic names are free. On a local setup where the UI cannot resolve the storage and Kafka host names, **Next: Review Names** can time out with a gateway error (502). If it does, check that the UI can reach both services.
 
 ---
 
@@ -223,9 +290,11 @@ Use this page to review the latest runs of all producer and consumer pipelines.
 | **Event** | The result of the step. Value seen: `completed` |
 | **Trigger** | What started the run. Value seen: `interval` |
 | **Operation** | The operation. Value seen: `adaptor_window` |
-| **Duration (ms)** | How long the step took |
+| **Duration (ms)** | A cycle is one run of the pipeline from start to finish. |
+| **Cycle** | A cycle is one complete pipeline run where the system wakes up, performs its task, records a summary in Run History, and stops, regardless of what triggered it. |
 | **Run ID** | A short run identifier |
 | **Detail** | Extra log details |
+
 
 Opening **View History** from a data product row shows the same table filtered to that product.
 
