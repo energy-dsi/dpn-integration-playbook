@@ -279,7 +279,7 @@ Use this page to review the latest runs of all producer and consumer pipelines.
 | **Event** | The result of the step. Value seen: `completed` |
 | **Trigger** | What started the run. Value seen: `interval` |
 | **Operation** | The operation. Value seen: `adaptor_window` |
-| **Duration (ms)** | A cycle is one complete pipeline run where the system wakes up, performs its task, records a summary in Run History, and stops, regardless of what triggered it. |
+| **Duration (ms)** | Shows how long a pipeline step took to complete, measured in milliseconds (1,000 ms = 1 second). |
 | **Cycle** | A cycle is one complete pipeline run where the system wakes up, performs its task, records a summary in Run History, and stops, regardless of what triggered it. |
 | **Run ID** | A short run identifier |
 | **Detail** | Extra log details |
