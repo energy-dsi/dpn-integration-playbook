@@ -149,15 +149,12 @@ To start a run by hand:
 2. Click **Apply**.
 3. Click **Run Now**.
 
-> Note: These steps follow the hover text and the disabled **Run Now** button seen on the page. The result of starting a run was not tested.
-
 ---
 
 ## Create New Data Product Form
 
 Click **Create New Data Product** to open the **New Data Product** form. The form has two steps: **Name & Details** and **Review Names**. The two steps are shown side by side. The right side shows "Complete Step 1 to proceed." until Step 1 is done.
 
-> Note: For this guide the form was filled in and stopped at **Review Names**. **Create & Launch** was never clicked, and no data product was created.
 
 ### Step 1: Name & Details
 
@@ -198,9 +195,7 @@ Step 2 opens on the right side of the page.
 
 A green tick appears at the end of each name when the name is accepted.
 
-The last button is **Create & Launch**. Click it only when you want to create the data product. This guide did not click it.
-
-> Note: The first two attempts to open Step 2 failed with a gateway error (502). The third attempt worked. If **Next: Review Names** seems to do nothing, wait and click it again.
+The last button is **Create & Launch**. Click it only when you want to create the data product.
 
 ### Case 2: File-Based Data Product
 
@@ -224,10 +219,6 @@ Step 2 opens on the right side of the page, next to Step 1. The example above us
 A green tick appears at the end of each name when the name is accepted.
 
 The last button is **Create & Launch**. Click it only when you want to create the data product. This guide did not click it.
-
-> Note: The screenshot above was taken on a deployment where **Cloud provider** is `azure` and signed in as a different user. The Step 2 layout and fields are the same on `aws`. Only the **Cloud provider** value in Step 1 changes.
->
-> The File pathway also checks that the container and topic names are free. On a local setup where the UI cannot resolve the storage and Kafka host names, **Next: Review Names** can time out with a gateway error (502). If it does, check that the UI can reach both services.
 
 ---
 
