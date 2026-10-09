@@ -18,10 +18,14 @@
   - [Deployed Resources Show the Wrong Environment Label](#deployed-resources-show-the-wrong-environment-label)
   - [Kafka/Zookeeper Image Pull Fails](#kafkazookeeper-image-pull-fails)
   - [OAuth2 Proxy Gateway Fails to Get a LoadBalancer Address (IP/Port Already Claimed)](#oauth2-proxy-gateway-fails-to-get-a-loadbalancer-address-ipport-already-claimed)
+  - [Validate Stage Fails: OAuth2 Proxy Gateway Has No Ready Replica](#validate-stage-fails-oauth2-proxy-gateway-has-no-ready-replica)
 - [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
   - [Step5a. Configure GHCR Image Access](#step5a-configure-ghcr-image-access)
   - [Step5b. Execute CD Pipeline](#step5b-execute-cd-pipeline)
   - [Step5c. Verify CD Pipeline](#step5c-verify-cd-pipeline)
+- [Step6: Redeploy the DPN Portal Only](#step6-redeploy-the-dpn-portal-only)
+- [Step7: Rollback](#step7-rollback)
+- [Step8: Uninstall](#step8-uninstall)
 - [Review Notes](#review-notes)
 
 ---
@@ -36,7 +40,18 @@ For the configuration this installation depends on — the environment config fi
 
 - An AKS cluster matching the target environment's config, with `ns-dpn-health-01` already created.
 - The Azure DevOps Service Connection for the target environment.
-- Access to the environment-specific ACR for Kafka/Zookeeper/dpn-portal images, and to Docker Hub/Quay.io for everything else.
+- Network access from the cluster to `ghcr.io/energy-dsi`, from which the DSI-published component images (Kafka, Zookeeper, Kafka UI, OpenSearch, Jaeger, Data Prepper, Perses, OTel Collector and oauth2-proxy) are pulled by default.
+- Access to the environment-specific ACR for the dpn-portal image built in Step1. Docker Hub/Quay.io remain available as a fallback for organisations that do not use the DSI-published images.
+- The GHCR image pull secret `ghcr-pull-secret-new` created in `ns-dpn-health-01`. The Azure values files reference it by this name for the component images and the dpn-portal chart. Create it from a GitHub Personal Access Token with `read:packages` scope (see [Step5a](#step5a-configure-ghcr-image-access) for details):
+
+  ```bash
+  kubectl create secret docker-registry ghcr-pull-secret-new \
+       --docker-server=ghcr.io \
+       --docker-username=<github-username-or-bot-account> \
+       --docker-password=<GitHub PAT with read:packages scope> \
+       -n ns-dpn-health-01
+  ```
+
 - `dpn-tls-cd` (from `dpn-federator-certificate-manager`) already run against this environment, so that `tls-auth-secret` exists in `ns-dpn-health-01` — the pipeline's Validate Required Secrets stage checks for it directly and fails fast if it is missing.
 - The approval Environment resource for the target environment configured with its approval check — the pipeline resolves the group per environment (`dsi-dev`, `dsi-devtest`, or `dsi-ppd`).
 - The per-environment config file (`config/<env>-<cluster>.json`, including `OBSERVABILITY_LB_IP`) prepared as described in [Configure DPN Health Monitoring Service → Step 1](../02-configuration/03-configure-dpn-health-monitoring-service.md#step-1-prepare-environment-configuration-file).
@@ -68,7 +83,7 @@ To deploy, queue dpn-portal-image-cd.yaml with:
   imageTag = <short-sha>
 ```
 
-Record this tag — it is required as the `dpnPortalImageTag` runtime parameter in Step2a below.
+Record this tag — it is required as the `dpnPortalImageTag` runtime parameter in Step2a below. (The `dpn-portal-image-cd.yaml` hint printed above applies when redeploying only the portal — see [Step6](#step6-redeploy-the-dpn-portal-only). For a full installation, use `monitoring-master-cd.yaml`.)
 
 ---
 
@@ -82,7 +97,7 @@ The CD Pipeline provided needs to be modified in the following places to point t
 |-----------|-------|
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` — `dev`, `devtest`, `test`, `pdev`, `ptest`, or `puat` |
-| `cluster` | `dpn01` or `dpn02` (DSI provides two dpn configurations per environment for `dev`/`devtest`/`test`; `pdev`/`ptest`/`puat` are single-cluster and only accept `dpn01`) |
+| `cluster` | `dpn01` or `dpn02` (DSI provides two dpn configurations per environment for `dev`/`devtest`/`test`; `pdev`/`ptest`/`puat` are single-cluster and only accept `dpn01` — the pipeline fails if `dpn02` is selected for them) |
 | `imageTag` | Image tag for the OTel Collector (default `0.95.0`) |
 | `dpnPortalImageTag` | Image tag for the dpn-portal image — **no default; must be supplied** (the short git SHA from a `dpn-portal-ci.yaml` run) |
 
@@ -92,7 +107,7 @@ The CD Pipeline provided needs to be modified in the following places to point t
 
 - The agent pool name has been modified to Organisation required agent pool name
 - There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
-- The container images are appropriate and referred from the Organisation's chosen registry — Kafka, Zookeeper, and the dpn-portal image built in Step1 are pulled from the environment's ACR; OpenSearch, Jaeger, Perses, Thanos, Data Prepper, the OTel Collector, and oauth2-proxy are pulled from Docker Hub/Quay.io
+- The container images are appropriate and referred from the Organisation's chosen registry — by default the component images (Kafka, Zookeeper, Kafka UI, OpenSearch, Jaeger, Perses, Data Prepper, the OTel Collector) are pulled from `ghcr.io/energy-dsi` using the `ghcr-pull-secret-new` secret, as set in the Azure values files (`charts/<component>/values/azure/<env>-<cluster>.yaml`), and the dpn-portal image built in Step1 is pulled from the environment's ACR (`CONTAINER_REGISTRY_URL`). Organisations that do not use the DSI-published images can instead point the values files at their own registry or at Docker Hub/Quay.io (the upstream defaults in each chart's `values.yaml`)
 - The environment parameters are pointing to correct deployment environment
 - The DSM endpoints are correctly pointing to the target deployment environment
 - Required Firewall rules are applied
@@ -121,7 +136,18 @@ Organisations should maintain an approval gate for the deployment. The CD Pipeli
 1. Confirm all pods `Running`.
 2. Confirm the init pods completed the job (e.g. the OpenSearch dashboard init job).
 3. Confirm resource labels reflect the correct environment name.
-4. Confirm the four `oauth2-proxy` gateways (OpenSearch Dashboards, Jaeger, Perses, Portal) each have a ready replica and a LoadBalancer address — the pipeline's Validate stage asserts this and fails the run if any is not serving.
+4. Confirm the four `oauth2-proxy` gateways (OpenSearch Dashboards, Jaeger, Perses, Portal) each have a ready replica and a LoadBalancer address — the pipeline's Validate stage asserts this and fails the run if any is not serving. The gateways' shared session store (`dpn-redis-ui-health`) is deployed by the same stage.
+5. Confirm the services that have no `oauth2-proxy` gateway are reachable on the shared load-balancer IP (`OBSERVABILITY_LB_IP`). Their Services are only listed informally by the Validate stage, so check them directly:
+
+   | UI | Port | Authentication |
+   |----|------|----------------|
+   | OpenSearch Dashboards | 5601 | `oauth2-proxy` |
+   | Jaeger | 16686 | `oauth2-proxy` |
+   | Perses | 8083 | `oauth2-proxy` |
+   | DPN Portal | 8443 | `oauth2-proxy` |
+   | Kafka UI | 8082 | Native OIDC + own TLS |
+   | Prometheus | 9081 | None |
+   | Thanos Query | 9091 | None |
 
 ---
 
@@ -137,9 +163,14 @@ Confirm `<env>-<cluster>.json` exists under `.pipelines/azure-pipelines/config/`
 
 Confirm Step2a used the **corrected** `ENV_NAME` values
 
-### Kafka/Zookeeper Image Pull Fails
+### Image Pull Fails (`ImagePullBackOff` / `ErrImagePull`)
 
-Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder must uses a fully-resolved hostname like `acrdpnXXXX.azurecr.io`,, not a literal like only `acrdpnXXXX` placeholder 
+By default the component images (Kafka, Zookeeper, Kafka UI, OpenSearch, Jaeger, Data Prepper, Perses, OTel Collector) are pulled from `ghcr.io/energy-dsi`. Check:
+
+1. The `ghcr-pull-secret-new` secret exists in `ns-dpn-health-01` (`kubectl get secret ghcr-pull-secret-new -n ns-dpn-health-01`) and holds a valid GitHub Personal Access Token with `read:packages` scope. The charts reference it by exactly this name.
+2. The cluster can reach `ghcr.io` (firewall/proxy rules).
+3. For the **dpn-portal** image only: `CONTAINER_REGISTRY_URL` in the config file under `.pipelines/azure-pipelines/config/` must be a fully-resolved hostname like `acrdpnXXXX.azurecr.io`, not just the `acrdpnXXXX` placeholder, and `dpnPortalImageTag` must match a tag that `dpn-portal-ci.yaml` actually pushed.
+4. If the Organisation overrides images to its own registry or Docker Hub/Quay.io, confirm the repository and tag in the values files are correct and that the matching pull secret is referenced.
 
 ### OAuth2 Proxy Gateway Fails to Get a LoadBalancer Address (IP/Port Already Claimed)
 
@@ -164,11 +195,32 @@ Confirm `BASE_REGISTRY` in the config file hosted under .pipelines root folder m
 - Treat `OBSERVABILITY_LB_IP` (and any other fixed internal IP convention) as reserved across the *entire* environment and every namespace in it, not just within the namespace one pipeline deploys into — a collision can come from any independently-deployed component, in any other namespace, deployed by any other pipeline.
 - Where practical, extend a deploy pipeline's own pre-flight port-conflict check to look across all namespaces in the cluster, not only the one it is deploying into — a check scoped to a single namespace cannot catch a cross-namespace collision like this one, regardless of which other component ends up on the other side of it.
 
+### Validate Stage Fails: OAuth2 Proxy Gateway Has No Ready Replica
+
+**Scenario:** the final Validate stage reports `FAIL <release> - no deployment, or no ready replica` for one of `dpn-oauth2-proxy-osd`, `dpn-oauth2-proxy-jaeger`, `dpn-oauth2-proxy-perses` or `dpn-oauth2-proxy-portal`.
+
+**Why this happens:** these gateways are the only route to their UIs, so a fresh environment fails here until the following exist (this configuration is deliberately not held in git):
+
+- The DPN Authentication Service (Keycloak) is deployed in `ns-dpn-01`, reachable at `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local:8443`.
+- The callbacks for each gateway are registered on the Keycloak client.
+- `KC-SERVICE-CLIENT-SECRET` exists in the environment's Key Vault and matches the `dpn-service-client` client secret.
+- `dpn-health-tls` exists in `ns-dpn-health-01` (created by `dpn-tls-cd`).
+
+**Diagnose:**
+
+```bash
+kubectl describe deployment <release> -n ns-dpn-health-01
+kubectl logs -l app=<release> -n ns-dpn-health-01 --tail=50
+kubectl describe svc <release> -n ns-dpn-health-01
+```
+
+If the Service has ready pods but no LoadBalancer address, see the previous entry. After fixing, re-run the failed `OAuth2Proxy`/`Validate` stages.
+
 ---
 
 ## Step5: Containerized Deployment Using DSI Provided Container Images
 
-This section covers deployment of the DPN Portal (Unified UI) using the **DSI-published container image** at `ghcr.io/energy-dsi`, for organisations that prefer to pull the pre-built image directly rather than running the `dpn-portal-ci.yaml` CI pipeline in Step1.
+This section covers deployment of the DPN Portal (Unified UI) using the **DSI-published container image** at `ghcr.io/energy-dsi`, for organisations that prefer to pull the pre-built image directly rather than running the `dpn-portal-ci.yaml` CI pipeline in Step1. The other component images are already pulled from `ghcr.io/energy-dsi` by default (see Step2a), so only the DPN Portal needs this extra step.
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
@@ -180,10 +232,10 @@ All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
 
 Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
 
-Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same. This secret will be used during the image pull.
+Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same. This secret will be used during the image pull. It must be named `ghcr-pull-secret-new`, as referenced by the charts. If it was already created as a prerequisite, no action is needed.
 
 ```bash
-kubectl create secret docker-registry ghcr-pull-secret \
+kubectl create secret docker-registry ghcr-pull-secret-new \
      --docker-server=ghcr.io \
      --docker-username=<github-username-or-bot-account> \
      --docker-password=<GitHub PAT with read:packages scope> \
@@ -223,10 +275,74 @@ Follow the same verification steps mentioned in Step3 above.
 
 ---
 
+## Step6: Redeploy the DPN Portal Only
+
+To roll out a new DPN Portal build without re-running the whole master pipeline, use the standalone `dpn-portal-cd` pipeline, created from `dpn-portal-image-cd.yaml`:
+
+1. Run `dpn-portal-ci.yaml` (Step1) and record the printed short-SHA image tag.
+2. Queue the standalone pipeline with `ServiceConnection`, `environment`, `cluster` and `imageTag` (the short SHA; there is no default). It is gated by the same environment approval group as the master pipeline.
+3. The pipeline re-queries the running pod's image digest and publishes it as the `deployed-image-digest` artifact, confirming the pod pulled the requested tag.
+
+> **Limitation:** the standalone pipeline only re-points the existing `dpn-portal` Deployment at the new image. It does **not** deploy or change the `oauth2-proxy` gateway in front of the portal. Use it only once the gateway is already up; run `monitoring-master-cd.yaml` the first time an environment is stood up, or whenever the gateway itself needs changing.
+
+---
+
+## Step7: Rollback
+
+Use `dpn-health-monitoring-rollback-cd.yaml` to roll back individual components to a previous Helm revision.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-health-monitoring-rollback-cd.yaml
+```
+
+- The rollback is **selective**: each component (e.g. Data Prepper, Jaeger, Kafka, dpn-portal, the oauth2-proxy session store and each oauth2-proxy gateway) has a checkbox and a target revision field on the Run dialog. Only the ticked components are rolled back; the revision fields of unticked components are ignored.
+- Target revision `0` rolls the release back to its **previous** revision (the Helm default). Any other number `N` rolls back to that specific revision.
+- Helm revision numbers are **per release**, so the same number means a different point in time for each component. Set each from that release's own history, for example `helm history <release> -n ns-dpn-health-01`.
+- Rollback restores **Helm-managed resources only**. Resources created outside Helm via `kubectl` are not touched.
+- Fill in the revision only for the components you tick and leave the rest at `0`; Azure DevOps cannot hide the revision fields for unticked components.
+
+After a rollback, repeat the checks in Step3.
+
+---
+
+## Step8: Uninstall
+
+Use `dpn-health-monitoring-uninstall-cd.yaml` to remove the Health Monitoring Service from an environment.
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── dpn-health-monitoring-uninstall-cd.yaml
+```
+
+Select `ServiceConnection`, `environment` and `cluster`. Unlike the rollback, the uninstall is **not selective**: it uninstalls every Helm release deployed by the master pipeline, in the reverse of the deployment order so dependents are removed before their dependencies:
+
+OAuth2 Proxy (portal → perses → jaeger → OpenSearch gateway → session store) → dpn-portal → OTel Collector → Perses → Jaeger → Data Prepper → Thanos → Prometheus → OpenSearch → Kafka.
+
+**What is removed and what is kept:**
+
+| Item | After uninstall |
+|------|-----------------|
+| Kafka, Zookeeper and Perses PVCs (`dpn-kafka-health-pvc`, `dpn-zookeeper-health-pvc`, `dpn-perses-data`) | **Removed.** A clean Kafka/Zookeeper on the next install avoids a stale cluster-id mismatch |
+| OpenSearch, Prometheus and Alertmanager data PVCs | **Retained** (`helm uninstall` never deletes StatefulSet volumes) and reattach on the next install |
+| Resources created outside Helm via `kubectl` (OpenSearch dashboards, init jobs, provisioning ConfigMap) | **Left in place** |
+| The `ns-dpn-health-01` namespace and manually created secrets (`dpn-health-tls`, `tls-auth-secret`, `ghcr-pull-secret-new`, the Key Vault-synced oauth2-proxy client secrets, etc.) | **Never touched** |
+
+Prometheus, Thanos, Kafka UI and `kafka-ui-2` have no oauth2-proxy gateway of their own, so there is nothing further to uninstall for them beyond their component releases.
+
+---
+
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 | 
-| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 | 
 
