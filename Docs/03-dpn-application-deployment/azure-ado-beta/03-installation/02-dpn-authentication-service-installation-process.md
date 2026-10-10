@@ -8,7 +8,7 @@ This document covers the installation of the **DPN Authentication Service** — 
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Deploy this before components that authenticate against it.** The Federator Gateway's Kafka brokers (`kafka.authMode: sasl_ssl`) and the DPN observability UIs (kafka-ui, Airflow, OpenSearch Dashboards, Jaeger, Perses, Portal) authenticate against the realm this service creates. Deploy the Authentication Service first.
+**Deploy this before components that authenticate against it.** The DPN components authenticate against the realm this service creates. Deploy the Authentication Service immediately after Vault service is deployed
 
 ---
 
@@ -35,7 +35,7 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal Azure Load Balancer only. It is bundled with its own PostgreSQL instance on a persistent volume.
+Keycloak is deployed into `ns-dpn-01` over **standard HTTPS/TLS 1.2+**. It is reachable only inside DPN cluster and through an internal Azure Load Balancer. It is bundled with its own PostgreSQL instance on a persistent volume.
 
 Unlike the other DPN repositories, this service does **not** build a custom image via a CI pipeline. The CD pipeline mirrors the stock upstream images (`quay.io/keycloak/keycloak` and `docker.io/library/postgres`) into the environment's own ACR at deploy time (`az acr import`), so there is no separate CI stage or GHCR-hosted image to configure.
 
@@ -48,7 +48,11 @@ Root-Repository/
         ├── values-<env>-<cluster>.yaml           9 environment overlays
         ├── scripts/
         │   └── configure-keycloak.sh              realm/clients/roles/groups/audit config, run as a pipeline step
+        ├── themes/
+        │   └── dpn-portal/
+        │       └── login/                          custom "dpn-portal" login theme (theme.properties + CSS)
         └── templates/
+            └── theme-configmap.yaml                 packages themes/dpn-portal into a ConfigMap, mounted into the pod
 
 .pipelines/
 └── azure-pipelines/
@@ -160,6 +164,15 @@ Two things to confirm after every deploy:
 - The redirect URIs / web origins registered on `dpn-service-client` cover every UI that needs to authenticate in this environment. These come from the `KC_UI_HOST_*` environment variables read by `configure-keycloak.sh` (e.g. `KC_UI_HOST_KAFKA_UI`, `KC_UI_HOST_AIRFLOW`, `KC_UI_HOST_PORTAL`) — each has a hardcoded default baked into the script itself, and the CD pipeline does not currently override any of them per environment. Adding or changing a UI's hostname requires editing the pipeline step (to export the relevant `KC_UI_HOST_*` variable) or the script's own default.
 - `KC-SERVICE-CLIENT-SECRET` in this environment's Key Vault matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
 
+**Login theme.** The realm's login screen uses a custom theme, not stock Keycloak. The theme files live under `charts/keycloak/themes/dpn-portal/login/` (`theme.properties` and a CSS resource), get packaged into a ConfigMap by `templates/theme-configmap.yaml`, and are mounted into the Keycloak pod at `/opt/keycloak/themes/dpn-portal`. `configure-keycloak.sh` applies it to the realm via two more `KC_*` environment variables — same pattern as `KC_UI_HOST_*` above, each with a hardcoded script default and no per-environment override in the CD pipeline today:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `KC_LOGIN_THEME` | `dpn-portal` | Login theme applied realm-wide (every UI's login screen) |
+| `KC_DISPLAY_NAME_HTML` | `<span class="dpn-kc-brand"><strong>DSI DPN Platform</strong></span>` | Realm header markup shown above the login form |
+
+Changing the branding therefore means either editing the theme files/CSS directly, or exporting a different `KC_LOGIN_THEME`/`KC_DISPLAY_NAME_HTML` value in the pipeline step.
+
 ---
 
 ## Step4: Uninstalling the Authentication Service
@@ -244,6 +257,6 @@ This pipeline step can fail if it reaches Keycloak before the Service's endpoint
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-------------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 

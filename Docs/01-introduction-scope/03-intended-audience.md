@@ -36,10 +36,10 @@ DevOps engineers responsible for:
 
 Cloud engineers responsible for:
 
-- Provisioning Azure infrastructure
+- Provisioning Cloud infrastructure on Azure/AWS/GCP
 - Managing virtual networks and firewall rules
 - Configuring identity and access management
-- Managing Azure Kubernetes Service (AKS)
+- Managing the Kubernetes Platform Service
 
 ---
 
@@ -87,15 +87,10 @@ The documentation assumes that the organisation intends to deploy DPN nodes usin
 - Azure Kubernetes Service (AKS)
 - Azure Container Registry (ACR)
 
-### AWS Platform with Manual Execution
-
-DPN integration playbook at this moment does not cover GitHub Actions based flows and pipelines for AWS deployment of application. The manual deployment runbook and deployment yaml files provided with kubectl run commands to perform AWS deployment.
-
-_**Note** This is an interim instruction and future release of playbook to contain the AWS deployment instruction using GitHub Actions and GitHub Runners based flows._ 
-
+### AWS Platform with `(GitHub Actions)` Tool
 
 - Elastic Kubernetes Service (EKS)
 - GitHub Container Registry (GHCR)
-- Kubectl utility
+- GitHub Actions flows
 
 However, organisations may adapt the deployment architecture to other environments if required.

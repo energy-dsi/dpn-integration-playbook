@@ -60,7 +60,8 @@ Once the service principal is available, note the CLIENT_ID and CLIENT_SECRET to
 - Registers Event Grid subscription on Defender for cloud storage
 - Create event grid topic to push events from Defender service to Azure Service Bus
 - Create the Azure Service Bus topic and subscription that receive scan-result events
-- Create a new container (default `dp-consumer-raw`) in the source/quarantine storage account (`storageAccountName`), if it does not already exist
+- Create a new container (example `dp-consumer-raw`) in the source/quarantine storage account (`storageAccountName`), if it does not already exist.DPN file scan service does not autocreate this container. 
+**Note** The container mentioned here is a naming convention. If the name is modified here then the same needs to be updated in the configuration of GRPC Federator client
 - Performs necessary role assignments (e.g. granting the Event Grid topic's managed identity "Azure Service Bus Data Sender" on the Service Bus topic, so it can publish scan results)
 
 ### Step2a: Setup Prerequisite Pipeline Parameters
@@ -160,14 +161,14 @@ The following secrets should be created in Azure Key Vault
 |FILESCAN-CLIENT-ID | Service principal client id |
 |FILESCAN-CLIENT-SECRET | Service principal secret |
 |FILESCAN-OTEL-TRUSTSTORE | OTel PKCS#12 truststore, stored in Key Vault as a base64-encoded secret |
-|FILESCAN-OTEL-TRUSTSTORE-PASSWORD | Password for the truststore above, synced into a native Kubernetes Secret |
 
-> **Note:** the chart also expects a pre-existing Kubernetes Secret named by `env.otelTlsSecretName` (default `dpn-tls`) in the target namespace, holding the mounted truststore — this is not a Key Vault secret and is not created by this chart.
+> **Note:** the chart also expects a pre-existing Kubernetes Secret named by `env.otelTlsSecretName` (default `dpn-tls`) in the target namespace, holding the mounted truststore. This is a common DPN secret used for https based authentication and not a Key Vault secret used in this component. The truststore's password is **not** a separate Key Vault secret either — `TRUSTSTORE_PASSWORD` is read directly from the shared `tls-auth-secret` Kubernetes Secret (created once by the Certificate Manager's `dpn-tls-cd` pipeline), the same universal DPN platform password every other component reuses.
 
 ---
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

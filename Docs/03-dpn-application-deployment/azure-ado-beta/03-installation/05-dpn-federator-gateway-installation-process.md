@@ -225,9 +225,7 @@ This error most likely is caused due to invalid bearer token used or authenticat
 
 ### File or Streaming Data Not Arriving
 
-This error happens if kafka topic offset is out of sync for certain reasons. In this case it is advised to flush redis cache using the following command.
-
-> **Note (Release 2.0.0):** Redis now enforces TLS. The redis flush will now need to pass a certificate — the plain command will fail with `Error: Connection reset by peer`.
+This error happens if kafka topic offset is out of sync for certain reasons. In this case it is advised to flush redis cache using the following command. Redis only accepts TLS connections (`redis.tls.enabled`, on by default) and presents a certificate signed by the shared `dpn-tls` CA, so a plain `redis-cli FLUSHALL` will fail — pass that CA to `redis-cli --tls`:
 
 ```bash
 kubectl get secret dpn-tls -n <namespace> -o jsonpath="{.data['ca\.crt']}" | base64 --decode > local-ca.crt && \
@@ -313,6 +311,8 @@ Follow the same verification steps mentioned in step2c and step2d as above.
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|------------------|--------|---------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+

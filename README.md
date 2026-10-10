@@ -88,7 +88,7 @@ Ensure the organisation satisfies the required infrastructure, security, and acc
 |---|---|---|
 | Cluster sizing | 16+ vCPUs (e.g. `Standard_D16lds_v6`) | Equivalent EKS managed node group sizing |
 | Secrets management | Azure Key Vault/Kubernetes Secrets | Hashicorp Vault/Kubernetes Secrets |
-| Ingress / networking | Requires GRPC/HTTP2 traffic supported ingress/Layer 4 Network load balancer for Federator Server ingress | Same as Azure |
+| Ingress / networking | Requires GRPC/HTTP2 traffic supported ingress/Layer 4 Network load balancer for GRPC/REST Federator Server ingress | Same as Azure |
 | Container registry | GitHub Container Registry (GHCR) for DSI-provided pre-built images, or Azure Container Registry (ACR) if the organisation runs its own CI pipeline | GitHub Container Registry (GHCR) |
 
 Full detail is in the platform-specific prerequisites documents linked below.
@@ -186,20 +186,24 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 **Azure (ADO) components:**
 
 - [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
-- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
-- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
-- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
-- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
+- [Authentication Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/02-dpn-authentication-service-installation-process.md#step5-troubleshooting)
+- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/03-dpn-health-monitoring-service-installation-process.md#step4-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
+- [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step5-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 **AWS (GitHub Actions) components:**
 
 - [Common Installation Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/00-dpn-common-installation-process.md#common-troubleshooting-guidance)
-- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/02-dpn-monitoring-service-installation-process.md#step3-troubleshooting)
-- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/03-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
-- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
-- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
+- [Authentication Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/02-dpn-authentication-service-installation-process.md#step4-troubleshooting)
+- [Health Monitoring Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/03-dpn-health-monitoring-service-installation-process.md#step3-troubleshooting)
+- [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
+- [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
+- [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step3-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 ---
 
@@ -238,21 +242,23 @@ The repository is organised into structured documentation sections that guide or
 │   │   │   ├── 02-configuration
 │   │   │   │   ├── 00-common-dpn-configuration.md
 │   │   │   │   ├── 01-configure-dpn-vault-service.md
-│   │   │   │   ├── 02-configure-dpn-health-mon-service.md
-│   │   │   │   ├── 03-configure-dpn-certificate-manager.md
-│   │   │   │   ├── 04-configure-dpn-federator-gateway.md
-│   │   │   │   ├── 05-configure-dpn-data-pipelines.md
-│   │   │   │   ├── 06-configure-dpn-file-scan-service.md
-│   │   │   │   ├── 07-configure-dpn-authentication-service.md
-│   │   │   │   └── 08-configure-dpn-rest-federator-gateway.md
+│   │   │   │   ├── 02-configure-dpn-authentication-service.md
+│   │   │   │   ├── 03-configure-dpn-health-monitoring-service.md
+│   │   │   │   ├── 04-configure-dpn-certificate-manager.md
+│   │   │   │   ├── 05-configure-dpn-federator-gateway.md
+│   │   │   │   ├── 06-configure-dpn-rest-federator-gateway.md
+│   │   │   │   ├── 07-configure-dpn-data-pipelines.md
+│   │   │   │   └── 08-configure-dpn-file-scan-service.md
 │   │   │   ├── 03-installation
 │   │   │   │   ├── 00-dpn-common-installation-process.md
 │   │   │   │   ├── 01-dpn-vault-installation-process.md
-│   │   │   │   ├── 02-dpn-monitoring-service-installation-process.md
-│   │   │   │   ├── 03-dpn-certificate-manager-installation-process.md
-│   │   │   │   ├── 04-dpn-federator-gateway-installation-process.md
-│   │   │   │   ├── 05-dpn-data-pipeline-installation-process.md
-│   │   │   │   └── 06-dpn-file-scan-service-installation-process.md
+│   │   │   │   ├── 02-dpn-authentication-service-installation-process.md
+│   │   │   │   ├── 03-dpn-health-monitoring-service-installation-process.md
+│   │   │   │   ├── 04-dpn-certificate-manager-installation-process.md
+│   │   │   │   ├── 05-dpn-federator-gateway-installation-process.md
+│   │   │   │   ├── 06-dpn-rest-federator-gateway-installation-process.md
+│   │   │   │   ├── 07-dpn-data-pipeline-installation-process.md
+│   │   │   │   └── 08-dpn-file-scan-service-installation-process.md
 │   │   │   ├── 04-rollback
 │   │   │   │   └── 04-rollback-procedures.md
 │   │   │   └── 05-uninstall
@@ -264,21 +270,23 @@ The repository is organised into structured documentation sections that guide or
 │   │       ├── 02-configuration
 │   │       │   ├── 00-common-dpn-configuration.md
 │   │       │   ├── 01-configure-dpn-vault-service.md
-│   │       │   ├── 02-configure-dpn-health-mon-service.md
-│   │       │   ├── 03-configure-dpn-certificate-manager.md
-│   │       │   ├── 04-configure-dpn-federator-gateway.md
-│   │       │   ├── 05-configure-dpn-data-pipelines.md
-│   │       │   ├── 06-configure-dpn-file-scan-service.md
-│   │       │   ├── 07-configure-dpn-authentication-service.md
-│   │       │   └── 08-configure-dpn-rest-federator-gateway.md
+│   │       │   ├── 02-configure-dpn-authentication-service.md
+│   │       │   ├── 03-configure-dpn-health-monitoring-service.md
+│   │       │   ├── 04-configure-dpn-certificate-manager.md
+│   │       │   ├── 05-configure-dpn-federator-gateway.md
+│   │       │   ├── 06-configure-dpn-rest-federator-gateway.md
+│   │       │   ├── 07-configure-dpn-data-pipelines.md
+│   │       │   └── 08-configure-dpn-file-scan-service.md
 │   │       ├── 03-installation
 │   │       │   ├── 00-dpn-common-installation-process.md
 │   │       │   ├── 01-dpn-vault-installation-process.md
-│   │       │   ├── 02-dpn-monitoring-service-installation-process.md
-│   │       │   ├── 03-dpn-certificate-manager-installation-process.md
-│   │       │   ├── 04-dpn-federator-gateway-installation-process.md
-│   │       │   ├── 05-dpn-data-pipeline-installation-process.md
-│   │       │   └── 06-dpn-file-scan-service-installation-process.md
+│   │       │   ├── 02-dpn-authentication-service-installation-process.md
+│   │       │   ├── 03-dpn-health-monitoring-service-installation-process.md
+│   │       │   ├── 04-dpn-certificate-manager-installation-process.md
+│   │       │   ├── 05-dpn-federator-gateway-installation-process.md
+│   │       │   ├── 06-dpn-rest-federator-gateway-installation-process.md
+│   │       │   ├── 07-dpn-data-pipeline-installation-process.md
+│   │       │   └── 08-dpn-file-scan-service-installation-process.md
 │   │       ├── 04-rollback
 │   │       │   └── 04-rollback-procedures.md
 │   │       └── 05-uninstall
@@ -296,13 +304,23 @@ The repository is organised into structured documentation sections that guide or
 │   │   ├── 06-jaeger-dashboard-ui-operations.md
 │   │   ├── 07-kafka-health-ui-operations.md
 │   │   ├── 08-dpn-portal-ui-operations.md
+│   │   ├── 09-dpn-keycloak-operations.md
+│   │   ├── 10-dsi-certificate-management-ui-operations.md
 │   │   └── images
 │   │
 │   └── 06-release-notes                        # Per-release configuration deltas
 │       └── release-2.0.0-configuration-changes.md
 │
+├── ACKNOWLEDGEMENTS.md
 ├── CHANGELOG.md
-└── README.md
+├── CODE_OF_CONDUCT.md
+├── CONTRIBUTING.md
+├── LICENSE.md
+├── MAINTAINERS.md
+├── NOTICE.md
+├── OGL_LICENSE.md
+├── README.md
+└── SECURITY.md
 ```
 
 ---
@@ -315,10 +333,10 @@ The DPN platform is composed of multiple containerised services, grouped as foll
 
 | Component | Purpose |
 |----------|---------|
+| Authentication Service | Keycloak — User and Role Management |
 | Vault | Secrets manager — stores certificate material and keystore/truststore passwords used for mTLS |
 | Certificate Manager | Automates X.509 certificate lifecycle management — renews the DSM-signed certificate and builds keystore/truststore P12 files |
-| Shared File Service | SMB-based (Azure) or shared-volume (AWS) storage between the Certificate Manager and Federator Gateway for certificate P12 files |
-| File Scan Service | Cloud-native file scan for files arriving on the Federator Gateway (Azure Defender for Cloud Storage). **Azure only, as of today** |
+| File Scan Service | Cloud-native file scan for files arriving on the Federator Gateway (Azure Defender for Cloud Storage and AWS GuardDuty for S3). **Azure and AWS only, as of today** |
 
 ## Federator Gateway
 
@@ -328,8 +346,10 @@ The DPN platform is composed of multiple containerised services, grouped as foll
 | Kafka (Source / Target) | Message broker for producer and consumer environments |
 | Kafka UI | Kafka monitoring interface |
 | Redis | Offset and transmission tracking |
-| Federator Server | Handles outbound data transmission to other DPNs |
-| Federator Client | Handles inbound data reception from other DPNs |
+| Federator Server | Handles outbound data transmission to other DPNs using GRPC |
+| Federator Client | Handles inbound data reception from other DPNs using GRPC |
+| REST Federator Server | Handles outbound data transmission to other DPNs using REST protocol |
+| REST Federator Client | Handles inbound data reception from other DPNs using REST Protocol |
 
 ## Data Processing Pipelines
 
@@ -354,7 +374,6 @@ The mapper component can also be extended for more capabilities, for example tra
 | Prometheus + Thanos | Metrics collection and long-term storage |
 | Jaeger | Distributed tracing UI |
 | Perses | Dashboarding |
-| Nginx proxy | Observability stack ingress/reverse proxy |
 
 ## Data Store
 
@@ -379,6 +398,8 @@ Day-to-day monitoring and operation of a running DPN node is performed through t
 | Jaeger UI | Distributed trace inspection | [Guide](Docs/05-dpn-user-interfaces/06-jaeger-dashboard-ui-operations.md) |
 | Kafka Health UI | Health monitoring service Kafka view | [Guide](Docs/05-dpn-user-interfaces/07-kafka-health-ui-operations.md) |
 | DPN Portal | Keycloak-SSO landing page linking the observability UIs | [Guide](Docs/05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) |
+| DPN Keycloak | User management for DPN UI components | [Guide](Docs/05-dpn-user-interfaces/09-dpn-keycloak-operations.md) |
+| DSI Certificate Management | Issue/renew Federator bootstrap and Edge certificates | [Guide](Docs/05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md) |
 
 ---
 
@@ -422,6 +443,7 @@ The DPN platform is deployed in two layers — infrastructure and application �
 | Vault | Secrets manager for certificate material and mTLS keystore/truststore passwords |
 | Docker | Container packaging |
 | S3 Bucket | Data store |
+| AWS GuardDuty for S3 | AWS GuardDuty file scan service |
 
 ---
 
@@ -429,11 +451,14 @@ The DPN platform is deployed in two layers — infrastructure and application �
 
 The platform follows several core security principles:
 
-- **Zero Trust architecture**
-- **Mutual TLS (mTLS) communication between nodes**
-- **Role-Based Access Control (RBAC)**
-- **Secure secret storage using Azure Key Vault (Azure) or Hashicorp Vault (AWS)**
-- **Secure container image repositories**
+- **Zero Trust architecture** — No user, device, or service is trusted by default; every request is authenticated and authorized regardless of network location.
+- **Mutual TLS (mTLS) communication between nodes** — Both client and server verify each other's certificates, encrypting and authenticating all inter-node traffic.
+- **Role-Based Access Control (RBAC)** — Access to resources and actions is granted based on a user's or service's assigned role, limiting permissions to only what's needed. The User Interfaces & Operations layer is guarded by RBAC mechanism.
+- **Secure secret storage using Azure Key Vault (Azure) or Hashicorp Vault (AWS)** — Sensitive credentials and keys are stored in a dedicated, encrypted vault rather than in code or config files.
+- **Secure container image repositories** — Container images are stored and scanned in access-controlled registries to prevent tampering or use of vulnerable images.
+- **Logging and Auditing** — All system activity and access events are recorded to provide traceability and support security investigations or compliance reviews.
+- **Network Security** — Network traffic is segmented and restricted through firewalls, isolated subnets, and controlled ingress/egress to limit exposure between components.
+- **Data Protection – Encryption at Rest and in Transit** — Data is encrypted both while stored and while moving across the network, preventing unauthorized access if intercepted or compromised.
 
 Code provided by DSI is security scanned using tools including:
 

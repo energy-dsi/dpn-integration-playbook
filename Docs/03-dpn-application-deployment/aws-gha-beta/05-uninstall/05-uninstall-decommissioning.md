@@ -68,7 +68,7 @@ All DPN services deployed as part of the DSI package are in scope for this unins
 
 ## Uninstallation Approach
 
-There is no uninstall workflow for any component in `dpn-containerised-deployment-service` — only CD (deploy) workflows exist. For every part below, uninstallation is a direct `helm uninstall <release> -n <namespace>` command, scoped to the Helm release that component owns, leaving other components unaffected. [Part 5](#part-5--uninstall-dpn-health-monitoring-service) gives the same pattern applied per sub-component, following the removal order described below.
+There is no uninstall workflow for any component — only CD (deploy) workflows exist. For every part below, uninstallation is a direct `helm uninstall <release> -n <namespace>` command, scoped to the Helm release that component owns, leaving other components unaffected. [Part 5](#part-5--uninstall-dpn-health-monitoring-service) gives the same pattern applied per sub-component, following the removal order described below.
 
 ---
 
@@ -290,10 +290,10 @@ This part removes the Health Monitoring Service stack deployed in `ns-dpn-health
 
 ### Step 1 — Remove Health Monitoring Sub-Components
 
-Remove each Helm release in the **reverse of the deployment dependency order** used to install them (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper/Jaeger → Perses → OTel → NginxObservability`), so no component is left pointing at a dependency that's already gone:
+Remove each Helm release in the **reverse of the deployment dependency order** used to install them (`Init → Kafka → OpenSearch → Prometheus → Thanos → DataPrepper/Jaeger → Perses → OTel → DPN Portal`), so no component is left pointing at a dependency that's already gone:
 
 ```bash
-helm uninstall nginx-observability -n ns-dpn-health-01
+helm uninstall dpn-portal -n ns-dpn-health-01
 helm uninstall otel-collector -n ns-dpn-health-01
 helm uninstall perses -n ns-dpn-health-01
 helm uninstall jaeger -n ns-dpn-health-01
@@ -304,7 +304,7 @@ helm uninstall opensearch -n ns-dpn-health-01
 helm uninstall kafka-health -n ns-dpn-health-01
 ```
 
-> **Note:** Removing `nginx-observability` first also removes proxied access to the Federator's Kafka UI mentioned in the [Pre-Uninstallation Checklist](#pre-uninstallation-checklist) — complete any Kafka topic checks before this step.
+> **Note:** `dpn-portal` (a tile landing page linking out to the observability UIs) has replaced the retired `nginx-observability` reverse proxy as the first release removed here; it is fronted by its own `oauth2-proxy` gateway rather than being the reverse proxy itself. The Kafka UI's `oauth2-proxy` gateway has also been retired — Kafka UI now uses native Keycloak OIDC login and is exposed on its own internal load balancer, so removing `dpn-portal` no longer affects Kafka UI access. Complete the Kafka topic checks from the [Pre-Uninstallation Checklist](#pre-uninstallation-checklist) against that Kafka UI endpoint before proceeding regardless.
 
 ---
 
@@ -417,7 +417,7 @@ Remove any certificates and secrets from **Azure Key Vault** that are no longer 
 
 ### Disable the Deployment Workflows
 
-Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files in `dpn-containerised-deployment-service` (`.github/workflows/*.yml`) — there's no separate "registered pipeline" object to delete. Once uninstallation is confirmed complete:
+Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files (`.github/workflows/*.yml`) — there's no separate "registered pipeline" object to delete. Once uninstallation is confirmed complete:
 
 - If this organisation's DPN was the only consumer of that repository's workflows, remove the `oidc_github_runner_admin` IAM role (or its trust policy) in the target AWS account and revoke EKS cluster access (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role)) so the workflows can no longer authenticate, rather than deleting the workflow files themselves (other environments may still use them).
 - If you want to actively prevent accidental re-runs, disable the individual workflows from the GitHub UI (**Actions → select workflow → "..." → Disable workflow**) rather than deleting the files.
@@ -445,5 +445,5 @@ If all commands return no DPN resources, the DPN platform has been successfully 
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
-|-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

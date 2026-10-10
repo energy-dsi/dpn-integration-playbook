@@ -11,12 +11,39 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Table of Contents
 
+- [Certificate Bootstrapping and Edge Certificates](#certificate-bootstrapping-and-edge-certificates)
+  - [Bootstrapping the Federator Certificate](#bootstrapping-the-federator-certificate)
+  - [Edge Certificate (Server Sign Certificate)](#edge-certificate-server-sign-certificate)
 - [Containerized Deployment Using DSI Provided Container Images](#containerized-deployment-using-dsi-provided-container-images)
   - [Configure GHCR Image Access](#configure-ghcr-image-access)
   - [Verify Image Pull Capability](#verify-image-pull-capability)
   - [Execute CD Pipeline](#execute-cd-pipeline)
   - [Verify CD Pipeline](#verify-cd-pipeline)
 - [Review Notes](#review-notes)
+
+---
+
+## Certificate Bootstrapping and Edge Certificates
+
+Every DPN node's certificate is generated and signed from the DSI portal's Certificate Management page,see the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md) for the full walkthrough. This section places the two certificate paths in the context of the Vault installation.
+
+### Bootstrapping the Federator Certificate
+
+1. Generate a key pair and `.csr` file on the DPN node (`openssl genrsa` + `openssl req`).
+2. Request a **Federator bootstrap certificate** (portal `Type: BOOTSTRAP`, short-lived) from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
+3. Upload the signed bundle (`vault.key`, `certificate.pem`, `ca-chain.pem`) to Azure DevOps Secure Files and load it into Vault — see [Configure DPN Vault Service, Step 3C](../02-configuration/01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-vault-load-bundle-cd).
+
+Once installed, the Certificate Manager renews this certificate automatically — no manual re-bootstrap is required afterwards.
+
+### Edge Certificate (Server Sign Certificate)
+
+**Placeholder** — for organisations that front their DPN deployment with an edge proxy (e.g. Cloudflare) instead of exposing the Federator directly:
+
+1. Generate a **server sign certificate** CSR on the edge component, requested with a **60-day TTL** longer than the Federator bootstrap certificate's short-lived default, since this certificate fronts the edge listener rather than bootstrapping the Federator.
+2. Request an **Edge component certificate** from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
+3. Install the signed bundle at the edge component.
+
+Unlike the Federator bootstrap certificate, the edge certificate is **not** renewed automatically — it must be manually reinstated at the edge on every renewal.
 
 ---
 
@@ -102,6 +129,7 @@ The kubectl logs should not showcase any [error] message if the deployment is su
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|------------------|--------|---------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

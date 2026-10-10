@@ -30,6 +30,8 @@ The Certificate Manager runs as a headless daemon (no HTTP endpoints) executing 
 - **Renewal job** — obtains/renews the DSM-signed certificate via the Management Node PKI API and persists the material in Vault.
 - **Sync job** — refreshes the mTLS keystore/truststore from the Vault material. Both are built **in memory** directly from certificate material read from Vault at start-up/refresh — no shared file share is used, and no P12 files are ever written to disk.
 
+> **This is a different certificate from a "server certificate."** The Renewal job above is fully automatic and produces the Federator Gateway's own mTLS certificate. A participant's own edge/server infrastructure (e.g. a Cloudflare-fronted server) needs a separate, manually-requested, long-TTL certificate from the same Management Node — see [Requesting a DPN Server Certificate](01-configure-dpn-vault-service.md#requesting-a-dpn-server-certificate), or request it through the DSI portal instead (labelled **"Edge component certificate"** there) via the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md). The two certificate types are not interchangeable.
+
 The Federator Gateway Server and Client read the same certificate material directly from Vault and build their own in-memory keystore/truststore the same way — they no longer mount a shared volume to pick up P12 files from the Certificate Manager.
 
 > **No more SMB file share.** Earlier releases distributed `keystore.p12`/`truststore.p12` between the Certificate Manager and the Federator Gateway via a shared Azure SMB file share. That file share has been fully removed from this chart: there is no `fileShare.*` values block, no PV/PVC template, and no toggle to re-enable it — the keystore/truststore are built in memory from Vault material instead.
@@ -53,10 +55,10 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Vault running over HTTPS, KV v2 enabled at `pki-client`, and the certificate bundle loaded into `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
-| 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the Vault `vault-tls-bootstrap-cd` pipeline |
-| 3 | **Vault credentials available** | Either `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init stage) or, if using the recommended AppRole method, `VAULT-APPROLE-SECRET-ID` plus a `role_id` — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication). `VAULT-TRUSTSTORE-PASSWORD` (from the Vault bootstrap) is required either way |
+| 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-tls-cd` pipeline — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd) |
+| 3 | **Vault credentials available** | Either `VAULT-TOKEN` (root token, stored in Key Vault by the Vault init stage) or, if using the recommended AppRole method, `VAULT-APPROLE-SECRET-ID` plus a `role_id` — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication). `tls-auth-secret` (from `dpn-tls-cd`) supplies the truststore password either way |
 | 4 | **AKS cluster** + (if using Azure Key Vault for secrets) a **user-assigned managed identity** and the **Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
-| 5 | **OAuth2 client ID, client secret, and Management Node URL** | Received from DSM during onboarding to establish the DPN connection |
+| 5 | **OAuth2 client ID and Management Node URL** | Received from DSM during onboarding to establish the DPN connection — authentication is JWT-based, no client secret is issued |
 | 6 | **Certificate Manager container image available** | Built via the DSI-provided CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD pipeline as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
 | 7 | **`config/<env>.json` and `values-<env>.yaml` populated** | See [Pre-Deployment Configuration](#step3-environment-configuration) |
 
@@ -143,7 +145,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `cert.subject.org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
 | `cert.subject.cn` | CSR subject Common Name (CN) | `dpn-<env>-01` |
 | `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
-| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `100` |
+| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
 > **In-memory keystore — no `certDest`/`mtls`/`fileShare` parameters.** Earlier chart versions wrote P12 files to a shared file share and exposed `certDest.*`/`mtls.*`/`fileShare.*` values to configure that path. These no longer exist: the keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account.
 
@@ -165,13 +167,12 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 |------------|-------------------------|---------|-----------------------|
 | `VAULT-APPROLE-SECRET-ID` *(recommended)* | `certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID` | AppRole secret-id for the Certificate Manager, from `vault-approle-setup-cd` | `<generated secret-id>` |
 | `VAULT-TOKEN` | `certificate-manager-secrets` / `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault (from Vault init) — only used when `vault.authentication: TOKEN` | `hvs.xxxxxxxxxxx` |
-| `OAUTH2-CLIENT-SECRET` | `certificate-manager-secrets` / `OAUTH2_CLIENT_SECRET` | Client secret for the Management Node OAuth2 client (if `oauth2.authMode` requires one) | `<client-secret>` |
 
 > **Note:** `VAULT-APPROLE-SECRET-ID` is produced by the `vault-approle-setup-cd` pipeline (see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended)). `VAULT-TOKEN` is produced during Vault setup by the Vault init stage (`storeRootTokenInAkv: true`) and is only needed if you have not migrated to AppRole. Confirm whichever you use exists in Key Vault before deploying.
 
 #### Option B - Through Vault truststore (Kubernetes secret)
 
-The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (default `cert-manager-truststore`) and mounted at `vaultTruststore.mountPath`. This secret is **created automatically by the Vault `vault-tls-bootstrap-cd` pipeline** — no manual `kubectl create secret` is required.
+The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (default `cert-manager-truststore`) and mounted at `vaultTruststore.mountPath`. This secret is **created automatically by the `dpn-tls-cd` pipeline** — no manual `kubectl create secret` is required.
 
 ---
 
@@ -203,6 +204,7 @@ Runtime parameters:
 ---
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|------------------|--------|---------|
-| 31-Jul-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

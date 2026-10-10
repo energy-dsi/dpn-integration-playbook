@@ -22,14 +22,13 @@
   - [Emergency Certificate Rotation Process](#emergency-certificate-rotation-process)
   - [Certificate Sync Job Failing](#certificate-sync-job-failing)
   - [Federator Connection Failing](#federator-connection-failing)
-  - [Invalid Client Credential](#invalid-client-credential)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-This document is the starting point for installing and deploying **DPN components into an airgapped AWS environment** using the **`dpn-containerised-deployment-service` GitHub Actions pipeline** — the same pipeline mechanism used for the Azure airgap path, run with `cloud: aws`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
+This document is the starting point for installing and deploying **DPN components into an AWS environment** using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, run with `cloud: aws`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
 
 The deployment uses the following repositories:
 
@@ -117,9 +116,11 @@ The following prerequisites must be completed before beginning the installation 
 
 ### 1. Clone and Prepare Source Repositories
 
-Clone the official repositories from GitHub.
+Clone the official repositories from GitHub main branch
 
 ```bash
+git clone https://github.com/energy-dsi/dpn-authentication-service
+git clone https://github.com/energy-dsi/dpn-rest-federator-gateway
 git clone https://github.com/energy-dsi/dpn-federator.git
 git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-data-pipelines.git
@@ -139,8 +140,6 @@ or
 ```bash
 git checkout release/<version>
 ```
-
-Deployment itself runs directly against the `dpn-containerised-deployment-service` GitHub repository via GitHub Actions — there is no separate push-to-pipeline-repository step.
 
 ---
 
@@ -166,22 +165,21 @@ Refer to [DPN Vault Service Configuration](../02-configuration/01-configure-dpn-
 
 ### 4. Identify Pipeline Repository Structure
 
-All CD workflows and their per-cloud configuration live in `dpn-containerised-deployment-service`:
+All CD workflows and their configuration live in the following location
 
 ```
-dpn-containerised-deployment-service/
-├── .github/
-│   ├── workflows/          # one workflow per DPN component (e.g. dpn-vault-https-cd.yml)
+root/
+├── .pipelines/
+  ├── github-actions-pipelines/
+│   ├── workflows/          # one workflow per DPN component (e.g. dpn-gha-vault-https-cd.yml)
 │   ├── actions/
 │   │   └── cloud-login/    # shared composite action: azure / aws / gcp OIDC login
 │   └── config/
 │       ├── azure/<environment>-<cluster>.json
 │       ├── aws/<environment>-<cluster>.json
 │       └── gcp/<environment>-<cluster>.json      # not yet supported
-└── <component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml
+└── /charts/<components>/values/aws/<environment>-<cluster>.yaml
 ```
-
-CI (build/test/scan for the DPN component's own source code) runs as GitHub Actions in that component's own source repository (e.g. `dpn-federator-gateway`, `dpn-federator-certificate-manager`) where already migrated, separately from the CD workflows above.
 
 ---
 
@@ -192,11 +190,13 @@ The DPN currently comprises the following components. Complete the prerequisites
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Health Monitoring Service | *02-dpn-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
-| DPN Federator Certificate Manager | *03-dpn-certificate-manager-installation-process.md* | Depends on Vault |
-| DPN Federator Gateway | *04-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
-| DPN Data Pipeline | *05-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
-| DPN File Scanning Service | *06-dpn-file-scan-service-installation-process.md* | Uses GuardDuty Malware Protection for S3 on this path (Defender for Storage on Azure) — resource provisioning is manual either way, see that guide |
+| DPN Authentication Service | *02-dpn-authentication-service-installation-process.md* | Must be installed and configured before the Health Moniotoring service|
+| DPN Health Monitoring Service | *03-dpn-health-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
+| DPN Federator Certificate Manager | *04-dpn-certificate-manager-installation-process.md* | Depends on Vault |
+| DPN Federator Gateway | *05-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
+| DPN REST Federator Gateway | *06-dpn-rest-federator-gateway-installation-process.md* | Optional. Depends on Vault and Certificate Manager, same as the gRPC Federator Gateway; independent of it otherwise |
+| DPN Data Pipeline | *07-dpn-data-pipeline-installation-process.md* | Independent of Vault/Certificate Manager/Federator Gateway |
+| DPN File Scanning Service | *08-dpn-file-scan-service-installation-process.md* | Native deployment for Azure Cloud only |
 
 ---
 
@@ -266,7 +266,7 @@ Common causes:
 Verify Kafka topics using the Kafka UI:
 
 ```
-http://kafka-ui:8085
+http://kafka-ui:8086
 ```
 
 Check that:
@@ -279,7 +279,7 @@ Check that:
 
 ### Certificate Renewal Job Failing
 
-When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
+When the CD pipeline is run and pods are started for the first time, the log verification step described in [Certificate Manager, Step2c: Verify CD Workflow](04-dpn-certificate-manager-installation-process.md#step2c-verify-cd-workflow) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
 
 Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](../02-configuration/01-configure-dpn-vault-service.md#automated-vault-configuration).
 
@@ -328,18 +328,8 @@ Verify that the mutual TLS certificates are correctly loaded in Vault and that t
 
 ---
 
-### Invalid Client Credential
-
-An "Invalid client credential" error can arise due to a mismatch in the IDP client secret (`OAUTH2-CLIENT-SECRET`), which may occur following a periodic rotation carried out at the DSM side that renders the secret invalid at the DPN end.
-
-```
-Recommended fix: Obtain the updated client secret for the Client ID from DSM by raising a request with the DSM team.
-```
-
----
-
 ## Review Notes
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
-| 31-July-2026 | DSI Assurance    | Final  | V1.0.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

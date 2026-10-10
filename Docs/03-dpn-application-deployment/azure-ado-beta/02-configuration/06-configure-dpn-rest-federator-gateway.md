@@ -11,6 +11,8 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
 ## Table of Contents
 
 - [Overview](#overview)
+- [Repository Components](#repository-components)
+  - [Running the reference demo](#running-the-reference-demo)
 - [REST Endpoint Behaviour and Release Scope](#rest-endpoint-behaviour-and-release-scope)
 - [Step1: Meet the Prerequisites](#step1-meet-the-prerequisites)
 - [Step2: Configure Secrets](#step2-configure-secrets)
@@ -46,6 +48,48 @@ Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 
 ---
 
+## Repository Components
+
+The `dpn-rest-federator-gateway` repository is a Maven multi-module build (`mvn clean install` from the root builds everything, in dependency order) containing four distinct pieces. Only the first two are part of the actual DPN data path — the other two are an illustrative reference implementation, useful for testing a deployment end to end but not required by it.
+
+| Module (path in repo) | Artifact / release | Role |
+|---|---|---|
+| `server/` — `rest-federator-server` | Deployed container (`dpn-rest-federator`) | **The gateway itself** — the generic authorising reverse proxy described in [Overview](#overview). This is the only server-side piece a producer runs. |
+| `client/` — `rest-federator-client` | Importable library jar | The **consumer's** integration point — a participant imports this into their own application (it is never deployed as its own container) and gets mTLS, JWT, OCSP, Management Node bootstrap, and certificate hot-reload handled for it. See [Integrating a Consumer](#integrating-a-consumer). |
+| `demo/demo-runner-server/` — `demo-runner-server` | Deployed container, its own Helm chart (`dpn-demo-runner-server`) | **Example only — illustrative, not production.** A standalone Spring Boot backend implementing a subset of the MHHS FMAR specification (`GET/POST /api/v1/fmar/...`), sitting *behind* the gateway as its internal backend. Data is held in memory, not persisted. Terminates HTTPS with the same Vault-issued certificate the gateway uses (server-only TLS) and requires the shared backend API key on every call. |
+| `demo/demo-runner-client/` — `demo-runner-client` | One-shot Kubernetes Job, its own Helm chart (`dpn-demo-runner-client`) | **Example only.** A plain Java console application (no Spring) that imports `rest-federator-client` and drives a scripted call sequence against `demo-runner-server` *through* the gateway — register an asset, look it up, attempt a duplicate registration (expects `409`), and call a path deliberately outside the product's allowed-path configuration (expects `403`) — to demonstrate the gateway's authorisation working end to end. |
+
+`server` and `client` are the two sides of a federated exchange — the gateway is the sole authority on authorisation (consumer + method/path, from producer config); the client library only handles the plumbing and lets the integrator drive the calls. `demo-runner-server`/`demo-runner-client` are a worked example of exactly that shape, useful for validating a new environment's deployment without needing a second real organisation to test against.
+
+### Running the reference demo
+
+Deployed by its own pipeline, independent of the gateway's own CD pipeline:
+
+```text
+Root-Repository/
+└── .pipelines/
+    └── azure-pipelines/
+        └── cd-pipelines/
+            └── demo-runner-cd.yml
+```
+
+The pipeline runs two independent stages — **Deploy_DemoRunnerServer** (a normal Deployment + Service) and **Run_DemoRunnerClient** (a one-shot Job; since a Job's pod spec is immutable, every run creates a *new* Job object suffixed with the build ID, rather than re-triggering an existing one).
+
+| Parameter | Description |
+|-----------|-------------|
+| `ServiceConnection` / `environment` / `cluster` | As with the gateway's own CD pipeline |
+| `imageTag` | Tag of the demo-runner images to deploy (a separate CI build from the gateway's own) |
+| `deployServer` / `runClient` | Booleans — run either stage independently, e.g. `runClient: true` with `deployServer: false` to re-run just the client against an already-deployed server |
+| `mpan`, `postcode`, `assetId`, `fspId` | Demo run parameters passed into the client Job's environment — the specific asset to register/look up on each run |
+
+`organisationName`/`productName` (which organisations/products the client targets) are **not** pipeline parameters — they're set in the `dpn-demo-runner-client` chart's own values file per environment (blank targets every subscribed product). Completed Jobs are kept for `ttlSecondsAfterFinished` (1h default) so their output can be read afterward:
+
+```bash
+kubectl logs job/dpn-demo-runner-client-<buildId> -n <namespace>
+```
+
+---
+
 ## REST Endpoint Behaviour and Release Scope
 
 Unlike the gRPC Federator's static topic wiring, a REST product's endpoint shape is **not a Helm value** — it is fetched at runtime from the Management Node as part of that product's configuration (a `topic` array of `{request_type, request_path}` entries) and enforced by the gateway on every request: is the caller a registered consumer of this product → is its certificate still valid (OCSP) → does the requested method/path match one of the product's allowed entries. Any failed check returns `403`, and an unparseable or empty allowed-path configuration denies everything by default (fail closed).
@@ -61,8 +105,7 @@ This release delivers **endpoint registration, method-listing, GET/POST proxying
 
 > **One-time connection reuse.** The `rest-federator-client` library builds one mTLS-enabled HTTP client per subscribed product when it starts up, and reuses that same client for the life of the process — it is rebuilt only on certificate rotation (via a file watcher), never per request. There is no separate "sharing agreement" record: a consumer's authorisation to connect is enforced by its membership in that product's consumer list, which the gateway fetches dynamically from the Management Node — this list **is** the technical sharing agreement check for REST.
 
-> **Automatic pickup of new REST products.** The gateway re-fetches its producer/consumer configuration from the Management Node on a short TTL (`restFederatorServer.managementNode.cacheTtlSeconds`, default 60s) rather than only at start-up — so a newly-published REST product becomes reachable over an already-established connection with no gateway reconfiguration or restart. This release does **not** yet track a received version ID or timestamp for each update (no such field or storage exists); that bookkeeping, and the broader Data Product versioning design for REST, is deferred to PI5 (tracked separately as an enabler).
-
+> **Automatic pickup of new REST products.** The gateway re-fetches its producer/consumer configuration from the Management Node on a short TTL (`restFederatorServer.managementNode.cacheTtlSeconds`, default 60s) rather than only at start-up — so a newly-published REST product becomes reachable over an already-established connection with no gateway reconfiguration or restart. 
 ---
 
 ## Step1: Meet the Prerequisites
@@ -71,7 +114,7 @@ This release delivers **endpoint registration, method-listing, GET/POST proxying
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed**, with this gateway's endpoint included in the certificate's SANs | e.g. `producer-rest01.<dpn>...` alongside the gRPC Federator's `producer.<dpn>...`/`consumer.<dpn>...` — see [Configure DPN Certificate Manager, Step3a](04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the Vault `vault-tls-bootstrap-cd` pipeline; trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; trusts Vault's HTTPS endpoint |
 | 4 | **Vault AppRole identity provisioned** *(recommended)*, or the root token | No policy file or setup script ships in this repository yet — the Vault-side AppRole role must be authored/created manually. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **DPN Authentication Service (Keycloak) reachable** | Inbound JWTs are validated against its JWKS endpoint. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) |
 | 6 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
@@ -92,6 +135,8 @@ Only the backend API key is provisioned outside the chart — everything else (c
 | Backend API key | Kubernetes `Secret` (`restFederatorServer.backend.apiKeySecret`, default name `dpn-backend-api-key`), or synced from Key Vault (`BACKEND-API-KEY`) via the CSI driver when `keyvault.enabled: true` | Authenticates the gateway to the internal backend (`X-Backend-Api-Key` header) |
 | Vault credentials | AppRole `secret-id` (recommended) or root token, via `certificate-manager-secrets` — same mechanism as the gRPC Federator Gateway | Reads certificate material and keystore/truststore passwords from Vault |
 
+> **Vault truststore password (deploy-time).** The gateway CD pipeline reads **`TRUSTSTORE-PASSWORD`** from Key Vault and injects it as `restFederatorServer.vault.truststorePassword`, rendered into the backend's config at deploy time. This secret is written by the `dpn-tls-cd` pipeline on every certificate renewal — no manual creation needed, provided `dpn-tls-cd` has already run (see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd)). As with the gRPC Federator Gateway, this value is captured at deploy time — re-run this CD pipeline after a `dpn-tls-cd` password rotation to pick up the new value.
+
 ---
 
 ## Step3: Environment Configuration
@@ -111,10 +156,9 @@ Root-Repository
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `restFederatorServer.tls.enabled` | Whether this listener terminates HTTPS itself | `true` |
-| `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate. Off by default so the gateway can sit behind infrastructure that cannot present one (e.g. health probes) | `false` |
-| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `http://<backend-service>:8080` |
-| `restFederatorServer.producerId` | This producer's identifier, as registered with the Management Node | `<producer-id>` |
-| `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` |
+| `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate | `true` - **Note** - Set this value to false when the mTLS is negotiated over Edge proxy or at layer 7 load balancer |
+| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:<port-number>` |
+| `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` where XXX is based on DSI environment |
 | `restFederatorServer.idp.clientId` / `jwksUrl` / `tokenUrl` | Identity Provider client ID and endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
 | `restFederatorServer.redis.host` / `port` | Points at this chart's own `dpn-redis` release | `dpn-rest-federator-redis` / `6379` |
 
@@ -127,10 +171,6 @@ Root-Repository
 | `restFederatorServer.vault.appRole.useSecretIdRef` | Source the AppRole `secret-id` from a Kubernetes Secret (`certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID`) rather than a plaintext value | `true` |
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
-
-> **No DSI-provided AppRole automation exists yet for this component.** Unlike the Certificate Manager (automated pipeline) and the Federator Gateway (a manual script shipped in that repo), the `dpn-rest-federator-gateway` repository ships no Vault policy file or setup script at all — the chart above accepts AppRole values, but there is nothing to run to actually provision the role in Vault. An organisation using `authMethod: approle` for this component must author its own policy (the `pki-client/*` read/list shape used by the other two components is a reasonable starting point) and create the AppRole role directly, following the same manual pattern described for the Federator Gateway. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
-
-> As with the gRPC Federator, `vault.tlsEnabled: true` is what removes the need for a shared file share — the gateway reads its TLS material straight from Vault. The TLS bundle is written to a short-lived, ephemeral-password file on disk at start-up (a JVM-managed temp location, not a mounted volume) rather than being applied purely in memory, and is rewritten on the same schedule as `vault.tls.reload.interval.seconds` (default 3600s) — hot-swapped with no pod restart. No configuration keys changed for this; it is the same `vault.tls*` settings above, just delivered through a more reliable mechanism.
 
 ### Step3c: Configure Autoscaling
 
@@ -196,12 +236,12 @@ ProductKey orgB = new ProductKey("Org B", "Data Product X");
 String body = client.get(orgB, "/api/v1/things?id=42", Map.of());
 ```
 
-See the `dpn-rest-federator-gateway` repository's `demo/demo-runner-client` for a complete worked example, including the expected `403` behaviour when a path falls outside a product's allowed-path configuration.
+See the `dpn-rest-federator-gateway` repository's `demo/demo-runner-client` for a complete worked example, including the different result behaviour with both success and failure examples
 
 ---
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 

@@ -28,16 +28,29 @@ The primary objectives of this documentation are to:
 
 This documentation focuses on the deployment and operation of DPN nodes using the following technologies:
 
-- Azure DevOps CI/CD pipelines
+**Azure**
+
+- Azure DevOps CI/CD pipelines (ADO)
+- Github Actions flows 
 - Azure Kubernetes Service (AKS)
 - Helm deployments
 - Kafka messaging platform
 - Redis state management
 - Container-based services
+- Microsoft Defender for storage for file scan
 
-The documentation assumes that the DPN node will be deployed within **Azure cloud environment** and **AWS Cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
+**AWS**
 
-The Azure deployment is completely automated using ADO Pipelines documented in  Azure ADO Beta installation. The AWS deployment is manual using kubectl with detailed step by step instruction to follow.
+- GitHub Actions pipeline and flows
+- Elastic Kubernetes Service (EKS)
+- Helm deployments
+- Kafka messaging platform
+- Redis state management
+- Container-based services
+- AWS GuardDuty for storage for file scan
+
+
+The documentation assumes that the DPN node will be deployed within an **Azure cloud environment** or an **AWS Cloud environment**, although the platform architecture is designed to support deployment in other environments with appropriate adjustments.
 
 ---
 
@@ -45,7 +58,7 @@ The Azure deployment is completely automated using ADO Pipelines documented in  
 
 By following the procedures in this documentation, organisations will be able to:
 
-- Successfully deploy a DPN node on either Azure, AWS or GCP. (Support for other clouds upcoming)
+- Successfully deploy a DPN node on either Azure, AWS. (Support for other clouds upcoming)
 - Integrate with the DSI ecosystem
 - Exchange data securely with other participating organisations
 - Operate and maintain the platform within their infrastructure environment

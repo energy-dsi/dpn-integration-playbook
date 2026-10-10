@@ -147,11 +147,11 @@ Create one **Azure DevOps Library Variable Group** per environment and assign it
 
 #### D. Virtual Network
 
-> Obtain from the connectivity/networking team. These resources must exist before the bootstrap pipeline runs.
+> `Obtain from the connectivity/networking team. These resources must exist before the bootstrap pipeline runs.
 
-- `VNET_RESOURCE_GROUP` — Resource group of the pre-existing VNet for this environment. Example: `<vnet-resource-group-name>`
-- `VNET_NAME` — Name of the pre-existing VNet. Example: `<vnet-name>`
-- `TFSTATE_SUBNET_PREFIX` — CIDR `/28` block allocated by the networking team for the OpenTofu state private endpoint subnet. Example: `<subnet-cidr>/28`
+- `VNET_RESOURCE_GROUP` — Resource group of the pre-existing base VNet for this environment. Example: `<vnet-resource-group-name>`
+- `VNET_NAME` — Name of the pre-existing base VNet. Example: `<vnet-name>`
+- `TFSTATE_SUBNET_PREFIX` — CIDR /28 block allocated by the networking team for the OpenTofu state private endpoint subnet. Example: <subnet-cidr>/28`
 
 ---
 
@@ -580,8 +580,7 @@ After infrastructure deployment completes successfully, prepare handoff document
 
 OpenTofu outputs contain critical information needed for application deployment configuration. Export these values:
 
-```bash
-# Retrieve OpenTofu outputs for application team
+# Retrieve OpenTofu outputs for application team 
 tofu output -json > infrastructure-outputs.json
 
 # Extract key values
@@ -640,3 +639,5 @@ The application deployment guide references:
 ---
 
 Continue with [04-rollback-procedures.md](04-rollback-procedures.md)
+
+Installation Complete! 🎉

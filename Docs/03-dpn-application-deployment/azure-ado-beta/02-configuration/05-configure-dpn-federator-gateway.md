@@ -26,6 +26,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
   - [Step3b: Configure Federator Client](#step3b-configure-federator-client)
   - [Step3c: Configure Key Vault If Used](#step3c-configure-key-vault-if-used)
   - [Step3d: Configure Kafka Security](#step3d-configure-kafka-security)
+  - [Step3e: Configure Redis Security](#step3e-configure-redis-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -41,11 +42,11 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 | Kafka Source | Stages the DPN's outgoing data; the Federator **Server** reads from here to send data out |
 | Kafka Target | Receives incoming data from other DPNs; the Federator **Client** writes received data here |
 | Kafka UI | Web dashboard to monitor topics/messages in both Kafka clusters (testing) |
-| Redis | In-memory cache for offsets and tokens, used by both Server and Client |
+| Redis | In-memory cache for offsets and tokens, used by both Server and Client. TLS-only (server-auth), access gated by Keycloak — see [Step3e](#step3e-configure-redis-security) |
 | **Federator Server** | Receives inbound connections from other DPNs' clients; reads from Kafka Source and streams data out over gRPC/mTLS |
 | **Federator Client** | Connects outward to a remote Federator Server; writes received data into Kafka Target and its storage |
 
-> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafka.oauth.tokenEndpointUrl`), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials.
+> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafkaSrc.oauth.tokenEndpointUrl` / `kafkaTarget.oauth.tokenEndpointUrl` — there is no shared top-level `kafka.oauth.*` key), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials.
 
 **certificates and passwords flow (MUST READ):**
 
@@ -70,18 +71,18 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the Vault `vault-tls-bootstrap-cd` pipeline; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
 | 4 | **Vault AppRole identity provisioned** *(recommended)* | No CD pipeline exists for this yet — run this repository's `vault/setup-approle.sh` manually against the Vault pod, then set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId`. `token` remains available for backward compatibility. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | The managed identity must have *get* access to the Key Vault secrets |
 | 6 | **Azure Key Vault secrets created** | The two storage connection strings — see [Step2: Configure Secrets](#step2-configure-secrets) |
 | 7 | **Storage accounts provisioned** | The **Server's** storage account, and the **File Scan Service source** storage account used by the **Client** |
 | 8 | **Fixed internal load balancer IPs reserved** | One for the Server service, one for the Client service (internal LB) |
 | 9 | **OAuth2 client ID + Management Node URL + IDP URLs** | Received from DSM during onboarding |
-| 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafka.oauth.tokenEndpointUrl` |
+| 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafkaSrc.oauth.tokenEndpointUrl` / `kafkaTarget.oauth.tokenEndpointUrl` |
 | 11 | **Container image tag available** | Built by the DSI CI process or prebuilt DSI image; supplied to the CD pipeline as `imageTag` |
 | 12 | **`config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml` populated** | See [Step3: Configure Environment](#step3-configure-environment) |
 
-> **No shared file share.** Earlier releases mounted a shared file share (`pvc-dpn-certs-fileshare`) at `/tls` to pick up P12 files written by the Certificate Manager. That file share has been removed — the gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)).
+> **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** Earlier releases mounted a shared file share (`pvc-dpn-certs-fileshare`) at `/tls` to pick up P12 files written by the Certificate Manager. Every populated environment (`values-<env>-<cluster>.yaml`) sets `vaultConfig.mountCertFileShare: false`, so the gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)). The chart's own reference `values.yaml` still defaults `mountCertFileShare: true` for backward compatibility, though — if you provision a **new** environment by copying `values.yaml` (per [Step3](#step3-configure-environment)) and don't explicitly override this to `false`, the deprecated file share is mounted again. Confirm `mountCertFileShare: false` is set explicitly in your environment's values file rather than relying on the reference default.
 
 > **Azure DevOps pipeline setup (one-time):** Before running the CD pipeline, complete [Azure DevOps Configuration](00-common-dpn-configuration.md#step2-azure-devops-configuration) — the pipeline **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), set up the Azure **service connection**, and populate the per-cluster `config/<env>-<cluster>.json`. Note the gateway uses a **per-cluster** config JSON and values file (`<env>-<cluster>`), unlike Vault/Certificate Manager which use `<env>` only.
 
@@ -108,9 +109,9 @@ https://<storage-account>.blob.core.windows.net/?<sas-token>
 
 > **Note:** The keystore/truststore P12 passwords are **not** provisioned here — the gateway reads them from Vault at runtime. Only the storage connection strings live in Key Vault for the Federator Gateway.
 
-> **Vault truststore password (deploy-time):** The gateway CD pipeline reads **`VAULT-TRUSTSTORE-PASSWORD`** from this Key Vault (`az keyvault secret show`) and injects it as `vaultConfig.truststorePassword`, which is rendered into the Federator common config at deploy time. This secret is created earlier by the Vault `vault-tls-bootstrap-cd` pipeline — confirm it exists in Key Vault before deploying the gateway.
+> **Vault truststore password (deploy-time):** The gateway CD pipeline reads **`TRUSTSTORE-PASSWORD`** from this Key Vault (`az keyvault secret show`) and injects it as `vaultConfig.truststorePassword`, which is rendered into the Federator common config at deploy time. This secret is written by the `dpn-tls-cd` pipeline on every certificate renewal — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-dpn-universal-tls-dpn-tls-cd).
 >
-> **Rotating this password:** it is captured **at deploy time** and baked into the rendered config, so restarting the Federator pods keeps the **old** value. To rotate it: update `VAULT-TRUSTSTORE-PASSWORD` in Key Vault (via `vault-tls-bootstrap-cd`), then **re-run the gateway CD pipeline** (`azure-dpn-cd`) so the config is re-rendered with the new value — a pod restart alone is not sufficient.
+> **Rotating this password:** it is captured **at deploy time** and baked into the rendered config, so restarting the Federator pods keeps the **old** value. To rotate it: re-run `dpn-tls-cd` with the new `truststorePassword`, then **re-run the gateway CD pipeline** (`azure-dpn-cd`) so the config is re-rendered with the new value — a pod restart alone is not sufficient.
 
 ---
 
@@ -123,7 +124,7 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 | `federator-server-secrets` | CSI driver from AKV `STORAGE-CONNECTION-STRING` (Server `SecretProviderClass`) | Server storage connection string |
 | `federator-client-secrets` | CSI driver from AKV `CLIENT-STORAGE-CONNECTION-STRING` (Client `SecretProviderClass`) | Client storage connection string |
 | `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — the AppRole `secret-id` (recommended, `vaultConfig.authMethod: approle`) or the root token (`VAULT_TOKEN`, `authMethod: token`) |
-| `cert-manager-truststore` | Created by the Vault **`vault-tls-bootstrap-cd`** pipeline | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
+| `cert-manager-truststore` | Created by the **`dpn-tls-cd`** pipeline | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
 
 ---
 
@@ -165,17 +166,6 @@ Root-Repository
 | `federatorClient.storage.provider` | `AZURE/S3/GCP/LOCAL` | Note. Important to set this value based on cloud provider. This parameter decides which storage provider to be invoked based on cloud type |
 | `federatorClient.storage.azure.container` | Container where inbound files are written (File Scan source container) | `dp-consumer-raw` |
 
-**JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
-
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `federatorClient.auth.enabled` | Front the JobRunr dashboard with a built-in Keycloak-authenticating gateway instead of leaving it open on the internal network | `true` |
-| `federatorClient.auth.issuerUrl` / `.audience` | Keycloak realm issuer and OIDC client ID (reuses the same client Kafka's OAuth already uses) | as received from DSM |
-| `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
-| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port — must differ from `jobRunnerPort`, and is the **only** port exposed via the `-external` LoadBalancer Service | `8086` |
-
-> **Keycloak redirect URI must use the `-external` hostname.** The gateway runs its own OIDC authorization-code login. Register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` as the redirect URI on the Keycloak client — pointing it at the plain in-cluster hostname instead breaks the login callback (state-cookie mismatch), since Keycloak always redirects back to whichever hostname is configured here regardless of which one the browser actually started the login from.
-
 ### Step3c: Configure Key Vault If Used
 
 The following parameter needs to be set if key vault is used as secret provider. 
@@ -191,10 +181,23 @@ The following parameter needs to be set if key vault is used as secret provider.
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `kafka.authMode` | Security protocol for **every** Kafka listener (Source and Target) — `sasl_ssl` (production default), `ssl` (TLS only), or `plaintext` (dev/test only) | `sasl_ssl` |
-| `kafka.oauth.tokenEndpointUrl` | Keycloak token endpoint used for `OAUTHBEARER` login/validation when `authMode: sasl_ssl` | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `kafka.authMode` | Security protocol for **every** Kafka listener (Source and Target) — `sasl_ssl` (production default), `ssl` (TLS only, no OAuth), or `plaintext` (dev/test only) | `sasl_ssl` |
+| `kafkaSrc.oauth.clientId` / `kafkaTarget.oauth.clientId` | Keycloak client ID each broker's `OAuthBearerLoginModule` authenticates as | `dpn-service-client` |
+| `kafkaSrc.oauth.tokenEndpointUrl` / `.jwksUrl` (and the same under `kafkaTarget.oauth`) | Keycloak token/JWKS endpoints used for `OAUTHBEARER` login and token validation when `authMode: sasl_ssl` | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/{token,certs}` |
+| `kafkaSrc.oauth.expectedAudience` / `.expectedIssuer` (and the same under `kafkaTarget.oauth`) | Values the broker validates incoming tokens against | `dpn-service-client` / `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm` |
+| `kafkaSrc.oauth.adminUser` / `kafkaTarget.oauth.adminUser` | Keycloak admin username used for realm bootstrap checks | `admin` |
+| `kafkaSrc.tls.*` / `kafkaTarget.tls.*` | Broker's own TLS keystore/truststore paths and mTLS enforcement (`clientAuth: none` or `required`) — used whenever `authMode` is `ssl` or `sasl_ssl`, independent of the OAuth settings above | see chart defaults |
+
+> **Secrets this depends on.** The `oauth.*` fields above are non-secret config; the actual client secret and passwords are read at runtime from two existing secrets — `dpn-keycloak-secrets` (`KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`) and `tls-auth-secret` (`KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, created by `dpn-tls-cd`). Provisioning `dpn-keycloak-secrets` is out of scope for this playbook — see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
 
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
+
+### Step3e: Configure Redis Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `redis.tls.enabled` | Setup redis on encrypted connection | `true` |
+| `redis.truststore.path` / `redis.truststore.password` | Client-side truststore the Server/Client use to trust Redis's certificate. Identical for both roles, so set once in `common-configuration.properties` rather than duplicated per role | as received alongside the other TLS material |
 
 ---
 
@@ -229,6 +232,7 @@ DPN DEPLOYMENT COMPLETE
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
-| 31-Jul-2026 | DSI Assurance | Final | V1.0.0 |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 

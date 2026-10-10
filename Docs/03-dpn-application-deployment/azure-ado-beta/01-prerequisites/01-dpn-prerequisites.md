@@ -69,12 +69,14 @@ The following softwares must be available in the agent pool before installing DP
 
 DPN repositories required:
 
-- [DPN-Infra](https://github.com/energy-dsi/dpn-infra-deployment)  
+- [DPN-Infra](https://github.com/energy-dsi/dpn-infrastructure-azure)  
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
-- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator)  
+- [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator-gateway)
+- [DPN-Rest-Federator-Gateway](https://github.com/energy-dsi/dpn-rest-federator-gateway)
 - [DPN-Federator Certificate-Manager](https://github.com/energy-dsi/dpn-federator-certificate-manager)
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
-- [DPN-FILE-SCAN-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
+- [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
 
 ### Optional Tools
 
@@ -208,11 +210,9 @@ If a certificate expires before automatic renewal has taken place — for exampl
 
 Organisations should factor this recovery process into their operational runbooks so that certificate expiry does not result in extended loss of connectivity to the DSI network.
 
-While the DSM is capable of issuing short-lived certificates and the DPN includes built-in capability to renew them automatically before expiry, the current certificate validity period is set to 60 days. This decision is driven by a known constraint affecting organisations that deploy their DPN behind Cloudflare or an equivalent reverse proxy or edge security layer. In such deployments, enterprise security policies may be configured to terminate mTLS at the Cloudflare boundary rather than passing it through end-to-end. Where mTLS is terminated at Cloudflare, the certificate installed at that layer is outside the DPN's automated renewal process — meaning that when a certificate is renewed by the DPN, the updated certificate must also be manually installed at the Cloudflare boundary. A shorter certificate lifetime would increase the frequency of this manual intervention. Setting the validity period to 60 days balances the security benefit of certificate rotation against the operational burden of manual installation at the proxy layer.
+While the DPN certificates expire in every 24 Hrs, there may be a need for participants to install certificates to their Edge Proxies e.g. Cloudflare or Akamai to do mTLS negotiation. A 24 Hrs TTL certificate is too short life time . Considering this challenge DSM also provides a server sign certificate with 60 days TTL. The server sign certificate generation process is similar and can be referenced from the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md).
 
-This constraint is under active review. Solutions have been identified that are expected to address 24 hrs certificate TTL back from 60 days while issuing a different certificate for proxy-terminated mTLS deployments. The additional long term TTL certificate to be provided from a different endpoint and serves only the purpose of client authentication at edge proxies for DPN. This longer TTL certificate can not be used for DSM authentication or any client certificate. This change is targeted for delivery in PI4.
-
-_**Note:** Organisations operating DPNs behind Cloudflare or equivalent infrastructure should factor the current manual renewal process into their operational runbooks until this capability is available and also actively monitor the expiry of the certificate installed outside the DPN certificate manager component since DSI does not generate any alert on certificate expiry at this moment._
+_**Note:** Organisations operating DPNs behind Cloudflare or equivalent infrastructure should factor the manual renewal process into their operational runbooks until this capability is available and also actively monitor the expiry of the certificate installed outside the DPN certificate manager component since DSI does not generate any alert on certificate expiry at this moment.Also this server certificate can not be used in the DPN Federtor Gateway client to do authentication with DSM_
 
 ---
 ## Skills Prerequisites
@@ -236,4 +236,5 @@ The prerequisites described in this document assume the following:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| 15-May-2026 | DSI Assurance   | Draft  | V0.1.0 |
+| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
