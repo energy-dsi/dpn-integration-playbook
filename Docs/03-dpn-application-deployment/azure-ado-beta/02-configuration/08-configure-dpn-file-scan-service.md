@@ -149,6 +149,9 @@ The following values to be modified in the values-<env>.yaml
 | env.truststorePath | Path the truststore is mounted at inside the pod, e.g. `/etc/kafka/secrets/truststore.jks` |
 | env.otelTlsSecretName | Kubernetes secret providing the mounted truststore, e.g. `dpn-tls` |
 | keyvault.truststorePasswordSecretName | Key Vault secret holding the truststore password, e.g. `UNIVERSAL-DPN-CERT-PASSWORD` |
+| env.otelOauthClientId | Otel Authorization Client ID, e.g `dpn-service-client` |
+| env.otelOauthTokenEndpointUrl | Otel Oauth Token Endpoint, e.g `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| env.otelOauthCaLocation | Otel Oauth CA Location, `""` |
 
 ---
 
