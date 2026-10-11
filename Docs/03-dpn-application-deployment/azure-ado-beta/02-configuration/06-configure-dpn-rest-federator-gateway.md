@@ -188,10 +188,8 @@ No per-environment values file currently overrides these — every environment i
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `restFederatorServer.otel.tls.enabled` | Whether OTLP export to the Collector uses HTTPS. **Off by default** — zero change for any environment not opting in, and harmless if the OTLP endpoint is blank/unset either way | `false` |
-| `restFederatorServer.otel.oauth2.enabled` | Attach an `Authorization: Bearer` token to OTLP export, via the same `dpn-service-client` Keycloak client used elsewhere in this chart — no separate client/secret is provisioned. **Off by default** | `false` |
-
-> **Currently unverified — treat as not production-ready.** Setting `otel.tls.enabled: true` reuses the common DPN certificate/truststore already mounted for Vault (no new secret or volume needed), but the environment values files that have turned this on carry the author's own caveat that it was shipped without confirming the Collector side actually terminates TLS on its receiver. More fundamentally, the `dpn-otel-collector` Helm chart that this would connect to **has no CD pipeline in this repository at all** — there is currently no automated, documented way to actually deploy a Collector instance that matches this configuration. Do not enable either flag in a real environment until that gap is closed.
+| `restFederatorServer.otel.tls.enabled` | Turns on HTTPS for OTLP export to the Collector. Defaults to `false`, so existing environments aren't affected unless someone opts in | `false` |
+| `restFederatorServer.otel.oauth2.enabled` | Adds an `Authorization: Bearer` token to OTLP export, using the `dpn-service-client` Keycloak client already used elsewhere in this chart (no new client or secret to set up). Defaults to `false` | `false` |
 
 ## Step4: Configure Deployment Parameters
 

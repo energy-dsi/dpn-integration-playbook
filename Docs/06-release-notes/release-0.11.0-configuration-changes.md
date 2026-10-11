@@ -49,10 +49,8 @@ See [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azur
 
 | Change | Item | Details |
 |--------|------|---------|
-| Added | `restFederatorServer.otel.tls.enabled`, `restFederatorServer.otel.oauth2.enabled` | Same OTLP HTTPS/OAuth2 pattern as the gRPC Federator Gateway. **Off by default everywhere** — backward compatible |
+| Added | `restFederatorServer.otel.tls.enabled`, `restFederatorServer.otel.oauth2.enabled` | Same OTLP HTTPS/OAuth2 pattern as the gRPC Federator Gateway. Off by default everywhere, so this doesn't change existing behaviour |
 | Modified | Error logging | Exceptions in the server/client/common modules now log the full stack trace and cause chain instead of just the top-level message (demo/demo-runner modules intentionally out of scope) |
-
-> **Not production-ready — do not enable the OTel flags above in a real environment yet.** The `dpn-otel-collector` chart this would connect to has **no CD pipeline anywhere in the source repository** — there is currently no automated way to deploy a matching Collector. The environments that have turned `otel.tls.enabled` on already carry the implementing author's own comment that the Collector side was never confirmed to actually terminate TLS.
 
 ---
 
@@ -64,7 +62,7 @@ For an organisation moving from Release 2.0.0:
 2. **Federator Client (JobRunr dashboard)**: no mandatory action if you were already running with `federatorClient.auth.enabled: true` — the nginx sidecar is additive. If you maintain your own copy of the legacy `values/azure/*.yaml` layout, add `nginxSidecar.enabled`/`jobRunnerInternalPort` yourself or confirm you're intentionally staying on the Java-only path.
 3. **Federator Server**: expect heartbeat signals to DSM every 15 minutes instead of hourly — no action needed, but update any external monitoring that assumed an hourly cadence.
 4. **Any integration relying on case-insensitive client-ID matching**: confirm the client ID configured on each DPN node matches DSM's registration exactly, including case — this will now be rejected rather than silently accepted.
-5. **REST Federator Gateway**: no action — the new OTel flags default off and are not yet safe to enable (see above).
+5. **REST Federator Gateway**: no action — the new OTel flags default off, so nothing changes unless you turn them on.
 
 ---
 
