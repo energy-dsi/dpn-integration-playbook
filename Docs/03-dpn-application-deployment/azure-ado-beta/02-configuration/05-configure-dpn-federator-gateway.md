@@ -182,11 +182,11 @@ Root-Repository
 
 > **Keycloak redirect URI:** register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` on the Keycloak client.
 
-**Nginx reverse-proxy sidecar** (recommended; enabled in every current environment) — fronts the JobRunr dashboard for TLS termination:
+**Nginx reverse-proxy sidecar (required)** — fronts the JobRunr dashboard for TLS termination:
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `federatorClient.nginxSidecar.enabled` | Add an nginx sidecar in front of the dashboard | `true` |
+| `federatorClient.nginxSidecar.enabled` | Must be set to `true`. The chart default is `false`, which falls back to the Java-based proxy — known to have latency/stalling issues under load | `true` |
 | `federatorClient.service.jobRunnerInternalPort` | Dashboard's internal bind port once nginx fronts it | `18085` |
 
 ### Step3c: Configure Key Vault If Used
