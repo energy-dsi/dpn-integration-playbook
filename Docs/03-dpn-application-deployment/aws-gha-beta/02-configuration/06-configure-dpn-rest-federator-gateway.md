@@ -17,7 +17,8 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
   - [Step3a: Configure the Gateway](#step3a-configure-the-gateway)
   - [Step3b: Configure Vault Authentication](#step3b-configure-vault-authentication)
   - [Step3c: Configure Autoscaling](#step3c-configure-autoscaling)
-  - [Step3d: Configure AWS ServiceAccount (IRSA)](#step3d-configure-aws-serviceaccount-irsa)
+  - [Step3d: Configure OTel Collector Security](#step3d-configure-otel-collector-security)
+  - [Step3e: Configure AWS ServiceAccount (IRSA)](#step3e-configure-aws-serviceaccount-irsa)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Integrating a Consumer](#integrating-a-consumer)
 - [Review Notes](#review-notes)
@@ -143,9 +144,16 @@ Re-run this workflow to rotate the `secret-id`, then re-run `dpn-rest-federator-
 | `hpa.scaleUp.cpuUtilization` / `.memoryUtilization` | Target average utilisation (%) that triggers scale-up | `80` / `80` |
 | `hpa.scaleUpBehavior.stabilizationWindowSeconds` / `hpa.scaleDown.stabilizationWindowSeconds` | How long a scale-up/scale-down decision must hold before acting | `60` / `300` |
 
-No per-environment values file currently overrides these — every environment inherits the chart defaults above. Unlike the AppRole/`ServiceAccount`/`SecretProviderClass` work in [Step3b](#step3b-configure-vault-authentication) and [Step3d](#step3d-configure-aws-serviceaccount-irsa), the HPA template and its defaults are identical on the Azure path — see [Configure DPN REST Federator Gateway (Azure), Step3c](../../azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md#step3c-configure-autoscaling).
+No per-environment values file currently overrides these — every environment inherits the chart defaults above. Unlike the AppRole/`ServiceAccount`/`SecretProviderClass` work in [Step3b](#step3b-configure-vault-authentication) and [Step3e](#step3e-configure-aws-serviceaccount-irsa), the HPA template and its defaults are identical on the Azure path — see [Configure DPN REST Federator Gateway (Azure), Step3c](../../azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md#step3c-configure-autoscaling).
 
-### Step3d: Configure AWS ServiceAccount (IRSA)
+### Step3d: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.otel.tls.enabled` | Turns on HTTPS for OTLP export to the Collector. Defaults to `false`, so existing environments aren't affected unless someone opts in | `false` |
+| `restFederatorServer.otel.oauth2.enabled` | Adds an `Authorization: Bearer` token to OTLP export, using the `dpn-service-client` Keycloak client already used elsewhere in this chart (no new client or secret to set up). Defaults to `false` | `false` |
+
+### Step3e: Configure AWS ServiceAccount (IRSA)
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
@@ -185,7 +193,7 @@ The workflow runs two jobs in order, each independently re-runnable: **deploy-re
 
 On AWS, the **deploy-rest-federator** job runs three additional steps ahead of the Helm lint/deploy, none of which exist on the Azure path:
 
-1. **Provision AWS IRSA Role + Secrets** — creates/updates the `dpn-rest-federator-secrets-role` IAM role (idempotent) and seeds `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders in Secrets Manager if they don't already exist — see [Step3d](#step3d-configure-aws-serviceaccount-irsa).
+1. **Provision AWS IRSA Role + Secrets** — creates/updates the `dpn-rest-federator-secrets-role` IAM role (idempotent) and seeds `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders in Secrets Manager if they don't already exist — see [Step3e](#step3e-configure-aws-serviceaccount-irsa).
 2. **Fetch Vault Truststore Password (AWS)** — reads `VAULT_TRUSTSTORE_PASSWORD` from Secrets Manager and passes it as `restFederatorServer.vault.truststorePassword`.
 3. **Fetch Vault AppRole Role ID (AWS)** — reads `VAULT_APPROLE_ROLE_ID` (published by the `DPN CD - REST Federator Role ID Creation` workflow — see [Step3b](#step3b-configure-vault-authentication)) and passes it as `restFederatorServer.vault.appRole.roleId`, so the checked-in values file placeholder never needs manual editing.
 
