@@ -175,7 +175,7 @@ To further support the node after installation, the following operational docume
 | [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) / [AWS Application Uninstallation Guide](Docs/03-dpn-application-deployment/aws-gha-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
-| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
+| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) / [Release 2.1.0 Configuration Changes](Docs/06-release-notes/release-2.1.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
 
 ---
 
@@ -309,7 +309,8 @@ The repository is organised into structured documentation sections that guide or
 │   │   └── images
 │   │
 │   └── 06-release-notes                        # Per-release configuration deltas
-│       └── release-2.0.0-configuration-changes.md
+│       ├── release-2.0.0-configuration-changes.md
+│       └── release-2.1.0-configuration-changes.md
 │
 ├── ACKNOWLEDGEMENTS.md
 ├── CHANGELOG.md
