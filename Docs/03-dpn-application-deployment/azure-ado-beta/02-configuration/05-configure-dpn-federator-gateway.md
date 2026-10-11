@@ -180,18 +180,14 @@ Root-Repository
 | `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
 | `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port. Exposed via the `-external` LoadBalancer Service **only when `nginxSidecar.enabled: false`** (see below) | `8086` |
 
-> **Keycloak redirect URI must use the `-external` hostname.** This still applies regardless of the nginx sidecar setting below — the OIDC authorization-code login is still handled by `JobRunnerAuthGateway`. Register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` as the redirect URI on the Keycloak client — pointing it at the plain in-cluster hostname instead breaks the login callback (state-cookie mismatch), since Keycloak always redirects back to whichever hostname is configured here regardless of which one the browser actually started the login from.
+> **Keycloak redirect URI:** register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` on the Keycloak client.
 
-**Nginx reverse-proxy sidecar** (recommended; on in every current environment) — fronts the dashboard for TLS termination and fast-path auth, fixing a browser network-stall issue the embedded Java HTTPS/auth path had under concurrent load:
+**Nginx reverse-proxy sidecar** (recommended; enabled in every current environment) — fronts the JobRunr dashboard for TLS termination:
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `federatorClient.nginxSidecar.enabled` | Add an `nginx:1.27-alpine` sidecar (`dashboard-nginx-proxy`) in front of the dashboard. **Default `false` in the base chart, but every current environment's values file sets it `true`** | `true` |
-| `federatorClient.service.jobRunnerInternalPort` | The dashboard's own internal bind port once nginx fronts it (the external/legacy `jobRunnerPort` is no longer bound directly) | `18085` |
-
-> **The nginx sidecar does not replace `JobRunnerAuthGateway` — it fronts it.** Nginx terminates TLS and does a cheap `auth_request` call against a new `/verify` endpoint on the same Java auth gateway for the common case; on `401`/`403` it falls back to the full gateway flow for the actual OIDC login. `federatorClient.auth.*` above is unchanged and still does the real authentication/authorisation either way — only the TLS termination and the fast path for already-authenticated requests moved into nginx. When `nginxSidecar.enabled: false`, the dashboard falls back to the original, still-present embedded Java HTTPS proxy (now hardened with bounded concurrency and a stall-safe response copy) — that code was patched for the same stall issue, not removed.
->
-> A separate, legacy `charts/dpn-platform/values/azure/*.yaml` values layout in this repository has **not** been updated with `nginxSidecar`/`jobRunnerInternalPort` — if any environment is still deployed from that path rather than the flat `values-<env>-<cluster>.yaml` files, it will silently keep using the pre-sidecar Java-only path. Confirm which values path an environment actually uses before assuming the sidecar is active everywhere.
+| `federatorClient.nginxSidecar.enabled` | Add an nginx sidecar in front of the dashboard | `true` |
+| `federatorClient.service.jobRunnerInternalPort` | Dashboard's internal bind port once nginx fronts it | `18085` |
 
 ### Step3c: Configure Key Vault If Used
 

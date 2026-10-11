@@ -1,4 +1,4 @@
-# Release 0.11.0 — Configuration Changes
+# Release 2.1.0 — Configuration Changes
 
 This page lists every configuration-level change introduced since **Release 2.0.0**, organised by component. Each table marks an item as **Added**, **Removed**, or **Modified** so a participant already running Release 2.0.0 can see exactly what to review before upgrading.
 
