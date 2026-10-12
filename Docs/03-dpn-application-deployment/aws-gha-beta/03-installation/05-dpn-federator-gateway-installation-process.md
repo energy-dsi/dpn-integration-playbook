@@ -70,7 +70,7 @@ In summary:
 - Internal load Balancer IPs are determined
 - IDP client ID is received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
-- IAM role for the platform's `ServiceAccount` (IRSA) created, and its ARN set as `serviceAccount.irsaRoleArn` — see [Configure DPN Federator Gateway, Step3e](../02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-aws-serviceaccount-irsa)
+- IAM role for the platform's `ServiceAccount` (IRSA) created, and its ARN set as `serviceAccount.irsaRoleArn` — see [Configure DPN Federator Gateway, Step3f](../02-configuration/05-configure-dpn-federator-gateway.md#step3f-configure-aws-serviceaccount-irsa)
 - `dpn-keycloak-secrets` Kubernetes secret present in the namespace (created by the **DPN Authentication Service** deployment) — Kafka Source/Target, Kafka UI, and the Federator Server/Client read the Keycloak admin password and OAuth client secret from it directly; `secretsManager.secretPrefix` is not currently read by any template in this chart
 
 **Note:** Organisations must review workflow code for the following. 
