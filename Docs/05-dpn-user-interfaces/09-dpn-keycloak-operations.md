@@ -49,6 +49,7 @@ Note that dpnadmin, dpnreader and dpnaperator roles are pre-configured for dpn. 
 
 ## 3. User Management in DPN Keycloak
 
+To manage users for dpn-realm use dpnadmin role user.
 The user management activities involve user creation, user setting modification, user deletion.
 a) User Creation: 
     i. Click on on Users on left panel
