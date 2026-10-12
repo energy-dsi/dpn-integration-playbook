@@ -23,23 +23,29 @@ d) delete user
 
 
 ## 2. Accessing the Portal
-
+The portal can be accessed via keycloak admin or dpnadmin role
+For keycloak admin role use below url
 ```text
 https://dpn-keycloak-service-lb.<namespace>.svc.cluster.local:<portal-port>
 ```
+For dpnadmin role use below url
+```text
+https://dpn-keycloak-service-lb.<namespace>.svc.cluster.local:<portal-port>/admin/dpn-realm/console/
+```
+
 ![Keycloak login page](images/09_keycloak_login_page.jpg)
 
-Use only adminstrator's credential to login.
 
-a) After login administrator lands at default landing page
+
+a) After login using keycloak admin role user administrator lands at default landing page
    ![Keycloak landing page](images/09_keycloak_landing_page.png)
-b) Go to Manage realms where all realms are listed
+b) Keycloak admin can manage all the realms from Manage realms 
    ![Manage realms](images/09_keycloak_manage_realms.png)
-c) Choose dpn-realm as this is specifically pre-configured for dpn UI components. Once dpn-realm is selected user lands at
+c) If logged in using dpnadmin user (which is specifically pre-configured for dpn UI components) user lands at
    ![DPN realm landing page](images/09_keycloak_dpn_realm_landing_page.png)
 d) Click on Realm roles to see available pre-configured roles for dpn
    ![DPN realm roles](images/09_keycloak_dpn_realm_roles.png)
-Note that dpnadmin and dpnreader roles are pre-configured for dpn. Rest of them are default roles.
+Note that dpnadmin, dpnreader and dpnaperator roles are pre-configured for dpn. Rest of them are default or custom roles.
 
 ## 3. User Management in DPN Keycloak
 
@@ -55,9 +61,9 @@ a) User Creation:
     ![Create user - step 4](images/09_keycloak_user_creation_step4_dpnadminuser2.png)
     v. Move to Role Mapping. This is where user is attached to a role. Click on Assign Role and choose Realm roles from dropdown.
     ![Create user - step 5](images/09_keycloak_user_creation_step5_dpnadminuser2.png)
-    vi. Select dpnadmin or dpnreader as the role. If the user is expected to perform read/write activities then choose dpnadmin as role. If user is expected to have view ability then choose dpnreader as role.
+    vi. Select dpnadmin , dpnreader or dpnoperator as the role. If the user is expected to perform read/write activities then choose dpnadmin as role. If user is expected to have view ability then choose dpnreader as role. If user is expected only to manage dpn pipeline orchestration then choose dpnoperator role
     ![Create user - step 6](images/09_keycloak_user_creation_step6_dpnadminuser2.png)
-    vii. Move to group allocation. This is where user is made part of any of the already created groups. For dpnadmin role users select dpn-admins or select dpn-readers for dpnreader role users.
+    vii. Move to group allocation. This is where user is made part of any of the already created groups. For dpnadmin role users select dpn-admins or select dpn-readers for dpnreader role users or select dpn-operators for dpnoperator role users
     ![Create user - step 7](images/09_keycloak_user_creation_step7_dpnadminuser2.png)
     Once above steps are performed then save it.Following the above steps the administrator of DPN Keycloak create a new user, sets credential , assign to a role and its corresponding group.
     Upon creation of user the user now becomes available to use for DPN UI portals.
