@@ -125,6 +125,9 @@ The following values to be modified in that file
 | env.topicname | Service Bus topic name the subscription in `env.subscriptionname` belongs to | `dpn-fileupload-scan-results` |
 | env.subscriptionname | Service Bus subscription the service long-polls for scan-result events. Matches `FILESCAN_SB_SUBSCRIPTION_NAME` in the config JSON | `dpn-fileupload-scan-results-sub` |
 | env.clientIdFile / env.clientSecretFile | Paths the Key Vault CSI driver mounts `FILESCAN-CLIENT-ID`/`FILESCAN-CLIENT-SECRET` at | `/mnt/keyvault/FILESCAN-CLIENT-ID` / `/mnt/keyvault/FILESCAN-CLIENT-SECRET` |
+| env.otelOauthClientId | Keycloak client ID used to authenticate OTel Collector export | `dpn-service-client` |
+| env.otelOauthTokenEndpointUrl | Keycloak token endpoint for the OTel OAuth client | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| env.otelOauthCaLocation | Path of a CA certificate for the OTel OAuth token endpoint — leave empty to use the pod's default trust store | `""` |
 
 > **Note:** there is no Helm value for the Event Grid custom topic or its event subscription — the app only ever consumes from its Service Bus subscription; the Event Grid → Service Bus fan-out from [Step2](#step2-azure-resource-setup-service-buseventgrid-defender-for-storage) is wiring set up outside the application. The AWS-only `env.awsRegion`/`env.sourceBucket`/`env.destBucket`/`env.sqsQueueName` fields alongside this shared `env.*` block should be left empty (their default) on Azure.
 >

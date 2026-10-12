@@ -18,6 +18,7 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
   - [Step3b: Configure Vault Authentication](#step3b-configure-vault-authentication)
   - [Step3c: Configure Autoscaling](#step3c-configure-autoscaling)
   - [Step3d: Configure Azure ServiceAccount (Workload Identity)](#step3d-configure-azure-serviceaccount-workload-identity)
+  - [Step3e: Configure OTel Collector Security](#step3e-configure-otel-collector-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Integrating a Consumer](#integrating-a-consumer)
 - [Review Notes](#review-notes)
@@ -148,6 +149,15 @@ No per-environment values file currently overrides these — every environment i
 | `keyvault.name` | Key Vault holding `BACKEND-API-KEY` and `VAULT-TRUSTSTORE-PASSWORD` | `kv-dpn-azure-dev-uks-001` |
 
 The managed identity and its federated credential (scoped to `system:serviceaccount:<namespace>:<serviceAccount.name>`) must be created manually before the first deploy on Azure — unlike the AWS path, this CD workflow does not create/update an IAM role automatically. Seed `BACKEND-API-KEY`/`VAULT-TRUSTSTORE-PASSWORD` in Key Vault yourself before relying on the deployment.
+
+### Step3e: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.otel.tls.enabled` | Turns on HTTPS for OTLP export to the Collector. Defaults to `false`, so existing environments aren't affected unless someone opts in | `false` |
+| `restFederatorServer.otel.oauth2.enabled` | Adds an `Authorization: Bearer` token to OTLP export, using the `dpn-service-client` Keycloak client already used elsewhere in this chart (no new client or secret to set up). Defaults to `false` | `false` |
+
+> **Both default to `false` here, unlike the gRPC Federator Gateway's `otel.tls.enabled`/`otel.oauth.enabled`, which default to `true`** (see [Configure DPN Federator Gateway, Step3f](05-configure-dpn-federator-gateway.md#step3f-configure-otel-collector-security)). This inconsistency between the two gateways is real and intentional per the chart's current defaults, not a documentation error — confirm which behaviour your environment actually needs before relying on either default.
 
 ---
 

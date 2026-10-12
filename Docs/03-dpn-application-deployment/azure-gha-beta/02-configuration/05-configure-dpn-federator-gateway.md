@@ -25,7 +25,9 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
   - [Step3a: Configure Federator Server](#step3a-configure-federator-server)
   - [Step3b: Configure Federator Client](#step3b-configure-federator-client)
   - [Step3c: Configure Kafka Security](#step3c-configure-kafka-security)
+  - [Step3d: Configure Redis Security](#step3d-configure-redis-security)
   - [Step3e: Configure Azure ServiceAccount (Workload Identity)](#step3e-configure-azure-serviceaccount-workload-identity)
+  - [Step3f: Configure OTel Collector Security](#step3f-configure-otel-collector-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -135,6 +137,10 @@ dpn-federator-gateway/
 | `federatorServer.service.internalLoadBalancer` | Whether the Server's Azure Standard Load Balancer is internal-only. The Server's is commonly set to `"false"` (**public-facing**) so external DPN nodes can reach it — unlike the Client, which stays internal | `"false"` |
 | `federatorServer.service.publicIpResourceId` | Reserved Azure public IP resource ID(s) to pin to the Server's external Load Balancer, **comma-separated** if more than one front-end IP is needed | `/subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Network/publicIPAddresses/<pip-name>` (leave unset for dynamically-assigned addresses) |
 
+> **`federatorServer.idp.clientId` (and the equivalent audience check on inbound requests) is now compared case-sensitively**, per RFC 7519 §4.1.3 — a client ID that previously matched regardless of case will now be rejected if its case doesn't match exactly what DSM issued. Confirm the value configured here matches DSM's registration byte-for-byte.
+>
+> **Heartbeat interval is now 15 minutes (was 1 hour).** This is a fixed value in the chart's rendered config (`server.heartbeat.interval=PT15M`, an ISO-8601 duration) — it is **not** a `values.yaml` key today, so changing it per environment means editing the chart template itself, not an environment's values file.
+
 ### Step3b: Configure Federator Client
 
 > **Single cluster:** the Client (and this whole release) targets one DPN cluster. Its connection configuration points at a single remote Federator Server.
@@ -149,14 +155,24 @@ dpn-federator-gateway/
 | `federatorClient.storage.azure.container` | **The File Scan Service source container**, if available, else a separate container (not the Server's) — note the key is `storage.azure.container`, **not** `storage.s3.bucket` | `dp-consumer-raw` |
 | `federatorClient.storage.azure.storageAccount` | Storage account hosting the Client's container | `<storage-account-name>` |
 
+**JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `federatorClient.auth.enabled` | Front the JobRunr dashboard with a built-in Keycloak-authenticating gateway instead of leaving it open on the internal network | `true` |
+| `federatorClient.auth.enabled` | Front the JobRunr dashboard with a built-in Keycloak-authenticating gateway (`JobRunnerAuthGateway`) instead of leaving it open on the internal network | `true` |
 | `federatorClient.auth.issuerUrl` / `.audience` | Keycloak realm issuer and OIDC client ID (reuses the same client Kafka's OAuth already uses) | as received from DSM |
 | `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
-| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port — must differ from `jobRunnerPort`, and is the **only** port exposed via the `-external` Load Balancer Service | `8086` |
+| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port — must differ from `jobRunnerPort`. Exposed via the `-external` Load Balancer Service **only when `nginxSidecar.enabled: false`** (see below) | `8086` |
 | `federatorClient.tls.gatewaySecretName` | Optional Kubernetes `Secret` mounted at `/tls-gateway` for a browser-facing TLS identity in front of the Job Runner dashboard. Empty by default (no mount) — set once the DPN universal TLS prerequisite pipeline has issued a certificate for this hostname | `fed-gateway-tls` |
+
+> **Keycloak redirect URI:** register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` on the Keycloak client.
+
+**Nginx reverse-proxy sidecar (required)** — fronts the JobRunr dashboard for TLS termination:
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `federatorClient.nginxSidecar.enabled` | Must be set to `true`. The chart default is `false`, which falls back to the Java-based proxy — known to have latency/stalling issues under load | `true` |
+| `federatorClient.service.jobRunnerInternalPort` | Dashboard's internal bind port once nginx fronts it | `18085` |
 
 ### Step3c: Configure Kafka Security
 
@@ -169,7 +185,20 @@ dpn-federator-gateway/
 
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
 
-> **OpenTelemetry export.** `otel.tls.enabled` (default `true`) drives both the Federator Server/Client's OTLP exporter endpoint scheme and whether the OTel Collector truststore env vars are set at all — see [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md) if your Collector's OTLP receiver terminates TLS (the default). `otel.collector.host` / `otel.collector.port` point at the Collector Service.
+> **OpenTelemetry export.** `otel.tls.enabled` (default `true`) drives both the Federator Server/Client's OTLP exporter endpoint scheme and whether the OTel Collector truststore env vars are set at all — see [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md) if your Collector's OTLP receiver terminates TLS (the default). `otel.collector.host` / `otel.collector.port` point at the Collector Service. See also [Step3f](#step3f-configure-otel-collector-security) for OTel's own TLS/OAuth2 security parameters.
+
+### Step3d: Configure Redis Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `redis.tls.enabled` | Whether Redis only accepts TLS connections — **on by default** in every environment, not opt-in | `true` |
+| `redis.truststore.path` / `redis.truststore.password` | Client-side truststore the Server/Client use to trust Redis's certificate. Identical for both roles, so set once in `common-configuration.properties` rather than duplicated per role | as received alongside the other TLS material |
+
+Redis's own server certificate is **not** a separate value to configure — it's extracted at pod start-up (by an init container, using `openssl`) from the same shared `dpn-tls` keystore Kafka and Kafka UI already use (see [Step3c](#step3c-configure-kafka-security)), whose SAN already covers the in-cluster Redis hostname. Redis is configured for **server-authentication only** (`--tls-auth-clients no`) — there is no client certificate/mTLS requirement for connecting to it, mirroring Kafka's own `SASL_SSL` listener (`KAFKA_SSL_CLIENT_AUTH=none`).
+
+> **No Redis username/password (ACL) authentication.** Earlier releases supported `redis.username`/`redis.password` for Redis's own ACL auth — these have been **removed**. Access control is now enforced entirely at the application layer: every Redis-touching call site (other than the Federator's own IDP token cache, which deliberately bypasses this to avoid a circular dependency) requires a valid Keycloak session before a connection is returned. This is independent of `kafka.authMode` — Redis TLS and its Keycloak gate apply regardless of that Kafka setting.
+>
+> **Only this component's own Redis is TLS-enabled today.** The REST Federator Gateway's separate `dpn-redis` release (its own cache, not this one) does not yet have TLS — see [Configure DPN REST Federator Gateway](06-configure-dpn-rest-federator-gateway.md) — that migration is tracked as a separate, not-yet-delivered enabler.
 
 ### Step3e: Configure Azure ServiceAccount (Workload Identity)
 
@@ -185,6 +214,16 @@ A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Targe
 The managed identity's federated credential must scope the OIDC subject to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and the identity must be granted Key Vault `get`/`list` on secrets for `federatorClient.storage.azure.container`'s access keys — the Server has no static container parameter of its own (see [Step3a](#step3a-configure-federator-server)).
 
 > **Kafka pods on AWS disable Python auto-instrumentation; Azure is unaffected.** Kafka Source/Target and Zookeeper Source/Target pods carry `instrumentation.opentelemetry.io/inject-python: "false"` only when `cloudProvider: aws` — on this Azure path the cluster's OTel auto-instrumentation webhook injects normally, since the incompatibility is specific to the AWS path's Python 3.9 startup tooling. No action needed on Azure.
+
+### Step3f: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `otel.tls.enabled` | Whether OTLP export uses HTTPS against the Collector — **on by default**, matching every environment's behaviour before this flag existed | `true` |
+| `otel.oauth.enabled` | Attach an `Authorization: Bearer` token (fetched via the `dpn-service-client` Keycloak client — the same one already used to gate Redis access, see [Step3d](#step3d-configure-redis-security)) to every OTLP export call — **on by default in every environment** | `true` |
+| `otel.truststorePath` | Trust anchor for the Collector's OTLP HTTPS receiver (server-side TLS only). Same JKS truststore Redis and the JobRunr dashboard auth already use | `/etc/secrets/truststore.jks` |
+
+No separate Keycloak client or secret is provisioned for OTel — it reuses `dpn-service-client`, the same credential already wired for Redis/Kafka OAuth (delivered via the `dpn-keycloak-secrets` Kubernetes secret's `KC_SERVICE_CLIENT_SECRET` key — see the [Overview](#overview) note). Setting `otel.tls.enabled: false` only works once the Collector side also exposes a genuine plaintext listener — today it terminates TLS unconditionally, so a plaintext exporter against it fails the handshake outright rather than falling back.
 
 ---
 

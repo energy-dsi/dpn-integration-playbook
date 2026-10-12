@@ -167,6 +167,16 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `serviceAccount.name` | ServiceAccount name (default `dpn-certificate-manager`) | `dpn-certificate-manager` |
 | `serviceAccount.azureClientId` | Client ID of the user-assigned managed identity federated to `system:serviceaccount:<namespace>:<serviceAccount.name>`, granting Key Vault `get`/`list` on secrets | `<azure-client-id>` |
 
+**OTel Collector authentication**
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `otel.oauth2.enabled` | Attach an `Authorization: Bearer` token to OTLP export, authenticated via the `dpn-service-client` Keycloak client — **on by default**, since that client is already registered in Keycloak for every environment | `true` |
+| `otel.oauth2.tokenUri` | Keycloak token endpoint — set per `values/azure/<environment>-<cluster>.yaml`, same host/realm as the Federator Gateway's own `kafka.oauth.tokenEndpointUrl` for that environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `otel.oauth2.clientId` | Keycloak client ID — same value in every environment | `dpn-service-client` |
+
+No new secret is provisioned for this — the client secret is read from the pre-existing `dpn-keycloak-secrets` Kubernetes secret (key `KC_SERVICE_CLIENT_SECRET`), the same one the Federator Gateway already uses for its own Kafka OAuth (see the [Overview](#overview) note in [Configure DPN Federator Gateway](05-configure-dpn-federator-gateway.md)). That secret is **not created by this chart** — it's produced by the DPN Authentication Service's own deployment and must already exist in this component's namespace.
+
 **Azure Key Vault** (native Azure backend — used when `secretsManager.enabled: false`)
 
 | Parameter | Purpose | Example (placeholder) |
