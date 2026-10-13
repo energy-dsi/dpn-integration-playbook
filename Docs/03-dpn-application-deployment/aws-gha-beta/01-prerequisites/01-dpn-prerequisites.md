@@ -71,7 +71,6 @@ The following softwares must be available on the machine(s) used to configure DP
 
 DPN repositories required:
 
-- [DPN-Containerised-Deployment-Service](https://github.com/energy-dsi/dpn-containerised-deployment-service) — the central CD repository. It holds every GitHub Actions CD workflow (`.github/workflows/`), the shared `cloud-login` composite action, the per-environment AWS config (`.github/config/aws/<environment>-<cluster>.json`) and the Helm charts for every DPN component (`dpn-authentication-service/`, `dpn-data-pipelines/`, `dpn-federator-cert-manager/`, `dpn-federator-gateway/`, `dpn-file-scan/`, `dpn-health-monitoring/`, `dpn-rest-federator-gateway/`)
 - [DPN-Infra](https://github.com/energy-dsi/dpn-infrastructure-aws)  
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
 - [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator-gateway)
@@ -80,8 +79,6 @@ DPN repositories required:
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
 - [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
 - [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
-
-> **Note:** The component repositories above hold each component's source code and CI (image build). The Helm charts and values files used for deployment (CD) live in the central `dpn-containerised-deployment-service` repository, under each component's folder (`<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`).
 
 ### Optional Tools
 
@@ -128,7 +125,6 @@ The following access configurations are required for DPN deployment.
 #### GitHub Access
 
 - A **Personal Access Token (PAT)** with **read-only access** to GitHub repositories in order to clone the required code.
-- Permission to create **GitHub Environments** and **Actions secrets** on the `dpn-containerised-deployment-service` repository. Every CD workflow runs in a GitHub Environment named `<environment>-<cluster>` (e.g. `dev-dpn01`). See [GitHub Actions Secrets and Environments](../02-configuration/00-common-dpn-configuration.md#step24-github-actions-secrets-and-environments).
 
 #### AWS IAM OIDC Role
 
