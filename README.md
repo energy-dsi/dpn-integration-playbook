@@ -175,7 +175,7 @@ To further support the node after installation, the following operational docume
 | [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) / [AWS Application Uninstallation Guide](Docs/03-dpn-application-deployment/aws-gha-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
-| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
+| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) / [Release 2.1.0 Configuration Changes](Docs/06-release-notes/release-2.1.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
 
 ---
 
@@ -191,7 +191,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
 - [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step5-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step-04-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 **AWS (GitHub Actions) components:**
@@ -202,7 +202,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
 - [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step-04-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 ---
@@ -309,7 +309,8 @@ The repository is organised into structured documentation sections that guide or
 │   │   └── images
 │   │
 │   └── 06-release-notes                        # Per-release configuration deltas
-│       └── release-2.0.0-configuration-changes.md
+│       ├── release-2.0.0-configuration-changes.md
+│       └── release-2.1.0-configuration-changes.md
 │
 ├── ACKNOWLEDGEMENTS.md
 ├── CHANGELOG.md

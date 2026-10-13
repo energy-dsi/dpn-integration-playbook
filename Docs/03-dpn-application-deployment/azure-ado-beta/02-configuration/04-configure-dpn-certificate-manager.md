@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Certificate Manager Configuration
 
 This section describes how to configure and deploy the **DPN Federator Certificate Manager (CLM)** in a single target environment. The Certificate Manager is a non-interactive Spring Boot service that automates X.509 certificate lifecycle management for the Federator Gateway — it renews the DSM-signed certificate and builds the keystore/truststore P12 files used for mutual TLS (mTLS).
@@ -148,6 +150,16 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
 > **In-memory keystore — no `certDest`/`mtls`/`fileShare` parameters.** Earlier chart versions wrote P12 files to a shared file share and exposed `certDest.*`/`mtls.*`/`fileShare.*` values to configure that path. These no longer exist: the keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account.
+
+**OTel Collector authentication**
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `otel.oauth2.enabled` | Attach an `Authorization: Bearer` token to OTLP export, authenticated via the `dpn-service-client` Keycloak client — **on by default**, since that client is already registered in Keycloak for every environment | `true` |
+| `otel.oauth2.tokenUri` | Keycloak token endpoint — set per `values-<env>-<cluster>.yaml`, same host/realm as the gRPC Federator's own `redis.idp.token.url` for that environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `otel.oauth2.clientId` | Keycloak client ID — same value in every environment | `dpn-service-client` |
+
+No new secret is provisioned for this — the client secret is read from the pre-existing `dpn-keycloak-secrets` Kubernetes secret (key `KC_SERVICE_CLIENT_SECRET`), the same one the gRPC Federator Gateway already uses for its own Redis/Kafka OAuth. That secret is **not created by this chart** — it's produced by the DPN Authentication Service's own `SecretProviderClass` and must already exist in this component's namespace.
 
 **Azure Key Vault**
 

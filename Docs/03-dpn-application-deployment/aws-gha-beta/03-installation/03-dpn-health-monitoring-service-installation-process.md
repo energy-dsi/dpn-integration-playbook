@@ -7,7 +7,7 @@
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Installation Steps](#installation-steps)
-  - [Step1: Run `dpn-gha-health-monitoring-cd-install.yml`](#step1-run-dpn-gha-health-monitoring-cd-installyml)
+  - [Step1: Run `dpn-gha-health-monitoring-cd-install.yml`](#step1-run-dpn-health-monitoring-cd-installyml)
     - [Step1a: Configure GHCR Image Access](#step1a-configure-ghcr-image-access)
     - [Step1b: Trigger the Workflow](#step1b-trigger-the-workflow)
   - [Step2: Post Deployment Verification](#step2-post-deployment-verification)
@@ -22,7 +22,7 @@
 
 ## Overview
 
-This describes installation using the GitHub Actions orchestrator workflow `dpn-gha-health-monitoring-cd-install.yml` (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your AWS environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
+This describes installation using the GitHub Actions orchestrator workflow `dpn-gha-health-monitoring-cd-install.yml` (display name **DPN Health Monitoring**,  (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your AWS environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
 
 > The Nginx Observability Proxy job has been retired; DPN Portal (tile landing page) and one `oauth2-proxy` Keycloak-gateway release per remaining UI (OpenSearch, Jaeger, Perses, Portal) replace it. Prometheus and Thanos publish directly on an internal AWS NLB with no gateway at all — see [Configuration, Continuous Deployment (CD)](../02-configuration/03-configure-dpn-health-monitoring-service.md#continuous-deployment-cd).
 
@@ -32,7 +32,7 @@ This describes installation using the GitHub Actions orchestrator workflow `dpn-
 - Completed [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step2-github-actions-configuration) for the target environment.
 - The Kubernetes Secret backing Thanos' long-term object storage (`dpn-mon-storage-connection-string`, key `objstore.yml`) created in `ns-dpn-health-01` — no workflow creates it; see [Configure DPN Health Monitoring Service, Step 1](../02-configuration/03-configure-dpn-health-monitoring-service.md#step-1-prepare-environment-configuration-file) for the caveat on what mechanism (static keys vs. IRSA) it should actually encode.
 - The `dpn-health-tls` Secret (`kubernetes.io/tls`, with `tls.crt`/`tls.key`/`ca.crt`) already present in `ns-dpn-health-01` — consumed by every `oauth2-proxy` release and the OTel Collector's TLS OTLP receivers.
-- The Keycloak `dpn-service-client` credential already present in AWS Secrets Manager at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` (created by `dpn-keycloak-cd.yml`'s AWS deploy path) — `dpn-cd-oauth2-proxy.yml` provisions its own IRSA role and its own private copy of this secret automatically, but the underlying Keycloak-side secret has to exist first.
+- The Keycloak `dpn-service-client` credential already present in AWS Secrets Manager at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` (created by `dpn-gha-keycloak-cd.yml`'s AWS deploy path) — `dpn-gha-cd-oauth2-proxy.yml` provisions its own IRSA role and its own private copy of this secret automatically, but the underlying Keycloak-side secret has to exist first.
 - A DPN Portal container image already built and pushed to GHCR, with its tag (a short git-SHA) ready to supply as the workflow's `portalImageTag` input.
 - Access to the environment-specific container registry for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
 - A required-reviewer rule on the GitHub Environment (`<environment>-<cluster>`) if you want a manual approval gate before deployment — there is no ADO-style environment approval built into the workflow itself.
@@ -63,31 +63,21 @@ See [Reference: Container Images Used](#reference-container-images-used) below f
 
 #### Step1b: Trigger the Workflow
 
-Go to **Actions → DPN Health Monitoring → Run workflow** , on the branch you want to deploy
-
-```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-health-monitoring-cd-install.yaml
-```
-
-The parameters required for running the pipeline are:
+Go to **Actions → DPN Health Monitoring → Run workflow** , on the branch you want to deploy, and supply:
 
 | Input | Value |
 |-----------|-------|
-| `environment` | `dev` / `test` |
-| `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment — organisations may keep only one, e.g. `dpn01`, to run a single DPN cluster) |
-| `cloud` | `aws` |
+| `environment` | `dev` / `test` (default `test`) |
+| `cluster` | `dpn01` / `dpn02`, default `dpn01` (DSI provides two dpn configurations per environment — organisations may keep only one, e.g. `dpn01`, to run a single DPN cluster) |
+| `cloud` | `aws` (default; the input also lists other clouds, which are out of scope for this guide) |
 | `imageTag` | OTel Collector image tag — default `0.95.0` |
 | `otelImageRepository` | OTel Collector image path after `ghcr.io/energy-dsi/` — optional, leave blank to use the environment's configured repository |
 | `portalImageTag` | DPN Portal container image tag — **required**, no default (the short git-SHA the DPN Portal application's own CI build printed) |
-| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `dpn-portal` |
+| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `1.0.1/dpn-portal` |
 
-The workflow's `init` job reads `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, DPN Portal, OAuth2 Proxy ×4, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
+The workflow's `init` job (**Resolve Deployment Config**) reads `.github/config/aws/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, DPN Portal, OAuth2 Proxy ×4, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
 
-- The container image repository referred to in each chart's values is correct, unless the organisation plans to use a different image repository
+- The container image repository referred to in each chart's values (`dpn-health-monitoring/charts/<chart>/values/aws/<environment>-<cluster>.yaml`) is correct, unless the organisation plans to use a different image repository
 - The config JSON's environment fields point to the correct deployment environment
 - The DSM endpoints are correctly pointing to the respective environment
 - Required firewall rules are applied
@@ -102,11 +92,13 @@ The workflow's `init` job reads `root/.pipelines/github-actions-pipelines/config
 
 **Note:** the `oauth2-proxy-portal` release depends on the DPN Portal Deployment being ready, which in turn depends on the backend UIs (OpenSearch, Jaeger, Perses) it links to. If it comes up before the Kafka UI federator-side services are ready, its tile health probes may briefly report an unhealthy tile — this resolves on its own once those backends are up; investigate only if it persists.
 
+To roll back or remove this service, use `dpn-rollback-health-monitoring.yml` (**DPN Rollback - Health Monitoring**) or `dpn-uninstall-health-monitoring.yml` (**DPN Uninstall - Health Monitoring**) — see [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
+
 ---
 
 ## Step3: Troubleshooting
 
-Every troubleshooting entry (Kafka naming-regression checks in `dpn-cd-kafka.yml`, the OTel→Kafka dependency check, CrashLoop from a missing `health_check` extension, HPA `<unknown>` targets) applies unchanged, since it's chart-level logic. Additional entries specific to this reconciliation:
+Every troubleshooting entry (Kafka naming-regression checks in `dpn-gha-cd-kafka.yml`, the OTel→Kafka dependency check, CrashLoop from a missing `health_check` extension, HPA `<unknown>` targets) applies unchanged, since it's chart-level logic. Additional entries specific to this reconciliation:
 
 ### Config File Not Found for Specific Environment
 
@@ -118,7 +110,7 @@ Confirm the config JSON used the **corrected** environment values for this run.
 
 ### Kafka/Zookeeper Image Pull Fails
 
-Confirm `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json` uses a fully-resolved hostname like `ghcr.io` (or your own ECR repository URL), not a bare placeholder.
+Confirm the `kafka.image.repository` / `zookeeper.image.repository` entries in `dpn-health-monitoring/charts/kafka-stack/values/aws/<environment>-<cluster>.yaml` use a fully-resolved registry path like `ghcr.io/energy-dsi/dpn-kafka` (or your own ECR repository URL), not a bare placeholder. `dpn-gha-cd-kafka.yml` takes the image from this values file — the `IMAGE_REGISTRY` key in `.github/config/aws/<environment>-<cluster>.json` is not passed to the health monitoring workflows.
 
 ### OTel Collector Metrics Never Show Up in Prometheus
 
@@ -126,7 +118,7 @@ The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheu
 
 ### DPN Portal Pod Fails to Pull Image
 
-`charts/dpn-portal/values.yaml` ships no default `image.repository`/`image.tag` — the chart deliberately fails to render rather than guessing a registry path. Confirm `portalImageTag` (and, if overridden, `portalImageRepository`) were actually supplied when the workflow was triggered.
+`dpn-health-monitoring/charts/dpn-portal/values.yaml` ships no default `image.repository`/`image.tag` — the chart deliberately fails to render rather than guessing a registry path. Confirm `portalImageTag` (and, if overridden, `portalImageRepository`) were actually supplied when the workflow was triggered.
 
 ---
 
@@ -134,7 +126,7 @@ The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheu
 
 This section lists the **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` that the workflow deploys. Organisations may point the Helm values at a different image repository instead if they build their own.
 
-The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced under a version-prefixed GHCR path, `ghcr.io/energy-dsi/<component>`**
+The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced under a version-prefixed GHCR path, `ghcr.io/energy-dsi/<component>`** (rather than the unversioned `ghcr.io/energy-dsi/<component>` path used elsewhere) — confirm the `1.0.1` segment is still current before relying on it for a new environment.
 
 | Purpose | GHCR Path |
 |---|---|
@@ -155,7 +147,7 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 
 > **Nginx (dashboard proxy) has been removed** from this service — replaced by the DPN Portal + `oauth2-proxy` releases above.
 
- **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports. Image access, pull verification, and the workflow trigger are all covered above in [Step1](#step1-run-dpn-gha-health-monitoring-cd-installyml) — there is no separate GHCR-specific workflow to run, the one workflow already deploys from these GHCR images by default.
+ **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports. Image access, pull verification, and the workflow trigger are all covered above in [Step1](#step1-run-dpn-health-monitoring-cd-installyml) — there is no separate GHCR-specific workflow to run, the one workflow already deploys from these GHCR images by default.
 
 ---
 
@@ -164,3 +156,4 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

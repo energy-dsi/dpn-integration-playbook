@@ -8,17 +8,17 @@
 - [Step1: Validate the Prerequisites](#step1-validate-the-prerequisites)
 - [Step2: AWS Resource Setup (SNS/SQS/GuardDuty)](#step2-aws-resource-setup-snssqsguardduty)
 - [Step3: Execute CI/CD](#step3-execute-cicd)
-  - [Step3a. Configure GHCR Image Access](#step3a-configure-ghcr-image-access)
-  - [Step3b. Execute CD Workflow](#step3b-execute-cd-workflow)
-  - [Step3c. Verify CD Workflow](#step3c-verify-cd-workflow)
-  - [Step3d. Verify Scanning Service Execution](#step3d-verify-scanning-service-execution)
+  - [Step3a. CI (component source repository)](#step3a-ci-component-source-repository)
+  - [Step3b. Configure GHCR Image Access](#step3b-configure-ghcr-image-access)
+  - [Step3c. Execute CD Workflow](#step3c-execute-cd-workflow)
+  - [Step3d. Verify CD Workflow](#step3d-verify-cd-workflow)
+  - [Step3e. Verify Scanning Service Execution](#step3e-verify-scanning-service-execution)
 - [Step4: Troubleshooting](#step4-troubleshooting)
   - [No SQS Messages Ever Arrive](#no-sqs-messages-ever-arrive)
   - [AccessDenied on S3 Copy/Delete](#accessdenied-on-s3-copydelete)
   - [AccessDenied Reading Secrets Manager](#accessdenied-reading-secrets-manager)
   - [Files Disappear From Inbound But Never Appear Outbound](#files-disappear-from-inbound-but-never-appear-outbound)
   - [Messages Received But Not Deleted, Queue Backs Up](#messages-received-but-not-deleted-queue-backs-up)
-  - [HPA Not Scaling](#hpa-not-scaling)
 - [Reference: Container Images Used](#reference-container-images-used)
 - [Review Notes](#review-notes)
 
@@ -38,34 +38,45 @@ The following prerequisites must be met.
 - The source (inbound) and destination (outbound) S3 buckets are provisioned
 - An EKS cluster reachable via the GitHub Actions OIDC federated credential (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role))
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount
-- If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets)
+- If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets). When OTLP OAuth is enabled (`keyvault.otelOauthClientSecretName: KC_SERVICE_CLIENT_SECRET`, as in the provided AWS values files), `KC_SERVICE_CLIENT_SECRET` must also exist under that prefix
+- The `dpn-tls` and `tls-auth-secret` Kubernetes secrets exist in the target namespace — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`)
+- `.github/config/aws/<environment>-<cluster>.json` is populated, including the `FILESCAN_*` keys (see [Configure DPN File Scan Service, Step3a](../02-configuration/08-configure-dpn-file-scan-service.md#step3a-configure-environment-json-file))
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 
-**Note:** Organisations must review the workflow code for the following. 
+**Note:** Organisations must review the CI/CD workflow code for the following. 
 
+- If running your own CI, keep only the relevant build, unit test, and image-push steps — DSI's own CI examples include tool usage such as CheckMarx, SonarQube, and JFrog Xray that your organisation may not need
 - The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
 - The config JSON's environment parameters are pointing to correct deployment environment
 - The DSM endpoints are correctly pointing to the respective environment
 - Required Firewall rules are applied
-- The CD workflow is verified for the above prerequisites before execution
+- Both CI and CD are verified for the above prerequisites before execution
 
 ---
 
 ## Step2: AWS Resource Setup (SNS/SQS/GuardDuty)
 
-**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must be provisioned** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-gha-file-scan-prerequisites-cd.yaml` creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan. These are precreated by AWS infrastructure code.
+**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must still be provisioned manually** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-gha-file-scan-prerequisites-cd.yml` (**DPN CD - File Scan Prerequisites**) does have an AWS branch (`cloud: aws`), but it only creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan.
 
 Once complete, validate:
 
 - The SNS topic and SQS queue exist and the queue is subscribed to the topic
 - The GuardDuty Malware Protection plan is active and covers the inbound bucket's upload prefix
-- Optionally, run `dpn-gha-file-scan-prerequisites-cd.yml` with `cloud: aws` to have it verify this wiring, and to create the IRSA role and seed the Secrets Manager entries if you haven't already (see [Configure DPN File Scan Service, Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service) and [Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets))
+- Optionally, run **Actions → DPN CD - File Scan Prerequisites → Run workflow** (`dpn-gha-file-scan-prerequisites-cd.yml`) with `environment`, `cluster` and `cloud: aws` (leave the Azure-only inputs at their defaults and `serviceBusNamespace` blank) to have it verify this wiring, and to create the IRSA role and seed the Secrets Manager entries if you haven't already (see [Configure DPN File Scan Service, Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service) and [Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets))
 
 ---
 
 ## Step3: Execute CI/CD
 
-### Step3a. Configure GHCR Image Access
+### Step3a. CI (component source repository)
+
+CI (build, test, and image push to GHCR) isn't yet migrated to GitHub Actions in `dpn-file-scan-service` — build the image via your own CI process, or use the DSI-provided prebuilt GHCR image (see [Reference: Container Images Used](#reference-container-images-used)). Once you have a tag, note it for use as `imageTag` below.
+
+```text
+dpn-file-scan-service:<image tag>
+```
+
+### Step3b. Configure GHCR Image Access
 
 All custom and third-party images are pulled from `ghcr.io/energy-dsi`. Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably.
 
@@ -79,42 +90,38 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
-### Step3b. Execute CD Workflow
+### Step3c. Execute CD Workflow
 
-Go to following CD pipeline:
-
-```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-file-scan-cd.yaml
-```
-Provide the runtime parameters:
+Go to **Actions → DPN CD - File Scan Service → Run workflow**, and supply:
 
 | Input | Value |
 |-----------|-------|
-| `environment` | `dev` / `test` |
-| `cluster` | `dpn01` / `dpn02` |
+| `environment` | `dev` / `test` (default `test`) |
+| `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
 | `cloud` | `aws` |
-| `imageTag` | The image tag from Step3a |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-file-scan-service`) — leave blank to use the environment's configured repository |
+| `imageTag` | Required — the image tag from Step3a |
+
+There is no image-repository input — the repository comes from `image.repository` in the values file (`ghcr.io/energy-dsi/dpn-file-scan-service`).
+
+Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml` . It loads `.github/config/aws/<environment>-<cluster>.json`, logs in via the `.github/actions/cloud-login` composite action, runs `helm lint` and a `--dry-run`, then `helm upgrade --install dpn-file-scan-service dpn-file-scan/charts/file-scan-service` with `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` (no `--wait`; it polls `kubectl rollout status` up to 5 times instead), and finally publishes the deployed image digest as the `deployed-image-digest` workflow artifact.
+
+To roll back, run **DPN Rollback - All Components Pipelines** (`dpn-rollback-all-components.yml`) with `releaseName: dpn-file-scan-service`; to remove it, run **DPN Uninstall - All components Pipelines** (`dpn-uninstall-all-components.yml`) with `componentType: file-scan-service`.
 
 ---
 
-### Step3c. Verify CD Workflow
+### Step3d. Verify CD Workflow
 
 After deployment, confirm the following components are running and validate end-to-end connectivity using the container logs. Alternatively, check the logs from DPN health monitoring dashboard. The dashboard starts filling after some time once the heartbit signal flow begins. 
 
 ```bash
 kubectl get pods -n <namespace> # check for dpn-file-scan-service-XXXXXXXXX
-kubectl logs -f dpn-file-scan-service-XXXXXXXXX
+kubectl logs -f dpn-file-scan-service-XXXXXXXXX -n <namespace>
 ```
 The kubectl logs should show `AWS SQS listener started.` and no `[error]` messages if the deployment is successful. 
 
 ---
 
-### Step3d. Verify Scanning Service Execution
+### Step3e. Verify Scanning Service Execution
 
 - Upload a clean test file into the inbound bucket and confirm it lands in the outbound bucket once GuardDuty completes its scan (scan time is asynchronous and outside this service's control)
 - Verify a corresponding log entry in the OTEL aggregator is arrived on file scan
@@ -158,7 +165,7 @@ File scan service image found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 2.0.0` |
+| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
 
 Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-gha-file-scan-cd.yml` already deploys from this image by default.
 
@@ -169,3 +176,4 @@ Image access setup and the workflow trigger are covered in [Step3](#step3-execut
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |
