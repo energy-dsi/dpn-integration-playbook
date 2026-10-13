@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Certificate Manager Configuration
 
 This section describes how to configure and deploy the **DPN Federator Certificate Manager (CLM)** in a single target environment. The Certificate Manager is a non-interactive Spring Boot service that automates X.509 certificate lifecycle management for the Federator Gateway — it renews the DSM-signed certificate and builds the keystore/truststore P12 files used for mutual TLS (mTLS).

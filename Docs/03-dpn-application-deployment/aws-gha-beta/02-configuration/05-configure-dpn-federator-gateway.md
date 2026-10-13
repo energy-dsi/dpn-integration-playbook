@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Federator Gateway Configuration
 
 This section describes how to configure and deploy the **DPN Federator Gateway** (Server and Client, plus their supporting services) into a single target environment and a single DPN cluster on Amazon Elastic Kubernetes Service (EKS). The Federator Gateway handles all secure communication between DPN node and other DPN nodes or the DSI DSM — sending and receiving data only to and from trusted parties over mutual TLS (mTLS).

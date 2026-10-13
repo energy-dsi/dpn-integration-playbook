@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Portal User Guide
 
 > **Audience:** Operations and data team members who need a single, Keycloak-authenticated entry point into DPN's observability UIs.

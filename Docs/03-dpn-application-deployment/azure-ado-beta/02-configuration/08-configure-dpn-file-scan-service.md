@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN File Scan Service Configuration 
 
 This section describes how to configure and deploy the **DPN File Scan Service** on Azure Cloud platform. This service uses native Azure cloud components for file scan using Azure Defender For Cloud Storage.

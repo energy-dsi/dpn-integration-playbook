@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Federator Gateway Installation Process
 
 This document covers the installation of the **DPN Federator Gateway** (Server, Client, and supporting Kafka/Zookeeper/Redis/Kafka UI services) into a single target environment and a single DPN cluster on Azure Kubernetes Service (AKS).
