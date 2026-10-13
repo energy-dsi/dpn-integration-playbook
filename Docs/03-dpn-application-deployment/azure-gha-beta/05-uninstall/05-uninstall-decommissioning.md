@@ -15,7 +15,7 @@
 - [Part 2 — Uninstall DPN Data Pipeline](#part-2--uninstall-dpn-data-pipeline)
   - [Step 1 — Delete Data Products from the Self-Service UI](#step-1--delete-data-products-from-the-self-service-ui)
   - [Step 2 — Uninstall the Self-Service UI and Consumer Releases](#step-2--uninstall-the-self-service-ui-and-consumer-releases)
-  - [Step 3 — Remove Releases Deployed by dpn-cd-data-pipelines.yml](#step-3--remove-releases-deployed-by-dpn-cd-data-pipelinesyml)
+  - [Step 3 — Remove Releases Deployed by dpn-gha-data-pipelines-cd.yaml](#step-3--remove-releases-deployed-by-dpn-gha-data-pipelines-cdyaml)
   - [Step 4 — Remove the Data Pipeline Namespace](#step-4--remove-the-data-pipeline-namespace)
   - [Step 5 — Verify Data Pipeline Removal](#step-5--verify-data-pipeline-removal)
 - [Part 3 — Uninstall DPN Federator Certificate Manager](#part-3--uninstall-dpn-federator-certificate-manager)
@@ -156,7 +156,7 @@ This part removes the DPN Data Pipeline in its 2.1.0 single-container Self-Servi
 |------|-------|-------------|------------|
 | Producer data products (`dpn-producer-<pathway>-<product_type>` Deployment + HPA, plus their storage containers and Kafka topics) | `ns-dpn-dp-01` | Self-Service UI, at runtime (not Helm releases) | **Delete** in the Self-Service UI — [Step 1](#step-1--delete-data-products-from-the-self-service-ui) |
 | Helm releases `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor` | `ns-dpn-dp-01` | Azure DevOps pipeline `dpn-self-service-cd.yaml` in `dpn-data-pipelines` (no Azure GitHub Actions equivalent exists) | `dpn-self-service-uninstall-cd.yaml` (ADO) or `helm uninstall` — [Step 2](#step-2--uninstall-the-self-service-ui-and-consumer-releases) |
-| Consumer and legacy pre-2.1.0 producer releases (`dpn-consumer-*`, `dpn-producer-*`) | `ns-dpn-01` | `dpn-cd-data-pipelines.yml` (central repo) | `helm uninstall` — [Step 3](#step-3--remove-releases-deployed-by-dpn-cd-data-pipelinesyml) |
+| Consumer and legacy pre-2.1.0 producer releases (`dpn-consumer-*`, `dpn-producer-*`) | `ns-dpn-01` | `dpn-gha-data-pipelines-cd.yaml` (central repo) | `helm uninstall` — [Step 3](#step-3--remove-releases-deployed-by-dpn-gha-data-pipelines-cdyaml) |
 
 ---
 
@@ -202,9 +202,9 @@ Uninstalling `dpn-self-service` also removes its registry PVC (`dpn-self-service
 
 ---
 
-### Step 3 — Remove Releases Deployed by dpn-cd-data-pipelines.yml
+### Step 3 — Remove Releases Deployed by dpn-gha-data-pipelines-cd.yaml
 
-The central `dpn-cd-data-pipelines.yml` workflow deploys one Helm release per chart into the main namespace (`ns-dpn-01`, the `NAMESPACE` value in `.github/config/azure/<environment>-<cluster>.json`). It is used for the consumer pipelines on this path (see the installation guide) and was used for per-product producers before the 2.1.0 Self-Service design. Skip this step if it was never run.
+The central `dpn-gha-data-pipelines-cd.yaml` workflow deploys one Helm release per chart into the main namespace (`ns-dpn-01`, the `NAMESPACE` value in `.pipelines/github-action-pipelines/config/azure/<environment>-<cluster>.json`). It is used for the consumer pipelines on this path (see the installation guide) and was used for per-product producers before the 2.1.0 Self-Service design. Skip this step if it was never run.
 
 The release names follow the workflow's naming:
 
@@ -228,7 +228,7 @@ The namespace `ns-dpn-dp-01` was created by hand in the cluster bootstrap (see [
 
 | Secret | How it got there |
 |--------|------------------|
-| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-tls-cd.yaml`, if the namespace existed when it ran |
+| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yml`, if the namespace existed when it ran |
 | `dpn-keycloak-secrets`, `producer-file-dp-secret`, `consumer-file-dp-secret` | Copied manually from `ns-dpn-01` |
 | `dpn-health-ca` | Created manually (OTEL collector CA bundle) |
 | `ghcr-pull-secret` | Created manually (GHCR pull secret), if used |
@@ -240,7 +240,7 @@ kubectl get all,secrets,pvc -n ns-dpn-dp-01
 kubectl delete namespace ns-dpn-dp-01
 ```
 
-> **Note:** If `dpn-tls-cd.yaml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
+> **Note:** If `dpn-gha-tls-cd.yml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
 
 The secrets copied out of `ns-dpn-01` are only copies; the originals are removed in [Remove Secrets and Certificates](#remove-secrets-and-certificates).
 
@@ -273,7 +273,7 @@ This part removes the Federator Certificate Manager and the HashiCorp Vault serv
 
 ### Step 1 — Remove the Certificate Manager
 
-The Certificate Manager and Vault are separate Helm releases (`dpn-vault-cd.yml`/`dpn-vault-https-cd.yml` and `dpn-certificate-manager-cd.yml` deploy them independently) — remove both:
+The Certificate Manager and Vault are separate Helm releases (`dpn-gha-vault-cd.yaml`/`dpn-gha-vault-https-cd.yaml` and `dpn-gha-certificate-manager-cd.yaml` deploy them independently) — remove both:
 
 ```bash
 helm uninstall dpn-certificate-manager -n <namespace>
@@ -317,7 +317,7 @@ This part removes all Federator Gateway components deployed from the `dpn-federa
 helm uninstall dpn-platform -n <namespace>
 ```
 
-This removes all Federator Gateway Helm-managed resources in the single release, including Kafka, Zookeeper, Redis, Federator Server, and Federator Client. If the REST Federator Gateway (`dpn-rest-federator-cd.yml`) was also deployed, remove its two releases separately:
+This removes all Federator Gateway Helm-managed resources in the single release, including Kafka, Zookeeper, Redis, Federator Server, and Federator Client. If the REST Federator Gateway (`dpn-gha-rest-federator-cd.yaml`) was also deployed, remove its two releases separately:
 
 ```bash
 helm uninstall dpn-rest-federator -n <namespace>
@@ -441,7 +441,7 @@ Repeat for all DPN-related images, including:
 - `dsi/dpn-self-service`
 - `dsi/dpn-producer-file-adaptor-generic`, `dsi/dpn-producer-topic-adaptor-generic`
 - `dsi/dpn-consumer-file-extractor`, `dsi/dpn-consumer-topic-extractor`
-- images used by `dpn-cd-data-pipelines.yml` and legacy pre-2.1.0 images: `consumer-<processType>-<extractor|mapper>`, `producer-<processType>-<adaptor|mapper>-*`
+- images used by `dpn-gha-data-pipelines-cd.yaml` and legacy pre-2.1.0 images: `consumer-<processType>-<extractor|mapper>`, `producer-<processType>-<adaptor|mapper>-*`
 
 If any component was deployed using DSI-provided GHCR images (`ghcr.io/energy-dsi/...`), no image deletion is required on the `energy-dsi` GHCR itself — those images are shared, DSI-managed packages. Only remove the `ghcr-pull-secret` Kubernetes secret used to authenticate against it, per [Remove Secrets and Certificates](#remove-secrets-and-certificates).
 
@@ -496,7 +496,7 @@ Delete the Data Pipeline storage left behind in the storage accounts: the Self-S
 
 ### Disable the Deployment Workflows
 
-Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files (`.github/workflows/*.yml`) — there's no separate "registered pipeline" object to delete. Once uninstallation is confirmed complete:
+Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files (`.pipelines/github-action-pipelines/workflows/*.yml`) — there's no separate "registered pipeline" object to delete. Once uninstallation is confirmed complete:
 
 - If this organisation's DPN was the only consumer of that repository's workflows, remove the federated identity credential / app registration used for GitHub OIDC (or its role assignment) in the target Azure subscription and revoke AKS cluster access (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#azure-entra-id-oidc-federated-credential)) so the workflows can no longer authenticate, rather than deleting the workflow files themselves (other environments may still use them).
 - If you want to actively prevent accidental re-runs, disable the individual workflows from the GitHub UI (**Actions → select workflow → "..." → Disable workflow**) rather than deleting the files.
@@ -525,4 +525,4 @@ If all commands return no DPN resources, the DPN platform has been successfully 
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |
