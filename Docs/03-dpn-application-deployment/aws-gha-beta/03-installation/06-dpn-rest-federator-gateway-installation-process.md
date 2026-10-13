@@ -182,7 +182,7 @@ DPN REST Federator Gateway custom images are found in GHCR with the following na
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| REST Federator Server | `<IMAGE_REGISTRY>/dpn-rest-federator-server` (e.g. `ghcr.io/energy-dsi/1.0.1/dpn-rest-federator-server`) | `<version>` |
+| REST Federator Server | `<IMAGE_REGISTRY>/dpn-rest-federator-server` (e.g. `ghcr.io/energy-dsi/dpn-rest-federator-server`) | `<version>` |
 
 The REST Federator Gateway's 3rd party platform image is set in the `dpn-redis` chart's values files rather than pulled from GHCR:
 
@@ -199,3 +199,4 @@ There is no separate GHCR-specific workflow to run — [Step2d](#step2d-execute-
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

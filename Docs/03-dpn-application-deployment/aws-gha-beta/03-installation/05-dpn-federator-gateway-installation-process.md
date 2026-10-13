@@ -240,18 +240,18 @@ DPN Federator Gateway service custom images are found in GHCR with following nam
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| Federator Server | `ghcr.io/energy-dsi/1.0.1/dpn-federator-server` | `e.g. 1.0.0` (supplied via `imageTag`) |
-| Federator Client | `ghcr.io/energy-dsi/1.0.1/dpn-federator-client` | `<version>` (supplied via `imageTag`) |
+| Federator Server | `ghcr.io/energy-dsi/dpn-federator-server` | `e.g. 1.0.0` (supplied via `imageTag`) |
+| Federator Client | `ghcr.io/energy-dsi/dpn-federator-client` | `<version>` (supplied via `imageTag`) |
 
 The Federator Gateway service 3rd party platform images are found in GHCR with following names (as referenced by `dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`)
 
 | Purpose | GHCR Path |
 |---|---|
-| Kafka | `ghcr.io/energy-dsi/1.0.1/dpn-kafka:<latest or DSI provided stable version>` |
-| Zookeeper | `ghcr.io/energy-dsi/1.0.1/dpn-zookeeper:<latest or DSI provided stable version>` |
-| Redis | `ghcr.io/energy-dsi/1.0.1/dpn-redis:<latest or DSI provided stable version>` |
-| Kafka UI | `ghcr.io/energy-dsi/1.0.1/ui-kafka:<latest or DSI provided stable version>` |
-| Kafka topic creator / populator | `ghcr.io/energy-dsi/1.0.1/kafka-topic-creator`, `ghcr.io/energy-dsi/1.0.1/kafka-topic-populator` |
+| Kafka | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
+| Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
+| Redis | `ghcr.io/energy-dsi/dpn-redis:<latest or DSI provided stable version>` |
+| Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
+| Kafka topic creator / populator | `ghcr.io/energy-dsi/kafka-topic-creator`, `ghcr.io/energy-dsi/kafka-topic-populator` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from these images by default.
 
@@ -262,3 +262,4 @@ There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |
