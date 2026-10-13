@@ -136,7 +136,7 @@ See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-cr
 
 #### GitHub Actions OIDC Federated Credential
 
-- The pipeline's shared `cloud-login` composite action (`.github/actions/cloud-login/action.yml`) authenticates in two steps: the runner's GitHub OIDC token first assumes the fixed hub role `oidc_github_runner_hub`, which then role-chains into your organisation's own `oidc_github_runner_admin` role in the `AWS_ACCOUNT_ID` set in the environment's config JSON. The `oidc_github_runner_admin` role's trust policy must therefore allow it to be assumed from the hub role.
+- The pipeline's shared `cloud-login` composite action (`.pipelines/github-action-pipelines/actions/cloud-login/action.yml`) authenticates in two steps: the runner's GitHub OIDC token first assumes the fixed hub role `oidc_github_runner_hub`, which then role-chains into your organisation's own `oidc_github_runner_admin` role in the `AWS_ACCOUNT_ID` set in the environment's config JSON. The `oidc_github_runner_admin` role's trust policy must therefore allow it to be assumed from the hub role.
 - **AWS Secret Manager** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **AWS Secret Manager**. 
 
 #### EKS Access
