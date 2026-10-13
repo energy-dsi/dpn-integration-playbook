@@ -91,7 +91,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 
 > **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** The gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)) when `vaultConfig.mountCertFileShare: false` is set. The chart's own reference `values.yaml` still defaults this to `true` for backward compatibility — confirm your environment's values file explicitly sets it to `false` rather than relying on the reference default, or the deprecated file share is mounted again.
 
-> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `.github/config/aws/<environment>-<cluster>.json` in the central `dpn-containerised-deployment-service` repository. The workflow reads `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER` and `NAMESPACE` (e.g. `ns-dpn-01`) from this file — the release is deployed into `NAMESPACE`.
+> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`). The workflow reads `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER` and `NAMESPACE` (e.g. `ns-dpn-01`) from this file — the release is deployed into `NAMESPACE`.
 
 ---
 
@@ -115,11 +115,11 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 
 ## Step3: Configure Environment
 
-The gateway chart is `dpn-federator-gateway/charts/dpn-platform`, inside the central `dpn-containerised-deployment-service` repository (the workflow's `HELM_DIR`; there is no separate component repository to check out). Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
+The gateway chart is `dpn-federator-gateway/charts/dpn-platform`, (the workflow's `HELM_DIR`; there is no separate component repository to check out). Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
 
 ```text
-dpn-containerised-deployment-service/
-└── dpn-federator-gateway/
+.pipelines/
+└── .github-actions-pipelines/
   └── charts/
         └── dpn-platform/
               ├── values.yaml                              <- Default settings for all components; do not edit directly

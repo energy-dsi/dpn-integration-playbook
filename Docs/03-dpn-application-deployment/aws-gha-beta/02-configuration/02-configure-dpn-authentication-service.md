@@ -101,15 +101,14 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
 
 Set the parameters below in your environment/cluster's values file.
 
-The chart lives in the central `dpn-containerised-deployment-service` repository (the workflow sets `CHART_DIR=dpn-authentication-service/charts/keycloak` and `VALUES_FILE=$CHART_DIR/values/aws/<environment>-<cluster>.yaml`):
 
 ```text
-dpn-containerised-deployment-service/
-└── dpn-authentication-service/
+root/
   └── charts/
         └── keycloak/
-              ├── values.yaml                              <- Reference file; do not edit directly
-              └── values/aws/<environment>-<cluster>.yaml <- Your environment + cluster overrides
+          └── values/
+              └── aws/           
+                └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 | Parameter | Purpose | Example (placeholder) |
@@ -157,14 +156,15 @@ Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past
 
 ## Step5: Configure Deployment Parameters
 
-Deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow (display name **DPN CD - Keycloak**) in the central `dpn-containerised-deployment-service` repository:
+Deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow :
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
-    ├── workflows/
-    │   └── dpn-gha-keycloak-cd.yml
-    └── config/
+root/
+└── .pipelines/
+    └── github-actions-pipelines/
+      └── workflows/
+          └── dpn-gha-keycloak-cd.yml
+      └── config/
         └── aws/
             └── <environment>-<cluster>.json   <- AWS_REGION, AWS_ACCOUNT_ID, EKS_CLUSTER, NAMESPACE, ...
 ```

@@ -40,7 +40,7 @@ The following prerequisites must be met.
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount
 - If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets). When OTLP OAuth is enabled (`keyvault.otelOauthClientSecretName: KC_SERVICE_CLIENT_SECRET`, as in the provided AWS values files), `KC_SERVICE_CLIENT_SECRET` must also exist under that prefix
 - The `dpn-tls` and `tls-auth-secret` Kubernetes secrets exist in the target namespace — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`)
-- `.github/config/aws/<environment>-<cluster>.json` in the central `dpn-containerised-deployment-service` repository is populated, including the `FILESCAN_*` keys (see [Configure DPN File Scan Service, Step3a](../02-configuration/08-configure-dpn-file-scan-service.md#step3a-configure-environment-json-file))
+- `.github/config/aws/<environment>-<cluster>.json` is populated, including the `FILESCAN_*` keys (see [Configure DPN File Scan Service, Step3a](../02-configuration/08-configure-dpn-file-scan-service.md#step3a-configure-environment-json-file))
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
@@ -103,7 +103,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow**, and supply:
 
 There is no image-repository input — the repository comes from `image.repository` in the values file (`ghcr.io/energy-dsi/dpn-file-scan-service`).
 
-Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml` in the central `dpn-containerised-deployment-service` repository. It loads `.github/config/aws/<environment>-<cluster>.json`, logs in via the `.github/actions/cloud-login` composite action, runs `helm lint` and a `--dry-run`, then `helm upgrade --install dpn-file-scan-service dpn-file-scan/charts/file-scan-service` with `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` (no `--wait`; it polls `kubectl rollout status` up to 5 times instead), and finally publishes the deployed image digest as the `deployed-image-digest` workflow artifact.
+Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml` . It loads `.github/config/aws/<environment>-<cluster>.json`, logs in via the `.github/actions/cloud-login` composite action, runs `helm lint` and a `--dry-run`, then `helm upgrade --install dpn-file-scan-service dpn-file-scan/charts/file-scan-service` with `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` (no `--wait`; it polls `kubectl rollout status` up to 5 times instead), and finally publishes the deployed image digest as the `deployed-image-digest` workflow artifact.
 
 To roll back, run **DPN Rollback - All Components Pipelines** (`dpn-rollback-all-components.yml`) with `releaseName: dpn-file-scan-service`; to remove it, run **DPN Uninstall - All components Pipelines** (`dpn-uninstall-all-components.yml`) with `componentType: file-scan-service`.
 

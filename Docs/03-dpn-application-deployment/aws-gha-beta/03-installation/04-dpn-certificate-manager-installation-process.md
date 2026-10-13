@@ -37,7 +37,7 @@ The Certificate Manager is deployed with a single GitHub Actions CD workflow, `d
 
 Set `cloudProvider: aws` in the environment values file — the chart's own default is `azure`; `aws` selects AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC).
 
-The workflow and the `certificate-manager` Helm chart both live in the central `dpn-containerised-deployment-service` repo. The chart is at `dpn-federator-cert-manager/charts/certificate-manager` (release `dpn-certificate-manager`), with values file `values/aws/<environment>-<cluster>.yaml`.
+The workflow and the `certificate-manager` Helm chart. The chart is at `dpn-federator-cert-manager/charts/certificate-manager` (release `dpn-certificate-manager`), with values file `values/aws/<environment>-<cluster>.yaml`.
 
 ```text
 .pipelines/
@@ -172,7 +172,7 @@ Federator Certificate Manager custom image is found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/certificate-manager/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
+| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/certificate-manager/values/aws/<environment>-<cluster>.yaml`, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from this image by default.
 

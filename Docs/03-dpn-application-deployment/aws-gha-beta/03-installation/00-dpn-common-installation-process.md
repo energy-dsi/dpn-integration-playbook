@@ -158,11 +158,11 @@ Before deploying any component, run **DPN CD - Prerequisite Pipeline (AWS Univer
 
 ### 4. Identify Pipeline Repository Structure
 
-All CD workflows, their per-cloud configuration and the component Helm charts live in the central `dpn-containerised-deployment-service` repository:
+All CD workflows, their per-cloud configuration and the component Helm charts:
 
 ```
-dpn-containerised-deployment-service/
-├── .github/
+.pipelines/
+└── .github-actions-pipelines/
 │   ├── workflows/                 # one workflow per DPN component (e.g. dpn-gha-vault-https-cd.yml)
 │   ├── actions/
 │   │   └── cloud-login/           # shared composite action: aws OIDC login + EKS context

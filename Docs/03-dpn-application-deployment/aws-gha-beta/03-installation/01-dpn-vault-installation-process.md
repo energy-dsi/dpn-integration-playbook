@@ -28,7 +28,7 @@ The DPN Hashicorp Vault service 3rd party platform images are found in GHCR with
 
 | Purpose | GHCR Path |
 |---|---|
-| Vault | `ghcr.io/energy-dsi/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/vault-https/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) |
+| Vault | `ghcr.io/energy-dsi/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/vault-https/values/aws/<environment>-<cluster>.yaml` , and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) |
 
 
 ---
@@ -66,7 +66,7 @@ kubectl run ghcr-pull-test --rm -it \
 
 ### Execute CD Pipeline
 
-Trigger the `dpn-gha-vault-https-cd.yml` GitHub Actions workflow in the central `dpn-containerised-deployment-service` repo. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists. It deploys the `vault-https` chart from `dpn-federator-cert-manager/charts/vault-https` (release `vault-https`) with the values file `values/aws/<environment>-<cluster>.yaml`.
+Trigger the `dpn-gha-vault-https-cd.yml` GitHub Actions workflow. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists. It deploys the `vault-https` chart from `dpn-federator-cert-manager/charts/vault-https` (release `vault-https`) with the values file `values/aws/<environment>-<cluster>.yaml`.
 
 ```text
 .pipelines/

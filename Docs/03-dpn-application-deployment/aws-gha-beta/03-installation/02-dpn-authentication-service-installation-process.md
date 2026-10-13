@@ -38,11 +38,11 @@ Keycloak is deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow,
 
 Unlike the source-built DPN components, this service does **not** build a custom image via a CI pipeline — it deploys stock upstream images (`keycloak/keycloak` and `postgres`), pulled via GHCR by default, so there is no separate CI stage to configure.
 
-The workflow (display name **DPN CD - Keycloak**) and the Keycloak Helm chart both live in the central `dpn-containerised-deployment-service` repository:
+The workflow (display name **DPN CD - Keycloak**) and the Keycloak Helm chart:
 
 ```text
-dpn-containerised-deployment-service/
-├── .github/
+.pipelines/
+└── .github-actions-pipelines/
 │   └── workflows/
 │       └── dpn-gha-keycloak-cd.yml
 └── dpn-authentication-service/

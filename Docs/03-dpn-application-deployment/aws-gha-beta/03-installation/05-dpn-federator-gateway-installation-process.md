@@ -56,7 +56,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
             └── values/aws/<environment>-<cluster>.yaml
 ```
 
-The Helm chart is no longer taken from a separate component repository — the workflow deploys `dpn-federator-gateway/charts/dpn-platform` (`HELM_DIR`) from the central `dpn-containerised-deployment-service` repository with `VALUES_FILE=dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`, into the `NAMESPACE` set in the config JSON (e.g. `ns-dpn-01`).
+The Helm chart is no longer taken from a separate component repository — the workflow deploys `dpn-federator-gateway/charts/dpn-platform` (`HELM_DIR`) with `VALUES_FILE=dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`, into the `NAMESPACE` set in the config JSON (e.g. `ns-dpn-01`).
 
 Key points, detailed in the configuration guide:
 - The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the S3 access credentials (and the Vault root token, via `certificate-manager-secrets`) are Key Vault secrets.
@@ -98,7 +98,7 @@ In summary:
 
 ### Step2a. CI (component source repository)
 
-CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below, which lives in (and deploys the chart from) the central `dpn-containerised-deployment-service` repository. Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
+CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below, which lives in (and deploys the chart from). Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
 
 Once CI pushes new tags, note them for use as `imageTag` in Step2c — the image registry should show:
 

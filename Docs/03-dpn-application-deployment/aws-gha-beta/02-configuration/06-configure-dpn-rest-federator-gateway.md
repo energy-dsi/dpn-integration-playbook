@@ -2,7 +2,7 @@ Release : 2.1.0 - Oct 2026
 
 # DPN REST Federator Gateway Configuration
 
-This section describes how to configure and deploy the **DPN REST Federator Gateway**. Its Helm charts (`dpn-rest-federator`, `dpn-redis`) and Vault AppRole scripts live in the central `dpn-containerised-deployment-service` repository, under the `dpn-rest-federator-gateway/` folder, alongside the GitHub Actions workflows that deploy them. It is a **REST/HTTPS-based alternative to the gRPC Federator Gateway**, for producers and consumers that need a synchronous, request/response API instead of a streamed Kafka-to-Kafka pipeline. It reuses the same Management Node, Identity Provider, and certificate infrastructure as the gRPC Federator Gateway, so both federation styles can be run side by side against a single DPN control plane.
+This section describes how to configure and deploy the **DPN REST Federator Gateway**. Its Helm charts (`dpn-rest-federator`, `dpn-redis`) and Vault AppRole scripts, under the `dpn-rest-federator-gateway/` folder, alongside the GitHub Actions workflows that deploy them. It is a **REST/HTTPS-based alternative to the gRPC Federator Gateway**, for producers and consumers that need a synchronous, request/response API instead of a streamed Kafka-to-Kafka pipeline. It reuses the same Management Node, Identity Provider, and certificate infrastructure as the gRPC Federator Gateway, so both federation styles can be run side by side against a single DPN control plane.
 
 > **Depends on Vault and the Certificate Manager.** Like the gRPC Federator Gateway, the REST Federator Gateway reads its mTLS keystore/truststore material directly from Vault at start-up — there is no shared file share. Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](03-configure-dpn-certificate-manager.md) first, and ensure the certificate's SANs cover this gateway's endpoint (e.g. `producer-rest01.<dpn>...`) in addition to the gRPC Federator's.
 
@@ -91,8 +91,8 @@ Only the backend API key (and, on AWS, the Vault AppRole secret-id) is provision
 Set the parameters below in your environment/cluster's values file.
 
 ```text
-dpn-containerised-deployment-service/
-  └── dpn-rest-federator-gateway/
+.pipelines/
+└── .github-actions-pipelines/
         ├── charts/
         │     ├── dpn-rest-federator/
         │     │     ├── values.yaml                              <- Reference file; do not edit directly
@@ -178,11 +178,11 @@ The IAM role and its trust policy (scoped to `system:serviceaccount:<NAMESPACE>:
 
 ## Step4: Configure Deployment Parameters
 
-Deployed with the **`DPN CD - REST Federator Gateway`** GitHub Actions workflow (`dpn-gha-rest-federator-cd.yml`) in the central `dpn-containerised-deployment-service` repository:
+Deployed with the **`DPN CD - REST Federator Gateway`** GitHub Actions workflow (`dpn-gha-rest-federator-cd.yml`) :
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+.pipelines/
+└── .github-actions-pipelines/
     ├── workflows/
     │   ├── dpn-gha-rest-federator-cd.yml
     │   └── dpn-rest-federator-role-id-creation.yml

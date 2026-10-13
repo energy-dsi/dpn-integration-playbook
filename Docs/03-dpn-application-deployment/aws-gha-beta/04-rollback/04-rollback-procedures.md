@@ -74,7 +74,7 @@ The distinction matters for what actually gets reverted:
 | DPN File Scanning Service (`dpn-file-scan-service`) | `dpn-gha-file-scan-cd.yml` | `dpn-rollback-all-components.yml` |
 | DPN Health Monitoring Service | `dpn-gha-health-monitoring-cd-install.yml` (orchestrator — the per-component workflows are `workflow_call`-only and can't be triggered standalone) | `dpn-rollback-health-monitoring.yml` for Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses and OTel; manual `helm rollback` for DPN Portal, the `oauth2-proxy` releases and `dpn-redis-ui-health` |
 
-All workflows above are in the central `dpn-containerised-deployment-service` repository. The component Helm charts they deploy also live there, one folder per component (for example `dpn-federator-gateway/charts/dpn-platform`, `dpn-federator-cert-manager/charts/certificate-manager`, `dpn-file-scan/charts/file-scan-service`, `dpn-data-pipelines/service/charts`), each with its AWS values file at `values/aws/<environment>-<cluster>.yaml`.
+All workflows above are in the repository. The component Helm charts they deploy also live there, one folder per component (for example `dpn-federator-gateway/charts/dpn-platform`, `dpn-federator-cert-manager/charts/certificate-manager`, `dpn-file-scan/charts/file-scan-service`, `dpn-data-pipelines/service/charts`), each with its AWS values file at `values/aws/<environment>-<cluster>.yaml`.
 
 ### Central Rollback Workflows
 
@@ -144,7 +144,7 @@ If you're rolling back the *whole platform* to a prior known-good state (e.g. af
 
 In the 2.1.0 Self-Service design the Data Pipeline is three Helm releases in `ns-dpn-dp-01` — `dpn-self-service`, `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` — deployed by the central `dpn-gha-self-service-cd.yml` workflow from the charts in `dpn-data-pipelines/` (`service/charts`, `blueprints/consumer/file/extractor/charts`, `blueprints/consumer/topic/extractor/charts`) (see [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow)). Producer data products are created by the Self-Service UI as plain Deployments, not Helm releases, so there is nothing to roll back for them with Helm. 
 
-> **Note:** The Self-Service CD, rollback and uninstall workflows (`dpn-gha-self-service-cd.yml`, `dpn-self-service-rollback.yml`, `dpn-self-service-uninstall.yml`) are in the central `dpn-containerised-deployment-service` repository, not in `dpn-data-pipelines`.
+> **Note:** The Self-Service CD, rollback and uninstall workflows (`dpn-gha-self-service-cd.yml`, `dpn-self-service-rollback.yml`, `dpn-self-service-uninstall.yml`) , not in `dpn-data-pipelines`.
 
 ### Strategy 1 — Redeploy a Previous Build via the Standard CD Workflow
 

@@ -27,9 +27,10 @@ The DPN Health Monitoring Service hosts the observability platform for DPN — K
 Deployment is orchestrated by the `dpn-gha-health-monitoring-cd-install.yml` GitHub Actions workflow, which chains each sub-component's own CD workflow as a dependent job in this order: Kafka → OpenSearch → Prometheus → Thanos (with Data Prepper and Jaeger branching off Kafka+OpenSearch, Perses off Prometheus+Thanos) → OTel Collector → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal, chained sequentially) → Validate.
 
 ```text
-dpn-containerised-deployment-service/
-├── .github/
-│   └── workflows/
+root/
+└── .pipelines/
+    └── github-actions-pipelines/
+│     └── workflows/
 │       ├── dpn-gha-health-monitoring-cd-install.yml   # orchestrator — trigger this one
 │       └── dpn-cd-{kafka,opensearch,prometheus,thanos,data-prepper,jaeger,perses,otel,portal,oauth2-proxy,validate}.yml
 └── dpn-health-monitoring/
@@ -38,7 +39,7 @@ dpn-containerised-deployment-service/
             └── values/aws/<environment>-<cluster>.yaml
 ```
 
-The Helm charts for every sub-component live inside the central `dpn-containerised-deployment-service` repository under `dpn-health-monitoring/charts/<chart>`. Each component workflow sets `CHART_DIR=dpn-health-monitoring/charts/<chart>` and `VALUES_FILE=$CHART_DIR/values/aws/<environment>-<cluster>.yaml` (for `oauth2-proxy`, a per-UI `values-<component>.yaml` is layered under the per-cluster values file).
+The Helm charts  under `dpn-health-monitoring/charts/<chart>`. Each component workflow sets `CHART_DIR=dpn-health-monitoring/charts/<chart>` and `VALUES_FILE=$CHART_DIR/values/aws/<environment>-<cluster>.yaml` (for `oauth2-proxy`, a per-UI `values-<component>.yaml` is layered under the per-cluster values file).
 
 Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying `environment` (dev/test), `cluster` (dpn01/dpn02), `cloud` (`aws`), `imageTag` (OTel Collector image tag, default `0.95.0`), and **`portalImageTag`** (the DPN Portal container image tag — required, no default; a short git-SHA printed by the DPN Portal application's own CI build) — the orchestrator's `init` job (**Resolve Deployment Config**) reads the rest of the component config from `.github/config/aws/<environment>-<cluster>.json` itself and passes it to every job. `otelImageRepository` (the OTel Collector image path after `ghcr.io/energy-dsi/`) is optional — leave it blank to use the environment's configured repository. `portalImageRepository` (the GHCR path after `ghcr.io/energy-dsi/`) defaults to `1.0.1/dpn-portal` if left blank.
 
@@ -61,9 +62,10 @@ See the [installation guide](../03-installation/03-dpn-health-monitoring-service
 Organisations should prepare a config file per environment/cluster where the health monitoring service is deployed, and keep it in the following location. This file will be read by the `init` job of the orchestrator workflow during deployment.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
-    └── config/
+root/
+└── .pipelines/
+    └── github-actions-pipelines/
+      └── config/
         └── aws/
             └── <environment>-<cluster>.json
 ```

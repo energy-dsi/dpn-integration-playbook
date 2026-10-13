@@ -144,7 +144,7 @@ root/
 | EFS_FILESYSTEM_ID | ID of the EFS filesystem behind the `efs-sc` StorageClass (printed by `.github/scripts/setup-efs-csi.sh`) | `fs-<id>` |
 | OAUTH2_PROXY_EXTERNAL_URL | *(optional)* External URL of the Self-Service Data Pipelines UI, used by `dpn-gha-self-service-cd.yml` | `https://dpn-self-service-external.ns-dpn-dp-01.svc.cluster.local` |
 
-> **Note:** `environment` (`dev`/`test`), `cluster` (`dpn01`/`dpn02`), and `cloud` (`aws`) are supplied as `workflow_dispatch` **inputs** when you trigger a run in the Actions tab — they are **not** keys in the JSON file. The Helm **values file** is derived from those inputs: `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`, inside the central `dpn-containerised-deployment-service` repository (e.g. `dpn-federator-cert-manager/charts/certificate-manager/values/aws/dev-dpn01.yaml`). Each workflow sets this through its `CHART_DIR` / `VALUES_FILE` environment variables.
+> **Note:** `environment` (`dev`/`test`), `cluster` (`dpn01`/`dpn02`), and `cloud` (`aws`) are supplied as `workflow_dispatch` **inputs** when you trigger a run in the Actions tab — they are **not** keys in the JSON file. The Helm **values file** is derived from those inputs: `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. Each workflow sets this through its `CHART_DIR` / `VALUES_FILE` environment variables.
 >
 
 ---
@@ -193,7 +193,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 #### Step2.4: GitHub Actions Secrets and Environments
 
-Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`), so create one Environment per target on the `dpn-containerised-deployment-service` repository — `dev-dpn01`, `dev-dpn02`, `test-dpn01`, `test-dpn02` — and add protection rules (required reviewers) as your organisation requires.
+Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`).
 
 The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level):
 

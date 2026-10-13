@@ -39,7 +39,7 @@ This document provides step-by-step instructions for installing and deploying **
 
 The deployment uses the following repository:
 
-- https://github.com/energy-dsi/dpn-containerised-deployment-service.git — the data pipeline source, blueprints and Helm charts live under its `dpn-data-pipelines/` folder, and the CD workflows under `.pipelines/github-action-pipelines/workflows/`
+- Tthe data pipeline source, blueprints and Helm charts live under its `dpn-data-pipelines/` folder, and the CD workflows under `.pipelines/github-action-pipelines/workflows/`
 
 The deployment process consists of:
 
@@ -61,10 +61,6 @@ The following prerequisites must be completed before beginning the installation 
 ### Step1a. Clone and Prepare Source Repositories
 
 Clone the official repository from GitHub.
-
-```bash
-git clone https://github.com/energy-dsi/dpn-containerised-deployment-service.git
-```
 
 Switch to the desired branch.
 

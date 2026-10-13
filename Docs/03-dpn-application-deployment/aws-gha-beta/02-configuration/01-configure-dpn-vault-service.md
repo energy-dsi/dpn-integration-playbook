@@ -6,8 +6,8 @@ DSI provides an **automated method** (GitHub Actions workflows) that generates t
 
 > **Environment and cluster:** These instructions target one `<environment>`/`<cluster>` combination (`dev`/`test` × `dpn01`/`dpn02`). Substitute your actual values in:
 >
-> - config file `.github/config/aws/<environment>-<cluster>.json` (in the central `dpn-containerised-deployment-service` repo)
-> - values file `dpn-federator-cert-manager/charts/<chart>/values/aws/<environment>-<cluster>.yaml` (also in the central `dpn-containerised-deployment-service` repo)
+> - config file `.pipelines/github-action-pipelines/config/aws/<environment>-<cluster>.json` 
+> - values file `dpn-federator-cert-manager/charts/<chart>/values/aws/<environment>-<cluster>.yaml` 
 >
 > Repeat the deployment once per environment/cluster combination you run — don't merge multiple environments into one file.
 
@@ -77,10 +77,24 @@ This constraint is under active review. Solutions have been identified that are 
 _**Note:** Organisations operating DPNs behind Cloudflare or equivalent infrastructure should factor the current manual renewal process into their operational runbooks until this capability is available and also actively monitor the expiry of the certificate installed outside the DPN certificate manager component since DSI does not generate any alert on certificate expiry at this moment._
 
 ---
+### Where secrets live
+This page touches five genuinely different secret stores — use this table to check where any given item actually lives before searching for it in the wrong place:
+| Item | Where it lives | Notes |
+|---|---|---|
+| `keypair`, `certificate`, `ca-chain`, `intermediate-ca`, `keystore-password`, `truststore-password` | **Vault's own KV-v2 store** (`pki-client/node-net/client/*`) | Not a Kubernetes Secret, not Secrets Manager — internal to Vault itself |
+| `VAULT_TLS_CERT`, `VAULT_TLS_KEY` (`secretsManager.secretPrefix`) | **AWS Secrets Manager**, synced via the CSI `SecretProviderClass` | Mounted into the Vault pod at `/vault/tls` |
+| `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` (Step 3A's actual publish target today) | **Azure Key Vault only**, even when `cloud: aws` | Known limitation — see [Step 2b](#step-2b-vault-helm-values) |
+| `truststore.jks` (Step 3A output) | **Kubernetes Secret** `cert-manager-truststore` | Plain K8s object, not Secrets Manager |
+| `vault.csr`, `server.csr`, full Step 3A working set (incl. private keys) | **GitHub Actions workflow artifact** (1-day retention) | Ephemeral CI download — download and delete, not a persistent store |
+| `VAULT_TOKEN` (root token, Step 3B) | **AWS Secrets Manager** `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`, or **Azure Key Vault** `VAULT-TOKEN` | Cloud-branched, only written if `storeRootTokenInSecretsBackend: true` |
+| Full Vault init output (root token + recovery keys) | **GitHub Actions workflow artifact** `vault-init-output-<environment>-<cluster>` (1-day retention) | Separate from the `VAULT_TOKEN` copy above |
+| `VAULT_KEY`, `CERTIFICATE_PEM`, `CA_CHAIN_PEM` (Step 3C inputs) | **GitHub Actions secrets** (repo/environment level) | A fourth, distinct store |
+| `VAULT_APPROLE_ROLE_ID`, `VAULT_APPROLE_SECRET_ID` | **AWS Secrets Manager**, component-suffixed path (e.g. `.../certificate-manager/VAULT_APPROLE_SECRET_ID`) | Or Azure Key Vault, component-suffixed name |
+---
 
 ## Automated Vault Configuration
 
-The automated flow uses five GitHub Actions workflows, all in the central `dpn-containerised-deployment-service` repo:
+The automated flow uses five GitHub Actions workflows:
 
 | Order | Workflow (display name) | Purpose |
 |-------|----------|---------|
@@ -141,15 +155,15 @@ The AWS Secrets Manager names the workflows use are not config JSON keys — the
 
 #### Step 2b. Vault Helm values
 
-Set the values below in your environment/cluster's values file. The chart lives in the central `dpn-containerised-deployment-service` repo (the workflow's `CHART_DIR` is `dpn-federator-cert-manager/charts/vault-https`, and `VALUES_FILE` resolves to `values/aws/<environment>-<cluster>.yaml` under it). DSI proposes only these selective changes; other parameters may be customised if required.
+Set the values below in your environment/cluster's values file. . DSI proposes only these selective changes; other parameters may be customised if required.
 
 ```text
-dpn-containerised-deployment-service/
-└── dpn-federator-cert-manager/
+root/
   └── charts/
-        └── vault-https/
-              ├── values.yaml                            <- Reference file; do not edit directly
-              └── values/aws/<environment>-<cluster>.yaml <- Your environment overrides
+        └── vault-https/  
+          └── values/
+              └── aws/          
+                 └──<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
 | Parameter | Purpose | Example (placeholder) |

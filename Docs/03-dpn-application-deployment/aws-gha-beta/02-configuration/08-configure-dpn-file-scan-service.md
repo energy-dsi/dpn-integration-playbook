@@ -25,7 +25,7 @@ The DPN File Scan Service is a FastAPI application that runs as a single EKS Dep
 
 **CD Workflow**
 
-Both workflows, and the service's Helm chart, live in the central `dpn-containerised-deployment-service` repository:
+Both workflows, and the service's Helm chart:
 
 | Workflow | Display name | File | Purpose |
 |---|---|---|---|
@@ -84,8 +84,8 @@ Then configure the GuardDuty Malware Protection for S3 protection plan (console 
 Organisations should prepare a `.github/config/aws/<environment>-<cluster>.json` file per environment/cluster where the file scan service is deployed. Both workflows read this file (`PARAMETERS_FILE`) and export every key into the job environment.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+.pipelines/
+└── .github-actions-pipelines/
     └── config/
         └── aws/
             └── <environment>-<cluster>.json     # e.g. dev-dpn01.json
@@ -113,11 +113,11 @@ dpn-containerised-deployment-service/
 
 ## Step4: Configure Helm Chart Files
 
-Set the parameters below in your environment/cluster's values file. The chart lives in the central `dpn-containerised-deployment-service` repository; the CD workflow sets `CHART_LOCATION=dpn-file-scan/charts/file-scan-service` and resolves `VALUES_FILE=dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` from the `environment`/`cluster`/`cloud` inputs you select at runtime.
+Set the parameters below in your environment/cluster's values file. The CD workflow sets `CHART_LOCATION=dpn-file-scan/charts/file-scan-service` and resolves `VALUES_FILE=dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` from the `environment`/`cluster`/`cloud` inputs you select at runtime.
 
 ```text
-dpn-containerised-deployment-service/
-└── dpn-file-scan/
+.pipelines/
+└── .github-actions-pipelines/
   └── charts/
         └── file-scan-service/
               ├── values.yaml                              <- Reference file; do not edit directly

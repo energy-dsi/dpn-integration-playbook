@@ -36,11 +36,11 @@ This installation page is a quick-reference summary that points to that guide.
 
 The REST Federator Gateway is deployed as **two independently re-runnable jobs** in one GitHub Actions CD workflow run: **deploy-redis** (this chart's own `dpn-redis` cache) followed by **deploy-rest-federator** (the gateway itself).
 
-Both workflows, and the charts they deploy, live in the central `dpn-containerised-deployment-service` repository:
+Both workflows, and the charts they deploy:
 
 ```text
-dpn-containerised-deployment-service/
-├── .github/
+.pipelines/
+└── .github-actions-pipelines/
 │   ├── workflows/
 │   │   ├── dpn-gha-rest-federator-cd.yml                  <- DPN CD - REST Federator Gateway
 │   │   └── dpn-rest-federator-role-id-creation.yml    <- DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)

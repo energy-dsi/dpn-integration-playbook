@@ -22,7 +22,7 @@
 
 ## Overview
 
-This describes installation using the GitHub Actions orchestrator workflow `dpn-gha-health-monitoring-cd-install.yml` (display name **DPN Health Monitoring**, in `.github/workflows/` of the central `dpn-containerised-deployment-service` repository) (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your AWS environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
+This describes installation using the GitHub Actions orchestrator workflow `dpn-gha-health-monitoring-cd-install.yml` (display name **DPN Health Monitoring**,  (`environment`+`cluster`+`cloud` inputs, a dependency chain — Kafka → OpenSearch → Prometheus → Thanos, with Data Prepper/Jaeger off Kafka+OpenSearch and Perses off Prometheus+Thanos, then OTel → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal) → Validate — plus the OTEL Collector HPA) against your AWS environments — `dev`/`test`, each with up to two DPN clusters (`dpn01`/`dpn02`).
 
 > The Nginx Observability Proxy job has been retired; DPN Portal (tile landing page) and one `oauth2-proxy` Keycloak-gateway release per remaining UI (OpenSearch, Jaeger, Perses, Portal) replace it. Prometheus and Thanos publish directly on an internal AWS NLB with no gateway at all — see [Configuration, Continuous Deployment (CD)](../02-configuration/03-configure-dpn-health-monitoring-service.md#continuous-deployment-cd).
 

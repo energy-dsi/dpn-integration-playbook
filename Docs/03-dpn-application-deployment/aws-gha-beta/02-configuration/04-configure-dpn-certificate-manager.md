@@ -6,7 +6,7 @@ This section describes how to configure and deploy the **DPN Federator Certifica
 
 > **Depends on Vault.** The Certificate Manager **cannot run without the DPN HashiCorp Vault service**. Vault must already be deployed, initialised (KV v2 enabled at `pki-client`), and loaded with the certificate bundle before you deploy the Certificate Manager. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md).
 
-> **Environment and cluster:** These instructions target one `<environment>`/`<cluster>` combination. Substitute your own values wherever you see `<environment>`/`<cluster>` (for `.github/config/aws/<environment>-<cluster>.json` and the chart's `values/aws/<environment>-<cluster>.yaml`, both in the central `dpn-containerised-deployment-service` repo).
+> **Environment and cluster:** These instructions target one `<environment>`/`<cluster>` combination. Substitute your own values wherever you see `<environment>`/`<cluster>`.
 
 ---
 
@@ -109,11 +109,11 @@ Organisations must change the default passwords during secret set up and follow 
 
 ### Step3a: Set Up Helm Values
 
-Set the parameters below in your environment/cluster's values file. The chart lives in the central `dpn-containerised-deployment-service` repo (the workflow's `CHART_DIR` is `dpn-federator-cert-manager/charts/certificate-manager`, release `dpn-certificate-manager`). The CD workflow resolves `values/aws/<environment>-<cluster>.yaml` from the `environment`/`cluster`/`cloud` inputs you select at runtime.
+Set the parameters below in your environment/cluster's values file. (the workflow's `CHART_DIR` is `dpn-federator-cert-manager/charts/certificate-manager`, release `dpn-certificate-manager`). The CD workflow resolves `values/aws/<environment>-<cluster>.yaml` from the `environment`/`cluster`/`cloud` inputs you select at runtime.
 
 ```text
-dpn-containerised-deployment-service/
-└── dpn-federator-cert-manager/
+.pipelines/
+└── .github-actions-pipelines/
   └── charts/
         └── certificate-manager/
               ├── values.yaml                              <- Reference file; do not edit directly
@@ -205,7 +205,7 @@ The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secr
 
 ## Step4: Setup Deployment Configuration
 
-The Certificate Manager is deployed with the `dpn-gha-certificate-manager-cd.yml` GitHub Actions workflow in the central `dpn-containerised-deployment-service` repo:
+The Certificate Manager is deployed with the `dpn-gha-certificate-manager-cd.yml` GitHub Actions workflow:
 
 ```text
 .pipelines/
