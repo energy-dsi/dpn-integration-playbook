@@ -57,6 +57,8 @@ The deployment process consists of:
 
 **Producer data products are not deployed by either workflow.** They are created at runtime from the already-running Self-Service UI, which launches the generic producer image with that product's configuration (see [STEP-03](#step-03-create-the-first-data-product) and the [Configuration Guide](../02-configuration/07-configure-dpn-data-pipelines.md#step-01-set-up-a-new-data-product-self-service)). No per-product CI/CD run, folder copy or image build is required.
 
+> **Upgrading from a release before 2.1.0:** data products created before DPN release 2.1.0 (deployed as separate per-product producer/consumer Helm releases) are **not automatically imported** into the Self-Service UI. Each must be recreated (rehosted) manually through the UI after this installation (see [STEP-03](#step-03-create-the-first-data-product)), and the old releases removed afterwards as described in [Uninstall DPN Data Pipeline](../05-uninstall/05-uninstall-decommissioning.md#part-2--uninstall-dpn-data-pipeline).
+
 ---
 
 ## STEP-01: Installation Prerequisites
@@ -94,6 +96,7 @@ Ensure the following prerequisites are completed before deployment:
 - DPN Streaming Service (Kafka) deployed, with SASL/TLS authentication through DPN Authentication Service (Keycloak) — see [Configure Kafka Security](../02-configuration/07-configure-dpn-data-pipelines.md#step-08b-configure-kafka-security-sasltls). Topics do **not** need to be pre-created; the pipeline creates them (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step-09b-configure-streaming-service-kafka))
 - DPN Health Monitoring Service deployed and the OTEL collector container in a running state
 - Storage accounts available for the `file` integration pathway. Blob containers are created by the pipeline — see [Storage Blob Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step-09a-storage-blob-configuration)
+- The data pipeline namespace `ns-dpn-dp-01` created first, as part of the one-time cluster bootstrap in [AKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-aks-namespace-configuration). No workflow creates it. The shared secrets created in `ns-dpn-01` (`dpn-tls`, `tls-auth-secret`, `dpn-keycloak-secrets`, `producer-file-dp-secret` and `consumer-file-dp-secret`) must then be copied into `ns-dpn-dp-01` as described in that step. `dpn-tls-cd.yaml` copies `dpn-tls` and `tls-auth-secret` automatically, but only if `ns-dpn-dp-01` already existed when it ran.
 - The following Kubernetes secrets created **in the data pipeline namespace** (`ns-dpn-dp-01` by default) before the CD workflow runs. The containers refuse to start without valid values:
 
   | Secret | Purpose |
@@ -106,7 +109,7 @@ Ensure the following prerequisites are completed before deployment:
   | `consumer-file-dp-secret` | Blob Storage connection strings for the consumer file extractor |
   | `ghcr-pull-secret` | Pull secret for the private GHCR registry |
 
-  See [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step-08-configure-secrets) for the contents of each.
+  See [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step-08-configure-secrets) for the contents of each. On the first deployment into a new environment, restart the pods once the secrets exist; see [One-time setup for a new environment](#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
 - Keycloak client `dpn-service-client` configured for the Self-Service UI login: **Standard flow** enabled, and the UI's `<externalUrl>/oauth2/callback` registered as a valid redirect URI. The realm roles `dpnadmin`, `dpnoperator` and `dpnreader` assigned to the people who will use the UI.
 - Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (GitHub Actions access, GHCR access)
@@ -190,6 +193,27 @@ Provide the following parameters:
 > - The namespace itself is not created by the workflow and must exist already (see [AKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-aks-namespace-configuration)).
 > - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. Confirm the value in the consumer charts' `values.yaml` before running (see [Configure Scheduling](../02-configuration/07-configure-dpn-data-pipelines.md#step-06-configure-scheduling)).
 
+#### One-time setup for a new environment: create secrets and restart pods
+
+Every time the DPN Data Pipeline is deployed into a **new environment** (a new `<environment>-<cluster>`, or a newly created `ns-dpn-dp-01`), do the following once:
+
+1. Create the secrets in `ns-dpn-dp-01`. Copy the shared secrets from `ns-dpn-01` as described in [Copy shared secrets into ns-dpn-dp-01](../02-configuration/00-common-dpn-configuration.md#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite), and create the storage secrets as described in [Configure Storage Secrets](../02-configuration/07-configure-dpn-data-pipelines.md#step-08a-configure-storage-secrets). Confirm that every secret listed in [STEP-01b](#step-01b-prepare-infrastructure-and-application-prerequisites) exists:
+
+   ```bash
+   kubectl get secrets -n ns-dpn-dp-01
+   ```
+
+2. Restart the pods so they pick up the secrets. A pod reads secret values only when it starts, so pods created before the secrets existed stay in `CreateContainerConfigError` or `CrashLoopBackOff`, or run without the values, until they are restarted:
+
+   ```bash
+   kubectl rollout restart deployment -n ns-dpn-dp-01
+   kubectl get pods -n ns-dpn-dp-01 -w
+   ```
+
+3. Once every pod shows `Running`, continue with [STEP-02c](#step-02c-validate-data-pipeline-cd-workflow).
+
+This is needed only once per environment. Later CD runs into the same environment reuse the existing secrets. Repeat steps 1 and 2 only when a secret is rotated.
+
 ---
 
 ### STEP-02c: Validate Data Pipeline CD Workflow
@@ -236,6 +260,10 @@ Producer data products are created from the Self-Service UI, not from a workflow
    ```
 
 4. Use **Run Now** and the logs view in the UI to confirm a first cycle completes.
+
+See the [DPN Data Pipeline UI Operations guide](../../../05-dpn-user-interfaces/11-dpn-data-pipeline-ui-operations.md) for the UI screens in detail.
+
+> **Rehosting data products from a release before 2.1.0:** repeat steps 2–4 for every data product that existed before the upgrade. Pre-2.1.0 products (separate per-product producer/consumer Helm releases) are **not automatically imported** into the Self-Service UI and must be recreated manually. The UI only accepts storage container and Kafka topic names that do not exist yet, so confirm new names and update anything that used the old ones. Once each recreated product is verified, remove the old releases as described in [Uninstall DPN Data Pipeline](../05-uninstall/05-uninstall-decommissioning.md#part-2--uninstall-dpn-data-pipeline).
 
 ---
 

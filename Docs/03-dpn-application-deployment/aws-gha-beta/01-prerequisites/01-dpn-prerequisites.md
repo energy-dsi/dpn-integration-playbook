@@ -13,6 +13,7 @@
     - [Access Requirements](#access-requirements)
       - [GitHub Access](#github-access)
       - [AWS IAM OIDC Role](#aws-iam-oidc-role)
+      - [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential)
       - [EKS Access](#eks-access)
       - [Data Pipeline Access](#data-pipeline-access)
   - [Security Prerequisites](#security-prerequisites)
@@ -125,9 +126,16 @@ The following access configurations are required for DPN deployment.
 
 #### AWS IAM OIDC Role
 
-An **IAM role in your target AWS account**, with:
+An **IAM role in your target AWS account**, named `oidc_github_runner_admin`, with:
 
-- Permissions scoped to DPN deployment actually needs at minimum EKS cluster access, plus IAM/S3/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
+- Permissions scoped to what DPN deployment actually needs — at minimum EKS cluster access, plus IAM/S3/KMS permissions for whichever components' prerequisites your organisation provisions (IRSA role, S3 buckets, AWS KMS auto-unseal key, etc.)
+
+See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-credential) below for how this fits into the pipeline's authentication chain.
+
+#### GitHub Actions OIDC Federated Credential
+
+- The pipeline's shared `cloud-login` composite action authenticates by having the runner's GitHub OIDC token assume the hub role, which then role-chains into your organisation's own `oidc_github_runner_admin` role.
+- **AWS Secret Manager** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **AWS Secret Manager**. 
 
 #### EKS Access
 
@@ -214,7 +222,6 @@ DSI recommends the following skillsets to ensure smooth installation and operati
 - AWS Administrator  
 
 ---
-## Assumptions
 
 The prerequisites described in this document assume the following:
 

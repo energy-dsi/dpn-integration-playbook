@@ -166,9 +166,6 @@ Rather than relying solely on `configure-keycloak.sh`'s own placeholder defaults
 >
 > **Branding.** The realm now sets a custom login theme (`KC_LOGIN_THEME`, default `dpn-portal`, packaged from `charts/keycloak/themes/dpn-portal` by `templates/theme-configmap.yaml`) and header markup (`KC_DISPLAY_NAME_HTML`). Override either as an environment variable on the `configure-keycloak.sh` step if you need different branding per environment.
 >
-> **No `--wait`/`--timeout` on `helm upgrade` for this path.** Long-lived watches against the AKS API from the self-hosted runner were unreliable and timed out even when the rollout had actually completed — the Helm Deploy step now fires the upgrade without waiting, then polls `kubectl rollout status` with a short per-attempt timeout and a few retries instead.
-
-There is no dedicated uninstall workflow for this component yet — to remove it, run `helm uninstall dpn-keycloak -n <namespace>` directly (this retains the PostgreSQL PVC by default, so realm data survives a reinstall; delete the PVC separately if you want a clean wipe).
 
 ---
 
@@ -176,4 +173,4 @@ There is no dedicated uninstall workflow for this component yet — to remove it
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 | 

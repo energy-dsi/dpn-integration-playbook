@@ -102,4 +102,4 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Oct-2026 | DSI Assurance | Final | V1.0.0 |

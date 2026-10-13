@@ -34,16 +34,14 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-Keycloak is deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
+Keycloak is deployed with the `dpn-keycloak-cd.yml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
 
 Unlike the source-built DPN components, this service does **not** build a custom image via a CI pipeline — it deploys stock upstream images (`keycloak/keycloak` and `postgres`), pulled via GHCR by default, so there is no separate CI stage to configure.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-keycloak-cd.yml
+github-pipeline/
+    └── workflows/
+        └── dpn-keycloak-cd.yml
 ```
 
 ---
@@ -54,10 +52,9 @@ Confirm the prerequisites before starting — see [Configure DPN Authentication 
 
 In summary the following must be in place:
 
-- EKS cluster, and either an identity that can reach Azure Key Vault or an IRSA-annotated ServiceAccount for AWS Secrets Manager (`secretsManager.enabled: true`)
+- EKS cluster, and or an IRSA-annotated ServiceAccount for AWS Secrets Manager (`secretsManager.enabled: true`)
 - `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret)
 - Five secrets populated in the chosen backend: `KC-DB-PASSWORD`/`KC_DB_PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`/`KEYCLOAK_ADMIN_PASSWORD`, `KEYSTORE-PASSWORD`/`KC_HTTPS_KEY_STORE_PASSWORD`, `TRUSTSTORE-PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD`, `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET`
-- `.github/config/aws/<environment>-<cluster>.json` and `values/aws/<environment>-<cluster>.yaml` populated, **with `cloudProvider: aws` set** — the chart's own default is `azure`, and on EKS that silently produces an Azure-style Key Vault `SecretProviderClass` and a `azure-load-balancer-internal` Service annotation AWS does not recognise
 - Target namespace created (the workflow does not create it)
 
 **Note:** Organisations must review the CD workflow for the following before relying on it.
@@ -184,7 +181,7 @@ Keycloak will still start if the certificate behind `KC_HTTPS_KEY_ALIAS` does no
 
 ### Internal Load Balancer Is Not Actually Internal
 
-If the NLB ends up internet-facing, the almost-certain cause is `cloudProvider` left at its chart default (`azure`) in the environment values file — the Service then carries the Azure-style annotation instead of `service.beta.kubernetes.io/aws-load-balancer-internal: "true"` / `aws-load-balancer-type: "nlb"`, and AWS ignores the annotation it doesn't recognise. Check:
+If the NLB ends up internet-facing, the almost-certain cause is `cloudProvider` left at its chart default (`aws`) in the environment values file — the Service then carries the Azure-style annotation instead of `service.beta.kubernetes.io/aws-load-balancer-internal: "true"` / `aws-load-balancer-type: "nlb"`, and AWS ignores the annotation it doesn't recognise. Check:
 
 ```bash
 kubectl get svc dpn-keycloak-service-lb -n <namespace> -o yaml | grep -A5 annotations
@@ -214,4 +211,4 @@ Keycloak is a **StatefulSet**, not a Deployment (PostgreSQL remains a Deployment
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-------------------|--------|---------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| — | — | Draft — pending DSI Assurance review | V0.1.0 |

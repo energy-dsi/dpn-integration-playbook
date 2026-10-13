@@ -2,17 +2,17 @@
 
 This section describes how to configure and deploy the **DPN Federator Gateway** (Server and Client, plus their supporting services) into a single target environment and a single DPN cluster on Amazon Elastic Kubernetes Service (EKS). The Federator Gateway handles all secure communication between DPN node and other DPN nodes or the DSI DSM — sending and receiving data only to and from trusted parties over mutual TLS (mTLS).
 
-**Depends on Vault and the Certificate Manager.** The Federator Gateway cannot start correctly until:
+> **Depends on Vault and the Certificate Manager.** The Federator Gateway cannot start correctly until:
+> - the **DPN Vault** is deployed, initialised, and loaded (it supplies the certificate, key pair, CA chain, and keystore/truststore **passwords** under `node-net/client/*`), and
+> - the **Certificate Manager** has renewed the certificate into that same Vault path.
+>
+> The gateway reads this material directly from Vault and builds its mTLS keystore/truststore **in memory** at start-up (`vaultConfig.tlsEnabled: true`) — there is no shared file share to provision (`vaultConfig.mountCertFileShare: false`).
+>
+> Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) first.
 
-  - the **DPN Vault** is deployed, initialised, and loaded (it supplies the certificate, key pair, CA chain, and keystore/truststore **passwords** under `node-net/client/*`), and
+> **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
 
-  - the **Certificate Manager** has renewed the certificate into that same Vault path.
-
-  The gateway reads this material directly from Vault and builds its mTLS keystore/truststore **in memory** at start-up (`vaultConfig.tlsEnabled: true`) — there is no shared file share to provision (`vaultConfig.mountCertFileShare: false`).
-
-  Complete [Configure DPN Vault Service](01-configure-dpn-vault-service.md) and [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) first.
-
-  **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
+> **This scope spans two GitHub Actions workflows, not one.** `dpn-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/mapper/extractor pods are a **separate** workflow, `dpn-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) — not here.
 
 ---
 
@@ -21,13 +21,12 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
 - [Overview](#overview)
 - [Step1: Meet Prerequisites](#step1-meet-prerequisites)
 - [Step2: Configure Secrets](#step2-configure-secrets)
+  - [Option A - Use Kubernetes Secrets](#option-b---use-kubernetes-secrets)
 - [Step3: Configure Environment](#step3-configure-environment)
   - [Step3a: Configure Federator Server](#step3a-configure-federator-server)
   - [Step3b: Configure Federator Client](#step3b-configure-federator-client)
-  - [Step3c: Configure Kafka Security](#step3c-configure-kafka-security)
-  - [Step3d: Configure Redis Security](#step3d-configure-redis-security)
-  - [Step3e: Configure OTel Collector Security](#step3e-configure-otel-collector-security)
-  - [Step3f: Configure AWS ServiceAccount (IRSA)](#step3f-configure-aws-serviceaccount-irsa)
+  - [Step3c: Configure Kafka Security](#step3d-configure-kafka-security)
+  - [Step3d: Configure AWS ServiceAccount (IRSA)](#step3e-configure-aws-serviceaccount-irsa)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -47,25 +46,22 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 | **Federator Server** | Receives inbound connections from other DPNs' clients; reads from Kafka Source and streams data out over gRPC/mTLS |
 | **Federator Client** | Connects outward to a remote Federator Server; writes received data into Kafka Target and its storage |
 
-  **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafka.oauth.tokenEndpointUrl`), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials. This client secret (`KC_SERVICE_CLIENT_SECRET`) is read directly from the `dpn-keycloak-secrets` Kubernetes secret created by the **DPN Authentication Service** deployment — Kafka Source/Target, Kafka UI, and the Federator Server/Client no longer pull an independent `KAFKA-OAUTH-CLIENT-SECRET` entry of their own, so there is one fewer secret to provision per environment.
+> **Kafka broker security.** Both Kafka Source and Kafka Target run with `SASL_SSL` on every listener by default (`kafka.authMode: sasl_ssl` — the production default; `ssl`/`plaintext` remain available for dev/test). The SASL mechanism is `OAUTHBEARER`: brokers and clients obtain and validate tokens from the DPN **Keycloak** realm (`kafka.oauth.tokenEndpointUrl`), so both inter-broker and client Kafka traffic is authenticated against Keycloak, not static credentials. This client secret (`KC_SERVICE_CLIENT_SECRET`) is read directly from the `dpn-keycloak-secrets` Kubernetes secret created by the **DPN Authentication Service** deployment — Kafka Source/Target, Kafka UI, and the Federator Server/Client no longer pull an independent `KAFKA-OAUTH-CLIENT-SECRET` entry of their own, so there is one fewer secret to provision per environment.
 
- **`cloudProvider: aws`.** The `dpn-platform` chart's templates branch on this value to select AWS-native behaviour (Network Load Balancers, the AWS Secrets Store CSI provider for Kafka's own credentials, S3 storage config, and the IRSA `ServiceAccount` below) instead of the Azure equivalents. Every populated `values-<environment>-<cluster>.yaml` file must set `cloudProvider: aws`
+> **`cloudProvider: aws`.** The `dpn-platform` chart's templates branch on this value to select AWS-native behaviour (Network Load Balancers, the AWS Secrets Store CSI provider for Kafka's own credentials, S3 storage config, and the IRSA `ServiceAccount` below) instead of the Azure equivalents. Every populated `values/aws/<environment>-<cluster>.yaml` file must set `cloudProvider: aws` — it is **not** the chart's own default (`values.yaml` defaults it to `azure`).
 
 **certificates and passwords flow (MUST READ):**
 
 - The gateway builds its mTLS keystore/truststore **in memory** directly from certificate material in Vault (`vaultConfig.tlsEnabled: true`, `vaultConfig.tlsBasePath: node-net/client`) — no shared file share is used (`vaultConfig.mountCertFileShare: false`).
-
 - The keystore/truststore **passwords are read from Vault** at start-up (`vaultConfig.keystorePasswordPath` / `truststorePasswordPath`) — they are **not** stored as Federator Key Vault secrets.
-
-- The gateway can authenticate to Vault either via the Vault root token (`vaultConfig.authMethod: token`) or, on this AWS path, by **sharing the Certificate Manager's own AppRole identity** (`vaultConfig.authMethod: approle`, `vaultConfig.appRole.roleId` set to the Certificate Manager's `role_id`) — there is no dedicated per-component AppRole-provisioning workflow for the Federator Gateway yet, but reusing an already-provisioned identity works today and is the pattern the real AWS environment uses. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication).
-
+- The gateway can authenticate to Vault either via the Vault root token (`vaultConfig.authMethod: token`) or, on this AWS path, by **sharing the Certificate Manager's own AppRole identity** (`vaultConfig.authMethod: approle`, `vaultConfig.appRole.roleId` set to the Certificate Manager's `role_id`) — there is no dedicated per-component AppRole-provisioning workflow for the Federator Gateway yet, but reusing an already-provisioned identity works today and is the pattern the real AWS environment uses. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available).
 - The only Federator secrets in Key Vault are the **S3 access credentials** (one for the Server, a separate one for the Client) and, if using AppRole, the Vault `secret-id`.
 
-**Storage separation for Server and Client (MUST READ)**
+> **Storage separation for Server and Client (MUST READ)**
 
-- Federator Server and Client use **separate S3 buckets**. The Federator Client uses the **File Scan Service *source* bucket** (where scanned inbound files are deposited). Configure the Client's storage endpoint/credentials to point at the File Scan Service source bucket — not the Server's bucket.
+Federator Server and Client use **separate S3 buckets**. The Federator Client uses the **File Scan Service *source* bucket** (where scanned inbound files are deposited). Configure the Client's storage endpoint/credentials to point at the File Scan Service source bucket — not the Server's bucket.
 
-- The Server's bucket is used to keep the data product files created by the organisation per data product pipeline.
+The Server's bucket is used to keep the data product files created by the organisation per data product pipeline.
 
 ---
 
@@ -78,8 +74,8 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
-| 4 | **Vault authentication configured** | Set `vaultConfig.authMethod:` `approle` reusing the Certificate Manager's already-provisioned `role_id`/`secret_id`. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication) |
-| 5 | **EKS cluster**, and an identity that can reach Azure Key Vault | Needed if using Key Vault-sourced secrets; see [Step2](#step2-configure-secrets) |
+| 4 | **Vault authentication configured** | Set `vaultConfig.authMethod: token`, or `approle` reusing the Certificate Manager's already-provisioned `role_id`/`secret_id` (no dedicated Federator Gateway AppRole workflow exists yet, but sharing the identity works). See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) |
+| 5 | **EKS cluster** | Needed if using Key Vault-sourced secrets; see [Step2](#step2-configure-secrets) |
 | 6 | **S3 bucket credentials created** | The two IAM credentials/roles — see [Step2: Configure Secrets](#step2-configure-secrets) |
 | 7 | **S3 buckets provisioned** | The **Server's** bucket, and the **File Scan Service source** bucket used by the **Client** |
 | 8 | **Network Load Balancers (NLBs) reserved** | One for the Server service — commonly **internet-facing** with a pinned Elastic IP per AZ, since other DPN nodes must reach it externally — and one **internal** NLB for the Client service. See [Step3a](#step3a-configure-federator-server) |
@@ -87,17 +83,21 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 10 | **Keycloak realm reachable** | Required when `kafka.authMode: sasl_ssl` (the production default) — the brokers and Kafka UI resolve tokens against `kafka.oauth.tokenEndpointUrl` |
 | 11 | **Container image tag available** | Built by the DSI CI process or prebuilt DSI image; supplied to the CD workflow as `imageTag` |
 | 12 | **Config JSON and values file populated for the `<environment>-<cluster>` combination** | See [Step3: Configure Environment](#step3-configure-environment) |
-| 13 | **IAM role for the platform's `ServiceAccount` (IRSA)** | Required when `serviceAccount.create: true` (the AWS default) — see [Step3f](#step3f-configure-aws-serviceaccount-irsa) |
+| 13 | **IAM role for the platform's `ServiceAccount` (IRSA)** | Required when `serviceAccount.create: true` (the AWS default) — see [Step3e](#step3e-configure-aws-serviceaccount-irsa) |
 
-> **Kafka's Keycloak secrets come from a Kubernetes Secret, not AWS Secrets Manager.** On every cloud — not only AWS — Kafka Source/Target, Kafka UI, and the Federator Server/Client read the Keycloak admin password (`KEYCLOAK_ADMIN_PASSWORD`) and the OAuth client secret directly from the **`dpn-keycloak-secrets`** Kubernetes secret created by the **DPN Authentication Service** deployment (see the [Overview](#overview) note above) — no template in the `dpn-platform` chart currently reads `secretsManager.secretPrefix` for these values, so populating that prefix alone will not provision them. This is separate from the Server/Client storage credentials in [Step2](#step2-configure-secrets), which continue to come from the cross-cloud Azure Key Vault as before.
+> **Kafka's Keycloak secrets come from a Kubernetes Secret, not AWS Secrets Manager.** On every cloud — not only AWS — Kafka Source/Target, Kafka UI, and the Federator Server/Client read the Keycloak admin password (`KEYCLOAK_ADMIN_PASSWORD`) and the OAuth client secret directly from the **`dpn-keycloak-secrets`** Kubernetes secret created by the **DPN Authentication Service** deployment (see the [Overview](#overview) note above) — no template in the `dpn-platform` chart currently reads `secretsManager.secretPrefix` for these values, so populating that prefix alone will not provision them. This is separate from the Server/Client storage credentials in [Step2](#step2-configure-secrets).
 
 > **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** The gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)) when `vaultConfig.mountCertFileShare: false` is set. The chart's own reference `values.yaml` still defaults this to `true` for backward compatibility — confirm your environment's values file explicitly sets it to `false` rather than relying on the reference default, or the deprecated file share is mounted again.
 
-> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `.github/config/aws/<environment>-<cluster>.json`.
+> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`.
 
 ---
 
 ## Step2: Configure Secrets 
+
+Secrets can be configured in two different approaches. 
+
+### Option A - Use Kubernetes Secrets
 
 The following Kubernetes secrets must be present in the namespace when the gateway pods start. Two are created automatically by the CSI driver from Key Vault; two are provided by earlier components.
 
@@ -113,15 +113,14 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 
 ## Step3: Configure Environment
 
-The gateway chart is `dpn-federator-gateway/charts/dpn-platform` in `dpn-containerised-deployment-service`. Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
+The gateway chart is `dpn-federator-gateway/charts/dpn-platform`. Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
 
 ```text
 dpn-federator-gateway/
   └── charts/
         └── dpn-platform/
-          └── values/
-              └── aws/   
-                └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
+              ├── values.yaml                              <- Default settings for all components; do not edit directly
+              └── values/aws/<environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 > All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at the container registry via `image.repository`. Set these to your registry, e.g. `ghcr.io/energy-dsi/<image>`. Only the parameters most likely to change per deployment are listed below.
@@ -137,9 +136,7 @@ dpn-federator-gateway/
 | `federatorServer.service.internalLoadBalancer` | Whether the Server's NLB is internal-only. The Server's is commonly set to `"false"` (**internet-facing**) so external DPN nodes can reach it — unlike the Client, which stays internal | `"false"` |
 | `federatorServer.service.eipAllocationId` | Elastic IP allocation(s) to pin to the Server's external NLB, **comma-separated** — an NLB takes one EIP per subnet/AZ, not one shared EIP, so a two-AZ deployment needs two allocation IDs here | `eipalloc-xxxxxxxx,eipalloc-yyyyyyyy` (leave unset for dynamically-assigned addresses) |
 
-> **`federatorServer.idp.clientId` (and the equivalent audience check on inbound requests) is now compared case-sensitively**, per RFC 7519 §4.1.3 — a client ID that previously matched regardless of case will now be rejected if its case doesn't match exactly what DSM issued. Confirm the value configured here matches DSM's registration byte-for-byte.
->
-> **Heartbeat interval is now 15 minutes (was 1 hour).** This is a fixed value in the chart's rendered config (`server.heartbeat.interval=PT15M`, an ISO-8601 duration).
+> **The Server has no storage configuration of its own.** Unlike the Client below, `federatorServer.storage.*` does not exist in this chart — the Server resolves the source type and target bucket per-request from the `FileTransferRequest` supplied by the Management Node API, not from a static bucket/region setting. Do not look for a Server-side S3 bucket parameter; there isn't one.
 
 ### Step3b: Configure Federator Client
 
@@ -155,7 +152,6 @@ dpn-federator-gateway/
 | `federatorClient.storage.aws.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) — note the key is `storage.aws.bucket`, **not** `storage.s3.bucket` | `dp-consumer-raw` |
 | `federatorClient.storage.aws.region` | Region of the Client's S3 bucket | `<AWS_REGION>` |
 
-
 **JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
 
 | Parameter | Purpose | Example (placeholder) |
@@ -163,17 +159,10 @@ dpn-federator-gateway/
 | `federatorClient.auth.enabled` | Front the JobRunr dashboard with a built-in Keycloak-authenticating gateway instead of leaving it open on the internal network | `true` |
 | `federatorClient.auth.issuerUrl` / `.audience` | Keycloak realm issuer and OIDC client ID (reuses the same client Kafka's OAuth already uses) | as received from DSM |
 | `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
-| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port. Exposed via the `-external` NLB Service **only when `nginxSidecar.enabled: false`** (see below) | `8086` |
+| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port — must differ from `jobRunnerPort`, and is the **only** port exposed via the `-external` NLB Service | `8086` |
 | `federatorClient.tls.gatewaySecretName` | Optional Kubernetes `Secret` mounted at `/tls-gateway` for a browser-facing TLS identity in front of the Job Runner dashboard. Empty by default (no mount) — set once the DPN universal TLS prerequisite pipeline has issued a certificate for this hostname | `fed-gateway-tls` |
 
-> **Keycloak redirect URI:** register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` on the Keycloak client.
-
-**Nginx reverse-proxy sidecar (required)** — fronts the JobRunr dashboard for TLS termination:
-
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `federatorClient.nginxSidecar.enabled` | Must be set to `true`. The chart default is `false`, which falls back to the Java-based proxy — known to have latency/stalling issues under load | `true` |
-| `federatorClient.service.jobRunnerInternalPort` | Dashboard's internal bind port once nginx fronts it | `18085` |
+> **Keycloak redirect URI must use the `-external` hostname.** The gateway runs its own OIDC authorization-code login. Register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` as the redirect URI on the Keycloak client — pointing it at the plain in-cluster hostname instead breaks the login callback (state-cookie mismatch), since Keycloak always redirects back to whichever hostname is configured here regardless of which one the browser actually started the login from.
 
 ### Step3c: Configure Kafka Security
 
@@ -186,30 +175,9 @@ dpn-federator-gateway/
 
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
 
-### Step3d: Configure Redis Security
+> **OpenTelemetry export.** `otel.tls.enabled` (default `true`) drives both the Federator Server/Client's OTLP exporter endpoint scheme and whether the OTel Collector truststore env vars are set at all — see [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md) if your Collector's OTLP receiver terminates TLS (the default). `otel.collector.host` / `otel.collector.port` point at the Collector Service.
 
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `redis.tls.enabled` | Whether Redis only accepts TLS connections — **on by default** in every environment, not opt-in | `true` |
-| `redis.truststore.path` / `redis.truststore.password` | Client-side truststore the Server/Client use to trust Redis's certificate. Identical for both roles, so set once rather than duplicated per role | as received alongside the other TLS material |
-
-Redis's own server certificate is **not** a separate value to configure — it's extracted at pod start-up (by an init container, using `openssl`) from the same shared `dpn-tls` keystore Kafka already uses, whose SAN already covers the in-cluster Redis hostname. Redis is configured for **server-authentication only** (`--tls-auth-clients no`) — there is no client certificate/mTLS requirement for connecting to it, mirroring Kafka's own `SASL_SSL` listener.
-
-> **No Redis username/password (ACL) authentication.** Access control is enforced entirely at the application layer: every Redis-touching call site (other than the Federator's own IDP token cache, which deliberately bypasses this to avoid a circular dependency) requires a valid Keycloak session before a connection is returned. This is independent of `kafka.authMode` — Redis TLS and its Keycloak gate apply regardless of that Kafka setting.
->
-> **Only this component's own Redis is TLS-enabled today.** The REST Federator Gateway's separate `dpn-redis` release (its own cache, not this one) does not yet have TLS.
-
-### Step3e: Configure OTel Collector Security
-
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `otel.tls.enabled` | Whether OTLP export uses HTTPS against the Collector — **on by default**, matching every environment's behaviour before this flag existed | `true` |
-| `otel.oauth.enabled` | Attach an `Authorization: Bearer` token (fetched via the `dpn-service-client` Keycloak client — the same one already used to gate Redis access) to every OTLP export call — **on by default in every environment** | `true` |
-| `otel.truststorePath` | Trust anchor for the Collector's OTLP HTTPS receiver (server-side TLS only). Same JKS truststore Redis and the JobRunr dashboard auth already use | `/etc/secrets/truststore.jks` |
-
-No separate Keycloak client or secret is provisioned for OTel — it reuses `dpn-service-client`, the same credential already wired for Redis/Kafka OAuth.
-
-### Step3f: Configure AWS ServiceAccount (IRSA)
+### Step3e: Configure AWS ServiceAccount (IRSA)
 
 A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Target, the Federator Server, and the Federator Client, provides IAM Roles for Service Accounts (IRSA) credentials to the AWS Secrets Store CSI driver.
 
@@ -228,14 +196,14 @@ The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `syste
 
 ## Step4: Configure Deployment Parameters
 
-The Federator Gateway is deployed with a **single run** of the `dpn-federator-gateway-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
+The Federator Gateway is deployed with a **single run** of the `dpn-federator-gateway-cd.yml` GitHub Actions workflow. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
 
 ```text
 root/
 └── .pipelines/
-    └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-federator-gateway-cd.yml
+  └── github-actions-pipelines/
+    └── workflows/
+        └── dpn-federator-gateway-cd.yml
 ```
 
 `workflow_dispatch` inputs:
@@ -246,8 +214,8 @@ root/
 | `cluster` | The **single** target DPN cluster — `dpn01` or `dpn02`. Deploy one cluster at a time; the Client is configured for this one cluster |
 | `cloud` | `aws` |
 | `imageTag` | Tag of the Federator images to deploy (from the CI build or prebuilt DSI image) |
-| `serverImageRepository` | Optional — override the Server image path after `ghcr.io/energy-dsi/` for this run only (e.g. `dpn-federator-server`). Leave blank to use the environment's configured repository |
-| `clientImageRepository` | Optional — same override for the Client image path (e.g. `dpn-federator-client`). Leave blank to use the environment's configured repository |
+| `serverImageRepository` | Optional — override the Server image path after `ghcr.io/energy-dsi/` for this run only (e.g. `1.0.1/dpn-federator-server`). Leave blank to use the environment's configured repository |
+| `clientImageRepository` | Optional — same override for the Client image path (e.g. `1.0.1/dpn-federator-client`). Leave blank to use the environment's configured repository |
 
 To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as a workflow artifact.
 
@@ -259,4 +227,4 @@ Once this is deployed, provision the per-product producer/consumer pods and the 
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

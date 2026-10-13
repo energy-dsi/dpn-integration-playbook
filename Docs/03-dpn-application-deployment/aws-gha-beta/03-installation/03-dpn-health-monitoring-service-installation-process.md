@@ -7,7 +7,7 @@
 - [Overview](#overview)
 - [Prerequisites](#prerequisites)
 - [Installation Steps](#installation-steps)
-  - [Step1: Run `dpn-gha-health-monitoring-cd-install.yml`](#step1-run-dpn-gha-health-monitoring-cd-installyml)
+  - [Step1: Run `dpn-health-monitoring-cd-install.yml`](#step1-run-dpn-health-monitoring-cd-installyml)
     - [Step1a: Configure GHCR Image Access](#step1a-configure-ghcr-image-access)
     - [Step1b: Trigger the Workflow](#step1b-trigger-the-workflow)
   - [Step2: Post Deployment Verification](#step2-post-deployment-verification)
@@ -43,7 +43,7 @@ This describes installation using the GitHub Actions orchestrator workflow `dpn-
 
 ## Installation Steps
 
-### Step1: Run `dpn-gha-health-monitoring-cd-install.yml`
+### Step1: Run `dpn-health-monitoring-cd-install.yml`
 
 #### Step1a: Configure GHCR Image Access
 
@@ -63,17 +63,7 @@ See [Reference: Container Images Used](#reference-container-images-used) below f
 
 #### Step1b: Trigger the Workflow
 
-Go to **Actions → DPN Health Monitoring → Run workflow** , on the branch you want to deploy
-
-```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-health-monitoring-cd-install.yaml
-```
-
-The parameters required for running the pipeline are:
+Go to **Actions → DPN Health Monitoring → Run workflow** , on the branch you want to deploy, and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -83,7 +73,7 @@ The parameters required for running the pipeline are:
 | `imageTag` | OTel Collector image tag — default `0.95.0` |
 | `otelImageRepository` | OTel Collector image path after `ghcr.io/energy-dsi/` — optional, leave blank to use the environment's configured repository |
 | `portalImageTag` | DPN Portal container image tag — **required**, no default (the short git-SHA the DPN Portal application's own CI build printed) |
-| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `dpn-portal` |
+| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `1.0.1/dpn-portal` |
 
 The workflow's `init` job reads `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, DPN Portal, OAuth2 Proxy ×4, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
 
@@ -110,7 +100,7 @@ Every troubleshooting entry (Kafka naming-regression checks in `dpn-cd-kafka.yml
 
 ### Config File Not Found for Specific Environment
 
-Confirm `.github/config/aws/<environment>-<cluster>.json` actually exists under this exact naming — populate it before running the workflow (see [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step22-aws-environment-configuration)).
+Confirm `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json` actually exists under this exact naming — populate it before running the workflow (see [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step22-aws-environment-configuration)).
 
 ### Deployed Resources Show the Wrong Environment Label
 
@@ -118,7 +108,7 @@ Confirm the config JSON used the **corrected** environment values for this run.
 
 ### Kafka/Zookeeper Image Pull Fails
 
-Confirm `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json` uses a fully-resolved hostname like `ghcr.io` (or your own ECR repository URL), not a bare placeholder.
+Confirm `IMAGE_REGISTRY` in `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json` uses a fully-resolved hostname like `ghcr.io` (or your own ECR repository URL), not a bare placeholder.
 
 ### OTel Collector Metrics Never Show Up in Prometheus
 
@@ -134,28 +124,28 @@ The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheu
 
 This section lists the **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` that the workflow deploys. Organisations may point the Helm values at a different image repository instead if they build their own.
 
-The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced under a version-prefixed GHCR path, `ghcr.io/energy-dsi/<component>`**
+The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced under a version-prefixed GHCR path, `ghcr.io/energy-dsi/1.0.1/<component>`** (rather than the unversioned `ghcr.io/energy-dsi/<component>` path used elsewhere) — confirm the `1.0.1` segment is still current before relying on it for a new environment.
 
 | Purpose | GHCR Path |
 |---|---|
-| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib:<latest or DSI provided stable version>` |
-| Kafka (health) | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
-| Zookeeper (health) | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
-| Data Prepper | `ghcr.io/energy-dsi/data-prepper:<latest or DSI provided stable version>` |
-| OpenSearch | `ghcr.io/energy-dsi/opensearch:<latest or DSI provided stable version>` |
-| Jaeger Collector | `ghcr.io/energy-dsi/jaeger-collector:<latest or DSI provided stable version>` |
-| Jaeger Ingester | `ghcr.io/energy-dsi/jaeger-ingester:<latest or DSI provided stable version>` |
-| Jaeger Query | `ghcr.io/energy-dsi/jaeger-query:<latest or DSI provided stable version>` |
-| Prometheus | `ghcr.io/energy-dsi/prometheus:<latest or DSI provided stable version>` |
+| OTel Collector | `ghcr.io/energy-dsi/1.0.1/opentelemetry-collector-contrib:<latest or DSI provided stable version>` |
+| Kafka (health) | `ghcr.io/energy-dsi/1.0.1/dpn-kafka:<latest or DSI provided stable version>` |
+| Zookeeper (health) | `ghcr.io/energy-dsi/1.0.1/dpn-zookeeper:<latest or DSI provided stable version>` |
+| Data Prepper | `ghcr.io/energy-dsi/1.0.1/data-prepper:<latest or DSI provided stable version>` |
+| OpenSearch | `ghcr.io/energy-dsi/1.0.1/opensearch:<latest or DSI provided stable version>` |
+| Jaeger Collector | `ghcr.io/energy-dsi/1.0.1/jaeger-collector:<latest or DSI provided stable version>` |
+| Jaeger Ingester | `ghcr.io/energy-dsi/1.0.1/jaeger-ingester:<latest or DSI provided stable version>` |
+| Jaeger Query | `ghcr.io/energy-dsi/1.0.1/jaeger-query:<latest or DSI provided stable version>` |
+| Prometheus | `ghcr.io/energy-dsi/1.0.1/prometheus:<latest or DSI provided stable version>` |
 | Grafana | `ghcr.io/energy-dsi/grafana:<latest or DSI provided stable version>` |
 | StatsD Exporter | `ghcr.io/energy-dsi/statsd-exporter:<latest or DSI provided stable version>` |
-| Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
-| Thanos | `ghcr.io/energy-dsi/thanos:<latest or DSI provided stable version>` |
-| DPN Portal | `ghcr.io/energy-dsi/dpn-portal:<tag supplied via portalImageTag>` |
+| Perses | `ghcr.io/energy-dsi/1.0.1/perses:<latest or DSI provided stable version>` |
+| Thanos | `ghcr.io/energy-dsi/1.0.1/thanos:<latest or DSI provided stable version>` |
+| DPN Portal | `ghcr.io/energy-dsi/1.0.1/dpn-portal:<tag supplied via portalImageTag>` |
 
 > **Nginx (dashboard proxy) has been removed** from this service — replaced by the DPN Portal + `oauth2-proxy` releases above.
 
- **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports. Image access, pull verification, and the workflow trigger are all covered above in [Step1](#step1-run-dpn-gha-health-monitoring-cd-installyml) — there is no separate GHCR-specific workflow to run, the one workflow already deploys from these GHCR images by default.
+ **Note:** The health monitoring stack deploys its own dedicated Kafka and Zookeeper instances within `ns-dpn-health-01`. These are separate from the DPN data Kafka in `ns-dpn-01` and run on different ports. Image access, pull verification, and the workflow trigger are all covered above in [Step1](#step1-run-dpn-health-monitoring-cd-installyml) — there is no separate GHCR-specific workflow to run, the one workflow already deploys from these GHCR images by default.
 
 ---
 

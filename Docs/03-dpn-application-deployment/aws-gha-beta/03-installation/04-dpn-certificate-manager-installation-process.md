@@ -16,35 +16,34 @@ This installation page is a quick-reference summary that points to that guide.
 
 - [Overview](#overview)
 - [Step1: Verify Prerequisites](#step1-verify-prerequisites)
-- [Step2: Execute CD](#step2-execute-cd)
-  - [Step2a. Configure GHCR Image Access](#step2a-configure-ghcr-image-access)
-  - [Step2b. Execute CD Workflow](#step2b-execute-cd-workflow)
-  - [Step2c. Verify CD Workflow](#step2c-verify-cd-workflow)
+- [Step2: Execute CI/CD](#step2-execute-cicd)
+  - [Step2a. CI (component source repository)](#step2a-ci-component-source-repository)
+  - [Step2b. Configure GHCR Image Access](#step2b-configure-ghcr-image-access)
+  - [Step2c. Execute CD Workflow](#step2c-execute-cd-workflow)
+  - [Step2d. Verify CD Workflow](#step2d-verify-cd-workflow)
 - [Step3: Troubleshooting](#step3-troubleshooting)
   - [Invalid Keystore/Trustore Password](#invalid-keystoretrustore-password)
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
   - [Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)](#pod-fails-to-trust-vaults-https-endpoint-vault_ssl_trust_store_password-missing)
+  - [CSI Mount Failure With `fileShare.create: true`](#csi-mount-failure-with-filesharecreate-true)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
+The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-certificate-manager-cd.yml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
 
-The deployment CD pipeline is placed here. 
+Set `cloudProvider: aws` in the environment values file — the chart's own default is `aws`, which selects AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC).
 
 ```text
-
 root/
 └── .pipelines/
   └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-certificate-manager-cd.yaml
-
+    └── workflows/
+      └── dpn-certificate-manager-cd.yml
 ```
-
 ---
 
 ## Step1: Verify Prerequisites
@@ -67,14 +66,22 @@ In summary the following prerequisites must be met.
 - The config JSON's environment parameters are pointing to correct deployment environment
 - The DSM endpoints are correctly pointing to the respective environment
 - Required Firewall rules are applied
-- The CD workflow is verified for the above prerequisites before execution
+- Both CI and CD are verified for the above prerequisites before execution
 
 
 ---
 
-## Step2: Execute CD
+## Step2: Execute CI/CD
 
-### Step2a. Configure GHCR Image Access
+### Step2a. CI (component source repository)
+
+CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-certificate-manager` source repository itself — separately from the CD workflow below. Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR). Once CI pushes a new tag, note it for use as `imageTag` in Step2c.
+
+```text
+dpn-federator-certificate-manager:<image tag>
+```
+
+### Step2b. Configure GHCR Image Access
 
 All custom and third-party images are pulled from `ghcr.io/energy-dsi`. Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably.
 
@@ -88,16 +95,16 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
-### Step2b. Execute CD Workflow
+### Step2c. Execute CD Workflow
 
-Go to **Actions → DPN CD - Certificate Manager → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+Go to **Actions → DPN CD - Certificate Manager → Run workflow**, and supply:
 
 | Input | Value |
 |-----------|-------|
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
-| `imageTag` | The image tag in Step2a |
+| `imageTag` | The image tag pushed in Step2a |
 
 On success, the deployed image digest is captured as a workflow artifact.
 
@@ -105,7 +112,7 @@ On success, the deployed image digest is captured as a workflow artifact.
 
 ---
 
-### Step2c. Verify CD Workflow
+### Step2d. Verify CD Workflow
 
 After deployment, confirm the following components are running and validate end-to-end connectivity using the container logs. Alternatively, check the logs from DPN health monitoring dashboard. The dashboard starts filling after some time once the heartbit signal flow begin. 
 
@@ -163,14 +170,14 @@ Federator Certificate Manager custom image is found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` | `e.g. 2.0.0` |
+| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/1.0.1/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — see `IMAGE_REGISTRY` in `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
 
-There is no separate GHCR-specific workflow to run — [Step2b](#step2b-execute-cd-workflow) above already deploys from this image by default.
+There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from this image by default.
 
 ---
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|------------------|--------|---------|
-| Sep-2026    | DSI Assurance    | Final  | V1.0.0  |
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |

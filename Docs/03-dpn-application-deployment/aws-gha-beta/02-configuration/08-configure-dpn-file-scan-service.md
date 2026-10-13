@@ -1,6 +1,6 @@
 # DPN File Scan Service Configuration 
 
-This section describes how to configure and deploy the **DPN File Scan Service** on AWS. Unlike the Azure deployment (which uses Microsoft Defender for Storage), the AWS path uses **Amazon GuardDuty Malware Protection for S3** to scan inbound files, and the service consumes GuardDuty's scan-result events from an **SNS → SQS** fan-out rather than polling a scan API directly.
+This section describes how to configure and deploy the **DPN File Scan Service** on AWS. The AWS path uses **Amazon GuardDuty Malware Protection for S3** to scan inbound files, and the service consumes GuardDuty's scan-result events from an **SNS → SQS** fan-out rather than polling a scan API directly.
 
 ---
 
@@ -21,14 +21,14 @@ This section describes how to configure and deploy the **DPN File Scan Service**
 
 The DPN File Scan Service is a FastAPI application that runs as a single EKS Deployment. GuardDuty Malware Protection scans every object landed in the inbound ("raw"/quarantine) S3 bucket; on completion it publishes a scan-result event to an SNS topic, which fans out to an SQS queue the service long-polls. For files scanned clean, the service copies the object to the outbound ("stage") bucket and deletes it from the inbound bucket; for files flagged with threats, the object is deleted from inbound and a `malicious_files` metric is incremented.
 
-**Deployment and part of the AWS prerequisite setup both use pipelines.** `dpn-file-scan-cd.yml` in `dpn-containerised-deployment-service` deploys this service via Helm. `dpn-file-scan-prerequisites-cd.yml` also runs on `cloud: aws`: it creates the IRSA role (`dpn-file-scan-service-secrets-role`) and seeds the two Secrets Manager entries (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET`, with a `REPLACE_ME` placeholder value on first creation) and verifies the SNS→SQS→GuardDuty wiring — but it does **not** create the SNS topic, SQS queue, or GuardDuty Malware Protection plan themselves. The SNS/SQS/GuardDuty setup in [Step2](#step2-aws-resource-setup-snssqsguardduty) stays a required manual step regardless.
+**Deployment and part of the AWS prerequisite setup both use pipelines.** `dpn-file-scan-cd.yml`  deploys this service via Helm. `dpn-file-scan-prerequisites-cd.yml` also runs on `cloud: aws`: it creates the IRSA role (`dpn-file-scan-service-secrets-role`) and seeds the two Secrets Manager entries (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET`, with a `REPLACE_ME` placeholder value on first creation) and verifies the SNS→SQS→GuardDuty wiring — but it does **not** create the SNS topic, SQS queue, or GuardDuty Malware Protection plan themselves. The SNS/SQS/GuardDuty setup in [Step2](#step2-aws-resource-setup-snssqsguardduty) stays a required manual step regardless.
 
 **CD Workflow**
 
 | Workflow | File | Purpose |
 |---|---|---|
-| Main deploy | `.github/workflows/dpn-file-scan-cd.yml` | Builds nothing itself — deploys the already-built container image via Helm |
-| Prerequisites | `.github/workflows/dpn-file-scan-prerequisites-cd.yml` | On `cloud: aws`, creates the IRSA role and seeds the Secrets Manager entries above, and verifies (but does not create) the SNS/SQS/GuardDuty wiring |
+| Main deploy | `root/.pipelines/github-actions-pipelines/workflows/dpn-file-scan-cd.yml` | Builds nothing itself — deploys the already-built container image via Helm |
+| Prerequisites | `root/.pipelines/github-actions-pipelines/workflows/dpn-file-scan-prerequisites-cd.yml` | On `cloud: aws`, creates the IRSA role and seeds the Secrets Manager entries above, and verifies (but does not create) the SNS/SQS/GuardDuty wiring |
 
 ---
 
@@ -76,14 +76,15 @@ Then configure the GuardDuty Malware Protection for S3 protection plan (console 
 
 ## Step3: Configure File Scan Deployment Workflow
 
-Organisations should prepare a `.github/config/aws/<environment>-<cluster>.json` file per environment/cluster where the file scan service is deployed. This file will be read by the workflow during deployment.
+Organisations should prepare a `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json` file per environment/cluster where the file scan service is deployed. This file will be read by the workflow during deployment.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+root/
+└── .pipelines/
+  └── github-actions-pipelines/
     └── config/
         └── aws/
-            └── <environment>-<cluster>.json
+            └── <environment>-<cluster>.json     # e.g. dev-dpn01.json
 ```
 
 ### Step3a: Configure Environment JSON File
@@ -94,11 +95,11 @@ dpn-containerised-deployment-service/
 | `AWS_ACCOUNT_ID` | AWS account ID | `<account-id>` |
 | `EKS_CLUSTER` | EKS cluster name | `eks-dpn-dev-01-eu-west-2` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
-| `IMAGE_REGISTRY` | Base registry URL | `ghcr.io/energy-dsi` |
+| `IMAGE_REGISTRY` | Base registry URL | `ghcr.io/energy-dsi/1.0.1` |
 | `FILESCAN_SOURCE_BUCKET` | S3 bucket GuardDuty scans (source/raw uploads) | `dp-consumer-raw-dev-01-<account-id>-<region>` |
 | `FILESCAN_DEST_BUCKET` | S3 bucket clean files are copied to | `dpn-dev-01-dp-consumer-stage-<account-id>-<region>` |
-| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings` |
-| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-dev-01-file-scan-results` |
+| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings2` |
+| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-dev-01-file-scan-results2` |
 
 > **No `KEY_VAULT_NAME` or IRSA-role-ARN key in this JSON file.** The IAM permissions come entirely from the IRSA role already attached to the ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)), which this config file does not need to reference — there is no `FILESCAN_IRSA_ROLE_ARN`-style key. This component's real AWS config file also carries no `KEY_VAULT_NAME` entry at all: nothing in its GitHub Actions workflow reads one.
 | OTEL_EXPORTER_OTLP_ENDPOINT | OTel collector's OTLP endpoint. Defaults to the HTTPS endpoint on port `4318` | `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
@@ -113,9 +114,8 @@ Set the parameters below in your environment/cluster's values file. The CD workf
 dpn-file-scan/
   └── charts/
         └── file-scan-service/
-          └── values/
-              └── aws/           
-                ├──<environment>-<cluster>.yaml <- Your environment overrides
+              ├── values.yaml                              <- Reference file; do not edit directly
+              └── values/aws/<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
 The following values to be modified in that file
@@ -132,17 +132,13 @@ The following values to be modified in that file
 | env.destBucket | S3 bucket clean files are copied to (outbound). Passed to the container as `S3_BUCKET_OUTBOUND` |
 | env.sqsQueueName | The **plain queue name** (not the queue URL) from [Step2](#step2-aws-resource-setup-snssqsguardduty) — the app resolves the URL itself via `boto3`'s `get_queue_url`. Passed to the container as `SQS_QUEUE` |
 
-> **Note:** there is no Helm value for the SNS topic ARN — the app only ever consumes from SQS; the SNS→SQS fan-out from [Step2](#step2-aws-resource-setup-snssqsguardduty) is wiring set up outside the application. `env.awsRegion`/`env.sourceBucket`/`env.destBucket`/`env.sqsQueueName` are AWS-only fields alongside the shared `env.*` block — leave them empty (their default) on Azure.
->
 > Optionally, `env.truststorePath` gates whether the chart mounts the `dpn-tls` OTLP truststore volume at all — leave it unset for an environment with no `dpn-tls` secret provisioned.
 
 ---
 
 ## Step5: Configure Secrets
 
-Unlike the Azure path, this service does not need Key Vault-sourced AWS credentials — the IRSA role attached to its ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)) covers all S3/SQS access, and the config JSON carries no `KEY_VAULT_NAME` entry at all on this path (see the note under [Step3a](#step3a-configure-environment-json-file)).
-
-The service's OAuth client credentials (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` — the same pair Azure sources from Key Vault) can now be sourced from **AWS Secrets Manager** instead, via the AWS Secrets Store CSI driver:
+The service's OAuth client credentials can now be sourced from **AWS Secrets Manager** instead, via the AWS Secrets Store CSI driver:
 
 | Parameter | Purpose | Example |
 |-----------|---------|---------|
@@ -151,12 +147,12 @@ The service's OAuth client credentials (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SE
 
 When `secretsManager.enabled: true`, both `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` must already exist under `secretsManager.secretPrefix` before the first deploy, and the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) must additionally grant `secretsmanager:GetSecretValue` on that prefix. Leave `secretsManager.enabled: false` (the default) for an environment that isn't provisioned for this yet.
 
-> **Note:** `dpn-gha-file-scan-prerequisites-cd.yml` (run with `cloud: aws`) can create both Secrets Manager entries for you if they don't already exist — it seeds each with a `REPLACE_ME` placeholder value, which must be updated with the real credential before the service relies on it. It leaves an existing secret's value untouched.
+> **Note:** `dpn-file-scan-prerequisites-cd.yml` (run with `cloud: aws`) can create both Secrets Manager entries for you if they don't already exist — it seeds each with a `REPLACE_ME` placeholder value, which must be updated with the real credential before the service relies on it. It leaves an existing secret's value untouched.
 
 ---
 
 ## Review Notes
 
-| Review Date | Last Reviewed By | Status | Version |
-|-------------|-----------------|--------|---------|
+| Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
+|-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
