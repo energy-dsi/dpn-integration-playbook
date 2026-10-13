@@ -12,7 +12,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
 
 > **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
 
-> **This scope spans two GitHub Actions workflows, not one.** `dpn-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/mapper/extractor pods are a **separate** workflow, `dpn-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) — not here.
+> **This scope spans two GitHub Actions workflows, not one.** `dpn-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/extractor pods are a **separate** workflow, `dpn-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) — not here.
 
 ---
 
@@ -89,7 +89,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 
 > **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** The gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)) when `vaultConfig.mountCertFileShare: false` is set. The chart's own reference `values.yaml` still defaults this to `true` for backward compatibility — confirm your environment's values file explicitly sets it to `false` rather than relying on the reference default, or the deprecated file share is mounted again.
 
-> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`.
+> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `.github/config/aws/<environment>-<cluster>.json` in the central `dpn-containerised-deployment-service` repository. The workflow reads `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER` and `NAMESPACE` (e.g. `ns-dpn-01`) from this file — the release is deployed into `NAMESPACE`.
 
 ---
 
@@ -113,17 +113,18 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 
 ## Step3: Configure Environment
 
-The gateway chart is `dpn-federator-gateway/charts/dpn-platform`. Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
+The gateway chart is `dpn-federator-gateway/charts/dpn-platform`, inside the central `dpn-containerised-deployment-service` repository (the workflow's `HELM_DIR`; there is no separate component repository to check out). Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
 
 ```text
-dpn-federator-gateway/
+dpn-containerised-deployment-service/
+└── dpn-federator-gateway/
   └── charts/
         └── dpn-platform/
               ├── values.yaml                              <- Default settings for all components; do not edit directly
               └── values/aws/<environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
-> All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at the container registry via `image.repository`. Set these to your registry, e.g. `ghcr.io/energy-dsi/<image>`. Only the parameters most likely to change per deployment are listed below.
+> All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at the container registry via `image.repository`. Set these to your registry, e.g. `ghcr.io/energy-dsi/1.0.1/<image>` (the path used by the checked-in AWS values files). Only the parameters most likely to change per deployment are listed below.
 
 ### Step3a: Configure Federator Server
 
@@ -199,25 +200,32 @@ The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `syste
 The Federator Gateway is deployed with a **single run** of the `dpn-federator-gateway-cd.yml` GitHub Actions workflow. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-    └── workflows/
-        └── dpn-federator-gateway-cd.yml
+dpn-containerised-deployment-service/
+├── .github/
+│   ├── workflows/
+│   │   └── dpn-federator-gateway-cd.yml
+│   └── config/
+│       └── aws/<environment>-<cluster>.json
+└── dpn-federator-gateway/
+    └── charts/
+        └── dpn-platform/
+            └── values/aws/<environment>-<cluster>.yaml
 ```
+
+The workflow sets `HELM_DIR=dpn-federator-gateway/charts/dpn-platform`, `RELEASE_NAME=dpn-platform` and `VALUES_FILE=dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`, and its job binds to the GitHub Environment `<environment>-<cluster>`.
 
 `workflow_dispatch` inputs:
 
 | Input | Description |
 |-----------|-------------|
-| `environment` | `dev` / `test` |
-| `cluster` | The **single** target DPN cluster — `dpn01` or `dpn02`. Deploy one cluster at a time; the Client is configured for this one cluster |
-| `cloud` | `aws` |
-| `imageTag` | Tag of the Federator images to deploy (from the CI build or prebuilt DSI image) |
-| `serverImageRepository` | Optional — override the Server image path after `ghcr.io/energy-dsi/` for this run only (e.g. `1.0.1/dpn-federator-server`). Leave blank to use the environment's configured repository |
-| `clientImageRepository` | Optional — same override for the Client image path (e.g. `1.0.1/dpn-federator-client`). Leave blank to use the environment's configured repository |
+| `environment` | `dev` / `test` (default `test`) |
+| `cluster` | The **single** target DPN cluster — `dpn01` or `dpn02` (default `dpn01`). Deploy one cluster at a time; the Client is configured for this one cluster |
+| `cloud` | `aws` (default) |
+| `imageTag` | **Required**, no default — tag of the Federator images to deploy (from the CI build or prebuilt DSI image); applied to both `federatorServer.image.tag` and `federatorClient.image.tag` |
 
-To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as a workflow artifact.
+> The Server/Client image **repositories** are no longer workflow inputs — set `federatorServer.image.repository` / `federatorClient.image.repository` in the values file instead (e.g. `ghcr.io/energy-dsi/1.0.1/dpn-federator-server` / `ghcr.io/energy-dsi/1.0.1/dpn-federator-client`).
+
+To run it: **Actions → DPN CD - Federator Gateway → Run workflow**, fill in the inputs, then **Run workflow**. On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
 
 Once this is deployed, provision the per-product producer/consumer pods and the S3 bucket/Kafka-topic prerequisites they need — see [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) and the [installation guide](../03-installation/05-dpn-federator-gateway-installation-process.md).
 

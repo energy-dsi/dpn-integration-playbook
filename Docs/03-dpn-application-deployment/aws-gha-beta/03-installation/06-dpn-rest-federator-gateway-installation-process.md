@@ -36,13 +36,21 @@ This installation page is a quick-reference summary that points to that guide.
 
 The REST Federator Gateway is deployed as **two independently re-runnable jobs** in one GitHub Actions CD workflow run: **deploy-redis** (this chart's own `dpn-redis` cache) followed by **deploy-rest-federator** (the gateway itself).
 
+Both workflows, and the charts they deploy, live in the central `dpn-containerised-deployment-service` repository:
+
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-    └── workflows/
-      ├── dpn-rest-federator-cd.yml
-      └── dpn-rest-federator-role-id-creation.yml
+dpn-containerised-deployment-service/
+├── .github/
+│   ├── workflows/
+│   │   ├── dpn-rest-federator-cd.yml                  <- DPN CD - REST Federator Gateway
+│   │   └── dpn-rest-federator-role-id-creation.yml    <- DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)
+│   └── config/
+│       └── aws/<environment>-<cluster>.json
+└── dpn-rest-federator-gateway/
+    ├── charts/
+    │   ├── dpn-rest-federator/values/aws/<environment>-<cluster>.yaml
+    │   └── dpn-redis/values/aws/<environment>-<cluster>.yaml
+    └── scripts/vault/                                 <- setup-approle.sh, rest-federator-policy.hcl
 ```
 
 Key points, detailed in the configuration guide:
@@ -108,40 +116,43 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 **Run this once per `<environment>-<cluster>` combination, before the first `dpn-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
 
-Go to **Actions → DPN CD - REST Federator Role ID Creation → Run workflow** , and supply:
+Go to **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`dpn-rest-federator-role-id-creation.yml`), and supply:
 
 | Input | Value |
 |-----------|-------|
-| `environment` | `dev` / `test` |
-| `cluster` | `dpn01` / `dpn02` |
-| `cloud` | `aws` |
+| `environment` | `dev` / `test` (default `test`) |
+| `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
+| `cloud` | `aws` (default) |
 
-This enables the `approle` Vault auth method, writes the `rest-federator-policy`, creates/updates the `rest-federator` AppRole role, and publishes `VAULT_APPROLE_ROLE_ID`/`VAULT_APPROLE_SECRET_ID` to AWS Secrets Manager under `dpn/<environment>-<cluster>/rest-federator/`. See [Configure DPN REST Federator Gateway, Step3b](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step3b-configure-vault-authentication) for the full detail and prerequisites (Vault must already be deployed and unsealed, with its admin token in Secrets Manager).
+This enables the `approle` Vault auth method, writes the `rest-federator-policy`, creates/updates the `rest-federator` AppRole role, and publishes `VAULT_APPROLE_ROLE_ID`/`VAULT_APPROLE_SECRET_ID` to AWS Secrets Manager under `dpn/<environment>-<cluster>/rest-federator/`. See [Configure DPN REST Federator Gateway, Step3b](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step3b-configure-vault-authentication) for the full detail and prerequisites (Vault must already be deployed and unsealed, with its admin token in Secrets Manager at `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`).
 
 ### Step2d. Execute CD Workflow
 
-Go to **Actions → DPN CD - REST Federator Gateway → Run workflow**, and supply:
+Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-rest-federator-cd.yml`), and supply:
 
 | Input | Value |
 |-----------|-------|
-| `environment` | `dev` / `test` |
-| `cluster` | `dpn01` / `dpn02` |
-| `cloud` | `aws` |
+| `environment` | `dev` / `test` (default `test`) |
+| `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
+| `cloud` | `aws` (default) |
 | `imageTag` | The image tag pushed in Step2a |
-| `imageRepository` | Leave blank to use the environment's configured registry |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-rest-federator-server`). Leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server` from the config JSON |
 
-The workflow runs **deploy-redis** then **deploy-rest-federator**. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running Helm. On success, the deployed image digest is captured as a workflow artifact.
+The workflow runs **deploy-redis** (Helm release `dpn-redis`) then **deploy-rest-federator** (Helm release `dpn-rest-federator`), both into the config JSON's `NAMESPACE`. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role and seeds the `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running **Helm Lint + Dry Run** and **Helm Deploy**.
 
 ### Step2e. Verify CD Workflow
 
 ```bash
 kubectl get pods -n <namespace>
-kubectl logs -f dpn-rest-federator-server-1-XXXXXXXXX
+kubectl rollout status deployment/dpn-rest-federator-redis-1 -n <namespace>   # redisCache.name, e.g. -2 on dpn02
+kubectl logs -f dpn-rest-federator-server-1-XXXXXXXXX -n <namespace>
 kubectl get svc -n <namespace>   # confirm the gateway's internal NLB IP
 kubectl get hpa -n <namespace>   # confirm the HPA picked up the deployment
 ```
 
 The kubectl logs should not show any `[error]` messages if the deployment is successful.
+
+> **Rollback and uninstall:** `dpn-redis` and `dpn-rest-federator` are selectable releases in the central **DPN Rollback - All Components Pipelines** workflow (`dpn-rollback-all-components.yml`, `releaseName` input), and `redis`/`rest-federator` are selectable component types in **DPN Uninstall - All components Pipelines** (`dpn-uninstall-all-components.yml`, `componentType` input). See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
 ---
 
@@ -171,13 +182,13 @@ DPN REST Federator Gateway custom images are found in GHCR with the following na
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| REST Federator Server | `ghcr.io/energy-dsi/dpn-rest-federator-server` | `<version>` |
+| REST Federator Server | `<IMAGE_REGISTRY>/dpn-rest-federator-server` (e.g. `ghcr.io/energy-dsi/1.0.1/dpn-rest-federator-server`) | `<version>` |
 
-The REST Federator Gateway's 3rd party platform images are found in GHCR with the following names:
+The REST Federator Gateway's 3rd party platform image is set in the `dpn-redis` chart's values files rather than pulled from GHCR:
 
-| Purpose | GHCR Path |
+| Purpose | Image (`redisCache.image.repository:tag`) |
 |---|---|
-| Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
+| Redis | `redis:7.4-alpine` |
 
 There is no separate GHCR-specific workflow to run — [Step2d](#step2d-execute-cd-workflow) above already deploys from these images by default.
 

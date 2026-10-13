@@ -71,6 +71,7 @@ The following softwares must be available on the machine(s) used to configure DP
 
 DPN repositories required:
 
+- [DPN-Containerised-Deployment-Service](https://github.com/energy-dsi/dpn-containerised-deployment-service) — the central CD repository. It holds every GitHub Actions CD workflow (`.github/workflows/`), the shared `cloud-login` composite action, the per-environment AWS config (`.github/config/aws/<environment>-<cluster>.json`) and the Helm charts for every DPN component (`dpn-authentication-service/`, `dpn-data-pipelines/`, `dpn-federator-cert-manager/`, `dpn-federator-gateway/`, `dpn-file-scan/`, `dpn-health-monitoring/`, `dpn-rest-federator-gateway/`)
 - [DPN-Infra](https://github.com/energy-dsi/dpn-infrastructure-aws)  
 - [DPN-Data-Pipeline](https://github.com/energy-dsi/dpn-data-pipelines)
 - [DPN-Federator Gateway](https://github.com/energy-dsi/dpn-federator-gateway)
@@ -79,6 +80,8 @@ DPN repositories required:
 - [DPN-Health-Monitoring-Service](https://github.com/energy-dsi/dpn-health-monitoring-service)
 - [DPN-File-Scan-Service](https://github.com/energy-dsi/dpn-file-scan-service)
 - [DPN-Authentication-Service](https://github.com/energy-dsi/dpn-authentication-service)
+
+> **Note:** The component repositories above hold each component's source code and CI (image build). The Helm charts and values files used for deployment (CD) live in the central `dpn-containerised-deployment-service` repository, under each component's folder (`<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`).
 
 ### Optional Tools
 
@@ -102,6 +105,8 @@ The following cloud services and licenses are required to run DPN nodes on the A
 - An active **AWS account** with sufficient service quotas for EKS, EC2, S3, IAM, and KMS
 - An **administrative EC2 instance** deployed in the same VPC where the DPN components are deployed with minimal configuration, for any local/manual operations (Session Manager access, no public IP required)
 - **AWS Systems Manager (SSM) Session Manager** to connect to that instance without a bastion host or exposed SSH
+- The **Secrets Store CSI driver with the AWS provider** installed on the EKS cluster — component charts sync AWS Secrets Manager values into Kubernetes Secrets through `SecretProviderClass` objects (`provider: aws`)
+- An **Amazon EFS filesystem with the EFS CSI driver** and an `efs-sc` StorageClass, used by the Certificate Manager's shared file-share PVC (other component PVCs use the `gp3` StorageClass). See [EKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-eks-namespace-configuration)
 
 ---
 ## Accessibility Prerequisites
@@ -123,6 +128,7 @@ The following access configurations are required for DPN deployment.
 #### GitHub Access
 
 - A **Personal Access Token (PAT)** with **read-only access** to GitHub repositories in order to clone the required code.
+- Permission to create **GitHub Environments** and **Actions secrets** on the `dpn-containerised-deployment-service` repository. Every CD workflow runs in a GitHub Environment named `<environment>-<cluster>` (e.g. `dev-dpn01`). See [GitHub Actions Secrets and Environments](../02-configuration/00-common-dpn-configuration.md#step24-github-actions-secrets-and-environments).
 
 #### AWS IAM OIDC Role
 
@@ -134,7 +140,7 @@ See [GitHub Actions OIDC Federated Credential](#github-actions-oidc-federated-cr
 
 #### GitHub Actions OIDC Federated Credential
 
-- The pipeline's shared `cloud-login` composite action authenticates by having the runner's GitHub OIDC token assume the hub role, which then role-chains into your organisation's own `oidc_github_runner_admin` role.
+- The pipeline's shared `cloud-login` composite action (`.github/actions/cloud-login/action.yml`) authenticates in two steps: the runner's GitHub OIDC token first assumes the fixed hub role `oidc_github_runner_hub`, which then role-chains into your organisation's own `oidc_github_runner_admin` role in the `AWS_ACCOUNT_ID` set in the environment's config JSON. The `oidc_github_runner_admin` role's trust policy must therefore allow it to be assumed from the hub role.
 - **AWS Secret Manager** Several components (Vault, Certificate Manager, Federator Gateway) store and read secrets from an **AWS Secret Manager**. 
 
 #### EKS Access
@@ -234,3 +240,4 @@ The prerequisites described in this document assume the following:
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

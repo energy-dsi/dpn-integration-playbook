@@ -7,6 +7,7 @@
 - [Overview](#overview)
 - [Rollback Strategy](#rollback-strategy)
 - [Rollback Workflow Availability by Component](#rollback-workflow-availability-by-component)
+  - [Central Rollback Workflows](#central-rollback-workflows)
 - [Pre-Rollback Checklist](#pre-rollback-checklist)
 - [Rollback Sequence Across Components](#rollback-sequence-across-components)
 - [Part 1 — DPN Data Pipeline Rollback](#part-1--dpn-data-pipeline-rollback)
@@ -14,7 +15,6 @@
   - [Strategy 2 — Helm Revision Rollback](#strategy-2--helm-revision-rollback)
   - [Which Strategy to Use](#which-strategy-to-use)
   - [Verification](#verification)
-  - [Airflow Rollback](#airflow-rollback)
   - [Legacy Pre-2.1.0 Releases](#legacy-pre-210-releases)
 - [Part 2 — DPN Federator Gateway Rollback](#part-2--dpn-federator-gateway-rollback)
 - [Part 3 — DPN Federator Certificate Manager Rollback](#part-3--dpn-federator-certificate-manager-rollback)
@@ -30,9 +30,9 @@
 
 ## Overview
 
-This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, Data Pipeline (including Airflow), File Scanning Service, and Health Monitoring Service.
+This document describes rollback and recovery procedures across **all DPN components**: Vault, Federator Certificate Manager, Federator Gateway, Data Pipeline, File Scanning Service, and Health Monitoring Service.
 
-**The central deployment repository (`dpn-containerised-deployment-service`) has no rollback workflow for any component** — it has one CD workflow per component (or, for Health Monitoring, one orchestrator that chains the sub-component workflows), and that same workflow is what you re-run to roll forward or back. The one exception is the Data Pipeline Self-Service releases, which have their own rollback workflow in `dpn-data-pipelines` (see [Part 1](#part-1--dpn-data-pipeline-rollback)). This document generalises a two-mode approach (Helm revision vs. image tag) to every component via a mix of re-running the standard CD workflow and manual `helm rollback`/`helm upgrade` commands.
+The central deployment repository (`dpn-containerised-deployment-service`) has one CD workflow per component (or, for Health Monitoring, one orchestrator that chains the sub-component workflows), and that same workflow is what you re-run to roll forward to an older image. Alongside them it has **three Helm-revision rollback workflows**: `dpn-rollback-all-components.yml` (**DPN Rollback - All Components Pipelines**) for releases in the main namespace, `dpn-rollback-health-monitoring.yml` (**DPN Rollback - Health Monitoring**) for `ns-dpn-health-01`, and `dpn-self-service-rollback.yml` (**DPN Rollback - Self-Service Data Pipelines**) for `ns-dpn-dp-01` — see [Central Rollback Workflows](#central-rollback-workflows). This document generalises a two-mode approach (Helm revision vs. image tag) to every component via a mix of re-running the standard CD workflow, the rollback workflows, and manual `helm rollback`/`helm upgrade` commands.
 
 All rollback operations here work at the **Helm release / container image** layer. Every rollback pipeline reduces to the same two modes, regardless of component — see [Rollback Strategy](#rollback-strategy).
 
@@ -47,7 +47,7 @@ There are **two separate mechanisms**, not two modes of one workflow — this is
 | | Mechanism used | What you provide | What it does |
 |---|------------------|----------------------|-------------------|
 | **Strategy 1 — Image tag rollback** | The **same, standard CD workflow** used for every normal deployment (`Actions → Run workflow`) | A previous **image tag** | Runs exactly like any other deployment — a fresh `helm upgrade --install` — except pointed at an older, already-built image instead of the latest one |
-| **Strategy 2 — Helm revision rollback** | A manual `helm rollback` command — only the Data Pipeline Self-Service releases have a dedicated rollback workflow | A **Helm revision number** | Runs `helm rollback <release> <revision>`, reverting the release — chart *and* values — to exactly how it was at that revision |
+| **Strategy 2 — Helm revision rollback** | One of the central rollback workflows (see [Central Rollback Workflows](#central-rollback-workflows)), or a manual `helm rollback` command for a release those workflows don't list | A **Helm revision number** | Runs `helm rollback <release> <revision>`, reverting the release — chart *and* values — to exactly how it was at that revision |
 
 The distinction matters for what actually gets reverted:
 
@@ -63,16 +63,37 @@ The distinction matters for what actually gets reverted:
 
 | Component | Standard CD workflow (Strategy 1) | Dedicated rollback workflow (Strategy 2) | 
 |-----------|--------------------------------------|-----------------------------------------------|
-| DPN Data Pipeline (2.1.0 Self-Service: `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor`) | `dpn-self-service-cd.yaml` (in `dpn-data-pipelines`) | `dpn-self-service-rollback.yaml` (in `dpn-data-pipelines`) |
-| Airflow (`dpn-airflow`) | `dpn-cd-airflow.yml` | None — manual `helm rollback` only |
-| DPN Data Pipeline (legacy pre-2.1.0 releases) | `dpn-cd-data-pipelines.yml` | None — manual `helm rollback` only |
-| DPN Federator Gateway | `dpn-federator-gateway-cd.yml` | None — manual `helm rollback` only |
-| DPN Federator Certificate Manager | `dpn-certificate-manager-cd.yml` | None — manual `helm rollback` only |
-| Vault (`vault-https`) | `dpn-vault-https-cd.yml` | None — manual `helm rollback` only |
-| DPN REST Federator Gateway (`dpn-rest-federator`, `dpn-redis`) | `dpn-rest-federator-cd.yml` | None — manual `helm rollback` only |
-| DPN Authentication Service (`dpn-keycloak`) | `dpn-keycloak-cd.yml` | None — manual `helm rollback` only |
-| DPN File Scanning Service | `dpn-file-scan-cd.yml` | None — manual `helm rollback` only |
-| DPN Health Monitoring Service | `dpn-health-monitoring-cd-install.yml` (orchestrator — the 10 per-component workflows are `workflow_call`-only and can't be triggered standalone) | None — manual `helm rollback` per sub-component release |
+| DPN Data Pipeline (2.1.0 Self-Service: `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor`) | `dpn-self-service-cd.yml` | `dpn-self-service-rollback.yml` |
+| DPN Data Pipeline (releases deployed by `dpn-cd-data-pipelines.yml`, incl. legacy pre-2.1.0 releases) | `dpn-cd-data-pipelines.yml` | `dpn-rollback-all-components.yml` for the releases in its choice list (e.g. `dpn-producer-file-adaptor-default`, `dpn-producer-topic-adaptor-eqbd`); otherwise manual `helm rollback` |
+| DPN Federator Gateway (`dpn-platform`) | `dpn-federator-gateway-cd.yml` | `dpn-rollback-all-components.yml` |
+| DPN Federator Certificate Manager (`dpn-certificate-manager`) | `dpn-certificate-manager-cd.yml` | `dpn-rollback-all-components.yml` |
+| Vault (`vault-https`) | `dpn-vault-https-cd.yml` | `dpn-rollback-all-components.yml` |
+| DPN REST Federator Gateway (`dpn-rest-federator`, `dpn-redis`) | `dpn-rest-federator-cd.yml` | `dpn-rollback-all-components.yml` |
+| DPN Demo Runner (`dpn-demo-runner-server`, `dpn-demo-runner-client`) | `dpn-demo-runner-cd.yml` | `dpn-rollback-all-components.yml` |
+| DPN Authentication Service (`dpn-keycloak`) | `dpn-keycloak-cd.yml` | `dpn-rollback-all-components.yml` |
+| DPN File Scanning Service (`dpn-file-scan-service`) | `dpn-file-scan-cd.yml` | `dpn-rollback-all-components.yml` |
+| DPN Health Monitoring Service | `dpn-health-monitoring-cd-install.yml` (orchestrator — the per-component workflows are `workflow_call`-only and can't be triggered standalone) | `dpn-rollback-health-monitoring.yml` for Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses and OTel; manual `helm rollback` for DPN Portal, the `oauth2-proxy` releases and `dpn-redis-ui-health` |
+
+All workflows above are in the central `dpn-containerised-deployment-service` repository. The component Helm charts they deploy also live there, one folder per component (for example `dpn-federator-gateway/charts/dpn-platform`, `dpn-federator-cert-manager/charts/certificate-manager`, `dpn-file-scan/charts/file-scan-service`, `dpn-data-pipelines/service/charts`), each with its AWS values file at `values/aws/<environment>-<cluster>.yaml`.
+
+### Central Rollback Workflows
+
+The three rollback workflows share the same pattern. Go to **Actions → <workflow> → Run workflow** and set:
+
+| Input | `dpn-rollback-all-components.yml` | `dpn-rollback-health-monitoring.yml` | `dpn-self-service-rollback.yml` |
+|-------|-----------------------------------|--------------------------------------|---------------------------------|
+| `environment` | `dev` / `test` (default `dev`) | `dev` / `test` (default `dev`) | `dev` / `test` (default `test`) |
+| `cluster` | `dpn01` / `dpn02` | `dpn01` / `dpn02` | `dpn01` / `dpn02` |
+| `cloud` | `aws` (default is `azure` — change it) | `aws` (default is `azure` — change it) | `aws` (default) |
+| Release input | `releaseName` — one exact Helm release from the choice list | `releaseName` — `all`, `otel`, `perses`, `jaeger`, `data-prepper`, `thanos`, `prometheus`, `opensearch` or `kafka` | `release_name` — `dpn-self-service`, `dpn-consumer-file-extractor` or `dpn-consumer-topic-extractor` |
+| `targetRevision` | `0` (default) = previous stable revision, or a revision number from `helm history` | Same; with `all`, `0` is resolved separately for each release | Same |
+| `confirm` | Retype the `releaseName` value exactly | Retype the `releaseName` value exactly | Retype the `release_name` value exactly |
+
+Each workflow loads `.github/config/aws/<environment>-<cluster>.json`, signs in to EKS through the `cloud-login` composite action (GitHub OIDC → `oidc_github_runner_admin` in the target account), and runs on the self-hosted runner under the GitHub Environment `<environment>-<cluster>`, so any required reviewers on that environment act as the approval gate. It then shows the release history, refuses a target revision whose status is not `deployed` or `superseded`, runs `helm rollback --dry-run`, and finally `helm rollback <release> <revision> --wait` (timeout 15 minutes; 10 minutes for the Self-Service workflow).
+
+- `dpn-rollback-all-components.yml` works in the `NAMESPACE` from the config JSON (`ns-dpn-01`) and rolls back exactly one release per run.
+- `dpn-rollback-health-monitoring.yml` always works in `ns-dpn-health-01`. With `releaseName: all` it rolls back every listed component in reverse deployment order and skips, rather than fails, any component that is not installed or has no earlier stable revision. Its `nginx` option targets the retired `dpn-nginx-observability` release and has nothing to roll back on a current install.
+- `dpn-self-service-rollback.yml` always works in `ns-dpn-dp-01`, and shows the image each revision would run so a bad revision is easy to spot.
 
 ---
 
@@ -121,13 +142,13 @@ If you're rolling back the *whole platform* to a prior known-good state (e.g. af
 
 ## Part 1 — DPN Data Pipeline Rollback
 
-In the 2.1.0 Self-Service design the Data Pipeline is three Helm releases in `ns-dpn-dp-01` — `dpn-self-service`, `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` — deployed by `dpn-self-service-cd.yaml` in `dpn-data-pipelines` (see [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow)). Producer data products are created by the Self-Service UI as plain Deployments, not Helm releases, so there is nothing to roll back for them with Helm. Airflow (`dpn-airflow`) and any legacy pre-2.1.0 releases are covered at the end of this Part.
+In the 2.1.0 Self-Service design the Data Pipeline is three Helm releases in `ns-dpn-dp-01` — `dpn-self-service`, `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` — deployed by the central `dpn-self-service-cd.yml` workflow from the charts in `dpn-data-pipelines/` (`service/charts`, `blueprints/consumer/file/extractor/charts`, `blueprints/consumer/topic/extractor/charts`) (see [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow)). Producer data products are created by the Self-Service UI as plain Deployments, not Helm releases, so there is nothing to roll back for them with Helm. 
 
-> **Note:** The AWS Self-Service workflows (`dpn-self-service-cd.yaml`, `dpn-self-service-rollback.yaml`) are not on the `develop` branch of `dpn-data-pipelines`. Restore them from the repository's git history (the commit before `Temporarily remove AWS GitHub Actions pipelines`).
+> **Note:** The Self-Service CD, rollback and uninstall workflows (`dpn-self-service-cd.yml`, `dpn-self-service-rollback.yml`, `dpn-self-service-uninstall.yml`) are in the central `dpn-containerised-deployment-service` repository, not in `dpn-data-pipelines`.
 
 ### Strategy 1 — Redeploy a Previous Build via the Standard CD Workflow
 
-Go to **Actions → DPN Self-Service — Deploy (AWS EKS) → Run workflow** (`dpn-self-service-cd.yaml`) — the same workflow used for every normal deployment, not a rollback-specific one — and set `imageTag` to a previous, known-good tag. All three releases are redeployed with that tag. See [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow) for the full list of inputs.
+Go to **Actions → DPN CD - Self-Service Data Pipelines → Run workflow** (`dpn-self-service-cd.yml`) — the same workflow used for every normal deployment, not a rollback-specific one — select `environment` and `cluster`, and set `imageTag` to a previous, known-good tag. All three releases are redeployed with that tag. See [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow) for the full list of inputs.
 
 **Finding a previous tag:** the CI image tag is the CI run number. Check the GHCR package page for the image, or if pushing to your own ECR:
 
@@ -137,17 +158,18 @@ aws ecr describe-images --repository-name <image-name> --region <AWS_REGION> --q
 
 ### Strategy 2 — Helm Revision Rollback
 
-**Workflow:** `dpn-data-pipelines` provides **DPN Self-Service — Rollback (AWS EKS)** (`.pipelines/github-actions-pipelines/aws-pipelines/cd-pipelines/dpn-self-service-rollback.yaml`). It rolls back one release at a time in `ns-dpn-dp-01`:
+**Workflow:** the central repository provides **DPN Rollback - Self-Service Data Pipelines** (`.github/workflows/dpn-self-service-rollback.yml`). It rolls back one release at a time in `ns-dpn-dp-01`:
 
 | Input | Value |
 |-------|-------|
-| `environment` | `dev` / `devtest` |
+| `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
-| `roleToAssume` | ARN of the IAM role assumed through GitHub OIDC |
+| `cloud` | `aws` |
 | `release_name` | `dpn-self-service`, `dpn-consumer-file-extractor` or `dpn-consumer-topic-extractor` |
-| `revision` | Revision to roll back to; leave blank for the previous stable revision |
+| `targetRevision` | Revision to roll back to; `0` (default) for the previous stable revision |
+| `confirm` | The `release_name` value, retyped exactly |
 
-The workflow lists the last five revisions, waits for approval on the GitHub Environment `dpn-self-service-<environment>`, runs a `--dry-run` and then `helm rollback <release_name> <revision> -n ns-dpn-dp-01 --wait --timeout 10m`.
+The workflow waits for approval on the GitHub Environment `<environment>-<cluster>`, lists the last five revisions with the image each one runs, runs a `--dry-run` and then `helm rollback <release_name> <revision> -n ns-dpn-dp-01 --wait --timeout 10m`.
 
 **Manual equivalent:**
 
@@ -175,16 +197,9 @@ kubectl get deployment <release-name> -n ns-dpn-dp-01 \
 kubectl rollout status deployment/<release-name> -n ns-dpn-dp-01 --timeout=180s
 ```
 
-### Airflow Rollback
-
-Airflow is the Helm release `dpn-airflow` in `ns-dpn-01`, deployed by the central `dpn-cd-airflow.yml` workflow (**DPN CD - Airflow**). There is no rollback workflow.
-
-- **Strategy 1:** re-run **DPN CD - Airflow** with older `airflowImageTag` (and, if needed, `postgresImageTag`/`redisImageTag`). Blank inputs fall back to the tags in the environment's values file.
-- **Strategy 2:** `helm history dpn-airflow -n ns-dpn-01`, then `helm rollback dpn-airflow <rollbackRevision> -n ns-dpn-01`. The `dpn-airflow-init` Job has immutable fields; the CD workflow deletes it before every upgrade, so do the same before a manual rollback if it fails on that Job: `kubectl delete job dpn-airflow-init -n ns-dpn-01 --ignore-not-found`.
-
 ### Legacy Pre-2.1.0 Releases
 
-Releases deployed before the Self-Service design by the central `dpn-cd-data-pipelines.yml` workflow (**DPN CD - Data Pipelines**) live in `ns-dpn-01` and are named `dpn-<configType>-<processType>-<base_name>-<schemaType>` for producers and `dpn-<configType>-<processType>-<base_name>` for consumers, where a `schema_mapper` folder becomes `mapper`. Roll them back by re-running that workflow with an older `imageTag` (Strategy 1), or with `helm rollback <release-name> <rollbackRevision> -n ns-dpn-01` (Strategy 2). Pre-2.1.0 data products are not imported into the Self-Service UI; to move one to the 2.1.0 design, recreate it in the UI.
+Releases deployed by the central `dpn-cd-data-pipelines.yml` workflow (**DPN CD - Data Pipelines**) rather than by the Self-Service UI live in `ns-dpn-01`. The workflow deploys one release per run from the generic chart `dpn-data-pipelines/blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, named `dpn-<configType>-<processType>-<adaptor|extractor>-<productType>` (for example `dpn-producer-file-adaptor-default`). Roll them back by re-running that workflow with the same `configType`/`processType`/`productType`/`schemaType` and an older `imageTag` (Strategy 1), or with **DPN Rollback - All Components Pipelines** if the release is in its `releaseName` list, or `helm rollback <release-name> <rollbackRevision> -n ns-dpn-01` (Strategy 2). Releases left from older runs may carry earlier names; use `helm list -n ns-dpn-01` to find them. Pre-2.1.0 data products are not imported into the Self-Service UI; to move one to the 2.1.0 design, recreate it in the UI.
 
 ---
 
@@ -200,7 +215,7 @@ kubectl set image deployment/dpn-federator-server-1 \
 kubectl rollout status deployment/dpn-federator-server-1 -n ns-dpn-01
 ```
 
-**Strategy 2 — manual Helm revision rollback:**
+**Strategy 2 — Helm revision rollback:** run **DPN Rollback - All Components Pipelines** (`dpn-rollback-all-components.yml`) with `releaseName: dpn-platform`, or manually:
 
 ```bash
 helm rollback dpn-platform <rollbackRevision> -n ns-dpn-01
@@ -221,7 +236,7 @@ helm history dpn-platform -n ns-dpn-01
 
 **Strategy 1 — standard CD workflow (`dpn-certificate-manager-cd.yml`):** re-run with an older `imageTag`.
 
-**Strategy 2 — manual Helm revision rollback:**
+**Strategy 2 — Helm revision rollback:** run **DPN Rollback - All Components Pipelines** with `releaseName: dpn-certificate-manager` (or `vault-https` for Vault), or manually:
 
 ```bash
 helm rollback dpn-certificate-manager <rollbackRevision> -n ns-dpn-01
@@ -241,7 +256,7 @@ kubectl -n ns-dpn-01 exec deploy/dpn-federator-server-1 -- ls /tls
 
 ## Part 4 — DPN File Scanning Service Rollback
 
-There is no dedicated rollback workflow for the File Scanning Service — use the standard CD workflow for Strategy 1, and manual Helm commands for Strategy 2, per [Rollback Strategy](#rollback-strategy) and [Rollback Workflow Availability by Component](#rollback-workflow-availability-by-component).
+Use the standard CD workflow for Strategy 1, and **DPN Rollback - All Components Pipelines** (`releaseName: dpn-file-scan-service`) or manual Helm commands for Strategy 2, per [Rollback Strategy](#rollback-strategy) and [Rollback Workflow Availability by Component](#rollback-workflow-availability-by-component).
 
 **Strategy 1 — re-run `dpn-file-scan-cd.yml` (DPN CD - File Scan Service) with an older `imageTag`.** To change only the image without a workflow run, the direct equivalent is:
 
@@ -251,7 +266,7 @@ kubectl set image deployment/dpn-file-scan-service \
 kubectl rollout status deployment/dpn-file-scan-service -n ns-dpn-01
 ```
 
-**Strategy 2 — manual Helm revision rollback:**
+**Strategy 2 — Helm revision rollback (manual equivalent):**
 
 ```bash
 helm history dpn-file-scan-service -n ns-dpn-01
@@ -277,9 +292,11 @@ Every sub-component (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger
 
 > **Note:** `dpn-portal` — a tile landing page that links out to the observability UIs — has replaced the retired `nginx-observability` reverse proxy as the last component in this chain; it is fronted by its own `oauth2-proxy` gateway rather than acting as the reverse proxy itself. The `oauth2-proxy` gateways that used to front Kafka UI, Prometheus, and Thanos directly have also been retired: Kafka UI now uses native Keycloak OIDC login and is exposed on its own internal load balancer, and Prometheus/Thanos are no longer browsed directly (both are consumed through Perses).
 
-**Strategy 1 — re-run the orchestrator:** go to **Actions → DPN Health Monitoring → Run workflow**. This redeploys the full dependency chain (Kafka → OpenSearch → Prometheus → Thanos, etc.) — the OTel Collector's `imageTag` is an input, and DPN Portal likewise requires its own `portalImageRepository`/`portalImageTag` inputs since that chart ships no default image; other sub-components don't take an image tag from the orchestrator today, so an image-tag rollback for those means Strategy 2 instead.
+**Strategy 1 — re-run the orchestrator:** go to **Actions → DPN Health Monitoring → Run workflow** (`dpn-health-monitoring-cd-install.yml`, `cloud: aws`). This redeploys the full dependency chain (Kafka → OpenSearch → Prometheus → Thanos, etc.) — the OTel Collector's `imageTag` (default `0.95.0`) and optional `otelImageRepository` are inputs, and DPN Portal likewise requires its own `portalImageTag` input (with `portalImageRepository`, default `1.0.1/dpn-portal`) since that chart ships no default image; other sub-components don't take an image tag from the orchestrator today, so an image-tag rollback for those means Strategy 2 instead.
 
-**Strategy 2 — manual Helm revision rollback for the affected sub-component:**
+**Strategy 2 — Helm revision rollback for the affected sub-component:** run **DPN Rollback - Health Monitoring** (`dpn-rollback-health-monitoring.yml`, see [Central Rollback Workflows](#central-rollback-workflows)) with `releaseName` set to the component (`kafka`, `opensearch`, `prometheus`, `thanos`, `data-prepper`, `jaeger`, `perses`, `otel`), or `all` to roll the whole stack back in reverse dependency order. DPN Portal, the `oauth2-proxy` releases and `dpn-redis-ui-health` are not in that workflow's list, so roll those back manually.
+
+The manual equivalent for any sub-component:
 
 The release names (set in each `dpn-cd-*.yml` workflow) are `dpn-kafka-stack`, `dpn-opensearch`, `dpn-prometheus`, `dpn-thanos`, `dpn-data-prepper`, `dpn-jaeger`, `dpn-perses`, `dpn-otel-collector-health`, `dpn-portal`, `dpn-oauth2-proxy-osd`, `dpn-oauth2-proxy-jaeger`, `dpn-oauth2-proxy-perses`, `dpn-oauth2-proxy-portal` and `dpn-redis-ui-health`.
 

@@ -42,12 +42,19 @@ This installation page is a quick-reference summary that points to that guide.
 The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** via one GitHub Actions CD workflow run. The release includes the Federator Server and Client plus Zookeeper (source/target), Kafka (source/target), Kafka UI, and Redis.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-    └── workflows/
-      └── dpn-federator-gateway-cd.yml
+dpn-containerised-deployment-service/
+├── .github/
+│   ├── workflows/
+│   │   └── dpn-federator-gateway-cd.yml
+│   └── config/
+│       └── aws/<environment>-<cluster>.json
+└── dpn-federator-gateway/
+    └── charts/
+        └── dpn-platform/
+            └── values/aws/<environment>-<cluster>.yaml
 ```
+
+The Helm chart is no longer taken from a separate component repository — the workflow deploys `dpn-federator-gateway/charts/dpn-platform` (`HELM_DIR`) from the central `dpn-containerised-deployment-service` repository with `VALUES_FILE=dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`, into the `NAMESPACE` set in the config JSON (e.g. `ns-dpn-01`).
 
 Key points, detailed in the configuration guide:
 - The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the S3 access credentials (and the Vault root token, via `certificate-manager-secrets`) are Key Vault secrets.
@@ -89,7 +96,7 @@ In summary:
 
 ### Step2a. CI (component source repository)
 
-CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below. Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
+CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below, which lives in (and deploys the chart from) the central `dpn-containerised-deployment-service` repository. Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
 
 Once CI pushes new tags, note them for use as `imageTag` in Step2c — the image registry should show:
 
@@ -118,12 +125,14 @@ Go to **Actions → DPN CD - Federator Gateway → Run workflow**, and supply:
 
 | Input | Value |
 |-----------|-------|
-| `environment` | `dev` / `test` |
-| `cluster` | `dpn01` / `dpn02` |
-| `cloud` | `aws` |
-| `imageTag` | The image tag pushed in Step2a |
+| `environment` | `dev` / `test` (default `test`) |
+| `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
+| `cloud` | `aws` (default) |
+| `imageTag` | The image tag pushed in Step2a — **required**, no default; applied to both the Federator Server and Client |
 
-On success, the deployed image digests are captured as a workflow artifact.
+The job runs against the GitHub Environment `<environment>-<cluster>`, reads `.github/config/aws/<environment>-<cluster>.json`, logs in to AWS/EKS through the `.github/actions/cloud-login` composite action (GitHub OIDC), then runs `helm lint`, a `helm upgrade --install --dry-run`, and the real `helm upgrade --install` of release `dpn-platform`. It then waits for the rollout of `dpn-redis`, `dpn-zookeeper-src`, `dpn-zookeeper-target`, `dpn-kafka-src`, `dpn-kafka-target`, `dpn-kafka-ui`, and `dpn-federator-server-<N>` / `dpn-federator-client-<N>` (`<N>` is `1` for `dpn01`, `2` for `dpn02`). On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
+
+To roll back or remove the release, use `dpn-rollback-all-components.yml` (**DPN Rollback - All Components Pipelines**, `releaseName: dpn-platform`) or `dpn-uninstall-all-components.yml` (**DPN Uninstall - All components Pipelines**, `componentType: platform`) — both default `cloud` to `azure`, so select `aws` explicitly. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
 ---
 
@@ -152,7 +161,7 @@ The kafka-ui is reachable using the following FQDN
 http://`<kafka-ui load balancer ip>`:8086
 ```
 
-The login would require nginx proxy authentication credentials to be provided. 
+No nginx proxy credentials are needed — the nginx observability proxy has been retired. In the AWS values files as currently checked in (`dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`), Kafka UI runs with `AUTH_TYPE: "DISABLED"` and `kafkaUI.oidcRbac.enabled` left at its chart default of `false`, so restrict access to its load balancer at the network level (or enable `kafkaUI.oidcRbac` for Keycloak login). 
 Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/07-configure-dpn-data-pipelines.md)
 
 For more details on kafka-ui interface refer to [Kafka UI Operations](../../../05-dpn-user-interfaces/04-kafka-ui-operations.md)
@@ -229,17 +238,18 @@ DPN Federator Gateway service custom images are found in GHCR with following nam
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| Federator Server | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-server` | `e.g. 1.0.0` |
-| Federator Client | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-client` | `<version>` |
+| Federator Server | `ghcr.io/energy-dsi/1.0.1/dpn-federator-server` | `e.g. 1.0.0` (supplied via `imageTag`) |
+| Federator Client | `ghcr.io/energy-dsi/1.0.1/dpn-federator-client` | `<version>` (supplied via `imageTag`) |
 
-The Federator Gateway service 3rd party platform images are found in GHCR with following names
+The Federator Gateway service 3rd party platform images are found in GHCR with following names (as referenced by `dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`)
 
 | Purpose | GHCR Path |
 |---|---|
-| Kafka | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
-| Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
-| Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
-| Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
+| Kafka | `ghcr.io/energy-dsi/1.0.1/dpn-kafka:<latest or DSI provided stable version>` |
+| Zookeeper | `ghcr.io/energy-dsi/1.0.1/dpn-zookeeper:<latest or DSI provided stable version>` |
+| Redis | `ghcr.io/energy-dsi/1.0.1/dpn-redis:<latest or DSI provided stable version>` |
+| Kafka UI | `ghcr.io/energy-dsi/1.0.1/ui-kafka:<latest or DSI provided stable version>` |
+| Kafka topic creator / populator | `ghcr.io/energy-dsi/1.0.1/kafka-topic-creator`, `ghcr.io/energy-dsi/1.0.1/kafka-topic-populator` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from these images by default.
 

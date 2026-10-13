@@ -28,7 +28,7 @@ The DPN Hashicorp Vault service 3rd party platform images are found in GHCR with
 
 | Purpose | GHCR Path |
 |---|---|
-| Vault | `ghcr.io/energy-dsi/1.0.1/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — see `IMAGE_REGISTRY` in `root/.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`) |
+| Vault | `ghcr.io/energy-dsi/1.0.1/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/vault-https/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) |
 
 
 ---
@@ -66,15 +66,16 @@ kubectl run ghcr-pull-test --rm -it \
 
 ### Execute CD Pipeline
 
-Trigger the `dpn-vault-https-cd.yml` GitHub Actions workflow. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists.
+Trigger the `dpn-vault-https-cd.yml` GitHub Actions workflow in the central `dpn-containerised-deployment-service` repo. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists. It deploys the `vault-https` chart from `dpn-federator-cert-manager/charts/vault-https` (release `vault-https`) with the values file `values/aws/<environment>-<cluster>.yaml`.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
+dpn-containerised-deployment-service/
+└── .github/
     └── workflows/
       └── dpn-vault-https-cd.yml
 ```
+
+> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-tls-cd.yaml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
 
 Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 
@@ -86,7 +87,7 @@ Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 | `vaultImageTag` | Release version or image tag to pull from GHCR — default `1.16` |
 | `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `1.0.1/vault`) — leave blank to use the environment's configured repository |
 | `runVaultInit` | Enable KV v2 + audit logging — default `true`, safe to re-run |
-| `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`. See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
+| `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN` (default `false`; set `true` on the first deploy, because the bundle-load and AppRole setup workflows read the token from there). See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
 
 > **Prerequisite:** AWS KMS auto-unseal must already be configured — see [Configure DPN Vault Service, Step 1](../02-configuration/01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed) — otherwise this workflow's Vault Init step will fail against a sealed Vault.
 
