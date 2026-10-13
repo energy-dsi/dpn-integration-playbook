@@ -42,8 +42,8 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 | # | Prerequisite | Notes |
 |---|--------------|-------|
-| 1 | **EKS cluster** and an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets). The IAM role (`dpn-keycloak-secrets-role` in the provided values files) is **not** created by `dpn-keycloak-cd.yml` — it must already exist and be able to read the entries under `secretsManager.secretPrefix` |
-| 2 | **`dpn-tls` and `tls-auth-secret` Kubernetes secrets present in the namespace** | `dpn-tls` is an `Opaque` secret holding `ca.crt`/`keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret); `tls-auth-secret` holds the matching `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`. Both are created by the **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** workflow (`dpn-tls-cd.yaml`) before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
+| 1 | **EKS cluster** and an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets). The IAM role (`dpn-keycloak-secrets-role` in the provided values files) is **not** created by `dpn-gha-keycloak-cd.yml` — it must already exist and be able to read the entries under `secretsManager.secretPrefix` |
+| 2 | **`dpn-tls` and `tls-auth-secret` Kubernetes secrets present in the namespace** | `dpn-tls` is an `Opaque` secret holding `ca.crt`/`keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret); `tls-auth-secret` holds the matching `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`. Both are created by the **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** workflow (`dpn-gha-tls-cd.yaml`) before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
 | 3 | **Three secrets populated in AWS Secrets Manager** | See [Step2: Configure Secrets](#step2-configure-secrets) |
 | 4 | **Container image available** | Stock upstream Keycloak/PostgreSQL pulled via GHCR (`ghcr.io/energy-dsi/1.0.1/keycloak`, `ghcr.io/energy-dsi/1.0.1/postgres`); repository pinned in the environment values file, tag defaulting to the chart's `values.yaml`. The CD workflow's optional `keycloakImageRepository`/`keycloakImageTag`/`postgresImageRepository`/`postgresImageTag` inputs override these per run |
 | 5 | **Config JSON and values file populated for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set** | See [Step4: Environment Configuration](#step4-environment-configuration) |
@@ -64,11 +64,11 @@ Native AWS backend — no cross-cloud Key Vault dependency. Requires `serviceAcc
 |---|---|---|
 | `KC_DB_PASSWORD` | `KC_DB_PASSWORD` | Keycloak, and PostgreSQL via `POSTGRES_PASSWORD_FILE` |
 | `KEYCLOAK_ADMIN_PASSWORD` | `KEYCLOAK_ADMIN_PASSWORD` | Bootstrap admin account; also read by the workflow's realm-configuration step |
-| `KC_SERVICE_CLIENT_SECRET` | `KC_SERVICE_CLIENT_SECRET` | `dpn-service-client`'s client secret — asserted onto that client by `configure-keycloak.sh` on every deploy, and copied by `dpn-cd-oauth2-proxy.yml` for the observability gateways, so it must match what consuming UIs already use |
+| `KC_SERVICE_CLIENT_SECRET` | `KC_SERVICE_CLIENT_SECRET` | `dpn-service-client`'s client secret — asserted onto that client by `configure-keycloak.sh` on every deploy, and copied by `dpn-gha-cd-oauth2-proxy.yml` for the observability gateways, so it must match what consuming UIs already use |
 
 Example `secretPrefix`: `dpn/<environment>-<cluster>/keycloak`. None of these three is created by a workflow — set them manually.
 
-> **Keystore/truststore passwords no longer come from the SecretProviderClass.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read from the shared `tls-auth-secret` Kubernetes secret (keys `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) created by `dpn-tls-cd.yaml`. That workflow also publishes `keycloak/KC_HTTPS_KEY_STORE_PASSWORD`, `keycloak/KC_HTTPS_TRUST_STORE_PASSWORD` and `keycloak/KC_SPI_TRUSTSTORE_FILE_PASSWORD` under `dpn/<environment>-<cluster>/` in Secrets Manager (when `storePasswordsInSecretsBackend: true`), but the Keycloak chart does not mount them.
+> **Keystore/truststore passwords no longer come from the SecretProviderClass.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read from the shared `tls-auth-secret` Kubernetes secret (keys `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) created by `dpn-gha-tls-cd.yaml`. That workflow also publishes `keycloak/KC_HTTPS_KEY_STORE_PASSWORD`, `keycloak/KC_HTTPS_TRUST_STORE_PASSWORD` and `keycloak/KC_SPI_TRUSTSTORE_FILE_PASSWORD` under `dpn/<environment>-<cluster>/` in Secrets Manager (when `storePasswordsInSecretsBackend: true`), but the Keycloak chart does not mount them.
 
 > **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy. This applies to either secrets backend.
 
@@ -78,8 +78,8 @@ Example `secretPrefix`: `dpn/<environment>-<cluster>/keycloak`. None of these th
 
 Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted read-only at `/cert`) rather than from Vault or the Certificate Manager — this is a platform/ingress-style certificate, not the DPN's DSM-signed federation certificate.
 
-1. Create `dpn-tls` (and `tls-auth-secret`) in the target namespace by running **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → Run workflow** (`dpn-tls-cd.yaml`) with `cloud: aws`, your `environment`/`cluster`, and `targetNamespace: ns-dpn-01`. It generates one DPN root CA and a common server certificate (`.github/config/scripts/create-dpn-tls.sh`) and creates `dpn-tls` as an `Opaque` secret with `ca.crt`, `keystore.jks` and `truststore.jks`. The keystore/truststore/client-p12 passwords come from the `DPN_TLS_KEYSTORE_PASSWORD`, `DPN_TLS_TRUSTSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` GitHub secrets.
-2. Find the alias of the server key inside `keystore.jks` (for a keystore generated by `dpn-tls-cd.yaml` it is `dpn-server`):
+1. Create `dpn-tls` (and `tls-auth-secret`) in the target namespace by running **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → Run workflow** (`dpn-gha-tls-cd.yaml`) with `cloud: aws`, your `environment`/`cluster`, and `targetNamespace: ns-dpn-01`. It generates one DPN root CA and a common server certificate (`.github/config/scripts/create-dpn-tls.sh`) and creates `dpn-tls` as an `Opaque` secret with `ca.crt`, `keystore.jks` and `truststore.jks`. The keystore/truststore/client-p12 passwords come from the `DPN_TLS_KEYSTORE_PASSWORD`, `DPN_TLS_TRUSTSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` GitHub secrets.
+2. Find the alias of the server key inside `keystore.jks` (for a keystore generated by `dpn-gha-tls-cd.yaml` it is `dpn-server`):
 
    ```sh
    kubectl get secret dpn-tls -n <namespace> \
@@ -91,7 +91,7 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
    ```
 
 3. Set `config.KC_HTTPS_KEY_ALIAS` to that alias in the environment values file — Keycloak aborts at startup if the alias does not exist.
-4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. The certificate generated by `dpn-tls-cd.yaml` carries wildcard SANs `*.ns-dpn-01.svc.cluster.local`, `*.ns-dpn-health-01.svc.cluster.local` and `*.ns-dpn-dp-01.svc.cluster.local`, so the in-cluster Service name is covered. The chart default is `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443`; the provided AWS values files pin `dpn-keycloak.<namespace>.svc.cluster.local`.
+4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. The certificate generated by `dpn-gha-tls-cd.yaml` carries wildcard SANs `*.ns-dpn-01.svc.cluster.local`, `*.ns-dpn-health-01.svc.cluster.local` and `*.ns-dpn-dp-01.svc.cluster.local`, so the in-cluster Service name is covered. The chart default is `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443`; the provided AWS values files pin `dpn-keycloak.<namespace>.svc.cluster.local`.
 
    > **Pin `KC_HOSTNAME` rather than leaving it empty when a browser-facing consumer is involved.** With `KC_HOSTNAME` left dynamic, Keycloak derives its OIDC issuer/redirect URLs from whichever `Host` header the request arrived on — including internal server-to-server calls, which arrive on the in-cluster `svc.cluster.local` name. That hostname can then leak into a browser-facing authorize redirect (seen as `DNS_PROBE_FINISHED_NXDOMAIN` for browser-facing consumers). The provided AWS values files pin `KC_HOSTNAME` to Keycloak's stable internal Service DNS name (`dpn-keycloak.<namespace>.svc.cluster.local`) rather than the raw NLB hostname, which changes on every redeploy, and keep `KC_HOSTNAME_STRICT: "false"` so in-cluster callers still work. Browsers must therefore be able to resolve `*.svc.cluster.local` from outside the cluster (Route 53 Resolver / VPC DNS forwarding).
 
@@ -124,7 +124,7 @@ dpn-containerised-deployment-service/
 | `serviceAccount.create` / `serviceAccount.automountServiceAccountToken` / `serviceAccount.annotations` | IRSA ServiceAccount — required when `secretsManager.enabled: true` | `true` / `true` / `eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` |
 | `image.repository` | GHCR path for the Keycloak image (tag defaults to the chart's `image.tag`, `26.3.2`) | `ghcr.io/energy-dsi/1.0.1/keycloak` |
 | `postgres.image.repository` | GHCR path for the bundled PostgreSQL image (tag defaults to `postgres.image.tag`, `16-alpine`) | `ghcr.io/energy-dsi/1.0.1/postgres` |
-| `postgres.persistence.storageClassName` / `persistence.storageClass` | Storage class for the PostgreSQL PVC and the Keycloak per-replica PVCs | `gp3` / `gp3` |
+| `postgres.persistence.storageClassName` / `persistence.storageClass` | Storage class for the PostgreSQL PVC and the Keycloak per-replica PVCs | `gp3` |
 
 **Using a managed database instead of the bundled PostgreSQL:**
 
@@ -157,13 +157,13 @@ Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past
 
 ## Step5: Configure Deployment Parameters
 
-Deployed with the `dpn-keycloak-cd.yml` GitHub Actions workflow (display name **DPN CD - Keycloak**) in the central `dpn-containerised-deployment-service` repository:
+Deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow (display name **DPN CD - Keycloak**) in the central `dpn-containerised-deployment-service` repository:
 
 ```text
 dpn-containerised-deployment-service/
 └── .github/
     ├── workflows/
-    │   └── dpn-keycloak-cd.yml
+    │   └── dpn-gha-keycloak-cd.yml
     └── config/
         └── aws/
             └── <environment>-<cluster>.json   <- AWS_REGION, AWS_ACCOUNT_ID, EKS_CLUSTER, NAMESPACE, ...
@@ -178,10 +178,7 @@ The workflow loads `.github/config/aws/<environment>-<cluster>.json` into the jo
 | `environment` | `test` | `dev` / `test` |
 | `cluster` | `dpn01` | `dpn01` / `dpn02` |
 | `cloud` | `aws` | Select `aws` |
-| `keycloakImageRepository` | *(blank)* | Optional — Keycloak image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/keycloak`); blank uses the values file's `image.repository` |
-| `keycloakImageTag` | *(blank)* | Optional — blank uses the configured `image.tag` |
-| `postgresImageRepository` | *(blank)* | Optional — PostgreSQL image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/postgres`); blank uses `postgres.image.repository` |
-| `postgresImageTag` | *(blank)* | Optional — blank uses the configured `postgres.image.tag` |
+| `IMAGE_REGISTRY` | *(blank)* |
 
 The job runs under the GitHub Environment `<environment>-<cluster>`, uses Helm release name `dpn-keycloak` and deploys into the `NAMESPACE` from the config JSON.
 
@@ -202,3 +199,4 @@ To roll back, run **DPN Rollback - All Components Pipelines** (`dpn-rollback-all
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

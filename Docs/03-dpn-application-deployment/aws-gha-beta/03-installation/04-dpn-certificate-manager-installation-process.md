@@ -33,17 +33,17 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-certificate-manager-cd.yml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
+The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
 
 Set `cloudProvider: aws` in the environment values file — the chart's own default is `azure`; `aws` selects AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC).
 
 The workflow and the `certificate-manager` Helm chart both live in the central `dpn-containerised-deployment-service` repo. The chart is at `dpn-federator-cert-manager/charts/certificate-manager` (release `dpn-certificate-manager`), with values file `values/aws/<environment>-<cluster>.yaml`.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+.pipelines/
+└── .github-actions-pipelines/
     └── workflows/
-      └── dpn-certificate-manager-cd.yml
+      └── dpn-gha-certificate-manager-cd.yml
 ```
 ---
 
@@ -54,7 +54,7 @@ Confirm the prerequisites before starting — see [Configure DPN Certificate Man
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
-- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-tls-cd.yaml`)
+- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yaml`)
 - Vault credentials ready — an AppRole identity from `dpn-certificate-manager-role-id-creation.yml` (`component: certificate-manager`), whose `role_id`/`secret_id` are in Secrets Manager under `dpn/<environment>-<cluster>/certificate-manager/`, plus `VAULT_TOKEN` under the same prefix. On AWS the CD workflow fails if `VAULT_APPROLE_ROLE_ID` is missing
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
@@ -160,7 +160,7 @@ Sometimes the certificate entries in the management-node could get out of sync w
 
 ### Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)
 
-The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-tls-cd.yaml` creates. It no longer comes from the `SecretProviderClass`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
+The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yaml` creates. It no longer comes from the `SecretProviderClass`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
 
 ```bash
 kubectl get secret tls-auth-secret -n <namespace> -o jsonpath='{.data.TRUSTSTORE_PASSWORD}' | base64 -d

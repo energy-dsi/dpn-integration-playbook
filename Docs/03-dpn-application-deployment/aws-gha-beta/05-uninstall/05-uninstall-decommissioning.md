@@ -142,7 +142,7 @@ http://<kafka-health-ui-loadbalancer-ip>:8082
 
 ## Part 1 — Uninstall DPN File Scanning Service
 
-This part removes the DPN File Scanning Service deployed by the `dpn-gha-file-scan-cd.yaml` workflow. It is removed first, per [Uninstallation Sequence](#uninstallation-sequence), since it depends on the Data Pipeline's `dp-consumer-stage` bucket.
+This part removes the DPN File Scanning Service deployed by the `dpn-gha-file-scan-cd.yml` workflow. It is removed first, per [Uninstallation Sequence](#uninstallation-sequence), since it depends on the Data Pipeline's `dp-consumer-stage` bucket.
 
 ---
 
@@ -168,7 +168,7 @@ No pods matching the pattern below should remain:
 
 - `dpn-file-scan-service-*`
 
-Confirm the SNS topic, SQS queue, and GuardDuty Malware Protection plan used by the File Scanning Service are also removed or disabled — `helm uninstall` does not clean these up. They were provisioned manually (see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty)); `dpn-gha-file-scan-prerequisites-cd.yaml` only verifies them. That workflow does create the IRSA role `dpn-file-scan-service-secrets-role` and the Secrets Manager entries under `dpn/<environment>-<cluster>/file-scan-service/`, which are removed in [Remove AWS Resources Created by the Workflows](#remove-aws-resources-created-by-the-workflows).
+Confirm the SNS topic, SQS queue, and GuardDuty Malware Protection plan used by the File Scanning Service are also removed or disabled — `helm uninstall` does not clean these up. They were provisioned manually (see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty)); `dpn-gha-file-scan-prerequisites-cd.yml` only verifies them. That workflow does create the IRSA role `dpn-file-scan-service-secrets-role` and the Secrets Manager entries under `dpn/<environment>-<cluster>/file-scan-service/`, which are removed in [Remove AWS Resources Created by the Workflows](#remove-aws-resources-created-by-the-workflows).
 
 ---
 
@@ -179,8 +179,8 @@ This part removes the DPN Data Pipeline in its 2.1.0 single-container Self-Servi
 | What | Where | Deployed by | Removed by |
 |------|-------|-------------|------------|
 | Producer data products (`dpn-producer-<pathway>-<product_type>` Deployment + HPA, plus their S3 buckets and Kafka topics) | `ns-dpn-dp-01` | Self-Service UI, at runtime (not Helm releases) | **Delete** in the Self-Service UI — [Step 1](#step-1--delete-data-products-from-the-self-service-ui) |
-| Helm releases `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor` | `ns-dpn-dp-01` | `dpn-gha-self-service-cd.yaml` (central repo) | `dpn-gha-self-service-uninstall.yaml` or `helm uninstall` — [Step 2](#step-2--uninstall-the-self-service-ui-and-consumer-releases) |
-| Producer/consumer releases deployed by `dpn-gha-data-pipelines-cd.yaml`, incl. legacy pre-2.1.0 releases (`dpn-producer-*`, `dpn-consumer-*`) | `ns-dpn-01` | `dpn-gha-data-pipelines-cd.yaml` (central repo) | `dpn-gha-uninstall-all-components.yaml` (`producer` / `consumer`) or `helm uninstall` — [Step 3](#step-3--remove-legacy-pre-210-data-pipeline-releases) |
+| Helm releases `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor` | `ns-dpn-dp-01` | `dpn-gha-self-service-cd.yml` (central repo) | `dpn-self-service-uninstall.yml` or `helm uninstall` — [Step 2](#step-2--uninstall-the-self-service-ui-and-consumer-releases) |
+| Producer/consumer releases deployed by `dpn-gha-cd-data-pipelines.yml`, incl. legacy pre-2.1.0 releases (`dpn-producer-*`, `dpn-consumer-*`) | `ns-dpn-01` | `dpn-gha-cd-data-pipelines.yml` (central repo) | `dpn-uninstall-all-components.yml` (`producer` / `consumer`) or `helm uninstall` — [Step 3](#step-3--remove-legacy-pre-210-data-pipeline-releases) |
 
 ---
 
@@ -204,7 +204,7 @@ Producer data products are plain Kubernetes Deployments created by the Self-Serv
 
 ### Step 2 — Uninstall the Self-Service UI and Consumer Releases
 
-The Self-Service UI and the two consumer pipelines are three separate Helm releases in `ns-dpn-dp-01`, deployed by the central `dpn-gha-self-service-cd.yaml` workflow from the charts under `dpn-data-pipelines/` (see [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow)):
+The Self-Service UI and the two consumer pipelines are three separate Helm releases in `ns-dpn-dp-01`, deployed by the central `dpn-gha-self-service-cd.yml` workflow from the charts under `dpn-data-pipelines/` (see [Execute Data Pipeline CD Workflow](../03-installation/07-dpn-data-pipeline-installation-process.md#step-02c-execute-data-pipeline-cd-workflow)):
 
 - `dpn-self-service`
 - `dpn-consumer-file-extractor`
@@ -236,9 +236,9 @@ Uninstalling `dpn-self-service` also removes its registry PVC (`dpn-self-service
 
 ### Step 3 — Remove Legacy Pre-2.1.0 Data Pipeline Releases
 
-Data products deployed by the central `dpn-gha-data-pipelines-cd.yaml` workflow (and `dpn-gha-data-pipelines-aws-poc-cd.yaml`) rather than from the Self-Service UI, including those from before the 2.1.0 Self-Service design, are Helm releases in the main namespace. They are not managed by the Self-Service UI. Skip this step if they were never deployed.
+Data products deployed by the central `dpn-gha-cd-data-pipelines.yml` workflow (and `dpn-gha-cd-data-pipelines-aws-poc.yml`) rather than from the Self-Service UI, including those from before the 2.1.0 Self-Service design, are Helm releases in the main namespace. They are not managed by the Self-Service UI. Skip this step if they were never deployed.
 
-`dpn-gha-data-pipelines-cd.yaml` deploys one release per run from `dpn-data-pipelines/blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, named:
+`dpn-gha-cd-data-pipelines.yml` deploys one release per run from `dpn-data-pipelines/blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, named:
 
 - Producer: `dpn-producer-<processType>-adaptor-<productType>`
 - Consumer: `dpn-consumer-<processType>-extractor-<productType>`
@@ -264,7 +264,7 @@ The namespace `ns-dpn-dp-01` was created by hand in the cluster bootstrap (see [
 
 | Secret | How it got there |
 |--------|------------------|
-| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yml`, if the namespace existed when it ran |
+| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yaml`, if the namespace existed when it ran |
 | `dpn-keycloak-secrets` | Copied manually from `ns-dpn-01` |
 | `aws-access-secret` | Created manually (S3 credentials for the UI, producers and consumer file extractor) |
 | `dpn-health-ca` | Created manually (OTEL collector CA bundle) |
@@ -277,7 +277,7 @@ kubectl get all,secrets,pvc -n ns-dpn-dp-01
 kubectl delete namespace ns-dpn-dp-01
 ```
 
-> **Note:** If `dpn-gha-tls-cd.yml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
+> **Note:** If `dpn-gha-tls-cd.yaml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
 
 The secrets copied out of `ns-dpn-01` are only copies; the originals are removed with the main namespace in [Remove Secrets and Certificates](#remove-secrets-and-certificates). Deactivate the IAM access key held in `aws-access-secret` as described there.
 
@@ -310,14 +310,14 @@ This part removes the Federator Certificate Manager and the HashiCorp Vault serv
 
 ### Step 1 — Remove the Certificate Manager
 
-The Certificate Manager and Vault are separate Helm releases: `dpn-gha-certificate-manager-cd.yaml` deploys `dpn-certificate-manager` (chart `dpn-federator-cert-manager/charts/certificate-manager`), `dpn-gha-vault-https-cd.yaml` deploys `vault-https` (chart `dpn-federator-cert-manager/charts/vault-https`), and the older `dpn-gha-vault-cd.yaml` deploys `vault` (chart `dpn-federator-cert-manager/charts/vault`).
+The Certificate Manager and Vault are separate Helm releases: `dpn-gha-certificate-manager-cd.yml` deploys `dpn-certificate-manager` (chart `dpn-federator-cert-manager/charts/certificate-manager`), `dpn-gha-vault-https-cd.yml` deploys `vault-https` (chart `dpn-federator-cert-manager/charts/vault-https`), and the older `dpn-gha-vault-cd.yml` deploys `vault` (chart `dpn-federator-cert-manager/charts/vault`).
 
-Run **DPN Uninstall - All components Pipelines** with `componentType: certificate-manager`, which removes both `dpn-certificate-manager` and `vault-https`. It does not remove a `vault` release; remove that manually if `dpn-gha-vault-cd.yaml` was used. The manual equivalent for all three is:
+Run **DPN Uninstall - All components Pipelines** with `componentType: certificate-manager`, which removes both `dpn-certificate-manager` and `vault-https`. It does not remove a `vault` release; remove that manually if `dpn-gha-vault-cd.yml` was used. The manual equivalent for all three is:
 
 ```bash
 helm uninstall dpn-certificate-manager -n ns-dpn-01
 helm uninstall vault-https -n ns-dpn-01
-helm uninstall vault -n ns-dpn-01        # only if dpn-gha-vault-cd.yaml was used
+helm uninstall vault -n ns-dpn-01        # only if dpn-gha-vault-cd.yml was used
 ```
 
 This removes the Certificate Manager deployment, the Vault deployment (including Vault's own data PVC), and their associated Kubernetes services.
@@ -348,7 +348,7 @@ No pods with names matching the patterns below should remain:
 
 ## Part 4 — Uninstall DPN Federator Gateway
 
-This part removes all Federator Gateway components deployed by `dpn-gha-federator-gateway-cd.yaml`, including Kafka, Zookeeper, Redis, and the Federator Server and Client. Per [Uninstallation Sequence](#uninstallation-sequence), this should be performed immediately after [Part 3](#part-3--uninstall-dpn-federator-certificate-manager).
+This part removes all Federator Gateway components deployed by `dpn-gha-federator-gateway-cd.yml`, including Kafka, Zookeeper, Redis, and the Federator Server and Client. Per [Uninstallation Sequence](#uninstallation-sequence), this should be performed immediately after [Part 3](#part-3--uninstall-dpn-federator-certificate-manager).
 
 ---
 
@@ -360,7 +360,7 @@ Run **DPN Uninstall - All components Pipelines** with `componentType: platform` 
 helm uninstall dpn-platform -n ns-dpn-01
 ```
 
-This removes all Federator Gateway Helm-managed resources in the single release, including Kafka, Zookeeper, Redis, Federator Server, and Federator Client. If the REST Federator Gateway (`dpn-gha-rest-federator-cd.yaml`) was also deployed, remove its two releases separately, and the demo runner releases (`dpn-gha-demo-runner-cd.yaml`) if they were deployed — with the same workflow and `componentType` `rest-federator`, `redis` and `demo-runner`, or manually:
+This removes all Federator Gateway Helm-managed resources in the single release, including Kafka, Zookeeper, Redis, Federator Server, and Federator Client. If the REST Federator Gateway (`dpn-gha-rest-federator-cd.yml`) was also deployed, remove its two releases separately, and the demo runner releases (`dpn-gha-demo-runner-cd.yml`) if they were deployed — with the same workflow and `componentType` `rest-federator`, `redis` and `demo-runner`, or manually:
 
 ```bash
 helm uninstall dpn-rest-federator -n ns-dpn-01
@@ -369,7 +369,7 @@ helm uninstall dpn-demo-runner-client -n ns-dpn-01   # only if deployed
 helm uninstall dpn-demo-runner-server -n ns-dpn-01   # only if deployed
 ```
 
-`dpn-gha-rest-federator-cd.yaml` also created the IRSA role `dpn-rest-federator-secrets-role` and Secrets Manager entries under `dpn/<environment>-<cluster>/rest-federator/` — see [Remove AWS Resources Created by the Workflows](#remove-aws-resources-created-by-the-workflows).
+`dpn-gha-rest-federator-cd.yml` also created the IRSA role `dpn-rest-federator-secrets-role` and Secrets Manager entries under `dpn/<environment>-<cluster>/rest-federator/` — see [Remove AWS Resources Created by the Workflows](#remove-aws-resources-created-by-the-workflows).
 
 ---
 
@@ -409,7 +409,7 @@ No pods with names matching the patterns below should remain:
 
 ## Part 5 — Uninstall DPN Health Monitoring Service
 
-This part removes the Health Monitoring Service stack deployed in `ns-dpn-health-01` by the `dpn-gha-health-monitoring-cd-install.yaml` orchestrator. This is removed after the components above, per [Uninstallation Sequence](#uninstallation-sequence), so it remains available to confirm the earlier removals completed cleanly.
+This part removes the Health Monitoring Service stack deployed in `ns-dpn-health-01` by the `dpn-gha-health-monitoring-cd-install.yml` orchestrator. This is removed after the components above, per [Uninstallation Sequence](#uninstallation-sequence), so it remains available to confirm the earlier removals completed cleanly.
 
 ---
 
@@ -449,7 +449,7 @@ kubectl delete job dpn-opensearch-init-health dpn-opensearch-alerting-init dpn-d
 
 > **Note:** `dpn-portal` (a tile landing page linking out to the observability UIs) has replaced the retired `nginx-observability` reverse proxy; it is fronted by its own `oauth2-proxy` gateway. The `oauth2-proxy` releases share the `dpn-redis-ui-health` session store, so remove it after them. Kafka UI uses native Keycloak OIDC login on its own internal load balancer, so removing these releases does not affect Kafka UI access. Complete the Kafka topic checks from the [Pre-Uninstallation Checklist](#pre-uninstallation-checklist) before proceeding regardless.
 
-`dpn-gha-oauth2-proxy-cd.yaml` also created the IRSA role `dpn-oauth2-proxy-secrets-role` and Secrets Manager entries under `dpn/<environment>-<cluster>/oauth2-proxy/` — see [Remove AWS Resources Created by the Workflows](#remove-aws-resources-created-by-the-workflows).
+`dpn-gha-cd-oauth2-proxy.yml` also created the IRSA role `dpn-oauth2-proxy-secrets-role` and Secrets Manager entries under `dpn/<environment>-<cluster>/oauth2-proxy/` — see [Remove AWS Resources Created by the Workflows](#remove-aws-resources-created-by-the-workflows).
 
 ---
 
@@ -467,7 +467,7 @@ Confirm no Helm releases remain in the namespace:
 helm list -n ns-dpn-health-01
 ```
 
-Remove the namespace itself, if no longer required. This also deletes the secrets `dpn-tls`, `tls-auth-secret` and `dpn-health-tls` that `dpn-gha-tls-cd.yml` placed there:
+Remove the namespace itself, if no longer required. This also deletes the secrets `dpn-tls`, `tls-auth-secret` and `dpn-health-tls` that `dpn-gha-tls-cd.yaml` placed there:
 
 ```bash
 kubectl delete namespace ns-dpn-health-01
@@ -477,7 +477,7 @@ kubectl delete namespace ns-dpn-health-01
 
 ## Part 5a — Uninstall DPN Authentication Service
 
-This part removes the Keycloak-based DPN Authentication Service and its PostgreSQL instance, deployed by `dpn-gha-keycloak-cd.yaml` (chart `dpn-authentication-service/charts/keycloak`) as the single Helm release `dpn-keycloak` in `ns-dpn-01`. It is removed **last**, per [Uninstallation Sequence](#uninstallation-sequence). Run **DPN Uninstall - All components Pipelines** with `componentType: keycloak`, or manually:
+This part removes the Keycloak-based DPN Authentication Service and its PostgreSQL instance, deployed by `dpn-gha-keycloak-cd.yml` (chart `dpn-authentication-service/charts/keycloak`) as the single Helm release `dpn-keycloak` in `ns-dpn-01`. It is removed **last**, per [Uninstallation Sequence](#uninstallation-sequence). Run **DPN Uninstall - All components Pipelines** with `componentType: keycloak`, or manually:
 
 ```bash
 helm uninstall dpn-keycloak -n ns-dpn-01
@@ -497,7 +497,7 @@ kubectl get pods -n ns-dpn-01   # no dpn-keycloak-* or dpn-keycloak-postgres-* p
 kubectl get pvc -n ns-dpn-01    # no keycloak PVCs should remain
 ```
 
-> **Note:** If the label selector above matches nothing, delete the `keycloak-data-*` PVCs by name. The Keycloak admin and client secrets that `dpn-gha-keycloak-cd.yaml` reads from Secrets Manager live under `dpn/<environment>-<cluster>/keycloak/`.
+> **Note:** If the label selector above matches nothing, delete the `keycloak-data-*` PVCs by name. The Keycloak admin and client secrets that `dpn-gha-keycloak-cd.yml` reads from Secrets Manager live under `dpn/<environment>-<cluster>/keycloak/`.
 
 ---
 
@@ -574,7 +574,7 @@ kubectl get secrets -n ns-dpn-01
 kubectl delete secrets --all -n ns-dpn-01
 ```
 
-This includes the `ghcr-pull-secret` used for GHCR image pulls and the secrets created by `dpn-gha-tls-cd.yml` (`cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls`, `tls-auth-secret`). Copies in `ns-dpn-health-01` and `ns-dpn-dp-01` are removed with those namespaces ([Part 5](#step-2--verify-health-monitoring-service-removal), [Part 2, Step 4](#step-4--remove-the-data-pipeline-namespace)).
+This includes the `ghcr-pull-secret` used for GHCR image pulls and the secrets created by `dpn-gha-tls-cd.yaml` (`cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls`, `tls-auth-secret`). Copies in `ns-dpn-health-01` and `ns-dpn-dp-01` are removed with those namespaces ([Part 5](#step-2--verify-health-monitoring-service-removal), [Part 2, Step 4](#step-4--remove-the-data-pipeline-namespace)).
 
 Remove any persistent volume claims not deleted with their release:
 
@@ -597,7 +597,7 @@ kubectl delete namespace ns-dpn-01
 
 The CD workflows create the following AWS resources. `helm uninstall` does not remove any of them.
 
-**Secrets Manager entries.** Every workflow writes under the prefix `dpn/<environment>-<cluster>/` (for example `dpn/dev-dpn01/keycloak/KC_DB_PASSWORD`): `dpn-gha-tls-cd.yml` (TLS material and store passwords under `vault-https/`, `certificate-manager/`, `keycloak/` and `kafka/`), `dpn-gha-vault-https-cd.yaml` (the Vault root token under `vault-https/`, synced to `certificate-manager/`), `dpn-gha-oauth2-proxy-cd.yaml` (`oauth2-proxy/`), `dpn-gha-rest-federator-cd.yaml` (`rest-federator/`), `dpn-gha-demo-runner-cd.yaml` (`demo-runner-server/`, `demo-runner-client/`), `dpn-gha-file-scan-prerequisites-cd.yaml` (`file-scan-service/`), the two Vault AppRole workflows (`dpn-gha-certificate-manager-role-id-creation.yaml`, `dpn-gha-rest-federator-role-id-creation.yaml`), plus the Keycloak secrets under `keycloak/`. List and delete them:
+**Secrets Manager entries.** Every workflow writes under the prefix `dpn/<environment>-<cluster>/` (for example `dpn/dev-dpn01/keycloak/KC_DB_PASSWORD`): `dpn-gha-tls-cd.yaml` (TLS material and store passwords under `vault-https/`, `certificate-manager/`, `keycloak/` and `kafka/`), `dpn-gha-vault-https-cd.yml` (the Vault root token under `vault-https/`, synced to `certificate-manager/`), `dpn-gha-cd-oauth2-proxy.yml` (`oauth2-proxy/`), `dpn-gha-rest-federator-cd.yml` (`rest-federator/`), `dpn-gha-demo-runner-cd.yml` (`demo-runner-server/`, `demo-runner-client/`), `dpn-gha-file-scan-prerequisites-cd.yml` (`file-scan-service/`), the two Vault AppRole workflows (`dpn-certificate-manager-role-id-creation.yml`, `dpn-rest-federator-role-id-creation.yml`), plus the Keycloak secrets under `keycloak/`. List and delete them:
 
 ```bash
 aws secretsmanager list-secrets --region <AWS_REGION> \
@@ -612,10 +612,10 @@ aws secretsmanager delete-secret --region <AWS_REGION> \
 
 | Role | Created by |
 |------|------------|
-| `dpn-oauth2-proxy-secrets-role` | `dpn-gha-oauth2-proxy-cd.yaml` |
-| `dpn-rest-federator-secrets-role` | `dpn-gha-rest-federator-cd.yaml` |
-| `dpn-file-scan-service-secrets-role` | `dpn-gha-file-scan-prerequisites-cd.yaml` |
-| `<serviceAccount-name>-s3-role` (one per legacy file-pathway chart) | `dpn-gha-data-pipelines-cd.yaml` |
+| `dpn-oauth2-proxy-secrets-role` | `dpn-gha-cd-oauth2-proxy.yml` |
+| `dpn-rest-federator-secrets-role` | `dpn-gha-rest-federator-cd.yml` |
+| `dpn-file-scan-service-secrets-role` | `dpn-gha-file-scan-prerequisites-cd.yml` |
+| `<serviceAccount-name>-s3-role` (one per legacy file-pathway chart) | `dpn-gha-cd-data-pipelines.yml` |
 
 ```bash
 aws iam list-role-policies --role-name <role-name>
@@ -628,7 +628,7 @@ The Vault auto-unseal KMS key and its role `dpn-vault-kms-unseal-role` were crea
 **S3 buckets.** Empty and delete:
 
 - The Self-Service registry backup bucket (the value of `DPN_REGISTRY_BACKUP_CONTAINER` in the Self-Service values file, or `dpconfig` if unset)
-- Legacy pre-2.1.0 data pipeline buckets created by `dpn-gha-data-pipelines-cd.yaml` (`<containerName>-<environment>-<NN>-<account-id>-<region>`, and the `dp-consumer-stage` bucket, named `dpn-<environment>-<NN>-dp-consumer-stage-<account-id>-<region>`)
+- Legacy pre-2.1.0 data pipeline buckets created by `dpn-gha-cd-data-pipelines.yml` (`<containerName>-<environment>-<NN>-<account-id>-<region>`, and the `dp-consumer-stage` bucket, named `dpn-<environment>-<NN>-dp-consumer-stage-<account-id>-<region>`)
 - Data product buckets that were not deleted from the UI
 - The File Scanning Service buckets (`FILESCAN_SOURCE_BUCKET`, `FILESCAN_DEST_BUCKET` in the config JSON), which were created manually
 

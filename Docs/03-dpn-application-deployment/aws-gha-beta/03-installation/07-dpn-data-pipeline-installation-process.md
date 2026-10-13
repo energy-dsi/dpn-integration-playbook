@@ -44,7 +44,7 @@ The deployment uses the following repository:
 The deployment process consists of:
 
 - **Continuous Integration (CI)** — builds the container images (see [Step2a](#step2a-data-pipeline-ci-component-source-repository))
-- **Continuous Deployment (CD)** — deploys into **Amazon Elastic Kubernetes Service (EKS)** with the **`DPN CD - Self-Service Data Pipelines`** workflow (`dpn-self-service-cd.yml`), which installs three Helm releases into `ns-dpn-dp-01`:
+- **Continuous Deployment (CD)** — deploys into **Amazon Elastic Kubernetes Service (EKS)** with the **`DPN CD - Self-Service Data Pipelines`** workflow (`dpn-gha-self-service-cd.yml`), which installs three Helm releases into `ns-dpn-dp-01`:
   - `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` — the two fixed consumer pipelines
   - `dpn-self-service` — the DPN Self-Service UI
 
@@ -87,13 +87,13 @@ Deployment itself runs directly against the GitHub repository via GitHub Actions
 Ensure the following prerequisites are completed before deployment:
 
 - EKS cluster provisioned and accessible, with the **metrics-server** add-on running (required for HPA)
-- The data pipeline namespace `ns-dpn-dp-01` created once on the cluster. `dpn-self-service-cd.yml` checks for it and fails if it is missing:
+- The data pipeline namespace `ns-dpn-dp-01` created once on the cluster. `dpn-gha-self-service-cd.yml` checks for it and fails if it is missing:
 
   ```bash
   kubectl create namespace ns-dpn-dp-01
   ```
 
-- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with the IAM roles referenced by `serviceAccount.irsaRoleArn` in the Self-Service and consumer file extractor AWS values files created beforehand — `dpn-self-service-cd.yml` does not create them. See [Configure Storage Secrets](../02-configuration/07-configure-dpn-data-pipelines.md#step8a-configure-storage-secrets) in the Configuration Guide
+- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with the IAM roles referenced by `serviceAccount.irsaRoleArn` in the Self-Service and consumer file extractor AWS values files created beforehand — `dpn-gha-self-service-cd.yml` does not create them. See [Configure Storage Secrets](../02-configuration/07-configure-dpn-data-pipelines.md#step8a-configure-storage-secrets) in the Configuration Guide
 - DPN Streaming Service (Kafka) deployed, with SASL/TLS authentication through DPN Authentication Service (Keycloak). Topics do **not** need to be pre-created; the pipeline creates them (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
 - DPN Health Monitoring Service deployed and OTEL collector container is in running state
 - S3 buckets for the `file` integration pathway are created by the pipeline when needed (see [Storage Blob / S3 Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
@@ -123,11 +123,11 @@ All CD workflows, their per-cloud configuration and the charts they deploy live 
 .pipelines/
 ├── github-action-pipelines/
 │   ├── workflows/
-│   │   ├── dpn-self-service-cd.yml             <- DPN CD - Self-Service Data Pipelines (standard path)
+│   │   ├── dpn-gha-self-service-cd.yml             <- DPN CD - Self-Service Data Pipelines (standard path)
 │   │   ├── dpn-self-service-rollback.yml       <- DPN Rollback - Self-Service Data Pipelines
 │   │   ├── dpn-self-service-uninstall.yml      <- DPN Uninstall - Self-Service Data Pipelines
-│   │   ├── dpn-cd-data-pipelines.yml           <- DPN CD - Data Pipelines (single reference chart per run)
-│   │   └── dpn-cd-data-pipelines-aws-poc.yml   <- DPN CD - Data Pipelines (AWS PoC)
+│   │   ├── dpn-gha-cd-data-pipelines.yml           <- DPN CD - Data Pipelines (single reference chart per run)
+│   │   └── dpn-gha-cd-data-pipelines-aws-poc.yml   <- DPN CD - Data Pipelines (AWS PoC)
 │   ├── actions/
 │   │   └── cloud-login/action.yml
 │   └── config/
@@ -137,7 +137,7 @@ All CD workflows, their per-cloud configuration and the charts they deploy live 
     └── service/charts/values/aws/<environment>-<cluster>.yaml
 ```
 
-`dpn-self-service-cd.yml` reads `.pipelines/github-action-pipelines/config/aws/<environment>-<cluster>.json` (`AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `IMAGE_REGISTRY`, and the optional `OAUTH2_PROXY_EXTERNAL_URL`) and logs in through the shared `cloud-login` action with `cloud: aws`.
+`dpn-gha-self-service-cd.yml` reads `.github/config/aws/<environment>-<cluster>.json` (`AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `IMAGE_REGISTRY`, and the optional `OAUTH2_PROXY_EXTERNAL_URL`) and logs in through the shared `cloud-login` action with `cloud: aws`.
 
 ---
 
@@ -191,7 +191,7 @@ Verify that the image registry contains the five images above with the expected 
 
 #### Step2c. Execute Data Pipeline CD Workflow
 
-Go to **Actions → DPN CD - Self-Service Data Pipelines → Run workflow** (`dpn-self-service-cd.yml`), and supply:
+Go to **Actions → DPN CD - Self-Service Data Pipelines → Run workflow** (`dpn-gha-self-service-cd.yml`), and supply:
 
 | Input | Value |
 |---|---|
@@ -208,7 +208,7 @@ There is no `cloud` input — the workflow is AWS-only. In one run it:
 > **Notes:**
 > - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. Confirm the value in the consumer charts' values before running (see [Configure Scheduling](../02-configuration/07-configure-dpn-data-pipelines.md#step6-configure-scheduling)).
 > - The `imageTag` input is applied to the three Helm releases. The image tag used for UI-created producers comes from the Self-Service chart's `env.DPN_IMAGE_TAG` (default `latest`), which this workflow does not override — set it in the values file if producers must run a pinned tag.
-> - Two other data pipeline CD workflows exist: **DPN CD - Data Pipelines** (`dpn-cd-data-pipelines.yml`, inputs `environment`, `cluster`, `cloud`, `configType`, `processType`, `productType`, `schemaType`, `imageTag`, optional `imageName`) helm-installs a single reference chart, `blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, as release `dpn-<configType>-<processType>-<adaptor|extractor>-<productType>` into the config JSON's `NAMESPACE`; with `cloud: aws` and `processType: file` it also creates the source/target S3 buckets and the chart's IRSA role. **DPN CD - Data Pipelines (AWS PoC)** (`dpn-cd-data-pipelines-aws-poc.yml`) is a narrower proof-of-concept variant hardcoded to AWS. Use `dpn-self-service-cd.yml` for the standard deployment.
+> - Two other data pipeline CD workflows exist: **DPN CD - Data Pipelines** (`dpn-gha-cd-data-pipelines.yml`, inputs `environment`, `cluster`, `cloud`, `configType`, `processType`, `productType`, `schemaType`, `imageTag`, optional `imageName`) helm-installs a single reference chart, `blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, as release `dpn-<configType>-<processType>-<adaptor|extractor>-<productType>` into the config JSON's `NAMESPACE`; with `cloud: aws` and `processType: file` it also creates the source/target S3 buckets and the chart's IRSA role. **DPN CD - Data Pipelines (AWS PoC)** (`dpn-gha-cd-data-pipelines-aws-poc.yml`) is a narrower proof-of-concept variant hardcoded to AWS. Use `dpn-gha-self-service-cd.yml` for the standard deployment.
 
 ##### One-time setup for a new environment: create secrets and restart pods
 
@@ -418,7 +418,7 @@ Data Pipeline service images are found in GHCR with following name
 
 The producer and Self-Service registry paths come from the Self-Service AWS values file (`imageRegistry`, `env.DPN_IMAGE_REGISTRY`); the consumer path comes from the config JSON's `IMAGE_REGISTRY`.
 
-Image access setup and the workflow trigger are covered in [Step2](#step2-install-dpn-data-pipeline) above — there is no separate GHCR-specific workflow to run, `dpn-self-service-cd.yml` already deploys from these GHCR images by default.
+Image access setup and the workflow trigger are covered in [Step2](#step2-install-dpn-data-pipeline) above — there is no separate GHCR-specific workflow to run, `dpn-gha-self-service-cd.yml` already deploys from these GHCR images by default.
 
 ---
 

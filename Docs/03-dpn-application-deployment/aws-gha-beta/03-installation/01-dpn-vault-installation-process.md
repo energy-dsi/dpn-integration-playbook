@@ -66,16 +66,16 @@ kubectl run ghcr-pull-test --rm -it \
 
 ### Execute CD Pipeline
 
-Trigger the `dpn-vault-https-cd.yml` GitHub Actions workflow in the central `dpn-containerised-deployment-service` repo. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists. It deploys the `vault-https` chart from `dpn-federator-cert-manager/charts/vault-https` (release `vault-https`) with the values file `values/aws/<environment>-<cluster>.yaml`.
+Trigger the `dpn-gha-vault-https-cd.yml` GitHub Actions workflow in the central `dpn-containerised-deployment-service` repo. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists. It deploys the `vault-https` chart from `dpn-federator-cert-manager/charts/vault-https` (release `vault-https`) with the values file `values/aws/<environment>-<cluster>.yaml`.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+.pipelines/
+└── .github-actions-pipelines/
     └── workflows/
-      └── dpn-vault-https-cd.yml
+      └── dpn-gha-vault-https-cd.yml
 ```
 
-> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-tls-cd.yaml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
+> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-gha-tls-cd.yaml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
 
 Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 
