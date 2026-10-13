@@ -22,10 +22,10 @@ DSI provides an **automated method** (GitHub Actions workflows) that generates t
     - [Step 2a. Environment config JSON](#step-2a-environment-config-json)
     - [Step 2b. Vault Helm values](#step-2b-vault-helm-values)
   - [Step 3: Deployment Configuration](#step-3-deployment-configuration)
-    - [Step 3A: Configure Vault TLS (`dpn-tls-cd.yaml`)](#step-3a-configure-vault-tls-dpn-tls-cdyaml)
-    - [Step 3B: Deploy and Initialise Vault (`dpn-vault-https-cd.yml`)](#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml)
-    - [Step 3C: Configure Certificate Bundle (`dpn-vault-load-bundle-cd.yml`)](#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml)
-    - [Step 3D: Deploy Certificate Manager (`dpn-certificate-manager-cd.yml`)](#step-3d-deploy-certificate-manager-dpn-certificate-manager-cdyml)
+    - [Step 3A: Configure Vault TLS (`dpn-gha-tls-cd.yaml`)](#step-3a-configure-vault-tls-dpn-tls-cdyaml)
+    - [Step 3B: Deploy and Initialise Vault (`dpn-gha-vault-https-cd.yml`)](#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml)
+    - [Step 3C: Configure Certificate Bundle (`dpn-gha-vault-load-bundle-cd.yml`)](#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml)
+    - [Step 3D: Deploy Certificate Manager (`dpn-gha-certificate-manager-cd.yml`)](#step-3d-deploy-certificate-manager-dpn-certificate-manager-cdyml)
   - [Step 3E: Configure AppRole Authentication (`dpn-certificate-manager-role-id-creation.yml`)](#step-3e-configure-approle-authentication-dpn-certificate-manager-role-id-creationyml)
 - [Appendix — AWS KMS auto-unseal configuration](#appendix--aws-kms-auto-unseal-configuration)
 - [Requesting a DPN Server Certificate](#requesting-a-dpn-server-certificate)
@@ -58,7 +58,7 @@ Vault is deployed and configured entirely through **[Automated Vault Configurati
 
 > **Cloud provider.** The `vault-https` chart is `cloudProvider`-aware (`aws`) — it selects the auto-unseal seal stanza, the ServiceAccount/IRSA wiring, the internal load-balancer annotations, and (see [Step 2b](#step-2b-vault-helm-values)) the CSI `SecretProviderClass` backend accordingly. Set `cloudProvider: aws`.
 >
-> **Legacy plain-HTTP `vault` chart.** An older, non-TLS `vault` Helm chart (`dpn-federator-cert-manager/charts/vault`) and its `dpn-vault-cd.yml` workflow (**DPN CD - Vault**) still exist alongside `vault-https`. They are **not** part of the documented/supported flow below — `vault-https` (HTTPS-only, as described in this guide) is the only Vault deployment path DSI documents and supports on this path.
+> **Legacy plain-HTTP `vault` chart.** An older, non-TLS `vault` Helm chart (`dpn-federator-cert-manager/charts/vault`) and its `dpn-gha-vault-cd.yml` workflow (**DPN CD - Vault**) still exist alongside `vault-https`. They are **not** part of the documented/supported flow below — `vault-https` (HTTPS-only, as described in this guide) is the only Vault deployment path DSI documents and supports on this path.
 
 ### Certificate Lifecycle and Management
 
@@ -84,23 +84,23 @@ The automated flow uses five GitHub Actions workflows, all in the central `dpn-c
 
 | Order | Workflow (display name) | Purpose |
 |-------|----------|---------|
-| 1 | `dpn-tls-cd.yaml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) | Generate the DPN Root CA and the common server certificate/key (used as the Vault server TLS certificate), publish the Vault TLS cert/key to AWS Secrets Manager, and create the `cert-manager-truststore` and `tls-auth-secret` Kubernetes secrets |
-| 2 | `dpn-vault-https-cd.yml` (**DPN CD - Vault HTTPS**) | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
-| 3 | `dpn-vault-load-bundle-cd.yml` (**DPN CD - Vault Load Cert Bundle**) | Load the DSM-signed client certificate bundle into Vault |
+| 1 | `dpn-gha-tls-cd.yaml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) | Generate the DPN Root CA and the common server certificate/key (used as the Vault server TLS certificate), publish the Vault TLS cert/key to AWS Secrets Manager, and create the `cert-manager-truststore` and `tls-auth-secret` Kubernetes secrets |
+| 2 | `dpn-gha-vault-https-cd.yml` (**DPN CD - Vault HTTPS**) | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
+| 3 | `dpn-gha-vault-load-bundle-cd.yml` (**DPN CD - Vault Load Cert Bundle**) | Load the DSM-signed client certificate bundle into Vault |
 | 4 | `dpn-certificate-manager-role-id-creation.yml` (**DPN CD - Certificate Manager Role ID Creation (Vault AppRole Setup)**) | Provision the Certificate Manager's Vault AppRole and publish its `role_id`/`secret_id` to AWS Secrets Manager — see [Step 3E](#step-3e-configure-approle-authentication-dpn-certificate-manager-role-id-creationyml) |
-| 5 | `dpn-certificate-manager-cd.yml` (**DPN CD - Certificate Manager**) | Deploy the Certificate Manager, which reads and renews certificates from Vault |
+| 5 | `dpn-gha-certificate-manager-cd.yml` (**DPN CD - Certificate Manager**) | Deploy the Certificate Manager, which reads and renews certificates from Vault |
 
-> **Run order 4 before order 5 on AWS.** `dpn-certificate-manager-cd.yml` fetches the Certificate Manager's `role_id` from Secrets Manager at deploy time and fails if it is missing, so the AppRole setup ([Step 3E](#step-3e-configure-approle-authentication-dpn-certificate-manager-role-id-creationyml)) must be run before [Step 3D](#step-3d-deploy-certificate-manager-dpn-certificate-manager-cdyml).
+> **Run order 4 before order 5 on AWS.** `dpn-gha-certificate-manager-cd.yml` fetches the Certificate Manager's `role_id` from Secrets Manager at deploy time and fails if it is missing, so the AppRole setup ([Step 3E](#step-3e-configure-approle-authentication-dpn-certificate-manager-role-id-creationyml)) must be run before [Step 3D](#step-3d-deploy-certificate-manager-dpn-certificate-manager-cdyml).
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
+.pipelines/
+└── .github-actions-pipelines/
     └── workflows/
-        ├── dpn-tls-cd.yaml
-        ├── dpn-vault-https-cd.yml
-        ├── dpn-vault-load-bundle-cd.yml
+        ├── dpn-gha-tls-cd.yaml
+        ├── dpn-gha-vault-https-cd.yml
+        ├── dpn-gha-vault-load-bundle-cd.yml
         ├── dpn-certificate-manager-role-id-creation.yml
-        └── dpn-certificate-manager-cd.yml
+        └── dpn-gha-certificate-manager-cd.yml
 ```
 
 ---
@@ -168,7 +168,7 @@ dpn-containerised-deployment-service/
 
 > **Note:** Keep `replicaCount: 1` — Vault uses a `ReadWriteOnce` persistent volume. The Vault TLS certificate and key are **not** set as literal values here; they are generated in [Step 3A](#step-3a-configure-vault-tls-dpn-tls-cdyaml) and read at runtime via the `SecretProviderClass`.
 >
-> - Step 3A (`dpn-tls-cd.yaml`) publishes them to `dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` and `.../VAULT_TLS_KEY` in Secrets Manager, so keep `secretsManager.secretPrefix` set to `dpn/<environment>-<cluster>/vault-https` to match.
+> - Step 3A (`dpn-gha-tls-cd.yaml`) publishes them to `dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` and `.../VAULT_TLS_KEY` in Secrets Manager, so keep `secretsManager.secretPrefix` set to `dpn/<environment>-<cluster>/vault-https` to match.
 
 ---
 
@@ -176,7 +176,7 @@ dpn-containerised-deployment-service/
 
 Trigger the following workflows in order, via **Actions → &lt;workflow name&gt; → Run workflow** . Each resolves `.github/config/aws/<environment>-<cluster>.json` and the matching Helm values file automatically from the `environment`/`cluster`/`cloud` inputs.
 
-#### Step 3A: Configure Vault TLS (`dpn-tls-cd.yaml`)
+#### Step 3A: Configure Vault TLS (`dpn-gha-tls-cd.yaml`)
 
 Trigger **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → Run workflow**. In a single run, this workflow uses `.github/config/scripts/create-dpn-tls.sh` to generate one self-signed DPN Root CA (`CN=dpn-root`) and one common server certificate/key (`CN=dpn-common`, wildcard SANs `*.ns-dpn-01.svc.cluster.local`, `*.ns-dpn-health-01.svc.cluster.local`, `*.ns-dpn-dp-01.svc.cluster.local`, which cover `vault-https.<namespace>.svc.cluster.local`). It then publishes them to AWS Secrets Manager and Kubernetes. The same certificate also serves Keycloak, Kafka and the Federator. See [Common Configuration](00-common-dpn-configuration.md) for the other secrets it creates.
 
@@ -204,9 +204,9 @@ On completion it publishes (Vault-related items):
 - `vault.csr` (with `vault.key`) → CSR file for doing bootstrap from DSM (`CN=vault`). Sign it at the DSM, then load `vault.key` + the returned `certificate.pem` + `ca-chain.pem` in [Step 3C](#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml)
 - `server.csr` → CSR file for server certificate. Although vault.csr can be used as well for server certificate with large TTL
 
-> **Vault-only alternative (superseded).** `dpn-vault-tls-bootstrap-cd.yml` (**DPN CD - Vault TLS Bootstrap**) still exists and generates a Vault-only Root CA (`CN=dpn-vault-root`), Vault certificate/key and `cert-manager-truststore`. It is superseded by the Universal TLS pipeline. Its publish step writes only to Azure Key Vault (`az keyvault secret set`) and has no AWS Secrets Manager branch, so on AWS use `dpn-tls-cd.yaml` above.
+> **Vault-only alternative (superseded).** `dpn-gha-vault-tls-bootstrap-cd.yml` (**DPN CD - Vault TLS Bootstrap**) still exists and generates a Vault-only Root CA (`CN=dpn-vault-root`), Vault certificate/key and `cert-manager-truststore`. It is superseded by the Universal TLS pipeline. Its publish step writes only to Azure Key Vault (`az keyvault secret set`) and has no AWS Secrets Manager branch, so on AWS use `dpn-gha-tls-cd.yaml` above.
 
-#### Step 3B: Deploy and Initialise Vault (`dpn-vault-https-cd.yml`)
+#### Step 3B: Deploy and Initialise Vault (`dpn-gha-vault-https-cd.yml`)
 
 Trigger **Actions → DPN CD - Vault HTTPS → Run workflow**. This workflow deploys the `vault-https` Helm chart (`CHART_DIR` `dpn-federator-cert-manager/charts/vault-https`, release `vault-https`, Deployment `dpn-vault-https`) and runs: **Checkout** → **Read Deployment Config** → **Cloud Login** (also establishes the EKS context) → **EKS Context** (a second connectivity check, `timeout 30 kubectl get ns`, that prints `aws eks describe-cluster` diagnostics on failure — the shared self-hosted runner's connection to a given cluster's VPC is not always reliable) → **Helm Lint + Dry Run** → **Helm Deploy** (`helm upgrade --install`) → **Vault HTTPS Seal Status Check** → **Vault Init** (runs `dpn-federator-cert-manager/scripts/vault-init.sh` to initialise Vault, enable the KV v2 engine at `pki-client` and audit logging) → **Sync Root Token to certificate-manager Secret (AWS)** → **Publish Init File** → **Capture Deployed Image Digest** (published as the `deployed-image-digest` artifact).
 
@@ -230,7 +230,7 @@ Trigger **Actions → DPN CD - Vault HTTPS → Run workflow**. This workflow dep
 >
 > The init step publishes the full init output (**root token + recovery keys**) as the `vault-init-output-<environment>-<cluster>` workflow artifact (1-day retention). Download it, store the recovery keys securely per Organisation's secrets policy, then delete the artifact. There is no ADO-style approval gate on this workflow by default — if you want a manual sign-off before this step runs, configure a required reviewer on the corresponding GitHub Environment (`<environment>-<cluster>`).
 
-#### Step 3C: Configure Certificate Bundle (`dpn-vault-load-bundle-cd.yml`)
+#### Step 3C: Configure Certificate Bundle (`dpn-gha-vault-load-bundle-cd.yml`)
 
 Trigger **Actions → DPN CD - Vault Load Cert Bundle → Run workflow**. This workflow needs the DSM client bundle set as **GitHub Actions secrets** (repository or environment level) using these exact names. Each secret's value is the exact file content:
 
@@ -255,7 +255,7 @@ The workflow runs: **Validate Bundle Secrets** → **Cloud Login** → **EKS Con
 - KV v2 enabled at `pki-client`
 - Above secrets set in GitHub Actions
 
-#### Step 3D: Deploy Certificate Manager (`dpn-certificate-manager-cd.yml`)
+#### Step 3D: Deploy Certificate Manager (`dpn-gha-certificate-manager-cd.yml`)
 
 See [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md) for the full configuration and workflow inputs for this step. On AWS, run [Step 3E](#step-3e-configure-approle-authentication-dpn-certificate-manager-role-id-creationyml) for the `certificate-manager` component first — this workflow reads `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` from Secrets Manager.
 
@@ -279,7 +279,7 @@ Run the workflow once per component, per environment, **after** Vault is deploye
 
 > **Rotation note:** the AppRole secret-id does not expire (`secret_id_ttl=0`), and Secrets Manager applies no expiry. **Re-run this workflow periodically** to rotate it, then redeploy the component to pick up the refreshed value.
 
-On AWS, the consuming CD workflows (`dpn-certificate-manager-cd.yml`, `dpn-rest-federator-cd.yml`) fetch `VAULT_APPROLE_ROLE_ID` from Secrets Manager and pass it via `--set`, so you don't copy the role-id into the values file by hand.
+On AWS, the consuming CD workflows (`dpn-gha-certificate-manager-cd.yml`, `dpn-gha-rest-federator-cd.yml`) fetch `VAULT_APPROLE_ROLE_ID` from Secrets Manager and pass it via `--set`, so you don't copy the role-id into the values file by hand.
 
 The bundle-load workflow (Step 3C) still authenticates with the Vault root token on AWS. AppRole is for the long-running application components that read certificate material at runtime.
 
@@ -287,7 +287,7 @@ The bundle-load workflow (Step 3C) still authenticates with the Vault root token
 
 ## Appendix — AWS KMS auto-unseal configuration
 
-This is a **required prerequisite**, not an optional add-on — per [Step 3B](#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) above, the pipeline has no interactive unseal step, so without this Vault comes back sealed after every pod restart and the Vault Init step fails outright. Set this up as part of [Step 1](#step-1-prerequisites-before-vault-can-be-deployed), before your first run of `dpn-vault-https-cd.yml`:
+This is a **required prerequisite**, not an optional add-on — per [Step 3B](#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) above, the pipeline has no interactive unseal step, so without this Vault comes back sealed after every pod restart and the Vault Init step fails outright. Set this up as part of [Step 1](#step-1-prerequisites-before-vault-can-be-deployed), before your first run of `dpn-gha-vault-https-cd.yml`:
 
 1. Create a symmetric KMS CMK, e.g. alias `alias/dpn-vault-unseal`.
 2. Create an IAM role whose trust policy allows
@@ -415,3 +415,4 @@ There is no automatic renewal for a server certificate. Track its 60-day expiry 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

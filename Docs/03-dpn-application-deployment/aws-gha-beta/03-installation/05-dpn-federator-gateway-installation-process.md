@@ -44,10 +44,10 @@ This installation page is a quick-reference summary that points to that guide.
 The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** via one GitHub Actions CD workflow run. The release includes the Federator Server and Client plus Zookeeper (source/target), Kafka (source/target), Kafka UI, and Redis.
 
 ```text
-dpn-containerised-deployment-service/
-├── .github/
+.pipelines/
+├── .github-actions-pipelines/
 │   ├── workflows/
-│   │   └── dpn-federator-gateway-cd.yml
+│   │   └── dpn-gha-federator-gateway-cd.yml
 │   └── config/
 │       └── aws/<environment>-<cluster>.json
 └── dpn-federator-gateway/

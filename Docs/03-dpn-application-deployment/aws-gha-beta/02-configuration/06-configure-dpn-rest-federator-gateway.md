@@ -56,7 +56,7 @@ Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed**, with this gateway's endpoint included in the certificate's SANs | e.g. `producer-rest01.<dpn>...` alongside the gRPC Federator's `producer.<dpn>...`/`consumer.<dpn>...` — see [Configure DPN Certificate Manager, Step3a](03-configure-dpn-certificate-manager.md#step3a-set-up-helm-values) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-gha-vault-tls-bootstrap-cd.yml` workflow; trusts Vault's HTTPS endpoint |
 | 4 | **Vault authentication configured — root token today**, AppRole once available | See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) |
 | 5 | **DPN Authentication Service (Keycloak) reachable** | Inbound JWTs are validated against its JWKS endpoint. See [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md) |
 | 6 | **EKS cluster** | Backs the `keyvault.enabled: true` gate that mounts the CSI-driver secret volume — on AWS this pulls from **AWS Secrets Manager**, despite the parameter's name |
@@ -65,7 +65,7 @@ Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 | 9 | **Backend API key created** | In **AWS Secrets Manager** at `<secretsManager.secretPrefix>/BACKEND_API_KEY` (or via a Kubernetes `Secret` — see [Step2](#step2-configure-secrets)) |
 | 10 | **Container image tag available** | Supplied to the CD workflow as `imageTag` |
 | 11 | **Config JSON and values file populated for the `<environment>-<cluster>` combination** | See [Step3](#step3-environment-configuration) and [Step4](#step4-configure-deployment-parameters) |
-| 12 | **IAM role for the `ServiceAccount` (IRSA) created** | The `dpn-rest-federator-cd.yml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the `dpn-rest-federator-secrets-role` role automatically on each run (idempotent). Its ARN must still be set as `serviceAccount.irsaRoleArn` in the values file — see [Step3d](#step3d-configure-aws-serviceaccount-irsa) and [Step4](#step4-configure-deployment-parameters) |
+| 12 | **IAM role for the `ServiceAccount` (IRSA) created** | The `dpn-gha-rest-federator-cd.yml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the `dpn-rest-federator-secrets-role` role automatically on each run (idempotent). Its ARN must still be set as `serviceAccount.irsaRoleArn` in the values file — see [Step3d](#step3d-configure-aws-serviceaccount-irsa) and [Step4](#step4-configure-deployment-parameters) |
 | 13 | **Vault AppRole configured for this component** | Run the **`DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)`** workflow (`dpn-rest-federator-role-id-creation.yml`) once per environment/cluster **before** the first deploy — see [Step3b](#step3b-configure-vault-authentication) |
 
 > **This is ahead of the general Vault AppRole rollout.** [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) still describes AppRole as "planned, not yet available" for Certificate Manager and the gRPC Federator Gateway generally — that remains true for those components. The REST Federator Gateway has its **own**, already-automated AppRole workflow on AWS (prerequisite #13 above), independent of that general rollout.
@@ -140,7 +140,7 @@ Unlike the gRPC Federator Gateway and Certificate Manager (still token-only — 
 
 #### One-time AppRole setup (AWS, before first deploy)
 
-Run **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`.github/workflows/dpn-rest-federator-role-id-creation.yml`) once per `<environment>-<cluster>` combination, **after** Vault is deployed and initialised ([Configure DPN Vault Service, Step 3B](01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml)) and **before** the first `dpn-rest-federator-cd.yml` run. In one run it:
+Run **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`.github/workflows/dpn-rest-federator-role-id-creation.yml`) once per `<environment>-<cluster>` combination, **after** Vault is deployed and initialised ([Configure DPN Vault Service, Step 3B](01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml)) and **before** the first `dpn-gha-rest-federator-cd.yml` run. In one run it:
 
 1. Resolves the Vault pod (`app=dpn-vault-https`) in the config JSON's `NAMESPACE`, copies `setup-approle.sh` and `rest-federator-policy.hcl` into it, and runs the script there (using the admin token from AWS Secrets Manager) to enable the `approle` auth method, write the `rest-federator-policy` (read-only access to `pki-client/{data,metadata}/node-net/client/*`), and create/update the `rest-federator` AppRole role (`token_ttl=1h`, `token_max_ttl=4h`, non-expiring `secret_id`).
 2. Publishes the generated **`secret-id`** to `dpn/<environment>-<cluster>/rest-federator/VAULT_APPROLE_SECRET_ID` in AWS Secrets Manager. This path is fixed in the workflow, so `secretsManager.secretPrefix` must stay `dpn/<environment>-<cluster>/rest-federator`.
@@ -150,7 +150,7 @@ Run **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Se
 
 > **Prerequisites:** Vault deployed and unsealed; the admin/root token available in AWS Secrets Manager at `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`; KV v2 enabled at `pki-client`.
 
-Re-run this workflow to rotate the `secret-id`, then re-run `dpn-rest-federator-cd.yml` so the pod picks up the refreshed value.
+Re-run this workflow to rotate the `secret-id`, then re-run `dpn-gha-rest-federator-cd.yml` so the pod picks up the refreshed value.
 
 ### Step3c: Configure Autoscaling
 
@@ -172,19 +172,19 @@ Re-run this workflow to rotate the `secret-id`, then re-run `dpn-rest-federator-
 | `secretsManager.secretPrefix` | Path prefix for `BACKEND_API_KEY` and `VAULT_APPROLE_SECRET_ID` | `dpn/<environment>-<cluster>/rest-federator` |
 | `keyvault.enabled` / `keyvault.secretName` | Despite the name, this gate mounts the CSI secret volume on AWS too; `secretName` is the Kubernetes Secret the `SecretProviderClass` syncs into | `true` / `dpn-rest-federator-server-secrets` |
 
-The IAM role and its trust policy (scoped to `system:serviceaccount:<NAMESPACE>:dpn-rest-federator`, where `NAMESPACE` comes from the config JSON) do **not** need to be created manually — the `dpn-rest-federator-cd.yml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the role idempotently on every run, and seeds `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders in Secrets Manager the first time (update them to real values before relying on the deployment).
+The IAM role and its trust policy (scoped to `system:serviceaccount:<NAMESPACE>:dpn-rest-federator`, where `NAMESPACE` comes from the config JSON) do **not** need to be created manually — the `dpn-gha-rest-federator-cd.yml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the role idempotently on every run, and seeds `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders in Secrets Manager the first time (update them to real values before relying on the deployment).
 
 ---
 
 ## Step4: Configure Deployment Parameters
 
-Deployed with the **`DPN CD - REST Federator Gateway`** GitHub Actions workflow (`dpn-rest-federator-cd.yml`) in the central `dpn-containerised-deployment-service` repository:
+Deployed with the **`DPN CD - REST Federator Gateway`** GitHub Actions workflow (`dpn-gha-rest-federator-cd.yml`) in the central `dpn-containerised-deployment-service` repository:
 
 ```text
 dpn-containerised-deployment-service/
 └── .github/
     ├── workflows/
-    │   ├── dpn-rest-federator-cd.yml
+    │   ├── dpn-gha-rest-federator-cd.yml
     │   └── dpn-rest-federator-role-id-creation.yml
     ├── actions/
     │   └── cloud-login/action.yml      <- Shared AWS login + EKS kubeconfig step
@@ -251,7 +251,7 @@ ProductKey orgB = new ProductKey("Org B", "Data Product X");
 String body = client.get(orgB, "/api/v1/things?id=42", Map.of());
 ```
 
-See the `dpn-rest-federator-gateway` source repository's `demo/demo-runner-client` for a complete worked example, including the expected `403` behaviour when a path falls outside a product's allowed-path configuration. The demo runner can also be deployed to the cluster from the central repository: its charts are `dpn-rest-federator-gateway/charts/dpn-demo-runner-server` and `dpn-demo-runner-client` (each with `values/aws/<environment>-<cluster>.yaml`), deployed by the **`DPN CD - Demo Runner`** workflow (`dpn-demo-runner-cd.yml`) as the `dpn-demo-runner-server` and `dpn-demo-runner-client` releases.
+See the `dpn-rest-federator-gateway` source repository's `demo/demo-runner-client` for a complete worked example, including the expected `403` behaviour when a path falls outside a product's allowed-path configuration. The demo runner can also be deployed to the cluster from the central repository: its charts are `dpn-rest-federator-gateway/charts/dpn-demo-runner-server` and `dpn-demo-runner-client` (each with `values/aws/<environment>-<cluster>.yaml`), deployed by the **`DPN CD - Demo Runner`** workflow (`dpn-gha-demo-runner-cd.yml`) as the `dpn-demo-runner-server` and `dpn-demo-runner-client` releases.
 
 ---
 
@@ -260,3 +260,4 @@ See the `dpn-rest-federator-gateway` source repository's `demo/demo-runner-clien
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

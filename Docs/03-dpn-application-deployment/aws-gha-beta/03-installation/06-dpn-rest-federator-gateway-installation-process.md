@@ -42,7 +42,7 @@ Both workflows, and the charts they deploy, live in the central `dpn-containeris
 dpn-containerised-deployment-service/
 ├── .github/
 │   ├── workflows/
-│   │   ├── dpn-rest-federator-cd.yml                  <- DPN CD - REST Federator Gateway
+│   │   ├── dpn-gha-rest-federator-cd.yml                  <- DPN CD - REST Federator Gateway
 │   │   └── dpn-rest-federator-role-id-creation.yml    <- DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)
 │   └── config/
 │       └── aws/<environment>-<cluster>.json
@@ -114,7 +114,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step2c. One-Time Vault AppRole Setup
 
-**Run this once per `<environment>-<cluster>` combination, before the first `dpn-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
+**Run this once per `<environment>-<cluster>` combination, before the first `dpn-gha-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
 
 Go to **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`dpn-rest-federator-role-id-creation.yml`), and supply:
 
@@ -128,7 +128,7 @@ This enables the `approle` Vault auth method, writes the `rest-federator-policy`
 
 ### Step2d. Execute CD Workflow
 
-Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-rest-federator-cd.yml`), and supply:
+Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-gha-rest-federator-cd.yml`), and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -164,7 +164,7 @@ A common error caused by a password mismatch. Follow the Certificate Manager tro
 
 ### Pod CrashLoop on First Deploy — Empty Truststore Password
 
-If the pod fails immediately with a PKCS12/JKS load error on truststore construction, `certificate-manager-secrets` most likely didn't exist in the namespace when this chart was rendered — the config's `vault.truststore.password` is resolved via a Helm `lookup` against that secret at render time, not read live at pod start-up. Deploy Certificate Manager first, then re-run `dpn-rest-federator-cd.yml` so the config is re-rendered with the real password.
+If the pod fails immediately with a PKCS12/JKS load error on truststore construction, `certificate-manager-secrets` most likely didn't exist in the namespace when this chart was rendered — the config's `vault.truststore.password` is resolved via a Helm `lookup` against that secret at render time, not read live at pod start-up. Deploy Certificate Manager first, then re-run `dpn-gha-rest-federator-cd.yml` so the config is re-rendered with the real password.
 
 ### 403 from the Backend
 

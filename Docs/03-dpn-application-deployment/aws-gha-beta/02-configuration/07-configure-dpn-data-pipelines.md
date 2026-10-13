@@ -72,9 +72,9 @@ Each charts/ folder:
 |-----------|----------------------|--------------------|
 | `producer/file/adaptor` | `dpn-producer-file-adaptor-generic` | Created per data product by the Self-Service UI |
 | `producer/topic/adaptor` | `dpn-producer-topic-adaptor-generic` | Created per data product by the Self-Service UI |
-| `consumer/file/extractor` | `dpn-consumer-file-extractor` | Helm-deployed once by `dpn-self-service-cd.yml` |
-| `consumer/topic/extractor` | `dpn-consumer-topic-extractor` | Helm-deployed once by `dpn-self-service-cd.yml` |
-| `service` (Self-Service UI) | `dpn-self-service` | Helm-deployed once by `dpn-self-service-cd.yml` |
+| `consumer/file/extractor` | `dpn-consumer-file-extractor` | Helm-deployed once by `dpn-gha-self-service-cd.yml` |
+| `consumer/topic/extractor` | `dpn-consumer-topic-extractor` | Helm-deployed once by `dpn-gha-self-service-cd.yml` |
+| `service` (Self-Service UI) | `dpn-self-service` | Helm-deployed once by `dpn-gha-self-service-cd.yml` |
 
 The `values.yaml` files under `blueprints/` **must not** be modified directly; environment overrides go in `values/aws/<environment>-<cluster>.yaml`. The producer charts exist for manual or reference deployment (for example testing one instance outside the self-service flow); the UI-created Deployments mirror their spec.
 
@@ -124,7 +124,7 @@ The Deployment runs as the Self-Service UI's ServiceAccount (`env.DPN_PRODUCER_S
 
 ## Step2: Setup Data Consumers
 
-Consumer pipelines are **not** created per product. The two fixed consumer pipelines are deployed once per platform by the `dpn-self-service-cd.yml` workflow from `blueprints/consumer/{file,topic}/extractor/charts`, with `values/aws/<environment>-<cluster>.yaml`.
+Consumer pipelines are **not** created per product. The two fixed consumer pipelines are deployed once per platform by the `dpn-gha-self-service-cd.yml` workflow from `blueprints/consumer/{file,topic}/extractor/charts`, with `values/aws/<environment>-<cluster>.yaml`.
 
 | Pipeline | Helm release / Deployment | Receives | Delivers to |
 |----------|---------------------------|----------|-------------|
@@ -182,7 +182,7 @@ The file-pathway charts ship `templates/serviceaccount.yaml`, created only when 
 | serviceAccount.name | ServiceAccount name | `dpn-producer-file-adaptor` |
 | serviceAccount.irsaRoleArn | ARN of the IAM role this ServiceAccount assumes. Its trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and its policy must grant S3 access to the source and target buckets | `arn:aws:iam::<account-id>:role/<serviceAccount.name>-s3-role` |
 
-> **Note:** when a producer chart is deployed manually through `dpn-cd-data-pipelines.yml` with `processType: file`, the workflow creates the source/target buckets if missing and creates/updates an IAM role named `<serviceAccount.name>-s3-role` scoped to exactly those two buckets, then overrides `serviceAccount.irsaRoleArn` with it (see the [installation guide](../03-installation/07-dpn-data-pipeline-installation-process.md#step2c-execute-data-pipeline-cd-workflow)).
+> **Note:** when a producer chart is deployed manually through `dpn-gha-cd-data-pipelines.yml` with `processType: file`, the workflow creates the source/target buckets if missing and creates/updates an IAM role named `<serviceAccount.name>-s3-role` scoped to exactly those two buckets, then overrides `serviceAccount.irsaRoleArn` with it (see the [installation guide](../03-installation/07-dpn-data-pipeline-installation-process.md#step2c-execute-data-pipeline-cd-workflow)).
 
 **Kafka Connectivity**
 
@@ -392,7 +392,7 @@ Once created, a data product is operated from the Self-Service UI. The same acti
 | Logs / run history | View container logs and recent runs | any, including `dpnreader` |
 | Delete | Removes the Deployment **and** its Kafka topic(s) and S3 bucket(s), and its registry entry | `dpnadmin` only |
 
-The two consumer pipelines can also be paused, resumed, run and deleted from the UI. Delete on a consumer removes its Deployment only; it comes back only by re-running `dpn-self-service-cd.yml`.
+The two consumer pipelines can also be paused, resumed, run and deleted from the UI. Delete on a consumer removes its Deployment only; it comes back only by re-running `dpn-gha-self-service-cd.yml`.
 
 > **Warning:** Delete tears down the product's Kafka topics and S3 buckets. Treat it as irreversible.
 
@@ -428,7 +428,7 @@ kubectl create secret generic aws-access-secret -n ns-dpn-dp-01 \
   --from-literal=AWS_SECRET_ACCESS_KEY=<secret>
 ```
 
-> **Note:** the IRSA roles referenced by the Self-Service and consumer values files (`serviceAccount.irsaRoleArn`) are not created by `dpn-self-service-cd.yml` — create them before deploying, with a trust policy scoped to `system:serviceaccount:ns-dpn-dp-01:<serviceAccount name>`.
+> **Note:** the IRSA roles referenced by the Self-Service and consumer values files (`serviceAccount.irsaRoleArn`) are not created by `dpn-gha-self-service-cd.yml` — create them before deploying, with a trust policy scoped to `system:serviceaccount:ns-dpn-dp-01:<serviceAccount name>`.
 
 ### Step8b: Configure Kafka Security (SASL/TLS)
 
@@ -466,7 +466,7 @@ S3 is the integration layer between the organisation's internal data source, the
 | producer file adaptor | `{product_type}-stage` | `{product_type}-target` |
 | consumer file extractor | `dp-consumer-stage` | `dp-consumer-target` |
 
-The producer names are proposals and can be overridden at the review step in [Step1](#step1-setup-a-new-data-product-self-service). The consumer AWS values files use environment-qualified names (e.g. `dpn-<environment>-<nn>-dp-consumer-stage`), and `dpn-cd-data-pipelines.yml` qualifies bucket names as `<name>-<environment>-<nn>-<account-id>-<region>` because S3 bucket names are globally unique.
+The producer names are proposals and can be overridden at the review step in [Step1](#step1-setup-a-new-data-product-self-service). The consumer AWS values files use environment-qualified names (e.g. `dpn-<environment>-<nn>-dp-consumer-stage`), and `dpn-gha-cd-data-pipelines.yml` qualifies bucket names as `<name>-<environment>-<nn>-<account-id>-<region>` because S3 bucket names are globally unique.
 
 ```text
 Example bucket names (product_type = eq-sample-1):
