@@ -334,7 +334,7 @@ Each producer adaptor and consumer extractor can scale horizontally through the 
 | PIPELINE_CONTROL_TOPIC | Trigger topic, `kafka-trigger` only | `dpn-pipeline-control` |
 | PIPELINE_STATUS_TOPIC | Status topic, `kafka-trigger` only | `dpn-pipeline-status` |
 
-> **Note:** Do not set `kafka-trigger` unless something publishes to `PIPELINE_CONTROL_TOPIC`. Without a publisher the pod waits indefinitely and `automatic` mode never runs a cycle. The consumer charts were deliberately moved to `interval` for this reason. This also replaces the Airflow-orchestrated scheduling previously documented here — Airflow is no longer part of this component's supported configuration.
+> **Note:** Do not set `kafka-trigger` unless something publishes to `PIPELINE_CONTROL_TOPIC`. Without a publisher the pod waits indefinitely and `automatic` mode never runs a cycle. The consumer charts were deliberately moved to `interval` for this reason.
 
 ## STEP-07: Operate a Data Product
 

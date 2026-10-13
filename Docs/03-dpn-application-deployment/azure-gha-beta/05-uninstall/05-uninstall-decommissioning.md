@@ -16,9 +16,8 @@
   - [Step 1 — Delete Data Products from the Self-Service UI](#step-1--delete-data-products-from-the-self-service-ui)
   - [Step 2 — Uninstall the Self-Service UI and Consumer Releases](#step-2--uninstall-the-self-service-ui-and-consumer-releases)
   - [Step 3 — Remove Releases Deployed by dpn-cd-data-pipelines.yml](#step-3--remove-releases-deployed-by-dpn-cd-data-pipelinesyml)
-  - [Step 4 — Uninstall Airflow](#step-4--uninstall-airflow)
-  - [Step 5 — Remove the Data Pipeline Namespace](#step-5--remove-the-data-pipeline-namespace)
-  - [Step 6 — Verify Data Pipeline Removal](#step-6--verify-data-pipeline-removal)
+  - [Step 4 — Remove the Data Pipeline Namespace](#step-4--remove-the-data-pipeline-namespace)
+  - [Step 5 — Verify Data Pipeline Removal](#step-5--verify-data-pipeline-removal)
 - [Part 3 — Uninstall DPN Federator Certificate Manager](#part-3--uninstall-dpn-federator-certificate-manager)
   - [Step 1 — Remove the Certificate Manager](#step-1--remove-the-certificate-manager)
   - [Step 2 — Verify Certificate Manager Removal](#step-2--verify-certificate-manager-removal)
@@ -45,7 +44,7 @@ This document describes the procedure for **completely uninstalling the DPN plat
 The uninstallation process removes the following components:
 
 - DPN File Scanning Service
-- DPN Data Pipeline — the Self-Service UI, the consumer pipelines, the producer data products created from the UI, any legacy pre-2.1.0 producer/consumer releases, and Airflow
+- DPN Data Pipeline — the Self-Service UI, the consumer pipelines, the producer data products created from the UI, and any legacy pre-2.1.0 producer/consumer releases
 - DPN Federator Certificate Manager and Vault service
 - DPN Federator Gateway (Kafka, Zookeeper, Redis, Federator Server and Client)
 - DPN Health Monitoring Service (Kafka-health, OpenTelemetry Collector, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, Nginx-observability)
@@ -64,7 +63,6 @@ All DPN services deployed as part of the DSI package are in scope for this unins
 
 - DPN File Scan Service
 - DPN Data Pipelines (Self-Service UI, consumer pipelines, data products, legacy releases)
-- Airflow (`dpn-airflow`)
 - DPN Federator Certificate Manager
 - DPN Federator Gateway
 - DPN Health Monitoring Service
@@ -82,13 +80,13 @@ There is no uninstall workflow for any component — only CD (deploy) workflows 
 **Uninstallation must be performed in the following order**, to respect the same runtime dependencies used elsewhere in DPN's documentation (see the dependency chain in the Rollback and Recovery Process):
 
 ```
-File Scanning Service -> Data Pipeline (incl. Airflow) -> Federator Gateway -> Federator Certificate Manager -> Vault 
+File Scanning Service -> Data Pipeline -> Federator Gateway -> Federator Certificate Manager -> Vault 
 ```
 
 Because uninstallation removes components rather than reverting them, work **up the chain, from the most dependent component to the most foundational one** — the reverse of the order you would use to install them:
 
 1. **File Scanning Service** — remove first. It depends on the Data Pipeline's `dp-consumer-stage` container already existing; removing it first avoids scan results being written into a container that may be mid-removal.
-2. **Data Pipeline and Airflow** — has no other DPN component depending on it for its own removal, and no longer has anything writing into it once File Scanning Service is gone. Data products must be deleted from the Self-Service UI **before** the UI itself is uninstalled.
+2. **Data Pipeline** — has no other DPN component depending on it for its own removal, and no longer has anything writing into it once File Scanning Service is gone. Data products must be deleted from the Self-Service UI **before** the UI itself is uninstalled.
 3. **Federator Certificate Manager (and Vault, removed together)** — safe to remove once nothing downstream still expects it to issue or renew certificates.
 4. **Federator Gateway** — remove **immediately after** step 3. Once the Certificate Manager and Vault are gone, the Gateway can no longer renew or synchronise certificates, so leaving it running afterward serves no purpose and it will begin to fail on its own.
 5. **Health Monitoring Service** — remove last. It has no other DPN component depending on it to function, and keeping it in place while the components above are removed means its dashboards can still be used to confirm each preceding removal completed cleanly.
@@ -106,7 +104,7 @@ Before starting the uninstallation process, confirm the following.
 - All data products are stopped in the Self-Service UI, and no business users are creating or managing data products
 - Kafka topics have been drained and contain no unprocessed messages, on **both** the main DPN Kafka (used by Federator Gateway / Data Pipeline) and the Health Monitoring Service's separate `otel-logs`/`otel-traces`/`otel-metrics` Kafka in `ns-dpn-health-01`
 - Any scheduled or automated triggers for the CI/CD workflows have been disabled
-- Required data backups have been taken, including a secure offline copy of the certificate bundle if Vault/Certificate Manager are in scope, and any Airflow metadata you need to keep (the Airflow PostgreSQL volume is deleted with its release)
+- Required data backups have been taken, including a secure offline copy of the certificate bundle if Vault/Certificate Manager are in scope
 
 To verify there are no unprocessed messages, inspect the Kafka topics via the relevant Kafka UI before proceeding. Note these are two separate Kafka clusters with two separate UIs:
 
@@ -152,14 +150,13 @@ Confirm the Service Bus subscription, Storage Account containers, and Microsoft 
 
 ## Part 2 — Uninstall DPN Data Pipeline
 
-This part removes the DPN Data Pipeline in its 2.1.0 single-container Self-Service design, plus Airflow and anything left from earlier releases. It does not affect the Federator or Certificate Manager components.
+This part removes the DPN Data Pipeline in its 2.1.0 single-container Self-Service design, plus anything left from earlier releases. It does not affect the Federator or Certificate Manager components.
 
 | What | Where | Deployed by | Removed by |
 |------|-------|-------------|------------|
 | Producer data products (`dpn-producer-<pathway>-<product_type>` Deployment + HPA, plus their storage containers and Kafka topics) | `ns-dpn-dp-01` | Self-Service UI, at runtime (not Helm releases) | **Delete** in the Self-Service UI — [Step 1](#step-1--delete-data-products-from-the-self-service-ui) |
 | Helm releases `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor` | `ns-dpn-dp-01` | Azure DevOps pipeline `dpn-self-service-cd.yaml` in `dpn-data-pipelines` (no Azure GitHub Actions equivalent exists) | `dpn-self-service-uninstall-cd.yaml` (ADO) or `helm uninstall` — [Step 2](#step-2--uninstall-the-self-service-ui-and-consumer-releases) |
 | Consumer and legacy pre-2.1.0 producer releases (`dpn-consumer-*`, `dpn-producer-*`) | `ns-dpn-01` | `dpn-cd-data-pipelines.yml` (central repo) | `helm uninstall` — [Step 3](#step-3--remove-releases-deployed-by-dpn-cd-data-pipelinesyml) |
-| Helm release `dpn-airflow` | `ns-dpn-01` | `dpn-cd-airflow.yml` (central repo) | `helm uninstall` — [Step 4](#step-4--uninstall-airflow) |
 
 ---
 
@@ -225,34 +222,7 @@ Repeat for every release listed.
 
 ---
 
-### Step 4 — Uninstall Airflow
-
-Airflow is deployed by the central `dpn-cd-airflow.yml` workflow (**DPN CD - Airflow**, `cloud: azure`) as the Helm release `dpn-airflow`, from the chart `dpn-data-pipelines/charts/airflow`, into the main namespace (`ns-dpn-01`). There is no Airflow uninstall workflow.
-
-```bash
-helm uninstall dpn-airflow -n ns-dpn-01
-```
-
-This removes the Airflow webserver, scheduler, worker and triggerer, its Redis and PostgreSQL, the `dpn-airflow-init` Job, the `dpn-airflow-webserver` and `dpn-airflow-webserver-external` (load balancer) services, the `dpn-airflow-kv-secrets` SecretProviderClass and the PostgreSQL PVC `dpn-airflow-postgres-pvc`. All Airflow metadata in that PostgreSQL volume is lost.
-
-Confirm nothing is left behind:
-
-```bash
-kubectl get pods,svc,jobs,pvc -n ns-dpn-01 | grep dpn-airflow
-kubectl get secret dpn-airflow-secrets -n ns-dpn-01
-```
-
-`dpn-airflow-secrets` is synced from Azure Key Vault by the CSI driver and is normally removed once no pod mounts it. If it is still present, delete it:
-
-```bash
-kubectl delete secret dpn-airflow-secrets -n ns-dpn-01 --ignore-not-found
-```
-
-The Airflow secrets in Azure Key Vault (`fernetKey`, `webSecretKey`, `airPostgresPassword`, `AIRFLOW-ADMIN-PASSWORD`) are not removed by `helm uninstall`; remove them in [Remove Secrets and Certificates](#remove-secrets-and-certificates).
-
----
-
-### Step 5 — Remove the Data Pipeline Namespace
+### Step 4 — Remove the Data Pipeline Namespace
 
 The namespace `ns-dpn-dp-01` was created by hand in the cluster bootstrap (see [AKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-aks-namespace-configuration)) and holds the secrets copied into it for the Data Pipeline:
 
@@ -276,12 +246,12 @@ The secrets copied out of `ns-dpn-01` are only copies; the originals are removed
 
 ---
 
-### Step 6 — Verify Data Pipeline Removal
+### Step 5 — Verify Data Pipeline Removal
 
 ```bash
 kubectl get namespace ns-dpn-dp-01          # NotFound
-helm list -n ns-dpn-01 | grep -E 'dpn-(producer|consumer)-|dpn-airflow'   # no output
-kubectl get deployments -n ns-dpn-01 | grep -E 'dpn-(producer|consumer)-|dpn-airflow'   # no output
+helm list -n ns-dpn-01 | grep -E 'dpn-(producer|consumer)-'   # no output
+kubectl get deployments -n ns-dpn-01 | grep -E 'dpn-(producer|consumer)-'   # no output
 ```
 
 No pods matching the patterns below should remain in any namespace:
@@ -290,7 +260,6 @@ No pods matching the patterns below should remain in any namespace:
 - `dpn-consumer-file-extractor-*`, `dpn-consumer-topic-extractor-*`, `dpn-consumer-*-mapper-*`
 - `dpn-producer-<pathway>-<product_type>-*` (data products)
 - `dpn-producer-*` (legacy releases in `ns-dpn-01`)
-- `dpn-airflow-*`
 
 ---
 
@@ -472,7 +441,6 @@ Repeat for all DPN-related images, including:
 - `dsi/dpn-self-service`
 - `dsi/dpn-producer-file-adaptor-generic`, `dsi/dpn-producer-topic-adaptor-generic`
 - `dsi/dpn-consumer-file-extractor`, `dsi/dpn-consumer-topic-extractor`
-- `dpn-airflow`
 - images used by `dpn-cd-data-pipelines.yml` and legacy pre-2.1.0 images: `consumer-<processType>-<extractor|mapper>`, `producer-<processType>-<adaptor|mapper>-*`
 
 If any component was deployed using DSI-provided GHCR images (`ghcr.io/energy-dsi/...`), no image deletion is required on the `energy-dsi` GHCR itself — those images are shared, DSI-managed packages. Only remove the `ghcr-pull-secret` Kubernetes secret used to authenticate against it, per [Remove Secrets and Certificates](#remove-secrets-and-certificates).
@@ -520,7 +488,7 @@ Remove the P12 keystore and truststore files from the shared storage location if
 kubectl delete pvc --all -n <namespace>
 ```
 
-Remove any certificates and secrets from **Azure Key Vault** that are no longer required, following the organisation's secrets management policy. This includes the Airflow secrets (`fernetKey`, `webSecretKey`, `airPostgresPassword`, `AIRFLOW-ADMIN-PASSWORD`) read by `dpn-airflow`.
+Remove any certificates and secrets from **Azure Key Vault** that are no longer required, following the organisation's secrets management policy.
 
 Delete the Data Pipeline storage left behind in the storage accounts: the Self-Service registry backup container (`dpconfig` by default, or the value of `DPN_REGISTRY_BACKUP_CONTAINER`), any data product containers that were not deleted from the UI, and containers used by legacy pre-2.1.0 pipelines. Rotate or revoke the storage account keys held in `producer-file-dp-secret` and `consumer-file-dp-secret` if the accounts are kept.
 
@@ -537,7 +505,7 @@ Unlike ADO pipelines, GitHub Actions workflows are just version-controlled files
 
 ## Final Verification
 
-After all parts are complete, confirm the following conditions are met before closing the decommissioning activity. Run these checks against the main DPN namespace, `ns-dpn-dp-01` (which should no longer exist after [Part 2, Step 5](#step-5--remove-the-data-pipeline-namespace)) and `ns-dpn-health-01`, if Health Monitoring Service was in scope.
+After all parts are complete, confirm the following conditions are met before closing the decommissioning activity. Run these checks against the main DPN namespace, `ns-dpn-dp-01` (which should no longer exist after [Part 2, Step 4](#step-4--remove-the-data-pipeline-namespace)) and `ns-dpn-health-01`, if Health Monitoring Service was in scope.
 
 | Verification | Command | Expected Result |
 |-------------|---------|-----------------|

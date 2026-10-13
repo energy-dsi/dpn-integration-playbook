@@ -8,7 +8,7 @@ This document covers the installation of the **DPN Authentication Service** — 
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Deploy this before components that authenticate against it.** The Federator Gateway's Kafka brokers (`kafka.authMode: sasl_ssl`) and the DPN observability UIs (kafka-ui, Airflow, OpenSearch Dashboards, Jaeger, Perses, Portal, and the Federator Gateway's Job Runner dashboards) authenticate against the realm this service creates. Deploy the Authentication Service first.
+**Deploy this before components that authenticate against it.** The Federator Gateway's Kafka brokers (`kafka.authMode: sasl_ssl`) and the DPN observability UIs (kafka-ui, OpenSearch Dashboards, Jaeger, Perses, Portal, and the Federator Gateway's Job Runner dashboards) authenticate against the realm this service creates. Deploy the Authentication Service first.
 
 ---
 
@@ -62,7 +62,7 @@ In summary the following must be in place:
 
 **Note:** Organisations must review the CD workflow for the following before relying on it.
 
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui/airflow) — a mismatch does not fail the pipeline, it fails login for every dependent UI
+- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui) — a mismatch does not fail the pipeline, it fails login for every dependent UI
 - The environment parameters point to the correct deployment environment
 - Required firewall rules are applied (outbound access to the container registry, and inbound from consuming namespaces to the internal load balancer)
 
@@ -141,10 +141,10 @@ The Deploy job runs `charts/keycloak/scripts/configure-keycloak.sh` automaticall
 |---|---|
 | `dpn-realm` realm | Session/audit settings (`ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`, event retention), custom login theme and header branding (`KC_LOGIN_THEME`/`KC_DISPLAY_NAME_HTML`) |
 | `DPN-Client` (machine-to-machine) | Client-credentials-only client for service-to-service calls; realm roles mapped onto its service account |
-| `dpn-service-client` | Shared OIDC client used by every DPN UI — kafka-ui, Airflow, the Federator Gateway's Job Runner dashboards directly; OpenSearch Dashboards/Jaeger/Perses/Portal via their `oauth2-proxy` sidecars |
-| Realm roles / groups | `dpnreader`/`dpn-readers`, `dpnadmin`/`dpn-admins`, and now **`dpnoperator`/`dpn-operators`** — trigger/enable/disable DAGs and manage task state without edit/delete rights |
+| `dpn-service-client` | Shared OIDC client used by every DPN UI — kafka-ui, the Federator Gateway's Job Runner dashboards directly; OpenSearch Dashboards/Jaeger/Perses/Portal via their `oauth2-proxy` sidecars |
+| Realm roles / groups | `dpnreader`/`dpn-readers`, `dpnadmin`/`dpn-admins`, and now **`dpnoperator`/`dpn-operators`** |
 
-**On AWS specifically**, before running `configure-keycloak.sh` the workflow resolves each UI's *real* LoadBalancer hostname (Airflow, Jaeger, OpenSearch Dashboards, Perses, Portal, Kafka UI) via `kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'` and passes it in as the matching `KC_UI_HOST_*` environment variable — without this, every UI defaults to an unreachable internal placeholder and every real login fails with `Invalid parameter: redirect_uri`. A UI not yet deployed is simply left at the script's own placeholder default rather than failing the step. This lookup step is specific to the AWS code path; on Azure the equivalent hostname resolution is not yet wired into the workflow, so every `KC_UI_HOST_*` value is left at the script's own placeholder default until that is added — confirm manually that the redirect URIs cover every deployed UI's actual internal Load Balancer IP/hostname.
+**On AWS specifically**, before running `configure-keycloak.sh` the workflow resolves each UI's *real* LoadBalancer hostname (Jaeger, OpenSearch Dashboards, Perses, Portal, Kafka UI) via `kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'` and passes it in as the matching `KC_UI_HOST_*` environment variable — without this, every UI defaults to an unreachable internal placeholder and every real login fails with `Invalid parameter: redirect_uri`. A UI not yet deployed is simply left at the script's own placeholder default rather than failing the step. This lookup step is specific to the AWS code path; on Azure the equivalent hostname resolution is not yet wired into the workflow, so every `KC_UI_HOST_*` value is left at the script's own placeholder default until that is added — confirm manually that the redirect URIs cover every deployed UI's actual internal Load Balancer IP/hostname.
 
 Two things to confirm after every deploy:
 

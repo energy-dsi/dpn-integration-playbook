@@ -156,7 +156,6 @@ There is no ADO-style approval-check concept for GitHub Actions workflows by def
 >
 > **Discrepancies worth confirming with the platform/data-pipelines team before relying on this section:**
 > - This workflow pulls consumer images from this environment's own **attached Azure Container Registry (ACR)** (`az acr login --name "$ACR_NAME"`, image reference `<acrName>.azurecr.io/dsi/consumer-<type>-<base_name>`), **not GHCR** — unlike the rest of this doc set, where GHCR is the shared default registry on every cloud. No `ghcr-pull-secret`/`imagePullSecrets` step appears in this workflow.
-> - Its Helm-deploy logic loops over every chart directory under `blueprints/consumer/<processType>/*/charts`, and still contains explicit handling for a `schema_mapper` chart (renamed to a `mapper` release) — this suggests the consumer pathway on this specific Azure GHA workflow may not (yet) match the "single container, no separate mapper" simplified design described elsewhere in this document; the two may be out of sync.
 > - Azure authentication in this workflow reads `AZURE_CLIENT_ID`/`AZURE_TENANT_ID` directly from GitHub Actions secrets, not resolved from the environment/cluster config JSON the way `dpn-containerised-deployment-service`'s shared `cloud-login` composite action does it.
 
 ---
@@ -230,7 +229,6 @@ Expected workloads (example for the `file` pathway):
 dpn-consumer-file-extractor-xxxxxxxx-xxxxx  1/1   Running
 ```
 
-> If your consumer pathway still includes a `schema_mapper` chart per the discrepancy noted above, a `dpn-consumer-<type>-mapper-xxxxxxxx-xxxxx` pod will also appear — confirm against your actual deployed chart set rather than assuming it is absent.
 
 If oauth2-proxy is enabled, its pod also shows `Running`. Check that the UI is exposed and that the rollout completed:
 
