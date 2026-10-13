@@ -155,7 +155,7 @@ The AWS Secrets Manager names the workflows use are not config JSON keys — the
 
 #### Step 2b. Vault Helm values
 
-Set the values below in your environment/cluster's values file. . DSI proposes only these selective changes; other parameters may be customised if required.
+Set the values below in your environment/cluster's values file. DSI proposes only these selective changes; other parameters may be customised if required.
 
 ```text
 root/
