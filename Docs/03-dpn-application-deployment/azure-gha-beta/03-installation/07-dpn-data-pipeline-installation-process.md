@@ -370,4 +370,3 @@ Check that:
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
 | Oct-2026 | DSI Assurance   | Final  | V1.0.0 |
-| Oct-2026 | DSI Assurance   | Draft  | V2.0.0 |

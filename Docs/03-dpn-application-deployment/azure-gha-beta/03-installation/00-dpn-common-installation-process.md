@@ -203,7 +203,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 
 ## Common Troubleshooting Guidance
 
-### CI Pipeline Failure
+### CD Pipeline Failure
 
 Possible causes:
 
