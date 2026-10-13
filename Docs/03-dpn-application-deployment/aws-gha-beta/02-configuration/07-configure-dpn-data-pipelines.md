@@ -44,8 +44,6 @@ The data pipeline uses a **self-service, single-container design**:
 | Scheduling | Every container self-schedules (`SCHEDULER_BACKEND: interval`). No external orchestrator is required. See [Step6](#step6-configure-scheduling). |
 | Organisation and cloud | Organisation name (`DPN_ORG_NAME`) and cloud provider (`DPN_CLOUD_PROVIDER: aws`) are platform-level settings of the Self-Service UI, not chosen per product. |
 
-The data pipeline source, blueprints and Helm charts live in the central `dpn-containerised-deployment-service` repository under the `dpn-data-pipelines/` folder, and are deployed by the GitHub Actions workflows in the same repository (see the [installation guide](../03-installation/07-dpn-data-pipeline-installation-process.md)).
-
 > **Upgrading from an earlier release: existing data products are not imported.** Data products deployed by earlier releases as separate per-product producer/consumer Helm releases are not discovered by the Self-Service UI. Each must be **recreated** through the UI following [Step1](#step1-setup-a-new-data-product-self-service). The UI only accepts bucket and topic names that do not exist yet, so a recreated product cannot attach to the old product's buckets or topics.
 
 ## Data Pipeline Blueprints
@@ -53,17 +51,16 @@ The data pipeline source, blueprints and Helm charts live in the central `dpn-co
 DSI provides one blueprint per pathway and side. Each contains the container source, a Dockerfile and a **reference** Helm chart with per-environment AWS values files. The Self-Service UI has its own chart under `service/charts`.
 
 ```text
-dpn-containerised-deployment-service/
-  └── dpn-data-pipelines/
-        ├── blueprints/
-        │     ├── producer/
-        │     │     ├── file/adaptor/                 (main.py, Dockerfile, charts/)
-        │     │     └── topic/adaptor/                (main.py, Dockerfile, charts/)
-        │     └── consumer/
-        │           ├── file/extractor/               (main.py, Dockerfile, charts/)
-        │           └── topic/extractor/              (main.py, Dockerfile, charts/)
-        └── service/
-              └── charts/                             <- Self-Service UI chart
+root/
+  └ blueprints/
+  │     ├── producer/
+  │     │     ├── file/adaptor/                 (main.py, Dockerfile, charts/)
+  │     │     └── topic/adaptor/                (main.py, Dockerfile, charts/)
+  │     └── consumer/
+  │           ├── file/extractor/               (main.py, Dockerfile, charts/)
+  │           └── topic/extractor/              (main.py, Dockerfile, charts/)
+  └── service/
+        └── charts/                             <- Self-Service UI chart
 
 Each charts/ folder:
   charts/
@@ -524,3 +521,4 @@ The file pathway notification message follows the convention below. This enables
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

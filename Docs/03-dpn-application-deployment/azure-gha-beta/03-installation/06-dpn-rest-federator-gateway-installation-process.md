@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN REST Federator Gateway Installation Process
 
 This document covers the installation of the **DPN REST Federator Gateway** (the REST/HTTPS federation gateway and its `dpn-redis` cache) into a single target environment and a single DPN cluster on Azure Kubernetes Service (AKS).

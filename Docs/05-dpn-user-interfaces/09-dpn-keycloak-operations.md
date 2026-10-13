@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Keycloak User Guide
 
 > **Audience:** Administrator of Operations team to manage (create/update/delete) users for DPN UI interfaces.

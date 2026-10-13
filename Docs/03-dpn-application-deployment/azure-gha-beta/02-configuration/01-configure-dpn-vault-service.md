@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Vault Service Configuration
 
 This section describes how to configure **DPN HashiCorp Vault service**. HashiCorp Vault is the secret store used by DPN Certificate Manager to hold Intermediate CA, CA chain, key pair, certificate, and keystore/truststore passwords. These secrets are used to build the certificate P12 files for mutual TLS (mTLS).

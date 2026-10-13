@@ -39,7 +39,7 @@ This document provides step-by-step instructions for installing and deploying **
 
 The deployment uses the following repository:
 
-- https://github.com/energy-dsi/dpn-containerised-deployment-service.git — the data pipeline source, blueprints and Helm charts live under its `dpn-data-pipelines/` folder, and the CD workflows under `.github/workflows/`
+- https://github.com/energy-dsi/dpn-containerised-deployment-service.git — the data pipeline source, blueprints and Helm charts live under its `dpn-data-pipelines/` folder, and the CD workflows under `.pipelines/github-action-pipelines/workflows/`
 
 The deployment process consists of:
 
@@ -120,8 +120,8 @@ Ensure the following prerequisites are completed before deployment:
 All CD workflows, their per-cloud configuration and the charts they deploy live in the central repository:
 
 ```
-dpn-containerised-deployment-service/
-├── .github/
+.pipelines/
+├── github-action-pipelines/
 │   ├── workflows/
 │   │   ├── dpn-self-service-cd.yml             <- DPN CD - Self-Service Data Pipelines (standard path)
 │   │   ├── dpn-self-service-rollback.yml       <- DPN Rollback - Self-Service Data Pipelines
@@ -137,7 +137,7 @@ dpn-containerised-deployment-service/
     └── service/charts/values/aws/<environment>-<cluster>.yaml
 ```
 
-`dpn-self-service-cd.yml` reads `.github/config/aws/<environment>-<cluster>.json` (`AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `IMAGE_REGISTRY`, and the optional `OAUTH2_PROXY_EXTERNAL_URL`) and logs in through the shared `cloud-login` action with `cloud: aws`.
+`dpn-self-service-cd.yml` reads `.pipelines/github-action-pipelines/config/aws/<environment>-<cluster>.json` (`AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `IMAGE_REGISTRY`, and the optional `OAUTH2_PROXY_EXTERNAL_URL`) and logs in through the shared `cloud-login` action with `cloud: aws`.
 
 ---
 

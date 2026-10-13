@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Deployment Configuration Guide
 
 ---
@@ -102,8 +104,8 @@ During deployment, the pipeline performs the following steps:
 DSI provides predefined endpoints to support the following environments:
 
 - Development
-- Integration Testing (upcoming)
-- Pre-Production (upcoming)
+- Integration Testing
+- Pre-Production
 
 These endpoints are publicly accessible to simplify integration and testing. Organisations must configure their pipelines to use the **appropriate endpoint for the corresponding deployment environment** as provided by DSI.
 
@@ -113,6 +115,14 @@ These endpoints are publicly accessible to simplify integration and testing. Org
 | Pre Production-Dev (pdev)| Management Node | https://management.dsm01.dsipreprod1.neso.energy |
 | Pre Production-Dev (pdev)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod1.neso.energy |
 | Pre Production-Dev (pdev)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod1.neso.energy |
+| Pre Production-test (ptest) | Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
+| Pre Production-test (ptest)| Management Node | https://management.dsm01.dsipreprod2.neso.energy |
+| Pre Production-test (ptest)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod2.neso.energy |
+| Pre Production-test (ptest)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod2.neso.energy |
+| Pre Production-uat (puat) | Authentication | https://auth-mtls.dsm01.dsipreprod3.neso.energy |
+| Pre Production-uat (puat)| Management Node | https://management.dsm01.dsipreprod3.neso.energy |
+| Pre Production-uat (puat)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod3.neso.energy |
+| Pre Production-uat (puat)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod3.neso.energy |
 
 ---
 

@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Vault Service Installation Process
 
 This document covers the installation of the **DPN HashiCorp Vault service** into a single target environment on Azure Kubernetes Service (AKS).

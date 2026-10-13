@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Data Pipeline Configuration
 
 ---
@@ -42,11 +44,6 @@ From release **3.0.0** the data pipeline is a **simplified, single-container des
 | Consumers | Fixed platform pipelines: exactly **one file extractor and one topic extractor** per platform. They receive every subscribed data product and need no per-product configuration. |
 | Scheduling | Every container self-schedules (`SCHEDULER_BACKEND=interval`). No external orchestrator is required. See [STEP-06](#step-06-configure-scheduling). |
 | Organisation and cloud | Organisation name and cloud provider are platform-level settings, not chosen per product. |
-
-> **Upgrading from a release before 2.1.0: existing data products are not imported.** Data products created before DPN release 2.1.0 were deployed as separate per-product producer/consumer Helm releases (an adaptor and a schema mapper per product). The Self-Service UI does **not** discover or import these releases; its product registry only holds products created through the UI. Each existing data product must be **recreated (rehosted) manually** through the Self-Service UI, following [STEP-01](#step-01-set-up-a-new-data-product-self-service) and the [DPN Data Pipeline UI Operations guide](../../../05-dpn-user-interfaces/11-dpn-data-pipeline-ui-operations.md).
->
-> - The UI only accepts storage container and Kafka topic names that do not exist yet, so a recreated product cannot attach to the old product's containers or topics. Confirm new names at the review step and update anything that writes to or reads from the old names.
-> - Once each recreated product is running and verified, remove the old per-product releases as described in [Uninstall DPN Data Pipeline](../05-uninstall/05-uninstall-decommissioning.md#part-2--uninstall-dpn-data-pipeline).
 
 The four pipeline containers are:
 
@@ -334,7 +331,7 @@ Each producer adaptor and consumer extractor can scale horizontally through the 
 | PIPELINE_CONTROL_TOPIC | Trigger topic, `kafka-trigger` only | `dpn-pipeline-control` |
 | PIPELINE_STATUS_TOPIC | Status topic, `kafka-trigger` only | `dpn-pipeline-status` |
 
-> **Note:** Do not set `kafka-trigger` unless something publishes to `PIPELINE_CONTROL_TOPIC`. Without a publisher the pod waits indefinitely and `automatic` mode never runs a cycle. The consumer charts were deliberately moved to `interval` for this reason.
+> **Note:** Do not set `kafka-trigger` unless something publishes to `PIPELINE_CONTROL_TOPIC`. Without a publisher the pod waits indefinitely and `automatic` mode never runs a cycle. The consumer charts were deliberately moved to `interval` for this reason. This also replaces the Airflow-orchestrated scheduling previously documented here — Airflow is no longer part of this component's supported configuration.
 
 ## STEP-07: Operate a Data Product
 
@@ -359,8 +356,6 @@ The product registry is a JSON file on a persistent volume, mirrored to cloud st
 ## STEP-08: Configure Secrets
 
 DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Storage credentials and Kafka authentication material are separate concerns.
-
-> **New environment:** create these secrets once in every new environment, then restart the data pipeline pods so they pick them up. See [One-time setup for a new environment](../03-installation/07-dpn-data-pipeline-installation-process.md#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
 
 ### STEP-08a: Configure Storage Secrets
 
