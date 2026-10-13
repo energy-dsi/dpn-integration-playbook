@@ -52,7 +52,7 @@ Kafka connection, Keycloak token endpoint **and OpenTelemetry settings are preco
 |-----------|-------------------------|----------------|
 | OTEL_EXPORTER_OTLP_ENDPOINT | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` | Your OTel collector runs at a different address. The port is `4318` when `OTEL_EXPORTER_OTLP_INSECURE` is `false`, and `4317` when it is `true` |
 | OTEL_EXPORTER_OTLP_INSECURE | `false` | Plaintext transport is required. Change the endpoint port to `4317` at the same time |
-| OTEL_OAUTH_DISABLED | `false` | Dev/test only, to skip OAuth to the collector. Never in production |
+| OTEL_OAUTH_DISABLED | `false` | Keep `false` in **all environments**. Setting it to `true` turns OAuth off, so the pipelines would no longer authenticate to the OTel collector |
 
 For the Self-Service UI, the same parameters are named `DPN_OTEL_EXPORTER_OTLP_ENDPOINT`, `DPN_OTEL_EXPORTER_OTLP_INSECURE` and `DPN_OTEL_OAUTH_DISABLED`.
 
