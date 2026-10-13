@@ -57,7 +57,7 @@ Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed**, with this gateway's endpoint included in the certificate's SANs | e.g. `producer-rest01.<dpn>...` alongside the gRPC Federator's `producer.<dpn>...`/`consumer.<dpn>...` — see [Configure DPN Certificate Manager, Step3a](03-configure-dpn-certificate-manager.md#step3a-set-up-helm-values) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-gha-vault-tls-bootstrap-cd.yml` workflow; trusts Vault's HTTPS endpoint |
 | 4 | **Vault authentication configured — root token today**, AppRole once available | See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication) |
 | 5 | **DPN Authentication Service (Keycloak) reachable** | Inbound JWTs are validated against its JWKS endpoint. See [Configure DPN Authentication Service](07-configure-dpn-authentication-service.md) |
 | 6 | **AKS cluster** | AKS cluster name |
@@ -165,7 +165,7 @@ The managed identity and its federated credential (scoped to `system:serviceacco
 
 ## Step4: Configure Deployment Parameters
 
-Deployed with the `dpn-rest-federator-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`:
+Deployed with the `dpn-gha-rest-federator-cd.yml` GitHub Actions workflow in `dpn-rest-federator-gateway`:
 
 ```text
 root/
@@ -183,7 +183,7 @@ The workflow runs two jobs in order, each independently re-runnable: **deploy-re
 |-----------|-------------|
 | `environment` | `dev` / `test` |
 | `cluster` | The target DPN cluster — `dpn01` or `dpn02` |
-| `cloud` | Target cloud provider — `azure`, `aws`, or `gcp` (gcp not yet supported — config pending). Resolves `.github/config/<cloud>/<environment>-<cluster>.json` |
+| `cloud` | Target cloud provider — `azure`, `aws`, or `gcp` (gcp not yet supported — config pending). Resolves `.pipelines/github-actions-pipelines/config/<cloud>/<environment>-<cluster>.json` |
 | `imageTag` | Tag of the REST Federator Server image to deploy |
 | `imageRepository` | Image path after `ghcr.io/energy-dsi/` — leave blank to use the environment's configured registry (`BASE_REGISTRY` on Azure, `IMAGE_REGISTRY` on AWS) |
 
@@ -229,4 +229,4 @@ See the `dpn-rest-federator-gateway` repository's `demo/demo-runner-client` for 
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

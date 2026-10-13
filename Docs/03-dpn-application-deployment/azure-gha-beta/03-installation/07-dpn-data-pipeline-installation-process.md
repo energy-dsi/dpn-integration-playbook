@@ -51,7 +51,7 @@ The deployment process consists of:
   > **Registry discrepancy, unresolved as of this writing:** CI pushes all five images to GHCR, but the confirmed Azure consumer CD workflow (see [STEP-02b](#step-02b-execute-data-pipeline-cd-workflow)) pulls from this environment's own attached **ACR** instead, with its own image-naming scheme (`consumer-<type>-<base_name>`, no `dpn-` prefix). Whether images are mirrored from GHCR into ACR by a separate process, or the Azure consumer workflow is simply out of date, was not established — confirm with the platform team before assuming either registry is authoritative end-to-end.
 
 - **Continuous Deployment (CD)** — deploys into **Azure Kubernetes Service (AKS)** using Helm:
-  - the two **consumer pipelines** (one file extractor, one topic extractor), via the confirmed GitHub Actions workflow `dpn-gha-cd-data-pipelines.yml`.
+  - the two **consumer pipelines** (one file extractor, one topic extractor), via the confirmed GitHub Actions workflow `dpn-cd-data-pipelines.yml`.
 
 **Producer data products are not deployed by either workflow.** They are created at runtime from the already-running Self-Service UI, which launches the generic producer image with that product's configuration (see [STEP-03](#step-03-create-the-first-data-product) and the [Configuration Guide](../02-configuration/07-configure-dpn-data-pipelines.md#step-01-set-up-a-new-data-product-self-service)). No per-product CI/CD run, folder copy or image build is required.
 
@@ -135,10 +135,10 @@ root/
     └── github-actions-pipelines/
         └── azure-pipelines/
             └── workflows/
-                └── dpn-gha-cd-data-pipelines.yml
+                └── dpn-cd-data-pipelines.yml
 ```
 
-> **Config file path is unconfirmed/inconsistent as of this writing.** The workflow's own `PARAMETERS_FILE` env var reads from `.pipelines/github-action-pipelines/config/<environment>-<cluster>.json` (no per-cloud subfolder, unlike the shared `.pipelines/github-actions-pipelines/config/azure/...` convention used by the other DPN components in `dpn-containerised-deployment-service`), but no `.pipelines/github-action-pipelines/config/` directory actually exists in this repository — the checked-in config JSON files instead live at `.pipelines/github-actions-pipelines/azure-pipelines/config/<environment>-<cluster>.json`. This looks like a real discrepancy between the workflow and the repo layout, not a documentation gap on our side — confirm the correct path with the platform team before running this workflow for the first time in a new environment.
+> **Config file path is unconfirmed/inconsistent as of this writing.** The workflow's own `PARAMETERS_FILE` env var reads from `.github/config/<environment>-<cluster>.json` (no per-cloud subfolder, unlike the shared `.pipelines/github-actions-pipelines/config/azure/...` convention used by the other DPN components repos), but no `.github/config/` directory actually exists in this repository — the checked-in config JSON files instead live at `.pipelines/github-actions-pipelines/azure-pipelines/config/<environment>-<cluster>.json`. This looks like a real discrepancy between the workflow and the repo layout, not a documentation gap on our side — confirm the correct path with the platform team before running this workflow for the first time in a new environment.
 
 ---
 
@@ -150,11 +150,11 @@ There is no ADO-style approval-check concept for GitHub Actions workflows by def
 
 ## STEP-02: Install DPN Data Pipeline
 
-> **This step covers the two consumer pipelines only** (confirmed via the real `dpn-gha-cd-data-pipelines.yml` workflow). The Self-Service UI must already be deployed separately — see the gap callout in the [Overview](#overview) — before [STEP-03](#step-03-create-the-first-data-product) can be exercised.
+> **This step covers the two consumer pipelines only** (confirmed via the real `dpn-cd-data-pipelines.yml` workflow). The Self-Service UI must already be deployed separately — see the gap callout in the [Overview](#overview) — before [STEP-03](#step-03-create-the-first-data-product) can be exercised.
 >
 > **Discrepancies worth confirming with the platform/data-pipelines team before relying on this section:**
 > - This workflow pulls consumer images from this environment's own **attached Azure Container Registry (ACR)** (`az acr login --name "$ACR_NAME"`, image reference `<acrName>.azurecr.io/dsi/consumer-<type>-<base_name>`), **not GHCR** — unlike the rest of this doc set, where GHCR is the shared default registry on every cloud. No `ghcr-pull-secret`/`imagePullSecrets` step appears in this workflow.
-> - Azure authentication in this workflow reads `AZURE_CLIENT_ID`/`AZURE_TENANT_ID` directly from GitHub Actions secrets, not resolved from the environment/cluster config JSON the way `dpn-containerised-deployment-service`'s shared `cloud-login` composite action does it.
+> - Azure authentication in this workflow reads `AZURE_CLIENT_ID`/`AZURE_TENANT_ID` directly from GitHub Actions secrets, not resolved from the environment/cluster config JSON the way `dpn-data-pipelines`'s shared `cloud-login` composite action does it.
 
 ---
 
@@ -174,7 +174,7 @@ root/
     └── github-actions-pipelines/
         └── azure-pipelines/
             └── workflows/
-                └── dpn-gha-cd-data-pipelines.yml
+                └── dpn-cd-data-pipelines.yml
 ```
 
 Provide the following parameters:
@@ -369,5 +369,5 @@ Check that:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |
 | Oct-2026 | DSI Assurance   | Draft  | V2.0.0 |

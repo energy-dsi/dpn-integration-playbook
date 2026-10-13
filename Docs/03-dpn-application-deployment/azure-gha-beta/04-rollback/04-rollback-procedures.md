@@ -63,11 +63,11 @@ The distinction matters for what actually gets reverted:
 
 | Component | Standard CD workflow (Strategy 1) | Dedicated rollback workflow (Strategy 2) | 
 |-----------|--------------------------------------|-----------------------------------------------|
-| DPN Data Pipeline | `dpn-gha-data-pipelines-cd.yaml` | None — manual `helm rollback` only |
-| DPN Federator Gateway | `dpn-gha-federator-gateway-cd.yaml` | None — manual `helm rollback` only |
-| DPN Federator Certificate Manager | `dpn-gha-certificate-manager-cd.yaml` | None — manual `helm rollback` only |
-| DPN File Scanning Service | `dpn-gha-file-scan-cd.yaml` | None — manual `helm rollback` only |
-| DPN Health Monitoring Service | `dpn-gha-health-monitoring-cd-install.yaml` (orchestrator — the 10 per-component workflows are `workflow_call`-only and can't be triggered standalone) | None — manual `helm rollback` per sub-component release |
+| DPN Data Pipeline | `dpn-cd-data-pipelines.yml` | None — manual `helm rollback` only |
+| DPN Federator Gateway | `dpn-gha-federator-gateway-cd.yml` | None — manual `helm rollback` only |
+| DPN Federator Certificate Manager | `dpn-gha-certificate-manager-cd.yml` | None — manual `helm rollback` only |
+| DPN File Scanning Service | `dpn-gha-file-scan-cd.yml` | None — manual `helm rollback` only |
+| DPN Health Monitoring Service | `dpn-gha-health-monitoring-cd-install.yml` (orchestrator — the 10 per-component workflows are `workflow_call`-only and can't be triggered standalone) | None — manual `helm rollback` per sub-component release |
 
 ---
 
@@ -176,7 +176,7 @@ kubectl rollout status deployment/$RELEASE_NAME -n <namespace> --timeout=180s
 
 ## Part 2 — DPN Federator Gateway Rollback
 
-**Strategy 1 — standard CD workflow (`dpn-gha-federator-gateway-cd.yaml`):** re-run with an older `imageTag`. Since this workflow deploys the entire `dpn-platform` release together (Zookeeper Source/Target, Kafka Source/Target, Kafka UI, Redis, Federator Server, Federator Client), redeploying an old tag rebuilds the whole platform release at that image version, not just one sub-component.
+**Strategy 1 — standard CD workflow (`dpn-gha-federator-gateway-cd.yml`):** re-run with an older `imageTag`. Since this workflow deploys the entire `dpn-platform` release together (Zookeeper Source/Target, Kafka Source/Target, Kafka UI, Redis, Federator Server, Federator Client), redeploying an old tag rebuilds the whole platform release at that image version, not just one sub-component.
 
 If only one sub-component's image needs to change, target it directly instead of using the platform-wide workflow:
 
@@ -205,7 +205,7 @@ helm history dpn-platform -n <namespace>
 
 ## Part 3 — DPN Federator Certificate Manager Rollback
 
-**Strategy 1 — standard CD workflow (`dpn-gha-certificate-manager-cd.yaml`):** re-run with an older `imageTag`.
+**Strategy 1 — standard CD workflow (`dpn-gha-certificate-manager-cd.yml`):** re-run with an older `imageTag`.
 
 **Strategy 2 — manual Helm revision rollback:**
 
@@ -228,7 +228,7 @@ kubectl -n <namespace> exec <pod-name> -- ls /tls
 
 There is no dedicated rollback workflow for the File Scanning Service — use the standard CD workflow for Strategy 1, and manual Helm commands for Strategy 2, per [Rollback Strategy](#rollback-strategy) and [Rollback Workflow Availability by Component](#rollback-workflow-availability-by-component).
 
-**Strategy 1 — re-run `dpn-gha-file-scan-cd.yaml` with an older `imageTag`:**
+**Strategy 1 — re-run `dpn-gha-file-scan-cd.yml` with an older `imageTag`:**
 
 ```bash
 kubectl set image deployment/dpn-file-scan-service \

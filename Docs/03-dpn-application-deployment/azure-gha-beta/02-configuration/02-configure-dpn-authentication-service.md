@@ -144,7 +144,7 @@ Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past
 
 ## Step5: Configure Deployment Parameters
 
-Deployed with the `dpn-keycloak-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`:
+Deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow in `dpn-authentication-service`:
 
 ```text
 root/

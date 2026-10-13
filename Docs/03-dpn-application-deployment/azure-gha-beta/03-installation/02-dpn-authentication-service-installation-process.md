@@ -59,7 +59,7 @@ In summary the following must be in place:
 - AKS cluster, and either an identity that can reach Azure Key Vault (via the Secrets Store CSI driver / workload identity) or an IRSA-annotated ServiceAccount for AWS Secrets Manager (`secretsManager.enabled: true`)
 - `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret)
 - Five secrets populated in the chosen backend: `KC-DB-PASSWORD`/`KC_DB_PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`/`KEYCLOAK_ADMIN_PASSWORD`, `KEYSTORE-PASSWORD`/`KC_HTTPS_KEY_STORE_PASSWORD`, `TRUSTSTORE-PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD`, `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET`
-- `.github/config/azure/<environment>-<cluster>.json` and `values/azure/<environment>-<cluster>.yaml` populated, **with `cloudProvider: azure` set** — this is the chart's own default, so AKS deployments normally need no override here; it only matters if a values file was copied over from an AWS environment and left the AWS-style annotation in place, which AKS does not recognise
+- `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` and `values/azure/<environment>-<cluster>.yaml` populated, **with `cloudProvider: azure` set** — this is the chart's own default, so AKS deployments normally need no override here; it only matters if a values file was copied over from an AWS environment and left the AWS-style annotation in place, which AKS does not recognise
 - Target namespace created (the workflow does not create it)
 
 **Note:** Organisations must review the CD workflow for the following before relying on it.
@@ -216,4 +216,4 @@ Keycloak is a **StatefulSet**, not a Deployment (PostgreSQL remains a Deployment
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-------------------|--------|---------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

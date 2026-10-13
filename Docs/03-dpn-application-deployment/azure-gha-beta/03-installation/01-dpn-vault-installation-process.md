@@ -111,4 +111,4 @@ The kubectl logs should not showcase any [error] message if the deployment is su
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

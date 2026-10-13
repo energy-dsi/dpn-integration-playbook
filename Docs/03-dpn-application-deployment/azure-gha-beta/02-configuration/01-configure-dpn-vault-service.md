@@ -8,7 +8,7 @@ DSI provides an **automated method** (GitHub Actions workflows) that generates V
 
 > **Environment and cluster:** These instructions target one `<environment>`/`<cluster>` combination (`dev`/`test` × `dpn01`/`dpn02`). Substitute your actual values in:
 >
-> - config file `.github/config/azure/<environment>-<cluster>.json`
+> - config file `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json`
 > - values file `<chart-dir>/values/azure/<environment>-<cluster>.yaml`
 >
 > Repeat the deployment once per environment/cluster combination you run — don't merge multiple environments into one file.
@@ -140,7 +140,7 @@ Ensure the following are in place **before** running any workflow:
 | 5 | **Environment config and values files populated** | See [Step 2](#step-2-reference-configuration-data-populate-before-deployment) |
 | 6 | **DSM-signed client bundle available** | The client private key, DSM-signed certificate, and CA chain — loaded in [Step 3C](#step-3c-configure-certificate-bundle-dpn-gha-vault-load-bundle-cdyml) |
 
-> **One-time setup:** Before running any workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration). In particular the workflows **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), populate `.github/config/azure/<environment>-<cluster>.json`, and (for the bundle load) set the required GitHub Actions secrets.
+> **One-time setup:** Before running any workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration). In particular the workflows **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), populate `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json`, and (for the bundle load) set the required GitHub Actions secrets.
 
 ---
 
@@ -150,7 +150,7 @@ Two files must be populated for each environment/cluster combination. **Use your
 
 #### Step 2a. Environment config JSON
 
-The workflows resolve environment settings from `.github/config/azure/<environment>-<cluster>.json` (see [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration)). Vault uses the following keys:
+The workflows resolve environment settings from `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` (see [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration)). Vault uses the following keys:
 
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|
@@ -193,7 +193,7 @@ root/
 
 ### Step 3: Deployment Configuration
 
-Trigger the following workflows in order, via **Actions → &lt;workflow name&gt; → Run workflow** . Each resolves `.github/config/azure/<environment>-<cluster>.json` and the matching Helm values file automatically from the `environment`/`cluster`/`cloud` inputs.
+Trigger the following workflows in order, via **Actions → &lt;workflow name&gt; → Run workflow** . Each resolves `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` and the matching Helm values file automatically from the `environment`/`cluster`/`cloud` inputs.
 
 #### Step 3A: Configure Bootstrap Vault TLS (`dpn-gha-vault-tls-bootstrap-cd.yml`)
 
@@ -210,7 +210,7 @@ This workflow generates a Root CA, the Vault server certificate/key, and the Cer
 | `org` | CSR subject Organisation (O) — default `DSI` |
 | `sans` | Comma-separated DNS SANs for the Vault URL. **Must include the internal Kubernetes DNS name**, e.g. `vault-https.<namespace>.svc.cluster.local` |
 
-> **Truststore password comes from a repository secret, not a workflow input.** The truststore password is read from the repository secret `DPN_TLS_TRUSTSTORE_PASSWORD` (the same secret `dpn-tls-cd.yaml` uses) and published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD`. There is no `truststorePassword` workflow input — GitHub Actions has no secret-typed `workflow_dispatch` input, and a plain string input would always be visible in the "Run workflow" form regardless of log masking. Set `DPN_TLS_TRUSTSTORE_PASSWORD` as a repository (or environment) secret before running this workflow.
+> **Truststore password comes from a repository secret, not a workflow input.** The truststore password is read from the repository secret `DPN_TLS_TRUSTSTORE_PASSWORD` (the same secret `dpn-gha-tls-cd.yml` uses) and published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD`. There is no `truststorePassword` workflow input — GitHub Actions has no secret-typed `workflow_dispatch` input, and a plain string input would always be visible in the "Run workflow" form regardless of log masking. Set `DPN_TLS_TRUSTSTORE_PASSWORD` as a repository (or environment) secret before running this workflow.
 
 On completion it publishes:
 - `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` → Azure Key Vault

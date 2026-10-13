@@ -30,7 +30,7 @@ Release : 2.1.0 - Oct 2026
 
 ## Overview
 
-This document is the starting point for installing and deploying **DPN components into an Azure environment** using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, run with `cloud: azure`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
+This document is the starting point for installing and deploying **DPN components into an Azure environment** using the **GitHub Actions pipelines in each component's own ADO repository**, run with `cloud: azure`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
 
 The deployment uses the following repositories:
 
@@ -333,4 +333,4 @@ Verify that the mutual TLS certificates are correctly loaded in Vault and that t
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

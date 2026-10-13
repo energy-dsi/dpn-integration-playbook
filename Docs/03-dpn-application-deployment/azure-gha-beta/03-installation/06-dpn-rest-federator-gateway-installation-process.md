@@ -151,7 +151,7 @@ A common error caused by a password mismatch. Follow the Certificate Manager tro
 
 ### Pod CrashLoop on First Deploy — Empty Truststore Password
 
-If the pod fails immediately with a PKCS12/JKS load error on truststore construction, `certificate-manager-secrets` most likely didn't exist in the namespace when this chart was rendered — the config's `vault.truststore.password` is resolved via a Helm `lookup` against that secret at render time, not read live at pod start-up. Deploy Certificate Manager first, then re-run `dpn-rest-federator-cd.yml` so the config is re-rendered with the real password.
+If the pod fails immediately with a PKCS12/JKS load error on truststore construction, `certificate-manager-secrets` most likely didn't exist in the namespace when this chart was rendered — the config's `vault.truststore.password` is resolved via a Helm `lookup` against that secret at render time, not read live at pod start-up. Deploy Certificate Manager first, then re-run `dpn-gha-rest-federator-cd.yml` so the config is re-rendered with the real password.
 
 ### 403 from the Backend
 
@@ -185,4 +185,4 @@ There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |
