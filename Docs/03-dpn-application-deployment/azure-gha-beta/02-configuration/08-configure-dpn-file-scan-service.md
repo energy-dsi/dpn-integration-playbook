@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN File Scan Service Configuration 
 
 This section describes how to configure and deploy the **DPN File Scan Service** on Azure. Unlike the AWS deployment (which uses Amazon GuardDuty Malware Protection for S3 and an SNS → SQS fan-out), the Azure path uses **Microsoft Defender for Storage** malware scanning on an Azure Storage Account, and the service consumes Defender's scan-result verdict events via an **Event Grid → Service Bus** fan-out rather than polling a scan API directly.

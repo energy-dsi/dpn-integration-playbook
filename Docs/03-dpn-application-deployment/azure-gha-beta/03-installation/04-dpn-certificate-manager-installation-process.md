@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Certificate Manager Installation Process
 
 This document covers the installation of the **DPN Federator Certificate Manager (CLM)** into a single target environment on Azure Kubernetes Service (AKS).
