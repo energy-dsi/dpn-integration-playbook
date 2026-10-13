@@ -46,7 +46,7 @@ Update **only** the values below in `values.yaml`, per environment.
 
 ### Observability (all components)
 
-Kafka connection, Keycloak token endpoint **and OpenTelemetry settings are preconfigured** and are not participant settings. Keep the defaults shown below. **Do not change them** unless your health monitoring deployment differs from the standard setup (for example, a collector in a different namespace or plaintext transport).
+OpenTelemetry settings are **preconfigured** and are not participant settings. Keep the defaults shown below. **Do not change them** unless your health monitoring deployment differs from the standard setup (for example, a collector in a different namespace or plaintext transport).
 
 | Parameter | Default (do not change) | Change only if |
 |-----------|-------------------------|----------------|
