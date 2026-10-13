@@ -101,7 +101,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow**, and supply:
 | `cloud` | `aws` |
 | `imageTag` | Required — the image tag from Step3a |
 
-There is no image-repository input — the repository comes from `image.repository` in the values file (`ghcr.io/energy-dsi/1.0.1/dpn-file-scan-service`).
+There is no image-repository input — the repository comes from `image.repository` in the values file (`ghcr.io/energy-dsi/dpn-file-scan-service`).
 
 Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml` in the central `dpn-containerised-deployment-service` repository. It loads `.github/config/aws/<environment>-<cluster>.json`, logs in via the `.github/actions/cloud-login` composite action, runs `helm lint` and a `--dry-run`, then `helm upgrade --install dpn-file-scan-service dpn-file-scan/charts/file-scan-service` with `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` (no `--wait`; it polls `kubectl rollout status` up to 5 times instead), and finally publishes the deployed image digest as the `deployed-image-digest` workflow artifact.
 
@@ -165,7 +165,7 @@ File scan service image found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-file-scan-service | `ghcr.io/energy-dsi/1.0.1/dpn-file-scan-service` | `e.g. 1.0.0` |
+| dpn-file-scan-service | `ghcr.io/energy-dsi/dpn-file-scan-service` | `e.g. 1.0.0` |
 
 Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-gha-file-scan-cd.yml` already deploys from this image by default.
 
@@ -176,3 +176,4 @@ Image access setup and the workflow trigger are covered in [Step3](#step3-execut
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

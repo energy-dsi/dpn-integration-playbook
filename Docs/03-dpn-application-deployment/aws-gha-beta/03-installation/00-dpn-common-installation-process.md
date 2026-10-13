@@ -31,23 +31,6 @@
 
 This document is the starting point for installing and deploying **DPN components into an AWS environment via the GitHub Actions pipeline**, run with the workflow input `cloud: aws`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
 
-The deployment uses the central CD repository, which contains every CD workflow and the Helm charts for every DPN component:
-
-- https://github.com/energy-dsi/dpn-containerised-deployment-service.git
-
-The component source repositories below are used for CI (building container images) only — their Helm charts are no longer used for deployment:
-
-- https://github.com/energy-dsi/dpn-federator.git
-- https://github.com/energy-dsi/dpn-federator-certificate-manager.git
-- https://github.com/energy-dsi/dpn-data-pipelines.git
-- https://github.com/energy-dsi/dpn-file-scan-service.git
-- https://github.com/energy-dsi/dpn-health-monitoring-service.git
-
-The deployment process consists of:
-
-- **Continuous Integration (CI)** — builds container images
-- **Continuous Deployment (CD)** — deploys images into **Amazon Elastic Kubernetes Service (EKS)**
-
 ---
 
 ## DPN Deployment Architecture
@@ -120,15 +103,11 @@ The following prerequisites must be completed before beginning the installation 
 
 ### 1. Clone and Prepare Source Repositories
 
-Clone the central CD repository from GitHub. It contains the CD workflows, the per-environment AWS config and the Helm charts for every component.
+Clone the official repositories from GitHub.
 
 ```bash
-git clone https://github.com/energy-dsi/dpn-containerised-deployment-service.git
-```
-
-Clone the component source repositories only if you build container images (CI) yourself.
-
-```bash
+git clone https://github.com/energy-dsi/dpn-rest-federator-gateway
+git clone https://github.com/energy-dsi/dpn-authentication-service
 git clone https://github.com/energy-dsi/dpn-federator.git
 git clone https://github.com/energy-dsi/dpn-federator-certificate-manager.git
 git clone https://github.com/energy-dsi/dpn-data-pipelines.git
@@ -226,7 +205,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 
 ## Common Troubleshooting Guidance
 
-### CI Pipeline Failure
+### CD Pipeline Failure
 
 Possible causes:
 
@@ -367,3 +346,5 @@ Recommended fix: Obtain the updated client secret for the Client ID from DSM by 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |
+

@@ -412,8 +412,8 @@ Data Pipeline service images are found in GHCR with following name
 |---|---|---|
 | dpn-producer-file-adaptor-generic | `ghcr.io/energy-dsi/dpn-producer-file-adaptor-generic` | `<version>` |
 | dpn-producer-topic-adaptor-generic | `ghcr.io/energy-dsi/dpn-producer-topic-adaptor-generic` | `<version>` |
-| dpn-consumer-file-extractor | `<IMAGE_REGISTRY>/dpn-consumer-file-extractor` (e.g. `ghcr.io/energy-dsi/1.0.1/dpn-consumer-file-extractor`) | `<version>` |
-| dpn-consumer-topic-extractor | `<IMAGE_REGISTRY>/dpn-consumer-topic-extractor` (e.g. `ghcr.io/energy-dsi/1.0.1/dpn-consumer-topic-extractor`) | `<version>` |
+| dpn-consumer-file-extractor | `<IMAGE_REGISTRY>/dpn-consumer-file-extractor` (e.g. `ghcr.io/energy-dsi/dpn-consumer-file-extractor`) | `<version>` |
+| dpn-consumer-topic-extractor | `<IMAGE_REGISTRY>/dpn-consumer-topic-extractor` (e.g. `ghcr.io/energy-dsi/dpn-consumer-topic-extractor`) | `<version>` |
 | dpn-self-service | `ghcr.io/energy-dsi/dpn-self-service` | `<version>` |
 
 The producer and Self-Service registry paths come from the Self-Service AWS values file (`imageRegistry`, `env.DPN_IMAGE_REGISTRY`); the consumer path comes from the config JSON's `IMAGE_REGISTRY`.
@@ -427,3 +427,4 @@ Image access setup and the workflow trigger are covered in [Step2](#step2-instal
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

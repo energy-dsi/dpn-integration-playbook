@@ -172,7 +172,7 @@ Federator Certificate Manager custom image is found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/1.0.1/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/certificate-manager/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
+| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/certificate-manager/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from this image by default.
 
@@ -183,3 +183,4 @@ There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

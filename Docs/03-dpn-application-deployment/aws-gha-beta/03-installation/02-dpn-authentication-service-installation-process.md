@@ -220,4 +220,5 @@ Keycloak is a **StatefulSet**, not a Deployment (PostgreSQL remains a Deployment
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-------------------|--------|---------|
-| — | — | Draft — pending DSI Assurance review | V0.1.0 |
+| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

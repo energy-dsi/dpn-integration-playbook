@@ -28,7 +28,7 @@ The DPN Hashicorp Vault service 3rd party platform images are found in GHCR with
 
 | Purpose | GHCR Path |
 |---|---|
-| Vault | `ghcr.io/energy-dsi/1.0.1/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/vault-https/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) |
+| Vault | `ghcr.io/energy-dsi/vault:<latest or DSI provided stable version>` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/vault-https/values/aws/<environment>-<cluster>.yaml` in the central `dpn-containerised-deployment-service` repo, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) |
 
 
 ---
@@ -57,7 +57,7 @@ Confirm the cluster nodes have outbound HTTPS access to `ghcr.io`, then test a p
 
 ```bash
 kubectl run ghcr-pull-test --rm -it \
-  --image=ghcr.io/energy-dsi/1.0.1/vault:<version> \
+  --image=ghcr.io/energy-dsi/vault:<version> \
   --namespace=<namespace> \
   --command -- echo "Image pull successful"
 ```
@@ -112,3 +112,4 @@ The kubectl logs should not showcase any [error] message if the deployment is su
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

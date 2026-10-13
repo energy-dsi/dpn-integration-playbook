@@ -110,7 +110,7 @@ Confirm the config JSON used the **corrected** environment values for this run.
 
 ### Kafka/Zookeeper Image Pull Fails
 
-Confirm the `kafka.image.repository` / `zookeeper.image.repository` entries in `dpn-health-monitoring/charts/kafka-stack/values/aws/<environment>-<cluster>.yaml` use a fully-resolved registry path like `ghcr.io/energy-dsi/1.0.1/dpn-kafka` (or your own ECR repository URL), not a bare placeholder. `dpn-gha-cd-kafka.yml` takes the image from this values file — the `IMAGE_REGISTRY` key in `.github/config/aws/<environment>-<cluster>.json` is not passed to the health monitoring workflows.
+Confirm the `kafka.image.repository` / `zookeeper.image.repository` entries in `dpn-health-monitoring/charts/kafka-stack/values/aws/<environment>-<cluster>.yaml` use a fully-resolved registry path like `ghcr.io/energy-dsi/dpn-kafka` (or your own ECR repository URL), not a bare placeholder. `dpn-gha-cd-kafka.yml` takes the image from this values file — the `IMAGE_REGISTRY` key in `.github/config/aws/<environment>-<cluster>.json` is not passed to the health monitoring workflows.
 
 ### OTel Collector Metrics Never Show Up in Prometheus
 
@@ -126,24 +126,24 @@ The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheu
 
 This section lists the **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` that the workflow deploys. Organisations may point the Helm values at a different image repository instead if they build their own.
 
-The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced under a version-prefixed GHCR path, `ghcr.io/energy-dsi/1.0.1/<component>`** (rather than the unversioned `ghcr.io/energy-dsi/<component>` path used elsewhere) — confirm the `1.0.1` segment is still current before relying on it for a new environment.
+The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced under a version-prefixed GHCR path, `ghcr.io/energy-dsi/<component>`** (rather than the unversioned `ghcr.io/energy-dsi/<component>` path used elsewhere) — confirm the `1.0.1` segment is still current before relying on it for a new environment.
 
 | Purpose | GHCR Path |
 |---|---|
-| OTel Collector | `ghcr.io/energy-dsi/1.0.1/opentelemetry-collector-contrib:<latest or DSI provided stable version>` |
-| Kafka (health) | `ghcr.io/energy-dsi/1.0.1/dpn-kafka:<latest or DSI provided stable version>` |
-| Zookeeper (health) | `ghcr.io/energy-dsi/1.0.1/dpn-zookeeper:<latest or DSI provided stable version>` |
-| Data Prepper | `ghcr.io/energy-dsi/1.0.1/data-prepper:<latest or DSI provided stable version>` |
-| OpenSearch | `ghcr.io/energy-dsi/1.0.1/opensearch:<latest or DSI provided stable version>` |
-| Jaeger Collector | `ghcr.io/energy-dsi/1.0.1/jaeger-collector:<latest or DSI provided stable version>` |
-| Jaeger Ingester | `ghcr.io/energy-dsi/1.0.1/jaeger-ingester:<latest or DSI provided stable version>` |
-| Jaeger Query | `ghcr.io/energy-dsi/1.0.1/jaeger-query:<latest or DSI provided stable version>` |
-| Prometheus | `ghcr.io/energy-dsi/1.0.1/prometheus:<latest or DSI provided stable version>` |
+| OTel Collector | `ghcr.io/energy-dsi/opentelemetry-collector-contrib:<latest or DSI provided stable version>` |
+| Kafka (health) | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
+| Zookeeper (health) | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
+| Data Prepper | `ghcr.io/energy-dsi/data-prepper:<latest or DSI provided stable version>` |
+| OpenSearch | `ghcr.io/energy-dsi/opensearch:<latest or DSI provided stable version>` |
+| Jaeger Collector | `ghcr.io/energy-dsi/jaeger-collector:<latest or DSI provided stable version>` |
+| Jaeger Ingester | `ghcr.io/energy-dsi/jaeger-ingester:<latest or DSI provided stable version>` |
+| Jaeger Query | `ghcr.io/energy-dsi/jaeger-query:<latest or DSI provided stable version>` |
+| Prometheus | `ghcr.io/energy-dsi/prometheus:<latest or DSI provided stable version>` |
 | Grafana | `ghcr.io/energy-dsi/grafana:<latest or DSI provided stable version>` |
 | StatsD Exporter | `ghcr.io/energy-dsi/statsd-exporter:<latest or DSI provided stable version>` |
-| Perses | `ghcr.io/energy-dsi/1.0.1/perses:<latest or DSI provided stable version>` |
-| Thanos | `ghcr.io/energy-dsi/1.0.1/thanos:<latest or DSI provided stable version>` |
-| DPN Portal | `ghcr.io/energy-dsi/1.0.1/dpn-portal:<tag supplied via portalImageTag>` |
+| Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
+| Thanos | `ghcr.io/energy-dsi/thanos:<latest or DSI provided stable version>` |
+| DPN Portal | `ghcr.io/energy-dsi/dpn-portal:<tag supplied via portalImageTag>` |
 
 > **Nginx (dashboard proxy) has been removed** from this service — replaced by the DPN Portal + `oauth2-proxy` releases above.
 
@@ -156,3 +156,4 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |
