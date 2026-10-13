@@ -24,7 +24,7 @@ This guide lists **only what a participant organisation must set** to run the DP
 
 > **Informational (no action required):**
 > - Pipeline images, registry and tag are set by the CI/CD pipelines.
-> - Kafka connection and security (`SASL_SSL` with `OAUTHBEARER`), scheduling (`interval`) and autoscaling (off) are preconfigured; keep the defaults.
+> - Kafka connection and security (`SASL_SSL` with `OAUTHBEARER`), observability (OpenTelemetry), scheduling (`interval`) and autoscaling (off) are preconfigured; keep the defaults.
 > - Storage containers and Kafka topics are created automatically by the pipeline. Their names must not already exist.
 > - Files keep their original name in the target container.
 
@@ -40,15 +40,21 @@ Update **only** the values below in `values.yaml`, per environment.
 |-----------|---------|--------|
 | orgName | `example-org` | Your organisation name abbreviation, no spaces. **Required: the default must be changed** |
 
-### Observability (all components)
-
-Kafka connection and Keycloak token endpoint settings are preconfigured; keep their defaults. Set the OpenTelemetry values below to match your health monitoring deployment (the defaults shown apply to the standard setup).
+### Cloud provider
 
 | Parameter | Default | Set to |
 |-----------|---------|--------|
-| OTEL_EXPORTER_OTLP_ENDPOINT | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` | Your OTel collector address. The port is `4318` when `OTEL_EXPORTER_OTLP_INSECURE` is `false`, and `4317` when it is `true` |
-| OTEL_EXPORTER_OTLP_INSECURE | `false` | `false` for HTTPS (default). `true` for plaintext; change the endpoint port to `4317` at the same time |
-| OTEL_OAUTH_DISABLED | `false` | `false` to authenticate to the collector with OAuth (default). Set `true` to skip OAuth in dev/test only |
+| DPN_CLOUD_PROVIDER | `azure` | **Fixed for Azure: do not change.** Set by the Self-Service UI deployment and inherited by every product. Shown here for reference; verify it is lowercase `azure` |
+
+### Observability (all components)
+
+OpenTelemetry settings are **preconfigured** and are not participant settings. Keep the defaults shown below. **Do not change them** unless your health monitoring deployment differs from the standard setup (for example, a collector in a different namespace or plaintext transport).
+
+| Parameter | Default (do not change) | Change only if |
+|-----------|-------------------------|----------------|
+| OTEL_EXPORTER_OTLP_ENDPOINT | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` | Your OTel collector runs at a different address. The port is `4318` when `OTEL_EXPORTER_OTLP_INSECURE` is `false`, and `4317` when it is `true` |
+| OTEL_EXPORTER_OTLP_INSECURE | `false` | Plaintext transport is required. Change the endpoint port to `4317` at the same time |
+| OTEL_OAUTH_DISABLED | `false` | Keep `false` in **all environments**. Setting it to `true` turns OAuth off, so the pipelines would no longer authenticate to the OTel collector |
 
 For the Self-Service UI, the same parameters are named `DPN_OTEL_EXPORTER_OTLP_ENDPOINT`, `DPN_OTEL_EXPORTER_OTLP_INSECURE` and `DPN_OTEL_OAUTH_DISABLED`.
 
@@ -56,27 +62,29 @@ For the Self-Service UI, the same parameters are named `DPN_OTEL_EXPORTER_OTLP_E
 
 ## STEP-02: Secrets Table
 
-Create these secrets **before** running the CD pipeline, in the data pipeline namespace (`ns-dpn-dp-01`). The containers do not start without them.
+The secrets below are required in the data pipeline namespace (`ns-dpn-dp-01`) **before** you run the CD pipeline. The containers do not start without them.
+
+> **Required: these secrets must exist in the `ns-dpn-01` namespace first.** Kubernetes secrets cannot be shared across namespaces, so the secrets are sourced from `ns-dpn-01` and copied into `ns-dpn-dp-01`. Follow this order for **each** secret in the table:
+> 1. **Verify** it exists in `ns-dpn-01` (command below).
+> 2. **If it exists**, **copy** it into `ns-dpn-dp-01` with the copy commands below.
+> 3. **If it does not exist**, **create** it directly in `ns-dpn-dp-01`. `dpn-tls` and `dpn-keycloak-secrets` are platform-provided and must not be created by hand: if either is missing from `ns-dpn-01`, complete the DPN Certificate Manager / Authentication Service installation first.
 
 | Secret | Keys | Value | Used by |
 |--------|------|-------|---------|
 | `producer-file-dp-secret` | `SRC_CONNECTION_STRING`, `TARGET_CONNECTION_STRING` | Blob Storage connection strings for the producer source and target storage accounts. The same value may be used for both | Self-Service UI and producer file products |
 | `consumer-file-dp-secret` | `SRC_CONNECTION_STRING`, `TARGET_CONNECTION_STRING` | Blob Storage connection strings for the consumer source and target storage accounts. The same value may be used for both | Consumer file extractor |
-| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01` (see below). Do not change the contents | All pipeline containers (Kafka TLS trust) |
-| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01` (see below). Do not change the contents | All pipeline containers (Kafka OAuth) |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka TLS trust) |
+| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka OAuth) |
 
-**Storage secrets.** Connection string format: `https://<storage-account>.blob.core.windows.net/?<sas-token>`. The values must be **base64-encoded** before they are stored, because the container decodes them itself. Create each secret as follows (or use the copy commands below if the secret already exists in `ns-dpn-01`):
+**Verify the secrets in `ns-dpn-01`:**
 
 ```bash
-kubectl create secret generic producer-file-dp-secret \
-  --from-literal=SRC_CONNECTION_STRING="$(echo -n '<source connection string>' | base64)" \
-  --from-literal=TARGET_CONNECTION_STRING="$(echo -n '<target connection string>' | base64)" \
-  -n ns-dpn-dp-01
+kubectl get secret dpn-tls dpn-keycloak-secrets producer-file-dp-secret consumer-file-dp-secret -n ns-dpn-01
 ```
 
-Repeat with the name `consumer-file-dp-secret` and the consumer connection strings.
+Any secret reported as `NotFound` does not exist in `ns-dpn-01`; create it in `ns-dpn-dp-01` (storage secrets only, see below).
 
-**Copy the secrets into `ns-dpn-dp-01`.** `dpn-tls` and `dpn-keycloak-secrets` already exist in `ns-dpn-01`, created by the DPN Certificate Manager and Authentication Service. If the storage secrets also exist in `ns-dpn-01`, they can be copied instead of created. Kubernetes secrets cannot be shared across namespaces, so run each command below (PowerShell) to copy that secret into `ns-dpn-dp-01`:
+**Copy the secrets into `ns-dpn-dp-01`** (for each secret that exists in `ns-dpn-01`). Run each command below (PowerShell) for that secret:
 
 ```powershell
 # dpn-tls
@@ -93,6 +101,23 @@ kubectl get secret consumer-file-dp-secret -n ns-dpn-01 -o json | ConvertFrom-Js
 ```
 
 Repeat the copy for `dpn-tls` and `dpn-keycloak-secrets` whenever either is rotated in `ns-dpn-01`.
+
+**Create the storage secrets (only if they do not exist in `ns-dpn-01`).** Connection string format: `https://<storage-account>.blob.core.windows.net/?<sas-token>`. The values must be **base64-encoded** before they are stored, because the container decodes them itself:
+
+```bash
+kubectl create secret generic producer-file-dp-secret \
+  --from-literal=SRC_CONNECTION_STRING="$(echo -n '<source connection string>' | base64)" \
+  --from-literal=TARGET_CONNECTION_STRING="$(echo -n '<target connection string>' | base64)" \
+  -n ns-dpn-dp-01
+```
+
+Repeat with the name `consumer-file-dp-secret` and the consumer connection strings.
+
+**Confirm the result:**
+
+```bash
+kubectl get secret dpn-tls dpn-keycloak-secrets producer-file-dp-secret consumer-file-dp-secret -n ns-dpn-dp-01
+```
 
 > **Informational (no action required):** The secrets `tls-auth-secret` and `dpn-health-ca` are provided by the DPN Certificate Manager and Health Monitoring services. Verify that they exist in `ns-dpn-dp-01`.
 
