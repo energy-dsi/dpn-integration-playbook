@@ -39,7 +39,7 @@ The following prerequisites must be met.
 - An EKS cluster reachable via the GitHub Actions OIDC federated credential (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role))
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount
 - If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets). When OTLP OAuth is enabled (`keyvault.otelOauthClientSecretName: KC_SERVICE_CLIENT_SECRET`, as in the provided AWS values files), `KC_SERVICE_CLIENT_SECRET` must also exist under that prefix
-- The `dpn-tls` and `tls-auth-secret` Kubernetes secrets exist in the target namespace — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-tls-cd.yaml`)
+- The `dpn-tls` and `tls-auth-secret` Kubernetes secrets exist in the target namespace — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`)
 - `.github/config/aws/<environment>-<cluster>.json` in the central `dpn-containerised-deployment-service` repository is populated, including the `FILESCAN_*` keys (see [Configure DPN File Scan Service, Step3a](../02-configuration/08-configure-dpn-file-scan-service.md#step3a-configure-environment-json-file))
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 
@@ -56,13 +56,13 @@ The following prerequisites must be met.
 
 ## Step2: AWS Resource Setup (SNS/SQS/GuardDuty)
 
-**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must still be provisioned manually** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-file-scan-prerequisites-cd.yml` (**DPN CD - File Scan Prerequisites**) does have an AWS branch (`cloud: aws`), but it only creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan.
+**The SNS topic, SQS queue, and GuardDuty Malware Protection plan themselves must still be provisioned manually** — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) for the exact commands. `dpn-gha-file-scan-prerequisites-cd.yml` (**DPN CD - File Scan Prerequisites**) does have an AWS branch (`cloud: aws`), but it only creates the IRSA role and seeds the `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` Secrets Manager entries, and verifies the SNS/SQS/GuardDuty wiring — it does not create the SNS topic, SQS queue, or GuardDuty plan.
 
 Once complete, validate:
 
 - The SNS topic and SQS queue exist and the queue is subscribed to the topic
 - The GuardDuty Malware Protection plan is active and covers the inbound bucket's upload prefix
-- Optionally, run **Actions → DPN CD - File Scan Prerequisites → Run workflow** (`dpn-file-scan-prerequisites-cd.yml`) with `environment`, `cluster` and `cloud: aws` (leave the Azure-only inputs at their defaults and `serviceBusNamespace` blank) to have it verify this wiring, and to create the IRSA role and seed the Secrets Manager entries if you haven't already (see [Configure DPN File Scan Service, Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service) and [Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets))
+- Optionally, run **Actions → DPN CD - File Scan Prerequisites → Run workflow** (`dpn-gha-file-scan-prerequisites-cd.yml`) with `environment`, `cluster` and `cloud: aws` (leave the Azure-only inputs at their defaults and `serviceBusNamespace` blank) to have it verify this wiring, and to create the IRSA role and seed the Secrets Manager entries if you haven't already (see [Configure DPN File Scan Service, Step1](../02-configuration/08-configure-dpn-file-scan-service.md#step1-prepare-iam-role-for-the-service) and [Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets))
 
 ---
 
@@ -103,7 +103,7 @@ Go to **Actions → DPN CD - File Scan Service → Run workflow**, and supply:
 
 There is no image-repository input — the repository comes from `image.repository` in the values file (`ghcr.io/energy-dsi/1.0.1/dpn-file-scan-service`).
 
-Workflow file: `.github/workflows/dpn-file-scan-cd.yml` in the central `dpn-containerised-deployment-service` repository. It loads `.github/config/aws/<environment>-<cluster>.json`, logs in via the `.github/actions/cloud-login` composite action, runs `helm lint` and a `--dry-run`, then `helm upgrade --install dpn-file-scan-service dpn-file-scan/charts/file-scan-service` with `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` (no `--wait`; it polls `kubectl rollout status` up to 5 times instead), and finally publishes the deployed image digest as the `deployed-image-digest` workflow artifact.
+Workflow file: `.github/workflows/dpn-gha-file-scan-cd.yml` in the central `dpn-containerised-deployment-service` repository. It loads `.github/config/aws/<environment>-<cluster>.json`, logs in via the `.github/actions/cloud-login` composite action, runs `helm lint` and a `--dry-run`, then `helm upgrade --install dpn-file-scan-service dpn-file-scan/charts/file-scan-service` with `dpn-file-scan/charts/file-scan-service/values/aws/<environment>-<cluster>.yaml` (no `--wait`; it polls `kubectl rollout status` up to 5 times instead), and finally publishes the deployed image digest as the `deployed-image-digest` workflow artifact.
 
 To roll back, run **DPN Rollback - All Components Pipelines** (`dpn-rollback-all-components.yml`) with `releaseName: dpn-file-scan-service`; to remove it, run **DPN Uninstall - All components Pipelines** (`dpn-uninstall-all-components.yml`) with `componentType: file-scan-service`.
 
@@ -167,7 +167,7 @@ File scan service image found in GHCR with following name
 |---|---|---|
 | dpn-file-scan-service | `ghcr.io/energy-dsi/1.0.1/dpn-file-scan-service` | `e.g. 1.0.0` |
 
-Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-file-scan-cd.yml` already deploys from this image by default.
+Image access setup and the workflow trigger are covered in [Step3](#step3-execute-cicd) above — there is no separate GHCR-specific workflow to run, `dpn-gha-file-scan-cd.yml` already deploys from this image by default.
 
 ---
 

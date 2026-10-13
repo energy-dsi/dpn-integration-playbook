@@ -24,13 +24,13 @@ The DPN Health Monitoring Service hosts the observability platform for DPN — K
 
 ## Continuous Deployment (CD)
 
-Deployment is orchestrated by the `dpn-health-monitoring-cd-install.yml` GitHub Actions workflow, which chains each sub-component's own CD workflow as a dependent job in this order: Kafka → OpenSearch → Prometheus → Thanos (with Data Prepper and Jaeger branching off Kafka+OpenSearch, Perses off Prometheus+Thanos) → OTel Collector → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal, chained sequentially) → Validate.
+Deployment is orchestrated by the `dpn-gha-health-monitoring-cd-install.yml` GitHub Actions workflow, which chains each sub-component's own CD workflow as a dependent job in this order: Kafka → OpenSearch → Prometheus → Thanos (with Data Prepper and Jaeger branching off Kafka+OpenSearch, Perses off Prometheus+Thanos) → OTel Collector → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal, chained sequentially) → Validate.
 
 ```text
 dpn-containerised-deployment-service/
 ├── .github/
 │   └── workflows/
-│       ├── dpn-health-monitoring-cd-install.yml   # orchestrator — trigger this one
+│       ├── dpn-gha-health-monitoring-cd-install.yml   # orchestrator — trigger this one
 │       └── dpn-cd-{kafka,opensearch,prometheus,thanos,data-prepper,jaeger,perses,otel,portal,oauth2-proxy,validate}.yml
 └── dpn-health-monitoring/
     └── charts/
@@ -44,10 +44,10 @@ Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying
 
 > **Prometheus and Thanos no longer sit behind an `oauth2-proxy` gateway.** Neither UI is meant for direct browser access — both are consumed through Perses instead. Their own component jobs still deploy the Prometheus/Thanos Query Services directly onto an internal AWS Network Load Balancer (no login of any kind in front), at the same ports (`9081`/`9091`) their retired `oauth2-proxy` gateways used to publish on. Restrict network access to these ports at the VPC/security-group level accordingly.
 
-**What the pipeline does automate:** `dpn-cd-oauth2-proxy.yml` provisions its own AWS IAM role (IRSA, `dpn-oauth2-proxy-secrets-role`, trusted by the `dpn-oauth2-proxy` ServiceAccount) and its own Secrets Manager copy of the Keycloak client secret (`dpn/<environment>-<cluster>/oauth2-proxy/KC-SERVICE-CLIENT-SECRET`, copied from the Keycloak secret below if missing) on every run — this is idempotent and requires no manual AWS IAM setup.
+**What the pipeline does automate:** `dpn-gha-cd-oauth2-proxy.yml` provisions its own AWS IAM role (IRSA, `dpn-oauth2-proxy-secrets-role`, trusted by the `dpn-oauth2-proxy` ServiceAccount) and its own Secrets Manager copy of the Keycloak client secret (`dpn/<environment>-<cluster>/oauth2-proxy/KC-SERVICE-CLIENT-SECRET`, copied from the Keycloak secret below if missing) on every run — this is idempotent and requires no manual AWS IAM setup.
 
 **What the pipeline does *not* automate:**
-- The Keycloak `dpn-service-client` credential must already exist in AWS Secrets Manager, at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` — created by `dpn-keycloak-cd.yml`'s own AWS deploy path, run that first if it hasn't been.
+- The Keycloak `dpn-service-client` credential must already exist in AWS Secrets Manager, at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` — created by `dpn-gha-keycloak-cd.yml`'s own AWS deploy path, run that first if it hasn't been.
 - The `dpn-health-tls` Secret (a `kubernetes.io/tls` Secret holding `tls.crt`, `tls.key` and `ca.crt`) must already exist in `ns-dpn-health-01` — every `oauth2-proxy` release and the OTel Collector's TLS-enabled OTLP receivers consume it, and none of them create it.
 - The Kubernetes Secret backing Thanos' long-term object storage (see [Step 1](#step-1-prepare-environment-configuration-file)) — no workflow creates it.
 - A DPN Portal container image already built and pushed to GHCR, with its tag known ahead of triggering the workflow — this repository's pipeline deploys that image, it does not build it.
@@ -85,9 +85,9 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 |-----------|--------------|----------------------|
 | dpn-mon-storage-connection-string | Thanos long-term object storage config (`objstore.yml` key) | Kubernetes Secret, created manually — see [Step 1](#step-1-prepare-environment-configuration-file) |
 | dpn-health-tls | `kubernetes.io/tls` cert/key/CA used by `oauth2-proxy` and the OTel Collector's TLS OTLP receivers | Kubernetes Secret, created manually (not created by this pipeline) |
-| dpn/`<environment>-<cluster>`/keycloak/KC_SERVICE_CLIENT_SECRET | The `dpn-service-client` Keycloak client credential | AWS Secrets Manager secret, created by `dpn-keycloak-cd.yml`'s AWS deploy path — must exist before `dpn-cd-oauth2-proxy.yml` runs |
+| dpn/`<environment>-<cluster>`/keycloak/KC_SERVICE_CLIENT_SECRET | The `dpn-service-client` Keycloak client credential | AWS Secrets Manager secret, created by `dpn-gha-keycloak-cd.yaml`'s AWS deploy path — must exist before`dpn-gha-oauth2-proxy-cd.yml` runs |
 
-`dpn-cd-oauth2-proxy.yml` additionally provisions its own AWS IAM role (IRSA) and its own private Secrets Manager copy of the Keycloak client secret automatically on every run — no manual action needed for that part.
+`dpn-gha-oauth2-proxy-cd.yml` additionally provisions its own AWS IAM role (IRSA) and its own private Secrets Manager copy of the Keycloak client secret automatically on every run — no manual action needed for that part.
 
 > **Keycloak SSO is now the only front door for OpenSearch, Jaeger and Perses.** Each is served over **HTTPS** through its own `oauth2-proxy` release, terminating OIDC login against the DPN Authentication Service (Keycloak) — there is no basic-auth fallback any more. The **DPN Portal** tile landing page is itself also fronted by its own `oauth2-proxy` release (`portal`, port `8443`). See [DPN Portal Operations](../../../05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) and [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
 >
@@ -102,3 +102,4 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

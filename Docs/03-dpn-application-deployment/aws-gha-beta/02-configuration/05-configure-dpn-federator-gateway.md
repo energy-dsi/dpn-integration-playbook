@@ -14,7 +14,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
 
 > **Single environment, single cluster:** These instructions target **one environment** (`<env>`) and **one DPN cluster** (`<cluster>`, e.g. `dpn01`). Substitute your own values for `<env>` and `<cluster>` throughout. The Federator Client is deployed for a **single cluster only** — deploy one cluster at a time.
 
-> **This scope spans two GitHub Actions workflows, not one.** `dpn-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/extractor pods are a **separate** workflow, `dpn-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) — not here.
+> **This scope spans two GitHub Actions workflows, not one.** `dpn-gha-federator-gateway-cd.yml` deploys Kafka src/target, Zookeeper src/target, Kafka UI, Redis, and the generic Federator Server/Client (this document's scope, below). The per-product producer/consumer adaptor/extractor pods are a **separate** workflow, `dpn-gha-cd-data-pipelines.yml`, documented in [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) — not here.
 
 ---
 
@@ -75,7 +75,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-gha-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
 | 4 | **Vault authentication configured** | Set `vaultConfig.authMethod: token`, or `approle` reusing the Certificate Manager's already-provisioned `role_id`/`secret_id` (no dedicated Federator Gateway AppRole workflow exists yet, but sharing the identity works). See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) |
 | 5 | **EKS cluster** | Needed if using Key Vault-sourced secrets; see [Step2](#step2-configure-secrets) |
 | 6 | **S3 bucket credentials created** | The two IAM credentials/roles — see [Step2: Configure Secrets](#step2-configure-secrets) |
@@ -108,8 +108,8 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 | `federator-server-secrets` | CSI driver from AKV Server S3 credentials | Server S3 access |
 | `federator-client-secrets` | CSI driver from AKV Client S3 credentials | Client S3 access |
 | `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — either the root token (`VAULT_TOKEN`, `authMethod: token`) or, by pointing `vaultConfig.appRole.roleId` at the Certificate Manager's own `role_id`, its shared AppRole `secret-id` |
-| `cert-manager-truststore` | Created by the **`dpn-vault-tls-bootstrap-cd.yml`** workflow | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
-| `tls-auth-secret` | Created once by **`dpn-tls-cd.yaml`** — the same platform-wide secret the Certificate Manager reads (see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication)) | `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD` keys, injected as `VAULT_TRUSTSTORE_PASSWORD` and (when `kafka.authMode: sasl_ssl`) `KAFKA_SSL_TRUSTSTORE_PASSWORD`/`KAFKA_SSL_KEYSTORE_PASSWORD` |
+| `cert-manager-truststore` | Created by the **`dpn-gha-vault-tls-bootstrap-cd.yml`** workflow | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
+| `tls-auth-secret` | Created once by **`dpn-gha-tls-cd.yaml`** — the same platform-wide secret the Certificate Manager reads (see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication)) | `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD` keys, injected as `VAULT_TRUSTSTORE_PASSWORD` and (when `kafka.authMode: sasl_ssl`) `KAFKA_SSL_TRUSTSTORE_PASSWORD`/`KAFKA_SSL_KEYSTORE_PASSWORD` |
 
 ---
 
@@ -199,13 +199,13 @@ The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `syste
 
 ## Step4: Configure Deployment Parameters
 
-The Federator Gateway is deployed with a **single run** of the `dpn-federator-gateway-cd.yml` GitHub Actions workflow. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
+The Federator Gateway is deployed with a **single run** of the `dpn-gha-federator-gateway-cd.yml` GitHub Actions workflow. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
 
 ```text
-dpn-containerised-deployment-service/
-├── .github/
+.pipelines/
+├── .github-actions-pipelines/
 │   ├── workflows/
-│   │   └── dpn-federator-gateway-cd.yml
+│   │   └── dpn-gha-federator-gateway-cd.yml
 │   └── config/
 │       └── aws/<environment>-<cluster>.json
 └── dpn-federator-gateway/
@@ -238,3 +238,4 @@ Once this is deployed, provision the per-product producer/consumer pods and the 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

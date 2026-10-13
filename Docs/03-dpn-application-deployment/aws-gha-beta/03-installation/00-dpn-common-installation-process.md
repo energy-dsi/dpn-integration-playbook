@@ -171,7 +171,7 @@ Ensure the following prerequisites are completed before deployment:
 
 Refer to [DPN Vault Service Configuration](../02-configuration/01-configure-dpn-vault-service.md) for certificate set up and csr generation
 
-Before deploying any component, run **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-tls-cd.yaml`) once per environment/cluster with `cloud: aws`. It generates the platform's self-signed DPN root CA and common server certificate (`.github/config/scripts/create-dpn-tls.sh`), stores the derived passwords and Vault TLS material in AWS Secrets Manager under `dpn/<environment>-<cluster>/...`, creates the `cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls` and `tls-auth-secret` Kubernetes secrets, and publishes the generated material (including `certs/vault.csr` for the DSM bootstrap) as a workflow artifact. It requires the `DPN_TLS_*` Actions secrets described in [GitHub Actions Secrets and Environments](../02-configuration/00-common-dpn-configuration.md#step24-github-actions-secrets-and-environments). `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` and `KAFKA_OAUTH_CLIENT_SECRET` are not created by this workflow and must be set in AWS Secrets Manager manually.
+Before deploying any component, run **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`) once per environment/cluster with `cloud: aws`. It generates the platform's self-signed DPN root CA and common server certificate (`.github/config/scripts/create-dpn-tls.sh`), stores the derived passwords and Vault TLS material in AWS Secrets Manager under `dpn/<environment>-<cluster>/...`, creates the `cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls` and `tls-auth-secret` Kubernetes secrets, and publishes the generated material (including `certs/vault.csr` for the DSM bootstrap) as a workflow artifact. It requires the `DPN_TLS_*` Actions secrets described in [GitHub Actions Secrets and Environments](../02-configuration/00-common-dpn-configuration.md#step24-github-actions-secrets-and-environments). `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` and `KAFKA_OAUTH_CLIENT_SECRET` are not created by this workflow and must be set in AWS Secrets Manager manually.
 
 > **Note:** The workflow artifact contains private keys, including the root CA key (`ca/dpn-root.key`). Treat it as sensitive and restrict who can download it.
 
@@ -184,7 +184,7 @@ All CD workflows, their per-cloud configuration and the component Helm charts li
 ```
 dpn-containerised-deployment-service/
 ├── .github/
-│   ├── workflows/                 # one workflow per DPN component (e.g. dpn-vault-https-cd.yml)
+│   ├── workflows/                 # one workflow per DPN component (e.g. dpn-gha-vault-https-cd.yml)
 │   ├── actions/
 │   │   └── cloud-login/           # shared composite action: aws OIDC login + EKS context
 │   ├── config/
@@ -201,7 +201,7 @@ dpn-containerised-deployment-service/
 └── dpn-rest-federator-gateway/    # charts/dpn-rest-federator, dpn-redis, dpn-demo-runner-server, dpn-demo-runner-client
 ```
 
-Each chart's environment values file is `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. CD workflows take the `workflow_dispatch` inputs `environment` (`dev`/`test`, default `test`) and `cluster` (`dpn01`/`dpn02`, default `dpn01`), plus `cloud` (`azure`/`aws`/`gcp`, default `aws` — select `aws`) on every multi-cloud workflow (the AWS-only `dpn-self-service-cd.yml` and `dpn-cd-data-pipelines-aws-poc.yml` have no `cloud` input), and component-specific inputs such as `imageTag`. The individual Health Monitoring workflows (`dpn-cd-otel.yml`, `dpn-cd-kafka.yml`, `dpn-cd-prometheus.yml`, etc.) are reusable (`workflow_call`) workflows triggered through `dpn-health-monitoring-cd-install.yml` (*DPN Health Monitoring*), not run directly. Each run reads `.github/config/aws/<environment>-<cluster>.json`.
+Each chart's environment values file is `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. CD workflows take the `workflow_dispatch` inputs `environment` (`dev`/`test`, default `test`) and `cluster` (`dpn01`/`dpn02`, default `dpn01`), plus `cloud` (`azure`/`aws`/`gcp`, default `aws` — select `aws`) on every multi-cloud workflow (the AWS-only `dpn-gha-self-service-cd.yml` and `dpn-gha-cd-data-pipelines-aws-poc.yml` have no `cloud` input), and component-specific inputs such as `imageTag`. The individual Health Monitoring workflows (`dpn-gha-cd-otel.yml`, `dpn-gha-cd-kafka.yml`, `dpn-gha-cd-prometheus.yml`, etc.) are reusable (`workflow_call`) workflows triggered through `dpn-gha-health-monitoring-cd-install.yml` (*DPN Health Monitoring*), not run directly. Each run reads `.github/config/aws/<environment>-<cluster>.json`.
 
 CI (build/test/scan for the DPN component's own source code) runs as GitHub Actions in that component's own source repository (e.g. `dpn-federator-gateway`, `dpn-federator-certificate-manager`) where already migrated, separately from the CD workflows above.
 
@@ -214,11 +214,11 @@ The DPN currently comprises the following components. Complete the prerequisites
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | [01-dpn-vault-installation-process.md](01-dpn-vault-installation-process.md) | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Authentication Service (Keycloak) | [02-dpn-authentication-service-installation-process.md](02-dpn-authentication-service-installation-process.md) | Deployed by `dpn-keycloak-cd.yml` (*DPN CD - Keycloak*) |
-| DPN Health Monitoring Service | [03-dpn-health-monitoring-service-installation-process.md](03-dpn-health-monitoring-service-installation-process.md) | Deployed by `dpn-health-monitoring-cd-install.yml` (*DPN Health Monitoring*) — see that guide for the environment-specific setup |
-| DPN Federator Certificate Manager | [04-dpn-certificate-manager-installation-process.md](04-dpn-certificate-manager-installation-process.md) | Depends on Vault; run `dpn-certificate-manager-role-id-creation.yml` before `dpn-certificate-manager-cd.yml` |
+| DPN Authentication Service (Keycloak) | [02-dpn-authentication-service-installation-process.md](02-dpn-authentication-service-installation-process.md) | Deployed by `dpn-gha-keycloak-cd.yml` (*DPN CD - Keycloak*) |
+| DPN Health Monitoring Service | [03-dpn-health-monitoring-service-installation-process.md](03-dpn-health-monitoring-service-installation-process.md) | Deployed by `dpn-gha-health-monitoring-cd-install.yml` (*DPN Health Monitoring*) — see that guide for the environment-specific setup |
+| DPN Federator Certificate Manager | [04-dpn-certificate-manager-installation-process.md](04-dpn-certificate-manager-installation-process.md) | Depends on Vault; run `dpn-certificate-manager-role-id-creation.yml` before `dpn-gha-certificate-manager-cd.yml` |
 | DPN Federator Gateway | [05-dpn-federator-gateway-installation-process.md](05-dpn-federator-gateway-installation-process.md) | Depends on Vault and Certificate Manager being installed and configured first |
-| DPN REST Federator Gateway | [06-dpn-rest-federator-gateway-installation-process.md](06-dpn-rest-federator-gateway-installation-process.md) | Run `dpn-rest-federator-role-id-creation.yml` before `dpn-rest-federator-cd.yml` |
+| DPN REST Federator Gateway | [06-dpn-rest-federator-gateway-installation-process.md](06-dpn-rest-federator-gateway-installation-process.md) | Run `dpn-rest-federator-role-id-creation.yml` before `dpn-gha-rest-federator-cd.yml` |
 | DPN Data Pipeline | [07-dpn-data-pipeline-installation-process.md](07-dpn-data-pipeline-installation-process.md) | Independent of Vault/Certificate Manager/Federator Gateway |
 | DPN File Scanning Service | [08-dpn-file-scan-service-installation-process.md](08-dpn-file-scan-service-installation-process.md) | Uses GuardDuty Malware Protection for S3 on this path — resource provisioning is manual either way, see that guide |
 
