@@ -34,7 +34,7 @@ This describes installation using the GitHub Actions orchestrator workflow `dpn-
 - Completed [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step2-github-actions-configuration) for the target environment.
 - The Kubernetes Secret backing Thanos' long-term object storage (`dpn-mon-storage-connection-string`, key `objstore.yml`) created in `ns-dpn-health-01` — no workflow creates it; see [Configure DPN Health Monitoring Service, Step 1](../02-configuration/03-configure-dpn-health-monitoring-service.md#step-1-prepare-environment-configuration-file) for the caveat on what mechanism (static keys vs. Workload Identity) it should actually encode.
 - The `dpn-health-tls` Secret (`kubernetes.io/tls`, with `tls.crt`/`tls.key`/`ca.crt`) already present in `ns-dpn-health-01` — consumed by every `oauth2-proxy` release and the OTel Collector's TLS OTLP receivers.
-- The Keycloak `dpn-service-client` credential already present in Azure Key Vault at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` (created by `dpn-keycloak-cd.yml`'s Azure deploy path) — `dpn-cd-oauth2-proxy.yml` provisions its own Key Vault access and its own private copy of this secret automatically, but the underlying Keycloak-side secret has to exist first.
+- The Keycloak `dpn-service-client` credential already present in Azure Key Vault at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` (created by `dpn-gha-keycloak-cd.yml`'s Azure deploy path) — `dpn-cd-oauth2-proxy.yml` provisions its own Key Vault access and its own private copy of this secret automatically, but the underlying Keycloak-side secret has to exist first.
 - A DPN Portal container image already built and pushed to GHCR, with its tag (a short git-SHA) ready to supply as the workflow's `portalImageTag` input.
 - Access to the environment-specific container registry for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
 - A required-reviewer rule on the GitHub Environment (`<environment>-<cluster>`) if you want a manual approval gate before deployment — there is no ADO-style environment approval built into the workflow itself.
@@ -112,7 +112,7 @@ Every troubleshooting entry (Kafka naming-regression checks in `dpn-cd-kafka.yml
 
 ### Config File Not Found for Specific Environment
 
-Confirm `.github/config/azure/<environment>-<cluster>.json` actually exists under this exact naming — populate it before running the workflow (see [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step22-aws-environment-configuration)).
+Confirm `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` actually exists under this exact naming — populate it before running the workflow (see [GitHub Actions Configuration](../02-configuration/00-common-dpn-configuration.md#step22-aws-environment-configuration)).
 
 ### Deployed Resources Show the Wrong Environment Label
 
@@ -120,7 +120,7 @@ Confirm the config JSON used the **corrected** environment values for this run.
 
 ### Kafka/Zookeeper Image Pull Fails
 
-Confirm `IMAGE_REGISTRY` in `.github/config/azure/<environment>-<cluster>.json` uses a fully-resolved hostname like `ghcr.io` (or your own ACR repository URL), not a bare placeholder.
+Confirm `IMAGE_REGISTRY` in `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` uses a fully-resolved hostname like `ghcr.io` (or your own ACR repository URL), not a bare placeholder.
 
 ### OTel Collector Metrics Never Show Up in Prometheus
 
@@ -165,4 +165,4 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

@@ -79,7 +79,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
-| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
+| 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-gha-vault-tls-bootstrap-cd.yml` workflow; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
 | 4 | **Vault authentication configured** | Set `vaultConfig.authMethod:` `token` (the production default on this path), or `approle` once reusing the Certificate Manager's already-provisioned `role_id`/`secret_id`. See [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication) |
 | 5 | **AKS cluster**, and an identity that can reach Azure Key Vault | Needed for the Vault truststore password and the Blob Storage credentials; see [Step2](#step2-configure-secrets) |
 | 6 | **Azure Blob Storage container credentials created** | The two storage account keys/connection strings — see [Step2: Configure Secrets](#step2-configure-secrets) |
@@ -95,7 +95,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 
 > **No shared file share — but check `mountCertFileShare` when provisioning a new environment.** The gateway reads its certificate material from Vault directly (see the certificates-and-passwords note in [Overview](#overview)) when `vaultConfig.mountCertFileShare: false` is set. The chart's own reference `values.yaml` still defaults this to `true` for backward compatibility — confirm your environment's values file explicitly sets it to `false` rather than relying on the reference default, or the deprecated file share is mounted again.
 
-> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `.github/config/azure/<environment>-<cluster>.json`.
+> **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json`.
 
 ---
 
@@ -108,14 +108,14 @@ The following Kubernetes secrets must be present in the namespace when the gatew
 | `federator-server-secrets` | CSI driver from AKV Server Blob Storage credentials | Server Blob Storage access |
 | `federator-client-secrets` | CSI driver from AKV Client Blob Storage credentials | Client Blob Storage access |
 | `certificate-manager-secrets` | Created by the **Certificate Manager** deployment | Provides the credential the gateway uses to authenticate to Vault and read the certificate material/passwords — either the root token (`VAULT_TOKEN`, `authMethod: token`) or, by pointing `vaultConfig.appRole.roleId` at the Certificate Manager's own `role_id`, its shared AppRole `secret-id` |
-| `cert-manager-truststore` | Created by the **`dpn-vault-tls-bootstrap-cd.yml`** workflow | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
-| `tls-auth-secret` | Created once by **`dpn-tls-cd.yaml`** — the same platform-wide secret the Certificate Manager reads (see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication)) | `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD` keys, injected as `VAULT_TRUSTSTORE_PASSWORD` and (when `kafka.authMode: sasl_ssl`) `KAFKA_SSL_TRUSTSTORE_PASSWORD`/`KAFKA_SSL_KEYSTORE_PASSWORD` |
+| `cert-manager-truststore` | Created by the **`dpn-gha-vault-tls-bootstrap-cd.yml`** workflow | `truststore.jks` mounted at `/vault/truststore` to trust the Vault HTTPS endpoint |
+| `tls-auth-secret` | Created once by **`dpn-gha-tls-cd.yml`** — the same platform-wide secret the Certificate Manager reads (see [Configure DPN Certificate Manager](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication)) | `TRUSTSTORE_PASSWORD`/`KEYSTORE_PASSWORD` keys, injected as `VAULT_TRUSTSTORE_PASSWORD` and (when `kafka.authMode: sasl_ssl`) `KAFKA_SSL_TRUSTSTORE_PASSWORD`/`KAFKA_SSL_KEYSTORE_PASSWORD` |
 
 ---
 
 ## Step3: Configure Environment
 
-The gateway chart is `dpn-federator-gateway/charts/dpn-platform` in `dpn-containerised-deployment-service`. Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
+The gateway chart is `charts/dpn-platform` in `dpn-federator-gateway`. Set the parameters below in your environment/cluster's values file. The CD workflow resolves the values file from the `environment` and `cluster` inputs you select at runtime.
 
 ```text
 dpn-federator-gateway/
@@ -231,7 +231,7 @@ No separate Keycloak client or secret is provisioned for OTel — it reuses `dpn
 
 ## Step4: Configure Deployment Parameters
 
-The Federator Gateway is deployed with a **single run** of the `dpn-federator-gateway-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
+The Federator Gateway is deployed with a **single run** of the `dpn-gha-federator-gateway-cd.yml` GitHub Actions workflow in `dpn-federator-gateway`. One run applies the environment/cluster values file on top of `values.yaml` and deploys all components in the single Helm release `dpn-platform`.
 
 ```text
 root/
@@ -262,4 +262,4 @@ Once this is deployed, provision the per-product producer/consumer pods and the 
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

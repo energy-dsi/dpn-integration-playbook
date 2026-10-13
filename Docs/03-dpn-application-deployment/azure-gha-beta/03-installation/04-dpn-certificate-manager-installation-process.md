@@ -92,7 +92,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step2b. Execute CD Workflow
 
-Go to **Actions → DPN CD - Certificate Manager → Run workflow** in `dpn-containerised-deployment-service`, and supply:
+Go to **Actions → DPN CD - Certificate Manager → Run workflow** in `dpn-federator-certificate-manager`, and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -175,4 +175,4 @@ There is no separate GHCR-specific workflow to run — [Step2b](#step2b-execute-
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|------------------|--------|---------|
-| Sep-2026    | DSI Assurance    | Final  | V1.0.0  |
+| Oct-2026    | DSI Assurance    | Final  | V1.0.0  |

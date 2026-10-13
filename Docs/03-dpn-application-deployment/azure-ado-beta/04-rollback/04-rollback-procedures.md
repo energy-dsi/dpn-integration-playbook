@@ -102,7 +102,7 @@ Vault
         └─→ REST Federator Gateway (uses the same issued certs for mTLS; independent of the gRPC Federator Gateway and Data Pipeline)
 
 DPN Authentication Service (Keycloak) — independent of the Vault/certificate chain above. Federator Gateway (Kafka OAuth, Kafka UI), Data Pipeline
-  (Airflow SSO, Kafka OAuth), and Health Monitoring Service (oauth2-proxy UIs, Kafka UI OIDC) all authenticate against the realm it creates.
+  (Self-Service UI login, Kafka OAuth), and Health Monitoring Service (oauth2-proxy UIs, Kafka UI OIDC) all authenticate against the realm it creates.
 
 Health Monitoring Service — independent of the chain above; every other component sends telemetry to it, but nothing above depends on it to function
 ```
@@ -112,7 +112,7 @@ Health Monitoring Service — independent of the chain above; every other compon
 When multiple components need rolling back together, work **down the chain, from Vault outward**, for the same reason you'd deploy in that order: a downstream component's current config assumes the upstream one is in a known-good state.
 
 1. **Vault** — only if the certificate bundle itself is suspect (not just the Certificate Manager's code). Restore from a secure offline copy per [Disaster Recovery Considerations](#disaster-recovery-considerations) before touching anything downstream, since every other component's mTLS depends on Vault's contents being valid.
-2. **DPN Authentication Service** — independent of the Vault/certificate chain, so it can be rolled back at any point relative to step 1. Roll it back (Part 2b) **before** any downstream component that relies on Keycloak-based auth (Kafka OAuth, Kafka UI, Airflow SSO, oauth2-proxy) if the realm/client configuration itself is suspect — those components will fail to authenticate against a realm mid-rollback.
+2. **DPN Authentication Service** — independent of the Vault/certificate chain, so it can be rolled back at any point relative to step 1. Roll it back (Part 2b) **before** any downstream component that relies on Keycloak-based auth (Kafka OAuth, Kafka UI, Self-Service UI login, oauth2-proxy) if the realm/client configuration itself is suspect — those components will fail to authenticate against a realm mid-rollback.
 3. **Federator Certificate Manager** — roll back its deployment (Part 3) if the manager's own code is at fault. This does not affect Vault's stored certificates, so it's safe to do independently of step 1 unless the manager's rollback would reintroduce code that mismanages Vault contents.
 4. **Federator Gateway** — roll back (Part 2) only after Vault/Certificate Manager are confirmed healthy; otherwise the Gateway may roll back into a config that expects certificates Vault no longer has in the expected state.
 4a. **REST Federator Gateway** — if deployed, roll back (Part 2a) at the same point as step 4, independently of the gRPC Federator Gateway and Data Pipeline — it shares Vault/Certificate Manager as a dependency but not the gRPC Federator Gateway itself.
@@ -265,7 +265,7 @@ helm rollback dpn-keycloak <rollbackRevision> -n ns-dpn-01
 
 > **Realm/client data is not part of the Helm release.** Rolling back the Helm release reverts the chart and its values (e.g. resource limits, the `KC_UI_HOST_*`/`KC_LOGIN_THEME` overrides baked into the pipeline step), but Keycloak's realm, clients, and users live in the PostgreSQL PVC, which a Helm rollback does not touch. If bad data was written into the realm (e.g. by a bad run of `configure-keycloak.sh`), restoring the PVC — or re-applying the realm configuration by hand — may be needed in addition to the Helm rollback.
 
-**Downstream impact:** Federator Gateway (Kafka OAuth, Kafka UI), Data Pipeline (Airflow SSO, Kafka OAuth), and Health Monitoring Service (oauth2-proxy UIs, Kafka UI OIDC) all authenticate against the realm this service creates. After a rollback, confirm `KC-SERVICE-CLIENT-SECRET` in Key Vault still matches what those components expect — see [Rollback Sequence Across Components](#rollback-sequence-across-components).
+**Downstream impact:** Federator Gateway (Kafka OAuth, Kafka UI), Data Pipeline (Self-Service UI login, Kafka OAuth), and Health Monitoring Service (oauth2-proxy UIs, Kafka UI OIDC) all authenticate against the realm this service creates. After a rollback, confirm `KC-SERVICE-CLIENT-SECRET` in Key Vault still matches what those components expect — see [Rollback Sequence Across Components](#rollback-sequence-across-components).
 
 **Verification:**
 

@@ -97,7 +97,7 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
 
 4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. It defaults to the in-cluster FQDN (`https://dpn-keycloak.<namespace>.svc.cluster.local:8443`); a shared platform certificate often covers a public DNS name instead — the deploy workflow prints the certificate's SANs so you can check.
 
-   > **Note** Update `KC_HOSTNAME` rather than leaving it empty when a browser-facing consumer is involved.** With `KC_HOSTNAME` left dynamic, Keycloak derives its OIDC issuer/redirect URLs from whichever `Host` header the request arrived on — including internal server-to-server calls, which arrive on the in-cluster `svc.cluster.local` name. That unresolvable hostname can then leak into a browser-facing authorize redirect (seen as `DNS_PROBE_FINISHED_NXDOMAIN` for consumers such as Airflow's Keycloak SSO login). Pin `KC_HOSTNAME` to the externally-reachable Load Balancer hostname i.e.`https://dpn-keycloak-service-lb.<namespace>.svc.cluster.local:8443` and keep `KC_HOSTNAME_STRICT: "false"` so in-cluster callers still work.
+   > **Note** Update `KC_HOSTNAME` rather than leaving it empty when a browser-facing consumer is involved.** With `KC_HOSTNAME` left dynamic, Keycloak derives its OIDC issuer/redirect URLs from whichever `Host` header the request arrived on — including internal server-to-server calls, which arrive on the in-cluster `svc.cluster.local` name. That unresolvable hostname can then leak into a browser-facing authorize redirect (seen as `DNS_PROBE_FINISHED_NXDOMAIN` for browser-facing consumers using Keycloak SSO login). Pin `KC_HOSTNAME` to the externally-reachable Load Balancer hostname i.e.`https://dpn-keycloak-service-lb.<namespace>.svc.cluster.local:8443` and keep `KC_HOSTNAME_STRICT: "false"` so in-cluster callers still work.
 
 ---
 
@@ -144,7 +144,7 @@ Keycloak now runs as a **StatefulSet** rather than a Deployment, so scaling past
 
 ## Step5: Configure Deployment Parameters
 
-Deployed with the `dpn-keycloak-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`:
+Deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow in `dpn-authentication-service`:
 
 ```text
 root/
@@ -160,17 +160,14 @@ The workflow runs `helm lint` + dry run, then `helm upgrade --install` (rolling 
 
 **Realm configuration is automatic, not manual.** 
 
-After the Helm deploy, the workflow's "Configure Realm, Client, Roles and Audit Logging" step port-forwards to the internal Service and runs `charts/keycloak/scripts/configure-keycloak.sh`, which creates/updates the `dpn-realm` realm, the `DPN-Client` machine client, the shared `dpn-service-client` UI client (with every observability UI's redirect URI/web origin), realm roles (`dpnreader`, `dpnadmin`, and now **`dpnoperator`** — trigger/enable/disable DAGs and manage task state without edit/delete rights), matching groups, and session/audit settings — idempotently, on every deploy. `KC_ADMIN_PASSWORD` and `KC_SERVICE_CLIENT_SECRET` are read from the secrets backend selected in [Step2](#step2-configure-secrets) (`az keyvault secret show --vault-name <KEY_VAULT_NAME> --name keycloak-...` when `cloud: azure`).
+After the Helm deploy, the workflow's "Configure Realm, Client, Roles and Audit Logging" step port-forwards to the internal Service and runs `charts/keycloak/scripts/configure-keycloak.sh`, which creates/updates the `dpn-realm` realm, the `DPN-Client` machine client, the shared `dpn-service-client` UI client (with every observability UI's redirect URI/web origin), realm roles (`dpnreader`, `dpnadmin`, and now **`dpnoperator`**), matching groups, and session/audit settings — idempotently, on every deploy. `KC_ADMIN_PASSWORD` and `KC_SERVICE_CLIENT_SECRET` are read from the secrets backend selected in [Step2](#step2-configure-secrets) (`az keyvault secret show --vault-name <KEY_VAULT_NAME> --name keycloak-...` when `cloud: azure`).
 
 **UI redirect hosts are resolved dynamically on Azure.** 
 
-Rather than relying solely on `configure-keycloak.sh`'s own placeholder defaults (`dpn-observability.ns-dpn-health-01.svc.cluster.local:<port>` — unreachable from a browser), the Azure path looks up each UI's real LoadBalancer hostname/IP (`kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`) for Airflow, Jaeger, OpenSearch Dashboards, Perses, Portal and the Kafka UI, and passes it to the script via `KC_UI_HOST_*` environment variables. A UI not yet deployed is simply left at the script's own default rather than failing the step. Two additional UI hosts are now registered unconditionally: `KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2` — the Federator Gateway's Job Runner dashboards, which authenticate directly against `dpn-service-client` (no `oauth2-proxy` sidecar).
+Rather than relying solely on `configure-keycloak.sh`'s own placeholder defaults (`dpn-observability.ns-dpn-health-01.svc.cluster.local:<port>` — unreachable from a browser), the Azure path looks up each UI's real LoadBalancer hostname/IP (`kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].ip}'`) for Jaeger, OpenSearch Dashboards, Perses, Portal and the Kafka UI, and passes it to the script via `KC_UI_HOST_*` environment variables. A UI not yet deployed is simply left at the script's own default rather than failing the step. Two additional UI hosts are now registered unconditionally: `KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2` — the Federator Gateway's Job Runner dashboards, which authenticate directly against `dpn-service-client` (no `oauth2-proxy` sidecar).
 >
 > **Branding.** The realm now sets a custom login theme (`KC_LOGIN_THEME`, default `dpn-portal`, packaged from `charts/keycloak/themes/dpn-portal` by `templates/theme-configmap.yaml`) and header markup (`KC_DISPLAY_NAME_HTML`). Override either as an environment variable on the `configure-keycloak.sh` step if you need different branding per environment.
 >
-> **No `--wait`/`--timeout` on `helm upgrade` for this path.** Long-lived watches against the AKS API from the self-hosted runner were unreliable and timed out even when the rollout had actually completed — the Helm Deploy step now fires the upgrade without waiting, then polls `kubectl rollout status` with a short per-attempt timeout and a few retries instead.
-
-There is no dedicated uninstall workflow for this component yet — to remove it, run `helm uninstall dpn-keycloak -n <namespace>` directly (this retains the PostgreSQL PVC by default, so realm data survives a reinstall; delete the PVC separately if you want a clean wipe).
 
 ---
 
@@ -178,4 +175,4 @@ There is no dedicated uninstall workflow for this component yet — to remove it
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 | 

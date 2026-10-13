@@ -23,6 +23,7 @@ Release : 2.1.0 - Oct 2026
     - [Using your own DNS instead of the `*.svc.cluster.local` names](#using-your-own-dns-instead-of-the-svcclusterlocal-names)
   - [Step7: DPN Secrets Reference](#step7-dpn-secrets-reference)
     - [DPN shared secrets](#dpn-shared-secrets)
+    - [Copy shared secrets into ns-dpn-dp-01 (Data Pipelines prerequisite)](#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite)
 - [Review Notes](#review-notes)
 
 ---
@@ -198,10 +199,15 @@ Create the following Kubernetes namespaces in AKS. This setup needs to be done m
 
 - ns-dpn-01
 - ns-dpn-health-01
+- ns-dpn-dp-01 — dedicated namespace for DPN Data Pipelines (Self-Service UI, producer and consumer releases)
 
 ```bash
-kubectl create namespace <NAMESPACE>    # e.g. ns-dpn-01
+kubectl create namespace ns-dpn-01
+kubectl create namespace ns-dpn-health-01
+kubectl create namespace ns-dpn-dp-01
 ```
+
+> **Create `ns-dpn-dp-01` before running the Certificate Manager's `dpn-tls-cd` pipeline** (`dpn-federator-certificate-manager/.pipelines/azure-pipelines/cd-pipelines/dpn-tls-cd.yaml`). The pipeline writes `dpn-tls` and `tls-auth-secret` into `ns-dpn-dp-01` as well as `ns-dpn-01` and `ns-dpn-health-01`, and it does not check that the namespace exists first, so the run fails if `ns-dpn-dp-01` is missing. The other secrets the Data Pipelines need must be copied in by hand (see [Copy shared secrets into ns-dpn-dp-01](#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite)).
 
 ---
 
@@ -319,12 +325,47 @@ The following secrets are shared by DPN components to use encryption in transit 
 
 | Kubernetes Secret | Key(s) | Backing Key Vault Secret | Purpose | Namespace(s) | Consumed by |
 |---|---|---|---|---|---|
-| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD` | Canonical keystore/truststore/mTLS-client-cert passwords, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Certificate Manager, Federator Gateway, REST Federator Gateway, File Scan Service, Health Monitoring Service (Kafka UI, Data Prepper) |
+| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD` | Canonical keystore/truststore/mTLS-client-cert passwords, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Certificate Manager, Federator Gateway, REST Federator Gateway, File Scan Service, Health Monitoring Service (Kafka UI, Data Prepper) |
 | `certificate-manager-secrets` | `VAULT_TOKEN`, `VAULT_APPROLE_SECRET_ID` | `VAULT-TOKEN`, `VAULT-APPROLE-SECRET-ID` | Vault credentials for PKI/mTLS bootstrap | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
-| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` | `KC-SERVICE-CLIENT-SECRET` (set manually — see note below), `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD` | `dpn-service-client` OIDC client secret, plus Keycloak's own admin and database passwords | ns-dpn-01 | Authentication Service (Keycloak), Data Pipelines (Airflow SSO + Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
-| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a Key Vault secret | Universal DPN server TLS identity, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis, Airflow |
+| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` | `KC-SERVICE-CLIENT-SECRET` (set manually — see note below), `KEYCLOAK-ADMIN-PASSWORD`, `KC-DB-PASSWORD` | `dpn-service-client` OIDC client secret, plus Keycloak's own admin and database passwords | ns-dpn-01, ns-dpn-dp-01 (manual copy — see [below](#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite)) | Authentication Service (Keycloak), Data Pipelines (Airflow SSO + Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a Key Vault secret | Universal DPN server TLS identity, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis, Airflow |
 | `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a Key Vault secret | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
 | `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+
+#### Copy shared secrets into ns-dpn-dp-01 (Data Pipelines prerequisite)
+
+DPN Data Pipelines run in their own namespace, `ns-dpn-dp-01` (created in [Step2.3](#step23-aks-namespace-configuration)). Kubernetes secrets are namespace-scoped, so the shared secrets the pipelines read must also exist in `ns-dpn-dp-01` before the Data Pipelines CD pipeline runs. Do this after the Authentication Service (Keycloak) is deployed, because `dpn-keycloak-secrets` is only created in `ns-dpn-01` by the Keycloak deploy.
+
+| Secret | How it reaches `ns-dpn-dp-01` |
+|---|---|
+| `dpn-tls` | Written automatically by the Certificate Manager's `dpn-tls-cd` pipeline. Copy it by hand only if that pipeline last ran before `ns-dpn-dp-01` existed |
+| `tls-auth-secret` | Same as `dpn-tls` |
+| `dpn-keycloak-secrets` | Not copied by any pipeline. Copy it as shown below |
+| `producer-file-dp-secret`, `consumer-file-dp-secret` | Not copied. Copy them if you created them in `ns-dpn-01`, or create them directly with `-n ns-dpn-dp-01` (see [Data Pipelines STEP-08a](07-configure-dpn-data-pipelines.md#step-08a-configure-storage-secrets)) |
+
+Each command reads the secret from `ns-dpn-01`, keeps only its type and data, and applies it under the same name in `ns-dpn-dp-01`. Add `dpn-tls` and `tls-auth-secret` to the list only if they are missing from `ns-dpn-dp-01` (`kubectl get secret -n ns-dpn-dp-01`).
+
+Bash (requires `jq`):
+
+```bash
+for s in dpn-keycloak-secrets producer-file-dp-secret consumer-file-dp-secret; do
+  kubectl get secret "$s" -n ns-dpn-01 -o json \
+    | jq '{apiVersion:"v1",kind:"Secret",type:.type,data:.data,metadata:{name:.metadata.name,namespace:"ns-dpn-dp-01"}}' \
+    | kubectl apply -f -
+done
+```
+
+PowerShell:
+
+```powershell
+foreach ($s in @("dpn-keycloak-secrets","producer-file-dp-secret","consumer-file-dp-secret")) {
+  kubectl get secret $s -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
+}
+```
+
+> **Re-copy after every rotation.** A copied secret is a one-off snapshot and does not follow its source. Whenever a source secret in `ns-dpn-01` is rotated (for example a new `KC-SERVICE-CLIENT-SECRET` or a new storage connection string), run the copy again and restart the Data Pipelines pods. `dpn-tls` and `tls-auth-secret` are rewritten in `ns-dpn-dp-01` on every `dpn-tls-cd` run.
+
+> **First deployment in a new environment.** Do this copy once in every new environment, then restart the Data Pipelines pods so they pick up the secrets. See [One-time setup for a new environment](../03-installation/07-dpn-data-pipeline-installation-process.md#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
 
 ---
 

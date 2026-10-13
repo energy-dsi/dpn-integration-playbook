@@ -30,7 +30,7 @@ Release : 2.1.0 - Oct 2026
 
 ## Overview
 
-This document is the starting point for installing and deploying **DPN components into an Azure environment** using the **`dpn-containerised-deployment-service` GitHub Actions pipeline**, run with `cloud: azure`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
+This document is the starting point for installing and deploying **DPN components into an Azure environment** using the **GitHub Actions pipelines in each component's own ADO repository**, run with `cloud: azure`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
 
 The deployment uses the following repositories:
 
@@ -78,15 +78,14 @@ Deploys Keycloak, the platform's shared OAuth2/OIDC Identity Provider. Kafka bro
 
 **DPN Data Pipeline Producer**
 - Files are extracted from the organisation's source storage location automatically on a scheduled basis
-- Processed by adaptor and mapper components
+- Processed by the adaptor component
 - Published to Kafka topics with the final file location
 - Published to the target storage location
 
 **DPN Data Pipeline Consumer**
 - Federator Client receives the file in a consumer-specific storage account or bucket
 - Checksum and hash validation are performed on the received file(s)
-- The file is processed by the extractor service and placed into another target container
-- Mapper components perform schema validation based on the schema type specified in the file name
+- The file is processed by the extractor service, which performs schema validation based on the schema type specified in the file name, and placed into another target container
 - The processed file is stored in the consumer target storage container or bucket
 - A Kafka-based streaming message is sent to a destination Kafka topic to mark the end of the data pipeline process
 
@@ -102,7 +101,7 @@ Deploys Keycloak, the platform's shared OAuth2/OIDC Identity Provider. Kafka bro
 **Note** - Opensearch is recommended to be used for log monitoring at this moment, prometheus and Jaeger dashboard UI improvements under process for future release.
 
 **DPN Streaming Service — Kafka**
-This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor, mapper, and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
+This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
 
 **DPN Caching Service**
 This component uses Redis caching to store Kafka offsets for various topics and to cache tokens as necessary for the Federator Server and Clients. It is also bundled with the Federator Gateway package.
@@ -204,7 +203,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 
 ## Common Troubleshooting Guidance
 
-### CI Pipeline Failure
+### CD Pipeline Failure
 
 Possible causes:
 
@@ -334,4 +333,4 @@ Verify that the mutual TLS certificates are correctly loaded in Vault and that t
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

@@ -4,11 +4,11 @@ Release : 2.1.0 - Oct 2026
 
 This section describes how to configure **DPN HashiCorp Vault service**. HashiCorp Vault is the secret store used by DPN Certificate Manager to hold Intermediate CA, CA chain, key pair, certificate, and keystore/truststore passwords. These secrets are used to build the certificate P12 files for mutual TLS (mTLS).
 
-DSI provides an **automated method** (GitHub Actions workflows) that generates Vault's own TLS certificate/key and initialises Vault, run on the shared self-hosted GitHub Actions runner. This mirrors the Azure/ADO path's `dpn-tls-cd` pipeline conceptually, but **this GitHub Actions automation has not yet been extended to the DPN-wide TLS material** (`dpn-tls`, `dpn-health-tls`, `tls-auth-secret`) that Keycloak, Kafka, the Federator Gateway, Airflow, and the health-monitoring gateways already expect to exist on this AKS/GHA path. A [manual procedure](#manual--dpn-wide-tls-material-fills-an-automation-gap) is provided below to fill that gap until an equivalent GitHub Actions workflow exists.
+DSI provides an **automated method** (GitHub Actions workflows) that generates Vault's own TLS certificate/key and initialises Vault, run on the shared self-hosted GitHub Actions runner. This mirrors the Azure/ADO path's `dpn-tls-cd` pipeline conceptually.
 
 > **Environment and cluster:** These instructions target one `<environment>`/`<cluster>` combination (`dev`/`test` × `dpn01`/`dpn02`). Substitute your actual values in:
 >
-> - config file `.github/config/azure/<environment>-<cluster>.json`
+> - config file `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json`
 > - values file `<chart-dir>/values/azure/<environment>-<cluster>.yaml`
 >
 > Repeat the deployment once per environment/cluster combination you run — don't merge multiple environments into one file.
@@ -61,7 +61,7 @@ HashiCorp Vault stores the cryptographic material the Certificate Manager needs 
 
 Vault serves over **HTTPS (TLS 1.2+)** internally and uses **Azure Key Vault auto-unseal** so it unseals itself on start-up — see [Appendix — Azure Key Vault auto-unseal configuration](#appendix--azure-key-vault-auto-unseal-configuration). DSI provides the community edition of the Vault container; organisations may substitute an enterprise edition per their licensing strategy.
 
-Vault's own TLS bootstrap and initialisation are covered by **[Automated Vault Configuration](#automated-vault-configuration)** — GitHub Actions workflows generate that TLS material, deploy and initialise Vault, load the certificate bundle, and deploy the Certificate Manager. The DPN-wide TLS material other components depend on (`dpn-tls`, `dpn-health-tls`, `tls-auth-secret`) has no GitHub Actions workflow yet on this path — see [Manual — DPN-wide TLS material](#manual--dpn-wide-tls-material-fills-an-automation-gap).
+Vault's own TLS bootstrap and initialisation are covered by **[Automated Vault Configuration](#automated-vault-configuration)** — GitHub Actions workflows generate that TLS material, deploy and initialise Vault, load the certificate bundle, and deploy the Certificate Manager. The DPN-wide TLS material other components depend on (`dpn-tls`, `dpn-health-tls`, `tls-auth-secret`).
 
 > **Cloud provider note.** The `charts/vault-https` chart's templates (`templates/configmap.yaml`, `templates/secretproviderclass.yaml`) render `seal "azurekeyvault" { ... }` from `.Values.seal.azureKeyVault.*` and set `provider: azure` in the `SecretProviderClass` natively — Azure is the chart's own default `cloudProvider`, so the `charts/vault-https` Azure values files (`values/azure/<environment>-<cluster>.yaml`) are already wired into the chart's templates end-to-end: `cloudProvider: azure`, a `seal.azureKeyVault.*` stanza, a Workload Identity `serviceAccount.*` annotation set, and a `keyVault.name` — all consumed as written, with real, already-provisioned values for each environment.
 >
@@ -117,7 +117,7 @@ The automated flow uses four GitHub Actions workflows:
 A fifth capability, **AppRole setup**, is planned but not yet available as a GitHub Actions workflow for this path — see [Step 3E](#step-3e-configure-approle-authentication).
 
 ```text
-└── github-pipeline/
+└── github-actions-pipelines/
     └── workflows/
         ├── dpn-gha-vault-tls-bootstrap-cd.yml
         ├── dpn-gha-vault-https-cd.yml
@@ -140,7 +140,7 @@ Ensure the following are in place **before** running any workflow:
 | 5 | **Environment config and values files populated** | See [Step 2](#step-2-reference-configuration-data-populate-before-deployment) |
 | 6 | **DSM-signed client bundle available** | The client private key, DSM-signed certificate, and CA chain — loaded in [Step 3C](#step-3c-configure-certificate-bundle-dpn-gha-vault-load-bundle-cdyml) |
 
-> **One-time setup:** Before running any workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration). In particular the workflows **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), populate `.github/config/azure/<environment>-<cluster>.json`, and (for the bundle load) set the required GitHub Actions secrets.
+> **One-time setup:** Before running any workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration). In particular the workflows **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), populate `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json`, and (for the bundle load) set the required GitHub Actions secrets.
 
 ---
 
@@ -150,7 +150,7 @@ Two files must be populated for each environment/cluster combination. **Use your
 
 #### Step 2a. Environment config JSON
 
-The workflows resolve environment settings from `.github/config/azure/<environment>-<cluster>.json` (see [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration)). Vault uses the following keys:
+The workflows resolve environment settings from `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` (see [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration)). Vault uses the following keys:
 
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|
@@ -193,7 +193,7 @@ root/
 
 ### Step 3: Deployment Configuration
 
-Trigger the following workflows in order, via **Actions → &lt;workflow name&gt; → Run workflow** . Each resolves `.github/config/azure/<environment>-<cluster>.json` and the matching Helm values file automatically from the `environment`/`cluster`/`cloud` inputs.
+Trigger the following workflows in order, via **Actions → &lt;workflow name&gt; → Run workflow** . Each resolves `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` and the matching Helm values file automatically from the `environment`/`cluster`/`cloud` inputs.
 
 #### Step 3A: Configure Bootstrap Vault TLS (`dpn-gha-vault-tls-bootstrap-cd.yml`)
 
@@ -210,7 +210,7 @@ This workflow generates a Root CA, the Vault server certificate/key, and the Cer
 | `org` | CSR subject Organisation (O) — default `DSI` |
 | `sans` | Comma-separated DNS SANs for the Vault URL. **Must include the internal Kubernetes DNS name**, e.g. `vault-https.<namespace>.svc.cluster.local` |
 
-> **Truststore password comes from a repository secret, not a workflow input.** The truststore password is read from the repository secret `DPN_TLS_TRUSTSTORE_PASSWORD` (the same secret `dpn-tls-cd.yaml` uses) and published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD`. There is no `truststorePassword` workflow input — GitHub Actions has no secret-typed `workflow_dispatch` input, and a plain string input would always be visible in the "Run workflow" form regardless of log masking. Set `DPN_TLS_TRUSTSTORE_PASSWORD` as a repository (or environment) secret before running this workflow.
+> **Truststore password comes from a repository secret, not a workflow input.** The truststore password is read from the repository secret `DPN_TLS_TRUSTSTORE_PASSWORD` (the same secret `dpn-gha-tls-cd.yml` uses) and published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD`. There is no `truststorePassword` workflow input — GitHub Actions has no secret-typed `workflow_dispatch` input, and a plain string input would always be visible in the "Run workflow" form regardless of log masking. Set `DPN_TLS_TRUSTSTORE_PASSWORD` as a repository (or environment) secret before running this workflow.
 
 On completion it publishes:
 - `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` → Azure Key Vault
@@ -306,9 +306,9 @@ vault:
 
 ## Manual — DPN-wide TLS material (fills an automation gap)
 
-On the Azure/ADO path, a single pipeline (`dpn-tls-cd`) generates one self-signed Root CA and one wildcard server certificate, then publishes it in every format the platform needs — Vault's own PEM listener cert, plus the `dpn-tls`, `dpn-health-tls`, and `tls-auth-secret` Kubernetes secrets that Keycloak, Kafka, both Federators, Airflow, and the health-monitoring `oauth2-proxy` gateways all read from. **No equivalent GitHub Actions workflow exists for this path yet** — `dpn-gha-vault-tls-bootstrap-cd.yml` only ever produces Vault's own TLS cert/key and `cert-manager-truststore`, unchanged from the flow `dpn-tls-cd` provides on the ADO path.
+On the Azure/ADO path, a single pipeline (`dpn-tls-cd`) generates one self-signed Root CA and one wildcard server certificate, then publishes it in every format the platform needs — Vault's own PEM listener cert, plus the `dpn-tls`, `dpn-health-tls`, and `tls-auth-secret` Kubernetes secrets that Keycloak, Kafka, both Federators, and the health-monitoring `oauth2-proxy` gateways all read from. **No equivalent GitHub Actions workflow exists for this path yet** — `dpn-gha-vault-tls-bootstrap-cd.yml` only ever produces Vault's own TLS cert/key and `cert-manager-truststore`, unchanged from the flow `dpn-tls-cd` provides on the ADO path.
 
-Despite that, the Azure values files for Federator Gateway, Health Monitoring's Kafka UI/OTel collector, and Data Pipelines' Airflow **already reference `dpn-tls` and `dpn-health-tls`** as pre-existing secrets, and the Certificate Manager's Azure values file expects a pre-existing `certificate-manager-secrets` secret (`existingSecret.name: "certificate-manager-secrets"`). Until an automated workflow is added for this GitHub Actions path, an organisation deploying on Azure via this pipeline must create all of these by hand, once per environment/cluster — this section shows how, mirroring exactly what `dpn-tls-cd` does on the ADO path (see [the ADO edition of this guide](../../azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step1-generate-the-dpn-universal-tls-material) for the same steps in ADO-pipeline form).
+Despite that, the Azure values files for Federator Gateway, Health Monitoring's Kafka UI/OTel collector, and Data Pipelines **already reference `dpn-tls` and `dpn-health-tls`** as pre-existing secrets, and the Certificate Manager's Azure values file expects a pre-existing `certificate-manager-secrets` secret (`existingSecret.name: "certificate-manager-secrets"`). Until an automated workflow is added for this GitHub Actions path, an organisation deploying on Azure via this pipeline must create all of these by hand, once per environment/cluster — this section shows how, mirroring exactly what `dpn-tls-cd` does on the ADO path (see [the ADO edition of this guide](../../azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step1-generate-the-dpn-universal-tls-material) for the same steps in ADO-pipeline form).
 
 ### Step1: Generate the DPN universal TLS material
 
@@ -673,4 +673,4 @@ There is no automatic renewal for a server certificate. Track its 60-day expiry 
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Oct-2026 | DSI Assurance | Final | V1.0.0 |

@@ -176,4 +176,4 @@ Image access setup and the workflow trigger are covered in [Step3](#step3-execut
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

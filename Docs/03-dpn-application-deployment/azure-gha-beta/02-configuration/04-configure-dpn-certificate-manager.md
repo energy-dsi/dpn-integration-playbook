@@ -52,7 +52,7 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Vault running over HTTPS, KV v2 enabled at `pki-client`, and the certificate bundle loaded into `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
-| 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-vault-tls-bootstrap-cd.yml` workflow |
+| 2 | **`cert-manager-truststore` Kubernetes secret present** | Holds `truststore.jks` used to trust the Vault HTTPS endpoint. Created automatically by the `dpn-gha-vault-tls-bootstrap-cd.yml` workflow |
 | 3 | **Vault credentials available** | `VAULT-TOKEN`/`VAULT_TOKEN` (root token) and the truststore password required either way — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication) and [Step3b](#step3b-configure-secrets) for where each lives per secrets backend |
 | 4 | **AKS cluster** + either a Key Vault-reachable identity or a workload-identity-annotated ServiceAccount | Required `secretsManager.enabled: false` (Key Vault path) |
 | 5 | **OAuth2 client ID and Management Node URL** | Received from DSM during onboarding to establish the DPN connection — authentication is JWT-based, no client secret is issued |
@@ -79,7 +79,7 @@ The Certificate Manager reads and writes its certificate material directly in Va
 | `secret-id` (sensitive) | `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_SECRET_ID` | `VAULT-APPROLE-SECRET-ID` (355-day expiry, to satisfy Key Vault's maximum-validity policy) |
 | `role-id` (not sensitive) | `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` — stored for reference/other tooling (e.g. [Step 3C of the Vault workflow](01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml) fetches it programmatically) | Printed in the workflow summary for you to copy into `vault.appRole.roleId` |
 
-**On Azure you must copy the role-id into the values file yourself.** `dpn-certificate-manager-cd.yml` does not read `vault.appRole.roleId` from Key Vault and inject it — it deploys the Helm chart exactly as the values file specifies. Copy the `role_id` printed in the setup workflow's run summary into `vault.appRole.roleId`. To switch over, set in the environment/cluster values file:
+**On Azure you must copy the role-id into the values file yourself.** `dpn-gha-certificate-manager-cd.yml` does not read `vault.appRole.roleId` from Key Vault and inject it — it deploys the Helm chart exactly as the values file specifies. Copy the `role_id` printed in the setup workflow's run summary into `vault.appRole.roleId`. To switch over, set in the environment/cluster values file:
 
 ```yaml
 vault:
@@ -208,7 +208,7 @@ The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secr
 
 ## Step4: Setup Deployment Configuration
 
-The Certificate Manager is deployed with the `dpn-certificate-manager-cd.yml` GitHub Actions workflow in `dpn-containerised-deployment-service`:
+The Certificate Manager is deployed with the `dpn-gha-certificate-manager-cd.yml` GitHub Actions workflow in `dpn-federator-certificate-manager`:
 
 ```text
 root/
@@ -225,7 +225,7 @@ Trigger it via **Actions → DPN CD - Certificate Manager → Run workflow**. Th
 
 | Input | Description |
 |-----------|-------------|
-| `environment` | `dev` / `test`; resolves `.github/config/azure/<environment>-<cluster>.json` and `values/azure/<environment>-<cluster>.yaml` |
+| `environment` | `dev` / `test`; resolves `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` and `values/azure/<environment>-<cluster>.yaml` |
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `azure` |
 | `imageTag` | Tag of the Certificate Manager image to deploy — from the CI build or the prebuilt DSI image |
@@ -239,4 +239,4 @@ Trigger it via **Actions → DPN CD - Certificate Manager → Run workflow**. Th
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

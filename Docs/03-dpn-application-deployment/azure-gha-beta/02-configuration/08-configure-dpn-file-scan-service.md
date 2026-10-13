@@ -23,14 +23,14 @@ This section describes how to configure and deploy the **DPN File Scan Service**
 
 The DPN File Scan Service is a FastAPI application that runs as a single AKS Deployment. Microsoft Defender for Storage malware scanning scans every object landed in the inbound ("raw"/quarantine) Blob container; on completion it publishes a scan-result verdict event through a custom Event Grid topic, which fans out to a Service Bus topic subscription the service long-polls. For files scanned clean, the service copies the object to the outbound ("stage") container and deletes it from the inbound container; for files flagged with threats, the object is deleted from inbound and a `malicious_files` metric is incremented.
 
-**Deployment and part of the Azure prerequisite setup both use pipelines.** `dpn-file-scan-cd.yml` in `dpn-containerised-deployment-service` deploys this service via Helm. `dpn-file-scan-prerequisites-cd.yml` also runs on `cloud: azure`: it creates the Service Bus topic and subscription, enables Defender for Storage malware scanning (on-upload) on the raw container's storage account wired to a custom Event Grid topic, enables that Event Grid topic's system-assigned identity, grants it the **Azure Service Bus Data Sender** role on the Service Bus topic, creates the Event Grid → Service Bus event subscription, and creates the raw storage container itself. It does **not** seed the service's own OAuth client credentials in Key Vault — those (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET`) are provisioned separately (see [Step5](#step5-configure-secrets)).
+**Deployment and part of the Azure prerequisite setup both use pipelines.** `dpn-gha-file-scan-cd.yml` in `dpn-file-scan-service` deploys this service via Helm. `dpn-gha-file-scan-prerequisites-cd.yml` also runs on `cloud: azure`: it creates the Service Bus topic and subscription, enables Defender for Storage malware scanning (on-upload) on the raw container's storage account wired to a custom Event Grid topic, enables that Event Grid topic's system-assigned identity, grants it the **Azure Service Bus Data Sender** role on the Service Bus topic, creates the Event Grid → Service Bus event subscription, and creates the raw storage container itself. It does **not** seed the service's own OAuth client credentials in Key Vault — those (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET`) are provisioned separately (see [Step5](#step5-configure-secrets)).
 
 **CD Workflow**
 
 | Workflow | File | Purpose |
 |---|---|---|
-| Main deploy | `.github/workflows/dpn-file-scan-cd.yml` | Builds nothing itself — deploys the already-built container image via Helm |
-| Prerequisites | `.github/workflows/dpn-file-scan-prerequisites-cd.yml` | On `cloud: azure`, creates the Service Bus topic/subscription, enables Defender for Storage malware scanning wired to a custom Event Grid topic, grants the topic's managed identity Service Bus access, creates the Event Grid → Service Bus event subscription, and creates the raw storage container |
+| Main deploy | `.pipelines/github-actions-pipelines/workflows/dpn-gha-file-scan-cd.yml` | Builds nothing itself — deploys the already-built container image via Helm |
+| Prerequisites | `.pipelines/github-actions-pipelines/workflows/dpn-gha-file-scan-prerequisites-cd.yml` | On `cloud: azure`, creates the Service Bus topic/subscription, enables Defender for Storage malware scanning wired to a custom Event Grid topic, grants the topic's managed identity Service Bus access, creates the Event Grid → Service Bus event subscription, and creates the raw storage container |
 
 ---
 
@@ -44,11 +44,11 @@ The File Scan Service's own pod does not use the system-assigned identity create
 | Service Bus subscription (scan-result events) | Service Bus namespace + topic/subscription name, configured via `env.serviceBusNamespace`/`env.topicname`/`env.subscriptionname` |
 | OAuth client credentials (`FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET`) | Azure Key Vault, synced into the pod via the Secrets Store CSI driver's `SecretProviderClass` — see [Step5](#step5-configure-secrets) |
 
-> **Note:** `dpn-file-scan-prerequisites-cd.yml` (run with `cloud: azure`) provisions the Event Grid topic's own system-assigned identity and its Service Bus role assignment for you, as part of wiring Defender's scan-result delivery — see [Step2](#step2-azure-resource-setup-service-buseventgrid-defender-for-storage). It does not create or manage the service pod's Key Vault access policy/RBAC; that follows the same pattern as the other DPN services (see [Configure DPN Vault Service](01-configure-dpn-vault-service.md)).
+> **Note:** `dpn-gha-file-scan-prerequisites-cd.yml` (run with `cloud: azure`) provisions the Event Grid topic's own system-assigned identity and its Service Bus role assignment for you, as part of wiring Defender's scan-result delivery — see [Step2](#step2-azure-resource-setup-service-buseventgrid-defender-for-storage). It does not create or manage the service pod's Key Vault access policy/RBAC; that follows the same pattern as the other DPN services (see [Configure DPN Vault Service](01-configure-dpn-vault-service.md)).
 
 ## Step2: Azure Resource Setup (Service Bus/Event Grid/Defender for Storage)
 
-`dpn-file-scan-prerequisites-cd.yml` (run with `cloud: azure`) provisions the following, idempotently:
+`dpn-gha-file-scan-prerequisites-cd.yml` (run with `cloud: azure`) provisions the following, idempotently:
 
 1. **Service Bus topic and subscription** — creates the topic (`serviceBusTopicName` input, e.g. `dpn-fileupload-scan-results`) and subscription (`FILESCAN_SB_SUBSCRIPTION_NAME` from the config JSON, e.g. `dpn-fileupload-scan-results-sub`) under `serviceBusNamespace`/`serviceBusResourceGroup`, if they don't already exist.
 2. **Defender for Storage malware scanning** — enables `malwareScanning.onUpload` on the raw container's storage account (`FILESCAN_STORAGE_ACCOUNT` in `FILESCAN_STORAGE_RG`), pointing `scanResultsEventGridTopicResourceId` at the custom Event Grid topic (`eventGridCustomTopicName` input), via `az rest PUT` against the `DefenderForStorageSettings` ARM API.
@@ -65,14 +65,15 @@ The File Scan Service's own pod does not use the system-assigned identity create
 
 ## Step3: Configure File Scan Deployment Workflow
 
-Organisations should prepare a `.github/config/azure/<environment>-<cluster>.json` file per environment/cluster where the file scan service is deployed. This file will be read by the workflow during deployment.
+Organisations should prepare a `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` file per environment/cluster where the file scan service is deployed. This file will be read by the workflow during deployment.
 
 ```text
-dpn-containerised-deployment-service/
-└── .github/
-    └── config/
-        └── azure/
-            └── <environment>-<cluster>.json
+dpn-file-scan-service/
+└── .pipelines/
+    └── github-actions-pipelines/
+        └── config/
+            └── azure/
+                └── <environment>-<cluster>.json
 ```
 
 ### Step3a: Configure Environment JSON File
@@ -156,4 +157,4 @@ Both `FILESCAN-CLIENT-ID` and `FILESCAN-CLIENT-SECRET` must already exist in `ke
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

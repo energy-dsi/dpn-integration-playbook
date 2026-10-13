@@ -64,10 +64,10 @@ The distinction matters for what actually gets reverted:
 | Component | Standard CD workflow (Strategy 1) | Dedicated rollback workflow (Strategy 2) | 
 |-----------|--------------------------------------|-----------------------------------------------|
 | DPN Data Pipeline | `dpn-cd-data-pipelines.yml` | None — manual `helm rollback` only |
-| DPN Federator Gateway | `dpn-federator-gateway-cd.yml` | None — manual `helm rollback` only |
-| DPN Federator Certificate Manager | `dpn-certificate-manager-cd.yml` | None — manual `helm rollback` only |
-| DPN File Scanning Service | `dpn-file-scan-cd.yml` | None — manual `helm rollback` only |
-| DPN Health Monitoring Service | `dpn-health-monitoring-cd-install.yml` (orchestrator — the 10 per-component workflows are `workflow_call`-only and can't be triggered standalone) | None — manual `helm rollback` per sub-component release |
+| DPN Federator Gateway | `dpn-gha-federator-gateway-cd.yml` | None — manual `helm rollback` only |
+| DPN Federator Certificate Manager | `dpn-gha-certificate-manager-cd.yml` | None — manual `helm rollback` only |
+| DPN File Scanning Service | `dpn-gha-file-scan-cd.yml` | None — manual `helm rollback` only |
+| DPN Health Monitoring Service | `dpn-gha-health-monitoring-cd-install.yml` (orchestrator — the 10 per-component workflows are `workflow_call`-only and can't be triggered standalone) | None — manual `helm rollback` per sub-component release |
 
 ---
 
@@ -176,7 +176,7 @@ kubectl rollout status deployment/$RELEASE_NAME -n <namespace> --timeout=180s
 
 ## Part 2 — DPN Federator Gateway Rollback
 
-**Strategy 1 — standard CD workflow (`dpn-federator-gateway-cd.yml`):** re-run with an older `imageTag`. Since this workflow deploys the entire `dpn-platform` release together (Zookeeper Source/Target, Kafka Source/Target, Kafka UI, Redis, Federator Server, Federator Client), redeploying an old tag rebuilds the whole platform release at that image version, not just one sub-component.
+**Strategy 1 — standard CD workflow (`dpn-gha-federator-gateway-cd.yml`):** re-run with an older `imageTag`. Since this workflow deploys the entire `dpn-platform` release together (Zookeeper Source/Target, Kafka Source/Target, Kafka UI, Redis, Federator Server, Federator Client), redeploying an old tag rebuilds the whole platform release at that image version, not just one sub-component.
 
 If only one sub-component's image needs to change, target it directly instead of using the platform-wide workflow:
 
@@ -205,7 +205,7 @@ helm history dpn-platform -n <namespace>
 
 ## Part 3 — DPN Federator Certificate Manager Rollback
 
-**Strategy 1 — standard CD workflow (`dpn-certificate-manager-cd.yml`):** re-run with an older `imageTag`.
+**Strategy 1 — standard CD workflow (`dpn-gha-certificate-manager-cd.yml`):** re-run with an older `imageTag`.
 
 **Strategy 2 — manual Helm revision rollback:**
 
@@ -228,7 +228,7 @@ kubectl -n <namespace> exec <pod-name> -- ls /tls
 
 There is no dedicated rollback workflow for the File Scanning Service — use the standard CD workflow for Strategy 1, and manual Helm commands for Strategy 2, per [Rollback Strategy](#rollback-strategy) and [Rollback Workflow Availability by Component](#rollback-workflow-availability-by-component).
 
-**Strategy 1 — re-run `dpn-file-scan-cd.yml` with an older `imageTag`:**
+**Strategy 1 — re-run `dpn-gha-file-scan-cd.yml` with an older `imageTag`:**
 
 ```bash
 kubectl set image deployment/dpn-file-scan-service \
@@ -258,7 +258,7 @@ Re-run the verification steps from the File Scanning Service's Installation Proc
 
 ## Part 5 — DPN Health Monitoring Service Rollback
 
-Every sub-component (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel Collector, DPN Portal) has its own CD workflow in code (`dpn-cd-kafka.yml`, `dpn-cd-opensearch.yml`, etc.), but these are **`workflow_call`-only** — they can't be triggered standalone from the Actions tab, only invoked by the `dpn-health-monitoring-cd-install.yml` orchestrator.
+Every sub-component (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel Collector, DPN Portal) has its own CD workflow in code (`dpn-gha-kafka-cd.yaml`, `dpn-gha-opensearch-cd.yaml`, etc.), but these are **`workflow_call`-only** — they can't be triggered standalone from the Actions tab, only invoked by the `dpn-gha-health-monitoring-cd-install.yaml` orchestrator.
 
 > **Note:** `dpn-portal` — a tile landing page that links out to the observability UIs — has replaced the retired `nginx-observability` reverse proxy as the last component in this chain; it is fronted by its own `oauth2-proxy` gateway rather than acting as the reverse proxy itself. The `oauth2-proxy` gateways that used to front Kafka UI, Prometheus, and Thanos directly have also been retired: Kafka UI now uses native Keycloak OIDC login and is exposed on its own internal load balancer, and Prometheus/Thanos are no longer browsed directly (both are consumed through Perses).
 
@@ -345,4 +345,4 @@ Organisations should maintain:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |

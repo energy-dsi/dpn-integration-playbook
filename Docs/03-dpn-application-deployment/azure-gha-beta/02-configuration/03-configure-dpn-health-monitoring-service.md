@@ -43,7 +43,7 @@ Each `oauth2-proxy` release's `SecretProviderClass` syncs the Keycloak client se
 
 **What the pipeline does *not* automate:**
 
-- The Keycloak `dpn-service-client` credential must already exist in Azure Key Vault, as the secret `KC-SERVICE-CLIENT-SECRET` — created by `dpn-keycloak-cd.yml`'s own Azure deploy path, run that first if it hasn't been.
+- The Keycloak `dpn-service-client` credential must already exist in Azure Key Vault, as the secret `KC-SERVICE-CLIENT-SECRET` — created by `dpn-gha-keycloak-cd.yml`'s own Azure deploy path, run that first if it hasn't been.
 
 - The `dpn-health-tls` Secret (a `kubernetes.io/tls` Secret holding `tls.crt`, `tls.key` and `ca.crt`) must already exist in `ns-dpn-health-01` — every `oauth2-proxy` release and the OTel Collector's TLS-enabled OTLP receivers consume it, and none of them create it.
 
@@ -94,7 +94,7 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 |-----------|--------------|----------------------|
 | dpn-mon-storage-connection-string | Thanos long-term object storage config (`objstore.yml` key) | Kubernetes Secret, created manually — see [Step 1](#step-1-prepare-environment-configuration-file) |
 | dpn-health-tls | `kubernetes.io/tls` cert/key/CA used by `oauth2-proxy` and the OTel Collector's TLS OTLP receivers | Kubernetes Secret, created manually (not created by this pipeline) |
-| KC-SERVICE-CLIENT-SECRET | The `dpn-service-client` Keycloak client credential | Azure Key Vault secret, created by `dpn-keycloak-cd.yml`'s Azure deploy path — must exist before `dpn-cd-oauth2-proxy.yml` runs |
+| KC-SERVICE-CLIENT-SECRET | The `dpn-service-client` Keycloak client credential | Azure Key Vault secret, created by `dpn-gha-keycloak-cd.yml`'s Azure deploy path — must exist before `dpn-cd-oauth2-proxy.yml` runs |
 
 `dpn-cd-oauth2-proxy.yml` verifies this secret's presence in Key Vault, then relies on each release's `SecretProviderClass` to sync it into the namespace via the cluster's workload identity — no manual `kubectl create secret` needed for that part.
 
@@ -104,4 +104,4 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 
 | Review Date | Last Reviewed By | Status | Version |
 |-------------|-----------------|--------|---------|
-| 31-July-2026 | DSI Assurance | Final | V1.0.0 |
+| Oct-2026 | DSI Assurance | Final | V1.0.0 |

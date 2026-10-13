@@ -1,5 +1,3 @@
-Release : 2.1.0 - Oct 2026
-
 # DPN Data Pipeline Installation Process
 
 ---
@@ -55,9 +53,9 @@ The deployment process consists of:
 - **Continuous Deployment (CD)** — deploys into **Azure Kubernetes Service (AKS)** using Helm:
   - the two **consumer pipelines** (one file extractor, one topic extractor), via the confirmed GitHub Actions workflow `dpn-cd-data-pipelines.yml`.
 
-> **Self-Service UI deployment is not yet automated via GitHub Actions for Azure.** As of this writing, `dpn-data-pipelines` has a dedicated Self-Service CI/CD GitHub Actions pipeline for **AWS** (`aws-pipelines/cd-pipelines/dpn-self-service-cd.yaml`) and **GCP** (`gcp-pipelines/cd-pipelines/dpn-self-service-cd.yaml`), but no equivalent exists under `azure-pipelines/` in that repository. For Azure, the Self-Service UI is currently deployed via the **Azure DevOps pipeline** `dpn-self-service-cd.yaml` (`.pipelines/azure-pipelines/cd-pipelines/`) — see the equivalent installation step in [azure-ado-beta](../../azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md). Confirm with the platform team whether a GHA port of this workflow is planned; until then, treat this section as covering the consumer pipelines only, with the Self-Service UI deployed separately via ADO before continuing.
-
 **Producer data products are not deployed by either workflow.** They are created at runtime from the already-running Self-Service UI, which launches the generic producer image with that product's configuration (see [STEP-03](#step-03-create-the-first-data-product) and the [Configuration Guide](../02-configuration/07-configure-dpn-data-pipelines.md#step-01-set-up-a-new-data-product-self-service)). No per-product CI/CD run, folder copy or image build is required.
+
+> **Upgrading from a release before 2.1.0:** data products created before DPN release 2.1.0 (deployed as separate per-product producer/consumer Helm releases) are **not automatically imported** into the Self-Service UI. Each must be recreated (rehosted) manually through the UI after this installation (see [STEP-03](#step-03-create-the-first-data-product)), and the old releases removed afterwards as described in [Uninstall DPN Data Pipeline](../05-uninstall/05-uninstall-decommissioning.md#part-2--uninstall-dpn-data-pipeline).
 
 ---
 
@@ -96,6 +94,7 @@ Ensure the following prerequisites are completed before deployment:
 - DPN Streaming Service (Kafka) deployed, with SASL/TLS authentication through DPN Authentication Service (Keycloak) — see [Configure Kafka Security](../02-configuration/07-configure-dpn-data-pipelines.md#step-08b-configure-kafka-security-sasltls). Topics do **not** need to be pre-created; the pipeline creates them (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step-09b-configure-streaming-service-kafka))
 - DPN Health Monitoring Service deployed and the OTEL collector container in a running state
 - Storage accounts available for the `file` integration pathway. Blob containers are created by the pipeline — see [Storage Blob Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step-09a-storage-blob-configuration)
+- The data pipeline namespace `ns-dpn-dp-01` created first, as part of the one-time cluster bootstrap in [AKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-aks-namespace-configuration). No workflow creates it. The shared secrets created in `ns-dpn-01` (`dpn-tls`, `tls-auth-secret`, `dpn-keycloak-secrets`, `producer-file-dp-secret` and `consumer-file-dp-secret`) must then be copied into `ns-dpn-dp-01` as described in that step. `dpn-gha-tls-cd.yaml` copies `dpn-tls` and `tls-auth-secret` automatically, but only if `ns-dpn-dp-01` already existed when it ran.
 - The following Kubernetes secrets created **in the data pipeline namespace** (`ns-dpn-dp-01` by default) before the CD workflow runs. The containers refuse to start without valid values:
 
   | Secret | Purpose |
@@ -108,7 +107,7 @@ Ensure the following prerequisites are completed before deployment:
   | `consumer-file-dp-secret` | Blob Storage connection strings for the consumer file extractor |
   | `ghcr-pull-secret` | Pull secret for the private GHCR registry |
 
-  See [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step-08-configure-secrets) for the contents of each.
+  See [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step-08-configure-secrets) for the contents of each. On the first deployment into a new environment, restart the pods once the secrets exist; see [One-time setup for a new environment](#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
 - Keycloak client `dpn-service-client` configured for the Self-Service UI login: **Standard flow** enabled, and the UI's `<externalUrl>/oauth2/callback` registered as a valid redirect URI. The realm roles `dpnadmin`, `dpnoperator` and `dpnreader` assigned to the people who will use the UI.
 - Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (GitHub Actions access, GHCR access)
@@ -139,7 +138,7 @@ root/
                 └── dpn-cd-data-pipelines.yml
 ```
 
-> **Config file path is unconfirmed/inconsistent as of this writing.** The workflow's own `PARAMETERS_FILE` env var reads from `.github/config/<environment>-<cluster>.json` (no per-cloud subfolder, unlike the shared `.pipelines/github-actions-pipelines/config/azure/...` convention used by the other DPN components in `dpn-containerised-deployment-service`), but no `.github/config/` directory actually exists in this repository — the checked-in config JSON files instead live at `.pipelines/github-actions-pipelines/azure-pipelines/config/<environment>-<cluster>.json`. This looks like a real discrepancy between the workflow and the repo layout, not a documentation gap on our side — confirm the correct path with the platform team before running this workflow for the first time in a new environment.
+> **Config file path is unconfirmed/inconsistent as of this writing.** The workflow's own `PARAMETERS_FILE` env var reads from `.github/config/<environment>-<cluster>.json` (no per-cloud subfolder, unlike the shared `.pipelines/github-actions-pipelines/config/azure/...` convention used by the other DPN components repos), but no `.github/config/` directory actually exists in this repository — the checked-in config JSON files instead live at `.pipelines/github-actions-pipelines/azure-pipelines/config/<environment>-<cluster>.json`. This looks like a real discrepancy between the workflow and the repo layout, not a documentation gap on our side — confirm the correct path with the platform team before running this workflow for the first time in a new environment.
 
 ---
 
@@ -155,8 +154,7 @@ There is no ADO-style approval-check concept for GitHub Actions workflows by def
 >
 > **Discrepancies worth confirming with the platform/data-pipelines team before relying on this section:**
 > - This workflow pulls consumer images from this environment's own **attached Azure Container Registry (ACR)** (`az acr login --name "$ACR_NAME"`, image reference `<acrName>.azurecr.io/dsi/consumer-<type>-<base_name>`), **not GHCR** — unlike the rest of this doc set, where GHCR is the shared default registry on every cloud. No `ghcr-pull-secret`/`imagePullSecrets` step appears in this workflow.
-> - Its Helm-deploy logic loops over every chart directory under `blueprints/consumer/<processType>/*/charts`. Each consumer pathway has a single extractor chart, so one Helm release is deployed per pathway.
-> - Azure authentication in this workflow reads `AZURE_CLIENT_ID`/`AZURE_TENANT_ID` directly from GitHub Actions secrets, not resolved from the environment/cluster config JSON the way `dpn-containerised-deployment-service`'s shared `cloud-login` composite action does it.
+> - Azure authentication in this workflow reads `AZURE_CLIENT_ID`/`AZURE_TENANT_ID` directly from GitHub Actions secrets, not resolved from the environment/cluster config JSON the way `dpn-data-pipelines`'s shared `cloud-login` composite action does it.
 
 ---
 
@@ -192,6 +190,27 @@ Provide the following parameters:
 > - The namespace itself is not created by the workflow and must exist already (see [AKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-aks-namespace-configuration)).
 > - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. Confirm the value in the consumer charts' `values.yaml` before running (see [Configure Scheduling](../02-configuration/07-configure-dpn-data-pipelines.md#step-06-configure-scheduling)).
 
+#### One-time setup for a new environment: create secrets and restart pods
+
+Every time the DPN Data Pipeline is deployed into a **new environment** (a new `<environment>-<cluster>`, or a newly created `ns-dpn-dp-01`), do the following once:
+
+1. Create the secrets in `ns-dpn-dp-01`. Copy the shared secrets from `ns-dpn-01` as described in [Copy shared secrets into ns-dpn-dp-01](../02-configuration/00-common-dpn-configuration.md#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite), and create the storage secrets as described in [Configure Storage Secrets](../02-configuration/07-configure-dpn-data-pipelines.md#step-08a-configure-storage-secrets). Confirm that every secret listed in [STEP-01b](#step-01b-prepare-infrastructure-and-application-prerequisites) exists:
+
+   ```bash
+   kubectl get secrets -n ns-dpn-dp-01
+   ```
+
+2. Restart the pods so they pick up the secrets. A pod reads secret values only when it starts, so pods created before the secrets existed stay in `CreateContainerConfigError` or `CrashLoopBackOff`, or run without the values, until they are restarted:
+
+   ```bash
+   kubectl rollout restart deployment -n ns-dpn-dp-01
+   kubectl get pods -n ns-dpn-dp-01 -w
+   ```
+
+3. Once every pod shows `Running`, continue with [STEP-02c](#step-02c-validate-data-pipeline-cd-workflow).
+
+This is needed only once per environment. Later CD runs into the same environment reuse the existing secrets. Repeat steps 1 and 2 only when a secret is rotated.
+
 ---
 
 ### STEP-02c: Validate Data Pipeline CD Workflow
@@ -208,7 +227,6 @@ Expected workloads (example for the `file` pathway):
 dpn-consumer-file-extractor-xxxxxxxx-xxxxx  1/1   Running
 ```
 
-> Each consumer pathway runs as a single extractor pod (`dpn-consumer-<type>-extractor-xxxxxxxx-xxxxx`); no additional pods are expected for the pathway.
 
 If oauth2-proxy is enabled, its pod also shows `Running`. Check that the UI is exposed and that the rollout completed:
 
@@ -238,6 +256,10 @@ Producer data products are created from the Self-Service UI, not from a workflow
    ```
 
 4. Use **Run Now** and the logs view in the UI to confirm a first cycle completes.
+
+See the [DPN Data Pipeline UI Operations guide](../../../05-dpn-user-interfaces/11-dpn-data-pipeline-ui-operations.md) for the UI screens in detail.
+
+> **Rehosting data products from a release before 2.1.0:** repeat steps 2–4 for every data product that existed before the upgrade. Pre-2.1.0 products (separate per-product producer/consumer Helm releases) are **not automatically imported** into the Self-Service UI and must be recreated manually. The UI only accepts storage container and Kafka topic names that do not exist yet, so confirm new names and update anything that used the old ones. Once each recreated product is verified, remove the old releases as described in [Uninstall DPN Data Pipeline](../05-uninstall/05-uninstall-decommissioning.md#part-2--uninstall-dpn-data-pipeline).
 
 ---
 
@@ -347,5 +369,4 @@ Check that:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
-| Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
-| Oct-2026 | DSI Assurance   | Draft  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 |
