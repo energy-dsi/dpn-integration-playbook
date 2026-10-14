@@ -81,7 +81,7 @@ A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for produc
 
 **DPN Data Pipeline Producer**
 - Files are extracted from the organisation's source storage location automatically on a scheduled basis
-- Processed by adaptor and mapper components
+- Processed by the adaptor component
 - Published to Kafka topics with the final file location
 - Published to the target storage location
 
@@ -89,7 +89,6 @@ A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for produc
 - Federator Client receives the file in a consumer-specific storage account or bucket
 - Checksum and hash validation are performed on the received file(s)
 - The file is processed by the extractor service and placed into another target container
-- Mapper components perform schema validation based on the schema type specified in the file name
 - The processed file is stored in the consumer target storage container or bucket
 - A Kafka-based streaming message is sent to a destination Kafka topic to mark the end of the data pipeline process
 
@@ -105,7 +104,7 @@ A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for produc
 **Note** - Opensearch is recommended to be used for log monitoring at this moment, prometheus and Jaeger dashboard UI improvements under process for future release.
 
 **DPN Streaming Service — Kafka**
-This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor, mapper, and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
+This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
 
 **DPN Caching Service**
 This component uses Redis caching to store Kafka offsets for various topics and to cache tokens as necessary for the Federator Server and Clients. It is also bundled with the Federator Gateway package.
