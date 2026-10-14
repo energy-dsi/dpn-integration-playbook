@@ -81,18 +81,20 @@ The secrets below are required in the data pipeline namespace (`ns-dpn-dp-01`) *
 
 | Secret | Keys | Value | Used by |
 |--------|------|-------|---------|
-| `aws-access-secret` | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Access key of the IAM identity used for S3. It needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` and `s3:CreateBucket` on the buckets used by data products. One secret can serve the Self-Service UI, the producers and the consumer file extractor if one AWS account hosts all buckets | Self-Service UI, producer file products, consumer file extractor |
-| `ghcr-pull-secret` | Docker registry credentials for `ghcr.io` | A GitHub PAT with `read:packages` scope. Not needed if the images are mirrored to ECR and the EKS nodes can pull from it | All pipeline containers (image pull) |
 | `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka TLS trust) |
 | `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka OAuth) |
+| `ghcr-pull-secret` | Docker registry credentials for `ghcr.io` | A GitHub PAT with `read:packages` scope. Not needed if the images are mirrored to ECR and the EKS nodes can pull from it | All pipeline containers (image pull) |
+| `aws-access-secret` (optional) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Needed only if you use static access keys for S3 instead of IRSA. The IAM identity needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` and `s3:CreateBucket` on the buckets used by data products | Self-Service UI, producer file products, consumer file extractor |
+
+> **S3 access normally uses IRSA** (an IAM role bound to the pod's ServiceAccount), so no AWS key secret is needed. Skip `aws-access-secret` unless you choose static keys.
 
 **Verify the secrets in `ns-dpn-01`:**
 
 ```bash
-kubectl get secret dpn-tls dpn-keycloak-secrets aws-access-secret ghcr-pull-secret -n ns-dpn-01
+kubectl get secret dpn-tls dpn-keycloak-secrets ghcr-pull-secret aws-access-secret -n ns-dpn-01
 ```
 
-Any secret reported as `NotFound` does not exist in `ns-dpn-01`; create it in `ns-dpn-dp-01` (`aws-access-secret` and `ghcr-pull-secret` only, see below).
+Any secret reported as `NotFound` does not exist in `ns-dpn-01`; create it in `ns-dpn-dp-01` (`ghcr-pull-secret`, and `aws-access-secret` if you use it, see below).
 
 **Copy the secrets into `ns-dpn-dp-01`** (for each secret that exists in `ns-dpn-01`). Run each command below (PowerShell) for that secret:
 
@@ -102,36 +104,28 @@ kubectl get secret dpn-tls -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Obj
 
 # dpn-keycloak-secrets
 kubectl get secret dpn-keycloak-secrets -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
-```
-
-# aws-access-secret
-kubectl get secret aws-access-secret -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
 
 # ghcr-pull-secret
 kubectl get secret ghcr-pull-secret -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
+
+# aws-access-secret
+kubectl get secret aws-access-secret -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
 ```
 
 Repeat the copy for `dpn-tls` and `dpn-keycloak-secrets` whenever either is rotated in `ns-dpn-01`.
 
-**Create the AWS and image pull secrets (only if they do not exist in `ns-dpn-01`):**
+**Create the image pull secret and, if used, the AWS key secret (only if they do not exist in `ns-dpn-01`):**
 
 ```bash
-kubectl create secret generic aws-access-secret \
-  --from-literal=AWS_ACCESS_KEY_ID=<access key id> \
-  --from-literal=AWS_SECRET_ACCESS_KEY=<secret access key> \
-  -n ns-dpn-dp-01
+kubectl create secret docker-registry ghcr-pull-secret   --docker-server=ghcr.io   --docker-username=<github-username>   --docker-password=<PAT with read:packages>   -n ns-dpn-dp-01
 
-kubectl create secret docker-registry ghcr-pull-secret \
-  --docker-server=ghcr.io \
-  --docker-username=<github-username> \
-  --docker-password=<PAT with read:packages> \
-  -n ns-dpn-dp-01
+kubectl create secret generic aws-access-secret   --from-literal=AWS_ACCESS_KEY_ID=<access key id>   --from-literal=AWS_SECRET_ACCESS_KEY=<secret access key>   -n ns-dpn-dp-01
 ```
 
 **Confirm the result:**
 
 ```bash
-kubectl get secret dpn-tls dpn-keycloak-secrets aws-access-secret ghcr-pull-secret -n ns-dpn-dp-01
+kubectl get secret dpn-tls dpn-keycloak-secrets ghcr-pull-secret -n ns-dpn-dp-01
 ```
 
 > **Informational (no action required):** The secrets `tls-auth-secret` and `dpn-health-ca` are provided by the DPN Certificate Manager and Health Monitoring services. Verify that they exist in `ns-dpn-dp-01`.
