@@ -156,7 +156,7 @@ Unlike a plain Helm-only deployment, the Deploy stage of `dpn-keycloak-cd.yaml` 
 | `<realmName>` realm (default `dpn-realm`) | Realm-level settings: `ssoSessionIdleTimeout`, `ssoSessionMaxLifespan`, `rememberMe`, login theme, and event/audit toggles |
 | `DPN-Client` (machine-to-machine) | Client-credentials-only client for service-to-service calls; realm roles (`dpnreader`, `dpnadmin`, `dpnoperator`) mapped onto its service account |
 | Audit logging | `PUT /admin/realms/<realm>/events/config` — enables every event type reported by `/admin/serverinfo`, with configurable retention |
-| `dpn-service-client` (UI client) | Shared OIDC client used by every DPN UI behind `oauth2-proxy` (OpenSearch Dashboards, Jaeger, Perses, Portal) plus native-OIDC UIs (Kafka UI, Airflow); carries the audience/realm-roles/groups protocol mappers |
+| `dpn-service-client` (UI client) | Shared OIDC client used by every DPN UI behind `oauth2-proxy` (OpenSearch Dashboards, Jaeger, Perses, Portal) plus the native-OIDC Kafka UI; carries the audience/realm-roles/groups protocol mappers |
 | Groups (`dpn-admins`, `dpn-readers`, `dpn-operators`) | Each group carries one realm role, so access can be managed by group membership |
 
 Two things to confirm after every deploy:

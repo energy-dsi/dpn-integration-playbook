@@ -147,7 +147,6 @@ DPN Health Monitoring requires the following Kubernetes secrets to be created fo
 - **Kafka UI** authenticates natively, not through `oauth2-proxy` — it runs its own OIDC login directly against the `dpn-realm` realm, with `dpnadmin`/`dpnreader` realm roles mapped to Kafka UI's own RBAC (full access vs. view-only), and terminates its own TLS using the `dpn-health-tls` Secret above. See [Kafka Health UI Operations](../../../05-dpn-user-interfaces/07-kafka-health-ui-operations.md#3-accessing-the-kafka-ui).
 - **Prometheus and Thanos** have no login gateway of any kind — neither needs direct browser access; both are consumed through the Perses dashboards instead.
 - **`kafka-ui-2`** has no gateway in this repository. It fronted a UI in `ns-dpn-01` that this repository does not own; exposing that UI is the responsibility of its own chart.
-- **Apache Airflow** is not part of the Health Monitoring service and has no `oauth2-proxy` gateway here. The DPN Portal tile that previously linked to Airflow now links to the Data Product Management self-service portal. See [Configure DPN Data Pipelines](07-configure-dpn-data-pipelines.md) for Airflow itself.
 
 **Ports on the shared load-balancer IP (`OBSERVABILITY_LB_IP`):**
 

@@ -284,7 +284,6 @@ The following internal URLs will be default for accessing the DPN User interface
 These URLs operate on Kuberenetes DNS. To access these URLs, a local host entry needs to be made in the system/Windows VM. The host file is generally present in `C:\Windows\System32\drivers\etc\hosts` location. Open the file in a notepad with admin credential and put the below entries against their load balancer IP. 
 
 ```
-10.XXX.XXX.XXX dpn-airflow-webserver-external.ns-dpn-01.svc.cluster.local	
 10.XXX.XXX.XXX dpn-kafka-ui-external.ns-dpn-01.svc.cluster.local
 10.XXX.XXX.XXX dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local
 10.XXX.XXX.XXX dpn-federator-client-1-external.ns-dpn-01.svc.cluster.local
@@ -299,7 +298,6 @@ These URLs operate on Kuberenetes DNS. To access these URLs, a local host entry 
 | Users & Roles | Keycloak Console | `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` | 8443 | ns-dpn-01 | `dpnadmin` only |
 | Data / Store | DPN Kafka (Kafka UI) | `dpn-kafka-ui-external.ns-dpn-01.svc.cluster.local` | 8086 | ns-dpn-01 | `dpnadmin`, `dpnreader` — native Keycloak OIDC |
 | Gateway | GRPC Gateway Client (Federator Client / Job Runner) | `dpn-federator-client-1-external.ns-dpn-01.svc.cluster.local` | 8085 | ns-dpn-01 | `dpnadmin`, `dpnreader` — plain HTTP (see [Federator Gateway release notes](../../../06-release-notes/release-2.0.0-configuration-changes.md#dpn-federator-gateway)) |
-| Data / Pipeline | Pipeline Orchestrator (Apache Airflow) | `dpn-airflow-webserver-external.ns-dpn-01.svc.cluster.local` | 8080 | ns-dpn-01 | `dpnadmin`, `dpnreader`, `dpnoperator` — native Keycloak OIDC |
 | Security / Services | Certification Vault Service | `dpn-vault-https-lb.ns-dpn-01.svc.cluster.local` | 8200 | ns-dpn-01 | `dpnadmin`, `dpnreader` |
 | Health / Monitoring Service | Log Stack (OpenSearch Dashboards) | `dpn-observability.ns-dpn-health-01.svc.cluster.local` | 5601 | ns-dpn-health-01 | `dpnadmin`, `dpnreader` — via `dpn-oauth2-proxy-osd` Keycloak SSO |
 | Health / Monitoring Service | Traces Stack (Jaeger) | `dpn-observability.ns-dpn-health-01.svc.cluster.local` | 16686 | ns-dpn-health-01 | `dpnadmin`, `dpnreader` — via `dpn-oauth2-proxy-jaeger` Keycloak SSO |

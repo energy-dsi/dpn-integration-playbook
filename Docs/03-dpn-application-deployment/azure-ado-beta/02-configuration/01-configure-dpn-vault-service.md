@@ -184,7 +184,7 @@ Configure the following three pipelines in order. Each takes the environment as 
 - Publishes to Azure Key Vault: `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `KEYSTORE-PASSWORD`, `TRUSTSTORE-PASSWORD`, `DPN-CLIENT-P12-PASSWORD`.
 - Creates the Kubernetes secrets:
   - `cert-manager-truststore` — trusts Vault's HTTPS endpoint (target namespace)
-  - `dpn-tls` — server keystore/truststore used by Keycloak, Kafka, Federator Gateway, Redis, Airflow (target namespace **and** `ns-dpn-health-01`)
+  - `dpn-tls` — server keystore/truststore used by Keycloak, Kafka, Federator Gateway, Redis (target namespace **and** `ns-dpn-health-01`)
   - `dpn-health-tls` — `kubernetes.io/tls` certificate for the health-monitoring `oauth2-proxy` gateways (target namespace **and** `ns-dpn-health-01`)
   - `tls-auth-secret` — the shared `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`/`DPN_CLIENT_P12_PASSWORD` values every component above reads, instead of each syncing its own copy from Key Vault (target namespace **and** `ns-dpn-health-01`)
 - Publishes `certs/vault.csr` and `certs/vault.key` as a pipeline artifact.
