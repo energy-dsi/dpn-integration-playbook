@@ -129,7 +129,9 @@ The following access configurations are required for DPN deployment.
 
 A **Federated Identity Credential in your target Azure subscription**, with:
 
-- Permissions scoped to DPN deployment actually needs at minimum AKS cluster access, plus Entra ID/Storage Account/Key Vault permissions for whichever components' prerequisites your organisation provisions (Workload Identity federated credential, Storage Account containers, Azure Key Vault auto-unseal key, etc.)
+- Permissions scoped to what DPN deployment actually needs — at minimum AKS cluster access, plus Entra ID/Storage Account/Key Vault permissions for whichever components' prerequisites your organisation provisions (Workload Identity federated credential, Storage Account containers, Azure Key Vault auto-unseal key, etc.)
+- A federated credential trusting the GitHub repository (or GitHub Environment `<environment>-<cluster>`) the workflows run from. The `cloud-login` composite action that each DPN component repository carries (`.github/actions/cloud-login/action.yml`) requests the runner's GitHub OIDC token for the audience `api://AzureADTokenExchange`, exchanges it with `az login --service-principal --federated-token`, then selects `ARM_SUBSCRIPTION_ID` from the environment's config JSON — no client secret is stored.
+- The identity's client ID and tenant ID stored as the GitHub Actions secrets `AZURE_CLIENT_ID` and `AZURE_TENANT_ID` (repository or environment level) in each component repository you deploy from.
 
 #### AKS Access
 
