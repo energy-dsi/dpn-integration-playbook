@@ -26,24 +26,23 @@ This installation page is a quick-reference summary that points to that guide.
   - [PKIX Certificate validation error](#pkix-certificate-validation-error)
   - [401 Unauthorised error from DSM Auth endpoint](#401-unauthorised-error-from-dsm-auth-endpoint)
   - [Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)](#pod-fails-to-trust-vaults-https-endpoint-vault_ssl_trust_store_password-missing)
-  - [CSI Mount Failure With `fileShare.create: true`](#csi-mount-failure-with-filesharecreate-true)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
+The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yaml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
 
-Set `cloudProvider: aws` in the environment values file — the chart's own default is `azure`; `aws` selects AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC).
+Set `cloudProvider: aws` in the environment values file (the chart's base `values.yaml` sets no `cloudProvider`); `aws` selects AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC) — see the known limitation in [Configure DPN Certificate Manager, Step3a](../02-configuration/04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values).
 
-The workflow and the `certificate-manager` Helm chart. The chart is at `dpn-federator-cert-manager/charts/certificate-manager` (release `dpn-certificate-manager`), with values file `values/aws/<environment>-<cluster>.yaml`.
+The workflow and the `certificate-manager` Helm chart both live in the `dpn-federator-certificate-manager` repository. The chart is at `charts/certificate-manager` (release `dpn-certificate-manager`), with values file `charts/certificate-manager/values/aws/<environment>-<cluster>.yaml`.
 
 ```text
-.pipelines/
-└── .github-actions-pipelines/
+dpn-federator-certificate-manager/
+└── .github/
     └── workflows/
-      └── dpn-gha-certificate-manager-cd.yml
+        └── dpn-gha-certificate-manager-cd.yaml
 ```
 ---
 
@@ -55,7 +54,7 @@ In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
 - `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yaml`)
-- Vault credentials ready — an AppRole identity from `dpn-certificate-manager-role-id-creation.yml` (`component: certificate-manager`), whose `role_id`/`secret_id` are in Secrets Manager under `dpn/<environment>-<cluster>/certificate-manager/`, plus `VAULT_TOKEN` under the same prefix. On AWS the CD workflow fails if `VAULT_APPROLE_ROLE_ID` is missing
+- Vault credentials ready — an AppRole identity from `dpn-gha-certificate-manager-role-id-creation.yaml` (`component: certificate-manager`), whose `role_id`/`secret_id` are in Secrets Manager under `dpn/<environment>-<cluster>/certificate-manager/`, plus `VAULT_TOKEN` under the same prefix. On AWS the CD workflow fails if `VAULT_APPROLE_ROLE_ID` is missing
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set
@@ -172,7 +171,7 @@ Federator Certificate Manager custom image is found in GHCR with following name
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` (the `1.0.1/` segment is the environment's configured image path prefix — set by `image.repository` in `dpn-federator-cert-manager/charts/certificate-manager/values/aws/<environment>-<cluster>.yaml`, and matching `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
+| dpn-federator-certificate-manager | `ghcr.io/energy-dsi/dpn-federator-certificate-manager` (the repository is set by `image.repository` in `charts/certificate-manager/values/aws/<environment>-<cluster>.yaml`, and matches `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json`) | `e.g. 1.0.0` |
 
 There is no separate GHCR-specific workflow to run — [Step2c](#step2c-execute-cd-workflow) above already deploys from this image by default.
 

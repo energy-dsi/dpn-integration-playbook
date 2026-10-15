@@ -24,26 +24,38 @@ The DPN Health Monitoring Service hosts the observability platform for DPN — K
 
 ## Continuous Deployment (CD)
 
-Deployment is orchestrated by the `dpn-gha-health-monitoring-cd-install.yml` GitHub Actions workflow, which chains each sub-component's own CD workflow as a dependent job in this order: Kafka → OpenSearch → Prometheus → Thanos (with Data Prepper and Jaeger branching off Kafka+OpenSearch, Perses off Prometheus+Thanos) → OTel Collector → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal, chained sequentially) → Validate.
+Deployment is orchestrated by the `dpn-gha-health-monitoring-cd-install.yaml` GitHub Actions workflow (display name **DPN Health Monitoring**), which chains each sub-component's own CD workflow as a dependent job in this order: Kafka → OpenSearch → Prometheus → Thanos (with Data Prepper and Jaeger branching off Kafka+OpenSearch, Perses off Prometheus+Thanos) → OTel Collector → **DPN Portal** → **OAuth2 Proxy** (OpenSearch → Jaeger → Perses → Portal, chained sequentially) → Validate.
 
 ```text
 root/
-└── .pipelines/
-    └── github-actions-pipelines/
-        └── workflows/
-            ├── dpn-gha-health-monitoring-cd-install.yaml
+├── .github/
+│   ├── actions/
+│   │   └── cloud-login/action.yml                      # OIDC login + AKS kubeconfig, used by every component workflow
+│   ├── config/
+│   │   └── azure/<environment>-<cluster>.json
+│   └── workflows/
+│       ├── dpn-gha-health-monitoring-cd-install.yaml   # orchestrator — trigger this one
+│       ├── dpn-gha-{kafka,opensearch,prometheus,thanos,data-prepper,jaeger,perses,otel,portal,oauth2-proxy}-cd.yaml
+│       ├── dpn-gha-validate.yaml
+│       ├── dpn-gha-rollback-health-monitoring.yaml
+│       └── dpn-gha-uninstall-health-monitoring.yaml
+└── charts/
+    ├── {kafka-stack,opensearch,prometheus,thanos,data-prepper,jaeger,perses,otel-collector,dpn-portal,oauth2-proxy}/
+    │   └── values/azure/<environment>-<cluster>.yaml
+    └── oauth2-proxy-redis/                             # values.yaml only, no per-cluster file
 ```
 
-Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying `environment`, `cluster` (dpn01/dpn02), `cloud` (`azure`), `imageTag` (OTel Collector image tag, default `0.95.0`), and **`portalImageTag`** (the DPN Portal container image tag from GHCR repository)
+The Helm charts live under `charts/<chart>`, and each component workflow uses the per-cluster values file `charts/<chart>/values/azure/<environment>-<cluster>.yaml`. On Azure, OpenSearch and Prometheus layer that file over shared base values (`charts/opensearch/opensearch-community-values.yaml`, `charts/prometheus/prometheus-community-values.yaml`); Thanos layers it over the chart's own `values.yaml`; and `oauth2-proxy` layers it over the per-UI `values-<component>.yaml`.
 
+Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying `environment` (dev/test), `cluster` (dpn01/dpn02), `cloud` (select `azure` — the input defaults to `aws`), `imageTag` (OTel Collector image tag, default `0.95.0`), and **`portalImageTag`** (the DPN Portal container image tag from GHCR — required, no default). `otelImageRepository` (the OTel Collector image path after `ghcr.io/energy-dsi/`) is optional — leave it blank to use the environment's configured repository. `portalImageRepository` (the GHCR path after `ghcr.io/energy-dsi/`) defaults to `1.0.1/dpn-portal` if left blank. The orchestrator's `init` job (**Resolve Deployment Config**) reads the rest of the component config from `.github/config/azure/<environment>-<cluster>.json` and passes it to every job.
 
 **What the pipeline does automate:**
 
-Each `oauth2-proxy` release's `SecretProviderClass` syncs the Keycloak client secret from **Azure Key Vault** into the namespace automatically on every run, using the cluster's workload identity — this is idempotent and requires no manual `kubectl create secret`.
+Each `oauth2-proxy` release's `SecretProviderClass` syncs the Keycloak client secret from **Azure Key Vault** into the namespace automatically on every run, using the cluster's user-assigned managed identity (`akv.keyvaultName`, `akv.tenantId` and `akv.userAssignedIdentityID` in `charts/oauth2-proxy/values/azure/<environment>-<cluster>.yaml`) — this is idempotent and requires no manual `kubectl create secret`. `dpn-gha-oauth2-proxy-cd.yaml` (**DPN CD - OAuth2 Proxy (Keycloak Gateway)**) also installs/updates the shared `dpn-redis-ui-health` session store (`charts/oauth2-proxy-redis`) on every run.
 
 **What the pipeline does *not* automate:**
 
-- The Keycloak `dpn-service-client` credential must already exist in Azure Key Vault, as the secret `KC-SERVICE-CLIENT-SECRET` — created by `dpn-gha-keycloak-cd.yml`'s own Azure deploy path, run that first if it hasn't been.
+- The Keycloak `dpn-service-client` credential must already exist in Azure Key Vault (`KEY_VAULT_NAME` from the config JSON), as the secret `KC-SERVICE-CLIENT-SECRET` — the same secret `dpn-gha-keycloak-cd.yaml` (DPN Authentication Service) reads on its Azure deploy path; neither workflow creates it, so load it before deploying Keycloak (see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md)).
 
 - The `dpn-health-tls` Secret (a `kubernetes.io/tls` Secret holding `tls.crt`, `tls.key` and `ca.crt`) must already exist in `ns-dpn-health-01` — every `oauth2-proxy` release and the OTel Collector's TLS-enabled OTLP receivers consume it, and none of them create it.
 
@@ -61,28 +73,27 @@ Organisations should prepare a config file per environment/cluster where the hea
 
 ```text
 root/
-└── .pipelines/
-    └── github-actions-pipelines/
-        └── config/
-            └── azure/
-                └── <environment>-<cluster>.json
+└── .github/
+    └── config/
+        └── azure/
+            └── <environment>-<cluster>.json
 ```
 
-This config file's keys are the same common ones described in [Step2.2: Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration) — this service has no health-monitoring-specific keys of its own in that JSON file. Two things beyond the JSON file still need preparing per environment/cluster before deploying:
+This config file's keys are the same common ones described in [Step2.2: Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration) — this service has no health-monitoring-specific keys of its own in that JSON file. The namespace is fixed to `ns-dpn-health-01` by the orchestrator itself, regardless of the file's `NAMESPACE` value. Two things beyond the JSON file still need preparing per environment/cluster before deploying:
 
 - **Thanos' long-term object storage.**
 
-    `charts/prometheus/values/azure/<environment>-<cluster>.yaml` points Thanos' sidecar at `objectStorageConfig.name: dpn-mon-storage-connection-string` — a Kubernetes Secret (key `objstore.yml`) that you must create yourself; no workflow creates it.
+    `charts/prometheus/prometheus-community-values.yaml` (the shared Azure base values for Prometheus) points Thanos' sidecar at `objectStorageConfig.existingSecret.name: dpn-mon-storage-connection-string` — a Kubernetes Secret (key `objstore.yml`) that you must create yourself; no workflow creates it.
 
-    As currently checked in, this chart uses a static `objstore.yml` blob (Azure Blob Storage connection details) rather than a workload-identity-scoped ServiceAccount + container name — confirm with your platform team which Blob Storage authentication method (static connection string inside `objstore.yml`, or workload identity) your organisation intends before relying on this, since no managed-identity annotation ships in this chart for Thanos itself.
+    As currently checked in, this chart uses a static `objstore.yml` blob (Azure Blob Storage connection details; `charts/thanos/objstore.yaml` shows the expected `type: AZURE` shape) rather than a workload-identity-scoped ServiceAccount + container name — confirm with your platform team which Blob Storage authentication method (static connection string inside `objstore.yml`, or workload identity) your organisation intends before relying on this, since no managed-identity annotation ships in this chart for Thanos itself.
 
 - **The DPN Portal image.**
 
-    The orchestrator's `portalImageTag` input (and optionally `portalImageRepository`) is supplied at trigger time, not read from the JSON config file — see [Continuous Deployment (CD)](#continuous-deployment-cd) above.
+    The orchestrator's `portalImageTag` input (and optionally `portalImageRepository`, default `1.0.1/dpn-portal`) is supplied at trigger time, not read from the JSON config file — see [Continuous Deployment (CD)](#continuous-deployment-cd) above.
 
     **Image path convention.**
 
-    This service's own charts (OpenSearch, Prometheus/Thanos/Alertmanager, Perses, OTel Collector, DPN Portal, and the Kafka/Zookeeper/Jaeger images used by its Kafka stack) reference `ghcr.io/energy-dsi/<component>` path. See [Reference: Container Images Used](../03-installation/03-dpn-health-monitoring-service-installation-process.md#reference-container-images-used) in the installation guide.
+    This service's Azure values files for Perses, OTel Collector, Data Prepper, Jaeger, Thanos, and the Kafka/Zookeeper/Kafka UI images used by its Kafka stack reference the `ghcr.io/energy-dsi/<component>` path; the DPN Portal image defaults to `ghcr.io/energy-dsi/1.0.1/dpn-portal`. OpenSearch and Prometheus on Azure take their images from the shared community values instead (`opensearchproject/opensearch`, the kube-prometheus-stack chart defaults, and `quay.io/thanos/thanos` for the Thanos sidecar). See [Reference: Container Images Used](../03-installation/03-dpn-health-monitoring-service-installation-process.md#reference-container-images-used) in the installation guide.
 
 ---
 
@@ -94,9 +105,9 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 |-----------|--------------|----------------------|
 | dpn-mon-storage-connection-string | Thanos long-term object storage config (`objstore.yml` key) | Kubernetes Secret, created manually — see [Step 1](#step-1-prepare-environment-configuration-file) |
 | dpn-health-tls | `kubernetes.io/tls` cert/key/CA used by `oauth2-proxy` and the OTel Collector's TLS OTLP receivers | Kubernetes Secret, created manually (not created by this pipeline) |
-| KC-SERVICE-CLIENT-SECRET | The `dpn-service-client` Keycloak client credential | Azure Key Vault secret, created by `dpn-gha-keycloak-cd.yml`'s Azure deploy path — must exist before `dpn-cd-oauth2-proxy.yml` runs |
+| KC-SERVICE-CLIENT-SECRET | The `dpn-service-client` Keycloak client credential | Azure Key Vault secret, created manually (also read by `dpn-gha-keycloak-cd.yaml`'s Azure deploy path) — must exist before `dpn-gha-oauth2-proxy-cd.yaml` runs |
 
-`dpn-cd-oauth2-proxy.yml` verifies this secret's presence in Key Vault, then relies on each release's `SecretProviderClass` to sync it into the namespace via the cluster's workload identity — no manual `kubectl create secret` needed for that part.
+`dpn-gha-oauth2-proxy-cd.yaml` verifies this secret's presence in Key Vault, then relies on each release's `SecretProviderClass` to sync it into the namespace via the cluster's user-assigned managed identity — no manual `kubectl create secret` needed for that part.
 
 ---
 

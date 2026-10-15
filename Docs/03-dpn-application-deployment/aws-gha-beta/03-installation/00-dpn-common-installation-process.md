@@ -13,7 +13,7 @@
   - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
 - [Component Installation Guides](#component-installation-guides)
 - [Common Troubleshooting Guidance](#common-troubleshooting-guidance)
-  - [CI Pipeline Failure](#ci-pipeline-failure)
+  - [CD Pipeline Failure](#cd-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
   - [Pods Not Starting](#pods-not-starting)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
@@ -150,7 +150,7 @@ Ensure the following prerequisites are completed before deployment:
 
 Refer to [DPN Vault Service Configuration](../02-configuration/01-configure-dpn-vault-service.md) for certificate set up and csr generation
 
-Before deploying any component, run **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`) once per environment/cluster with `cloud: aws`. It generates the platform's self-signed DPN root CA and common server certificate (`.github/config/scripts/create-dpn-tls.sh`), stores the derived passwords and Vault TLS material in AWS Secrets Manager under `dpn/<environment>-<cluster>/...`, creates the `cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls` and `tls-auth-secret` Kubernetes secrets, and publishes the generated material (including `certs/vault.csr` for the DSM bootstrap) as a workflow artifact. It requires the `DPN_TLS_*` Actions secrets described in [GitHub Actions Secrets and Environments](../02-configuration/00-common-dpn-configuration.md#step24-github-actions-secrets-and-environments). `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` and `KAFKA_OAUTH_CLIENT_SECRET` are not created by this workflow and must be set in AWS Secrets Manager manually.
+Before deploying any component, run **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`, in the `dpn-federator-certificate-manager` repository) once per environment/cluster with `cloud: aws`. It generates the platform's self-signed DPN root CA and common server certificate (`.github/config/scripts/create-dpn-tls.sh`), stores the derived passwords and Vault TLS material in AWS Secrets Manager under `dpn/<environment>-<cluster>/...`, creates the `cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls` and `tls-auth-secret` Kubernetes secrets, and publishes the generated material (including `certs/vault.csr` for the DSM bootstrap) as a workflow artifact. It requires the `DPN_TLS_*` Actions secrets described in [GitHub Actions Secrets and Environments](../02-configuration/00-common-dpn-configuration.md#step24-github-actions-secrets-and-environments). `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` and `KAFKA_OAUTH_CLIENT_SECRET` are not created by this workflow and must be set in AWS Secrets Manager manually.
 
 > **Note:** The workflow artifact contains private keys, including the root CA key (`ca/dpn-root.key`). Treat it as sensitive and restrict who can download it.
 
@@ -158,29 +158,31 @@ Before deploying any component, run **DPN CD - Prerequisite Pipeline (AWS Univer
 
 ### 4. Identify Pipeline Repository Structure
 
-All CD workflows, their per-cloud configuration and the component Helm charts:
+There is no separate pipeline repository. Each DPN component repository carries its own CD workflows, per-cloud configuration, `cloud-login` composite action and Helm charts, and its workflows are run directly from that repository's Actions tab:
 
 ```
-.pipelines/
-└── .github-actions-pipelines/
-│   ├── workflows/                 # one workflow per DPN component (e.g. dpn-gha-vault-https-cd.yml)
+<component-repo>/
+├── .github/
+│   ├── workflows/                 # this component's CD workflows (dpn-gha-*.yaml; e.g. dpn-gha-vault-https-cd.yaml)
 │   ├── actions/
-│   │   └── cloud-login/           # shared composite action: aws OIDC login + EKS context
-│   ├── config/
-│   │   ├── aws/<environment>-<cluster>.json
-│   │   └── scripts/               # create-dpn-tls.sh, create-keycloak-tls.sh, create-vault-tls-bootstrap.sh, vault-init.sh
-│   └── scripts/
-│       └── setup-efs-csi.sh       # one-time EFS + efs-sc StorageClass setup per cluster
-├── dpn-authentication-service/    # charts/keycloak
-├── dpn-data-pipelines/            # blueprints/<producer|consumer>/<file|topic>/<adaptor|extractor>/charts, service/charts
-├── dpn-federator-cert-manager/    # charts/vault, charts/vault-https, charts/certificate-manager
-├── dpn-federator-gateway/         # charts/dpn-platform
-├── dpn-file-scan/                 # charts/file-scan-service
-├── dpn-health-monitoring/         # charts/otel-collector, kafka-stack, prometheus, thanos, perses, opensearch, data-prepper, jaeger, oauth2-proxy, dpn-portal
-└── dpn-rest-federator-gateway/    # charts/dpn-rest-federator, dpn-redis, dpn-demo-runner-server, dpn-demo-runner-client
+│   │   └── cloud-login/           # composite action: aws OIDC login + EKS context (azure / gcp also supported)
+│   └── config/
+│       ├── aws/<environment>-<cluster>.json
+│       └── azure/<environment>-<cluster>.json
+└── charts/<chart>/values/aws/<environment>-<cluster>.yaml
 ```
 
-Each chart's environment values file is `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. CD workflows take the `workflow_dispatch` inputs `environment` (`dev`/`test`, default `test`) and `cluster` (`dpn01`/`dpn02`, default `dpn01`), plus `cloud` (`azure`/`aws`/`gcp`, default `aws` — select `aws`) on every multi-cloud workflow (the AWS-only `dpn-gha-self-service-cd.yml` and `dpn-gha-cd-data-pipelines-aws-poc.yml` have no `cloud` input), and component-specific inputs such as `imageTag`. The individual Health Monitoring workflows (`dpn-gha-cd-otel.yml`, `dpn-gha-cd-kafka.yml`, `dpn-gha-cd-prometheus.yml`, etc.) are reusable (`workflow_call`) workflows triggered through `dpn-gha-health-monitoring-cd-install.yml` (*DPN Health Monitoring*), not run directly. Each run reads `.github/config/aws/<environment>-<cluster>.json`.
+| Repository | Helm charts | CD workflows (`.github/workflows/`) |
+|------------|-------------|-------------------------------------|
+| `dpn-authentication-service` | `charts/keycloak` | `dpn-gha-keycloak-cd.yaml`, plus `dpn-gha-keycloak-rollback.yaml`, `dpn-gha-keycloak-uninstall.yaml` |
+| `dpn-federator-certificate-manager` | `charts/vault`, `charts/vault-https`, `charts/certificate-manager` | `dpn-gha-tls-cd.yaml`, `dpn-gha-prerequisite-pipeline.yaml`, `dpn-gha-vault-cd.yaml`, `dpn-gha-vault-https-cd.yaml`, `dpn-gha-vault-tls-bootstrap-cd.yaml`, `dpn-gha-vault-load-bundle-cd.yaml`, `dpn-gha-certificate-manager-role-id-creation.yaml`, `dpn-gha-certificate-manager-cd.yaml`, plus `dpn-gha-certificate-manager-rollback.yaml`, `dpn-gha-certificate-manager-uninstall.yaml` (scripts in `.github/config/scripts/`: `create-dpn-tls.sh`, `create-vault-tls-bootstrap.sh`, `load-bootstrap-bundle.sh`, `vault-init.sh`) |
+| `dpn-federator-gateway` | `charts/dpn-platform` | `dpn-gha-certificate-manager-role-id-creation.yaml`, `dpn-gha-federator-gateway-cd.yaml`, plus `dpn-gha-federator-gateway-rollback.yaml`, `dpn-gha-federator-gateway-uninstall.yaml` |
+| `dpn-rest-federator-gateway` | `charts/dpn-rest-federator`, `dpn-redis`, `dpn-demo-runner-server`, `dpn-demo-runner-client` | `dpn-gha-rest-federator-role-id-creation.yaml`, `dpn-gha-rest-federator-cd.yaml`, `dpn-gha-demo-runner-cd.yaml`, plus `dpn-gha-rest-federator-rollback.yaml`, `dpn-gha-rest-federator-uninstall.yaml` |
+| `dpn-health-monitoring-service` | `charts/otel-collector`, `kafka-stack`, `prometheus`, `thanos`, `perses`, `opensearch`, `data-prepper`, `jaeger`, `oauth2-proxy`, `oauth2-proxy-redis`, `dpn-portal` | `dpn-gha-health-monitoring-cd-install.yaml` (orchestrator), plus `dpn-gha-rollback-health-monitoring.yaml`, `dpn-gha-uninstall-health-monitoring.yaml` |
+| `dpn-data-pipelines` | `blueprints/<producer\|consumer>/<file\|topic>/<adaptor\|extractor>/charts`, `service/charts` | `dpn-gha-data-pipelines-cd.yaml`, `dpn-gha-self-service-cd.yaml`, plus `dpn-gha-data-pipelines-rollback.yaml`, `dpn-gha-data-pipelines-uninstall.yaml`, `dpn-gha-self-service-rollback.yaml`, `dpn-gha-self-service-uninstall.yaml` |
+| `dpn-file-scan-service` | `charts/file-scan-service` | `dpn-gha-file-scan-prerequisites-cd.yaml`, `dpn-gha-file-scan-cd.yaml`, plus `dpn-gha-file-scan-rollback.yaml`, `dpn-gha-file-scan-uninstall.yaml` |
+
+Each chart's environment values file is `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. CD workflows take the `workflow_dispatch` inputs `environment` (`dev`/`test`, default `test`), `cluster` (`dpn01`/`dpn02`, default `dpn01`) and `cloud` (`azure`/`aws`/`gcp`, default `aws` on the CD workflows — select `aws`), plus component-specific inputs such as `imageTag`. The individual Health Monitoring workflows (`dpn-gha-otel-cd.yaml`, `dpn-gha-kafka-cd.yaml`, `dpn-gha-prometheus-cd.yaml`, etc.) are reusable (`workflow_call`) workflows triggered through `dpn-gha-health-monitoring-cd-install.yaml` (*DPN Health Monitoring*), not run directly. Each run reads `.github/config/aws/<environment>-<cluster>.json` from the repository it runs in.
 
 CI (build/test/scan for the DPN component's own source code) runs as GitHub Actions in that component's own source repository (e.g. `dpn-federator-gateway`, `dpn-federator-certificate-manager`) where already migrated, separately from the CD workflows above.
 
@@ -193,13 +195,13 @@ The DPN currently comprises the following components. Complete the prerequisites
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | [01-dpn-vault-installation-process.md](01-dpn-vault-installation-process.md) | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Authentication Service (Keycloak) | [02-dpn-authentication-service-installation-process.md](02-dpn-authentication-service-installation-process.md) | Deployed by `dpn-gha-keycloak-cd.yml` (*DPN CD - Keycloak*) |
-| DPN Health Monitoring Service | [03-dpn-health-monitoring-service-installation-process.md](03-dpn-health-monitoring-service-installation-process.md) | Deployed by `dpn-gha-health-monitoring-cd-install.yml` (*DPN Health Monitoring*) — see that guide for the environment-specific setup |
-| DPN Federator Certificate Manager | [04-dpn-certificate-manager-installation-process.md](04-dpn-certificate-manager-installation-process.md) | Depends on Vault; run `dpn-certificate-manager-role-id-creation.yml` before `dpn-gha-certificate-manager-cd.yml` |
+| DPN Authentication Service (Keycloak) | [02-dpn-authentication-service-installation-process.md](02-dpn-authentication-service-installation-process.md) | Deployed by `dpn-gha-keycloak-cd.yaml` (*DPN CD - Keycloak*) |
+| DPN Health Monitoring Service | [03-dpn-health-monitoring-service-installation-process.md](03-dpn-health-monitoring-service-installation-process.md) | Deployed by `dpn-gha-health-monitoring-cd-install.yaml` (*DPN Health Monitoring*) — see that guide for the environment-specific setup |
+| DPN Federator Certificate Manager | [04-dpn-certificate-manager-installation-process.md](04-dpn-certificate-manager-installation-process.md) | Depends on Vault; run `dpn-gha-certificate-manager-role-id-creation.yaml` before `dpn-gha-certificate-manager-cd.yaml` |
 | DPN Federator Gateway | [05-dpn-federator-gateway-installation-process.md](05-dpn-federator-gateway-installation-process.md) | Depends on Vault and Certificate Manager being installed and configured first |
-| DPN REST Federator Gateway | [06-dpn-rest-federator-gateway-installation-process.md](06-dpn-rest-federator-gateway-installation-process.md) | Run `dpn-rest-federator-role-id-creation.yml` before `dpn-gha-rest-federator-cd.yml` |
+| DPN REST Federator Gateway | [06-dpn-rest-federator-gateway-installation-process.md](06-dpn-rest-federator-gateway-installation-process.md) | Run `dpn-gha-rest-federator-role-id-creation.yaml` before `dpn-gha-rest-federator-cd.yaml` |
 | DPN Data Pipeline | [07-dpn-data-pipeline-installation-process.md](07-dpn-data-pipeline-installation-process.md) | Independent of Vault/Certificate Manager/Federator Gateway |
-| DPN File Scanning Service | [08-dpn-file-scan-service-installation-process.md](08-dpn-file-scan-service-installation-process.md) | Uses GuardDuty Malware Protection for S3 on this path — resource provisioning is manual either way, see that guide |
+| DPN File Scanning Service | [08-dpn-file-scan-service-installation-process.md](08-dpn-file-scan-service-installation-process.md) | Uses GuardDuty Malware Protection for S3 on this path. The S3/SNS/SQS/GuardDuty resources are provisioned manually; `dpn-gha-file-scan-prerequisites-cd.yaml` verifies them and creates the IRSA role and Secrets Manager entries before `dpn-gha-file-scan-cd.yaml` runs — see that guide |
 
 ---
 
@@ -259,7 +261,7 @@ kubectl logs <pod-name> -n <namespace>
 Common causes:
 
 - Invalid or missing environment variables — check the Helm values file for typographical errors or missing entries
-- Missing secrets or incorrect S3/IAM credentials — verify all required secrets existwith the correct names and values
+- Missing secrets or incorrect S3/IAM credentials — verify all required secrets exist with the correct names and values
 - Kafka topic is not pre-populated — run the Kafka Topic Creator job or manually create topics via the Kafka UI
 
 ---
@@ -282,7 +284,7 @@ Check that:
 
 ### Certificate Renewal Job Failing
 
-When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
+When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](04-dpn-certificate-manager-installation-process.md#step2d-verify-cd-workflow) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
 
 Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](../02-configuration/01-configure-dpn-vault-service.md#automated-vault-configuration).
 

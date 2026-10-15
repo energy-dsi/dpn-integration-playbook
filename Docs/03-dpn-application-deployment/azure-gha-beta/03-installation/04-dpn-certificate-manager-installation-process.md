@@ -33,18 +33,15 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional Azure Files-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
+The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yaml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
 
-The deployment CD pipeline is placed here. 
+The deployment CD workflow and the `certificate-manager` Helm chart both live in the `dpn-federator-certificate-manager` repository. The chart is at `charts/certificate-manager` (release `dpn-certificate-manager`), with values file `charts/certificate-manager/values/azure/<environment>-<cluster>.yaml`.
 
 ```text
-
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-certificate-manager-cd.yaml
-
+dpn-federator-certificate-manager/
+└── .github/
+    └── workflows/
+        └── dpn-gha-certificate-manager-cd.yaml
 ```
 
 ---
@@ -56,11 +53,11 @@ Confirm the prerequisites before starting — see [Configure DPN Certificate Man
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
-- `cert-manager-truststore` secret present
-- Vault credentials ready — root token (`VAULT-TOKEN`/`VAULT_TOKEN`) or an AppRole identity from `dpn-certificate-manager-role-id-creation.yml`, plus the truststore password
+- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yaml`; `cert-manager-truststore` alone is also created by `dpn-gha-vault-tls-bootstrap-cd.yaml`)
+- Vault credentials ready — an AppRole identity from `dpn-gha-certificate-manager-role-id-creation.yaml` (Key Vault secret `VAULT-APPROLE-SECRET-ID`, with the printed `role_id` copied into `vault.appRole.roleId`), or the root token (`VAULT-TOKEN`) when `vault.authentication: TOKEN`
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
-- Populated config JSON and values file for the `<environment>-<cluster>` combination, with `cloudProvider: azure` set
+- Populated config JSON (`.github/config/azure/<environment>-<cluster>.json`) and values file for the `<environment>-<cluster>` combination, with `keyvault.enabled: true` set
 
 **Note:** Organisations must review the CI/CD workflow code for the following. 
 
@@ -99,9 +96,10 @@ Go to **Actions → DPN CD - Certificate Manager → Run workflow** in `dpn-fede
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `azure` |
-| `imageTag` | The image tag in Step2a |
+| `imageTag` | The Certificate Manager image tag to deploy (required, no default) |
+| `imageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`) — leave blank to use the environment's configured repository |
 
-On success, the deployed image digest is captured as a workflow artifact.
+On success, the deployed image digest is captured as the `deployed-image-digest` workflow artifact.
 
 > **No `--wait`/`--timeout` on `helm upgrade` for this path.** Long-lived watches against the AKS API from the self-hosted runner were unreliable and timed out even when the rollout had actually completed. The Deploy and rolling-restart steps instead fire the Helm/kubectl command without waiting, then poll `kubectl rollout status --timeout=60s` up to five times with a short pause between attempts, printing `kubectl describe`/PVC/`SecretProviderClass`/namespace-events diagnostics if all five attempts fail.
 
@@ -133,6 +131,8 @@ kubectl rollout status deployment/dpn-certificate-manager -n <namespace> --timeo
 kubectl get pods -n <namespace> -l app=dpn-certificate-manager -o wide
 ```
 
+To roll back or remove `dpn-certificate-manager` and/or `vault-https`, use `dpn-gha-certificate-manager-rollback.yaml` (**DPN Rollback - Certificate Manager**) or `dpn-gha-certificate-manager-uninstall.yaml` (**DPN Uninstall - Certificate Manager**) with `cloud: azure` (both default to `aws`) — see [Rollback Procedures, Part 3](../04-rollback/04-rollback-procedures.md#part-3--dpn-federator-certificate-manager-rollback) and [Uninstall and Decommissioning, Part 3](../05-uninstall/05-uninstall-decommissioning.md#part-3--uninstall-dpn-federator-certificate-manager).
+
 ---
 
 ## Step3: Troubleshooting
@@ -153,10 +153,10 @@ Sometimes the certificate entries in the management-node could get out of sync w
 
 ### Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)
 
-The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD` and not `OTEL_TRUSTSTORE_PASSWORD` (an old `SecretProviderClass` alias to the latter has been removed; it never actually supplied a trust-store password to the app on either cloud). If Vault TLS handshakes fail at startup, confirm the rendered `SecretProviderClass`/Secret actually populates `VAULT_SSL_TRUST_STORE_PASSWORD`:
+The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yaml` creates. It does not come from the `SecretProviderClass` or `certificate-manager-secrets`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
 
 ```bash
-kubectl get secret certificate-manager-secrets -n <namespace> -o jsonpath='{.data.VAULT_SSL_TRUST_STORE_PASSWORD}' | base64 -d
+kubectl get secret tls-auth-secret -n <namespace> -o jsonpath='{.data.TRUSTSTORE_PASSWORD}' | base64 -d
 ```
 
 ---

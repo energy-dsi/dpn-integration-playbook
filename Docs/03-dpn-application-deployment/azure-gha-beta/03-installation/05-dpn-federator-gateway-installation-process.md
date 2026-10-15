@@ -43,15 +43,21 @@ This installation page is a quick-reference summary that points to that guide.
 The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** via one GitHub Actions CD workflow run. The release includes the Federator Server and Client plus Zookeeper (source/target), Kafka (source/target), Kafka UI, and Redis.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-federator-gateway-cd.yml
+dpn-federator-gateway/
+├── .github/
+│   ├── workflows/
+│   │   └── dpn-gha-federator-gateway-cd.yaml
+│   ├── config/
+│   │   └── azure/<environment>-<cluster>.json
+│   └── actions/
+│       └── cloud-login/action.yml
+└── charts/
+    └── dpn-platform/
+        └── values/azure/<environment>-<cluster>.yaml
 ```
 
 Key points, detailed in the configuration guide:
-- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the Blob Storage access credentials (and the Vault root token, via `certificate-manager-secrets`) are Key Vault secrets. The truststore password itself is also fetched from Key Vault (`VAULT-TRUSTSTORE-PASSWORD`) and passed into the Helm release at deploy time.
+- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the Blob Storage access credentials are Key Vault secrets synced by the CSI driver, and the gateway authenticates to Vault with the Certificate Manager's shared AppRole (`secret-id` read from `certificate-manager-secrets`). The truststore password itself is also fetched from Key Vault (`TRUSTSTORE-PASSWORD`) and passed into the Helm release at deploy time.
 - The **Server and Client use separate Blob Storage containers** — the **Client uses the File Scan Service source container**.
 - The deployment targets a **single DPN cluster** (`dpn01` or `dpn02`).
 - Kafka brokers run `SASL_SSL`/`OAUTHBEARER` against Keycloak by default (`kafka.authMode: sasl_ssl`).
@@ -66,13 +72,13 @@ In summary:
 
 - Vault and Certificate Manager deployed and in running state
 - Health monitoring service is running state and OTEL Collector healthy
-- `cert-manager-truststore`, `certificate-manager-secrets`, and `tls-auth-secret` secrets present; Vault authentication configured (root token today — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication) for the AppRole caveat)
+- `cert-manager-truststore`, `certificate-manager-secrets`, and `tls-auth-secret` secrets present; Vault authentication configured (AppRole shared with the Certificate Manager in the checked-in Azure values files — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication) for the AppRole caveat)
 - Blob Storage access credential secrets are prepared
 - Server and File Scan source Blob Storage containers provisioned
 - Internal load Balancer IPs are determined
 - IDP client ID is received from DSM
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
-- Workload Identity federated credential for the platform's `ServiceAccount` created, and its Key Vault name set as `KEY_VAULT_NAME` — see [Configure DPN Federator Gateway, Step3e](../02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-aws-serviceaccount-irsa)
+- Workload Identity federated credential for the platform's `ServiceAccount` created, and its Key Vault name set as `KEY_VAULT_NAME` — see [Configure DPN Federator Gateway, Step3e](../02-configuration/05-configure-dpn-federator-gateway.md#step3e-configure-azure-serviceaccount-workload-identity)
 - `dpn-keycloak-secrets` Kubernetes secret present in the namespace (created by the **DPN Authentication Service** deployment) — Kafka Source/Target, Kafka UI, and the Federator Server/Client read the Keycloak admin password and OAuth client secret from it directly; `secretsManager.secretPrefix` is not currently read by any template in this chart
 
 **Note:** Organisations must review workflow code for the following. 
@@ -110,12 +116,14 @@ Go to **Actions → DPN CD - Federator Gateway → Run workflow** in `dpn-federa
 |-----------|-------|
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
-| `cloud` | `azure` |
-| `imageTag` | The image tag pushed in Step2a |
+| `cloud` | `azure` (the default is `aws`, so select `azure` explicitly) |
+| `imageTag` | The Federator image tag to deploy — **required**, no default; applied to both the Federator Server and Client |
+| `serverImageRepository` | Optional — Server image path after `ghcr.io/energy-dsi/` (e.g. `dpn-federator-server`); leave blank to use the values file's repository |
+| `clientImageRepository` | Optional — Client image path after `ghcr.io/energy-dsi/` (e.g. `dpn-federator-client`); leave blank to use the values file's repository |
 
-On success, the deployed image digests are captured as a workflow artifact.
+The job runs on a `[self-hosted, vmss]` runner against the GitHub Environment `<environment>-<cluster>`, reads `.github/config/azure/<environment>-<cluster>.json`, logs in to Azure/AKS through the `.github/actions/cloud-login` composite action (GitHub OIDC with the `AZURE_CLIENT_ID` / `AZURE_TENANT_ID` secrets), checks cluster access with `helm ls` / `kubectl get all` in `ns-dpn-01` (this check is hard-coded to `ns-dpn-01`, independent of `NAMESPACE`), then runs `helm lint`, a `helm upgrade --install --dry-run`, and the real `helm upgrade --install` of release `dpn-platform`. It then waits for the rollout of `dpn-redis`, `dpn-zookeeper-src`, `dpn-zookeeper-target`, `dpn-kafka-src`, `dpn-kafka-target`, `dpn-kafka-ui`, and `dpn-federator-server-<N>` / `dpn-federator-client-<N>` (`<N>` is `1` for `dpn01`, `2` for `dpn02`). On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
 
-> **Key Vault fetch before deploy (Azure only).** The workflow fetches `VAULT-TRUSTSTORE-PASSWORD` from the environment's Key Vault (`KEY_VAULT_NAME`) and passes it in as `vaultConfig.truststorePassword` on the `helm upgrade`. In practice this value is cosmetic: the container's actual `-Dvault.truststore.password` JVM flag is sourced directly from the `certificate-manager-secrets` Kubernetes Secret, so the Key Vault copy only ever reaches the rendered properties ConfigMap and is never read by the running app — but the fetch step still has to succeed for the deploy to proceed.
+> **Key Vault fetch before deploy (Azure only).** The workflow fetches `TRUSTSTORE-PASSWORD` from the environment's Key Vault (`KEY_VAULT_NAME`) and passes it in as `vaultConfig.truststorePassword` on the `helm upgrade`. In practice this value is cosmetic: the container's actual `-Dvault.truststore.password` JVM flag reads `VAULT_TRUSTSTORE_PASSWORD`, which the chart sources directly from the `tls-auth-secret` Kubernetes Secret (`TRUSTSTORE_PASSWORD` key), so the Key Vault copy only ever reaches the rendered properties ConfigMap and is never read by the running app — but the fetch step still has to succeed for the deploy to proceed.
 
 ---
 
@@ -141,10 +149,10 @@ kubectl get svc  -n <namespace>
 The kafka-ui is reachable using the following FQDN
 
 ```text
-http://`<kafka-ui load balancer ip>`:8086
+https://`<kafka-ui load balancer ip>`:8086
 ```
 
-The login would require nginx proxy authentication credentials to be provided. 
+In the checked-in Azure values files (`charts/dpn-platform/values/azure/<environment>-<cluster>.yaml`), Kafka UI terminates HTTPS itself (`kafkaUI.tls.enabled: true`) and signs users in through Keycloak (`kafkaUI.oidcRbac.enabled: true`, `AUTH_TYPE: "OAUTH2"`), so log in with your Keycloak credentials. 
 Once the Kafka-UI is open, follow the required topic creation mentioned in `Configure Data Store` step in [Kafka Topic installation](../02-configuration/07-configure-dpn-data-pipelines.md)
 
 For more details on kafka-ui interface refer to [Kafka UI Operations](../../../05-dpn-user-interfaces/04-kafka-ui-operations.md)
@@ -164,6 +172,8 @@ http://`<dpn-federator-client-1 load balancer ip>`:8085
 ```
 
 For more details on the job runner UI, refer to For more details on kafka-ui interface refer to [Job Runner Interface Operations](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md)
+
+To roll back or remove the `dpn-platform` release, use `dpn-gha-federator-gateway-rollback.yaml` (**DPN Rollback - Federator Gateway**) or `dpn-gha-federator-gateway-uninstall.yaml` (**DPN Uninstall - Federator Gateway**) with `cloud: azure` (both default to `aws`) — see [Rollback Procedures, Part 2](../04-rollback/04-rollback-procedures.md#part-2--dpn-federator-gateway-rollback) and [Uninstall and Decommissioning, Part 4](../05-uninstall/05-uninstall-decommissioning.md#part-4--uninstall-dpn-federator-gateway).
 
 ---
 
@@ -221,8 +231,8 @@ DPN Federator Gateway service custom images are found in GHCR with following nam
 
 | Image Name | GHCR Path | Tag |
 |---|---|---|
-| Federator Server | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-server` | `e.g. 2.0.0` |
-| Federator Client | `ghcr.io/energy-dsi/dpn-federator-gateway/federator-client` | `<version>` |
+| Federator Server | `ghcr.io/energy-dsi/dpn-federator-server` | `e.g. 2.0.0` (supplied via `imageTag`) |
+| Federator Client | `ghcr.io/energy-dsi/dpn-federator-client` | `<version>` (supplied via `imageTag`) |
 
 The Federator Gateway service 3rd party platform images are found in GHCR with following names
 
@@ -230,7 +240,7 @@ The Federator Gateway service 3rd party platform images are found in GHCR with f
 |---|---|
 | Kafka | `ghcr.io/energy-dsi/dpn-kafka:<latest or DSI provided stable version>` |
 | Zookeeper | `ghcr.io/energy-dsi/dpn-zookeeper:<latest or DSI provided stable version>` |
-| Redis | `ghcr.io/energy-dsi/redis:<latest or DSI provided stable version>` |
+| Redis | `ghcr.io/energy-dsi/dpn-redis:<latest or DSI provided stable version>` |
 | Kafka UI | `ghcr.io/energy-dsi/ui-kafka:<latest or DSI provided stable version>` |
 
 There is no separate GHCR-specific workflow to run — [Step2b](#step2b-execute-cd-workflow) above already deploys from these images by default.

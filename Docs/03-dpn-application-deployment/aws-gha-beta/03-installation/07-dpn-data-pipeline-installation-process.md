@@ -39,16 +39,16 @@ This document provides step-by-step instructions for installing and deploying **
 
 The deployment uses the following repository:
 
-- Tthe data pipeline source, blueprints and Helm charts live under its `dpn-data-pipelines/` folder, and the CD workflows under `.pipelines/github-action-pipelines/workflows/`
+- `dpn-data-pipelines` — the data pipeline source, blueprints and Helm charts live in this repository, and the CD workflows under `.github/workflows/`
 
 The deployment process consists of:
 
 - **Continuous Integration (CI)** — builds the container images (see [Step2a](#step2a-data-pipeline-ci-component-source-repository))
-- **Continuous Deployment (CD)** — deploys into **Amazon Elastic Kubernetes Service (EKS)** with the **`DPN CD - Self-Service Data Pipelines`** workflow (`dpn-gha-self-service-cd.yml`), which installs three Helm releases into `ns-dpn-dp-01`:
+- **Continuous Deployment (CD)** — deploys into **Amazon Elastic Kubernetes Service (EKS)** with the **`DPN CD - Self-Service Data Pipelines`** workflow (`dpn-gha-self-service-cd.yaml`), which installs three Helm releases into `ns-dpn-dp-01`:
   - `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` — the two fixed consumer pipelines
   - `dpn-self-service` — the DPN Self-Service UI
 
-**Producer data products are not deployed by a workflow.** They are created at runtime from the Self-Service UI, which launches the generic producer image with that product's configuration (see [Step3](#step3-create-the-first-data-product) and the [Configuration Guide](../02-configuration/07-configure-dpn-data-pipelines.md#step1-setup-a-new-data-product-self-service)). No per-product CI/CD run, folder copy or image build is required.
+**Producer data products are not deployed by a workflow.** They are created at runtime from the Self-Service UI, which launches the generic producer image with that product's configuration (see [Step3](#step3-create-the-first-data-product) and the [DPN Data Pipeline UI Operations guide](../../../05-dpn-user-interfaces/11-dpn-data-pipeline-ui-operations.md)). No per-product CI/CD run, folder copy or image build is required.
 
 > **Upgrading from an earlier release:** data products deployed as separate per-product producer/consumer Helm releases are **not automatically imported** into the Self-Service UI. Recreate each one through the UI after this installation (see [Step3](#step3-create-the-first-data-product)), then remove the old releases as described in [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
@@ -83,17 +83,17 @@ Deployment itself runs directly against the GitHub repository via GitHub Actions
 Ensure the following prerequisites are completed before deployment:
 
 - EKS cluster provisioned and accessible, with the **metrics-server** add-on running (required for HPA)
-- The data pipeline namespace `ns-dpn-dp-01` created once on the cluster. `dpn-gha-self-service-cd.yml` checks for it and fails if it is missing:
+- The data pipeline namespace `ns-dpn-dp-01` created once on the cluster. `dpn-gha-self-service-cd.yaml` checks for it and fails if it is missing:
 
   ```bash
   kubectl create namespace ns-dpn-dp-01
   ```
 
-- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with the IAM roles referenced by `serviceAccount.irsaRoleArn` in the Self-Service and consumer file extractor AWS values files created beforehand — `dpn-gha-self-service-cd.yml` does not create them. See [Configure Storage Secrets](../02-configuration/07-configure-dpn-data-pipelines.md#step8a-configure-storage-secrets) in the Configuration Guide
-- DPN Streaming Service (Kafka) deployed, with SASL/TLS authentication through DPN Authentication Service (Keycloak). Topics do **not** need to be pre-created; the pipeline creates them (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
+- IRSA (IAM Roles for Service Accounts) enabled on the EKS cluster, with the IAM role referenced by `serviceAccount.irsaRoleArn` in the Self-Service AWS values files (`service/charts/values/aws/<environment>-<cluster>.yaml`, role `dpn-data-pipeline-s3-role`) created beforehand — `dpn-gha-self-service-cd.yaml` does not create it. See [Secrets Table](../02-configuration/07-configure-dpn-data-pipelines.md#step-02-secrets-table) in the Configuration Guide
+- DPN Streaming Service (Kafka) deployed, with SASL/TLS authentication through DPN Authentication Service (Keycloak). Topics do **not** need to be pre-created; the pipeline creates them (see the [Configuration Guide overview](../02-configuration/07-configure-dpn-data-pipelines.md#overview))
 - DPN Health Monitoring Service deployed and OTEL collector container is in running state
-- S3 buckets for the `file` integration pathway are created by the pipeline when needed (see [Storage Blob / S3 Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
-- Kubernetes secrets created in `ns-dpn-dp-01` (`dpn-tls`, `tls-auth-secret`, `dpn-keycloak-secrets`, `dpn-health-ca`, `ghcr-pull-secret` — see [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step8-configure-secrets)). On the first deployment into a new environment, restart the pods once the secrets exist; see [One-time setup for a new environment](#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
+- S3 buckets for the `file` integration pathway are created by the pipeline when needed (see the [Configuration Guide overview](../02-configuration/07-configure-dpn-data-pipelines.md#overview))
+- Kubernetes secrets created in `ns-dpn-dp-01` (`dpn-tls`, `tls-auth-secret`, `dpn-keycloak-secrets`, `dpn-health-ca`, `ghcr-pull-secret` — see [Secrets Table](../02-configuration/07-configure-dpn-data-pipelines.md#step-02-secrets-table)). On the first deployment into a new environment, restart the pods once the secrets exist; see [One-time setup for a new environment](#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
 - Keycloak client `dpn-service-client` configured for the Self-Service UI login: **Standard flow** enabled, and the UI's `<externalUrl>/oauth2/callback` registered as a valid redirect URI. The realm roles `dpnadmin`, `dpnoperator` and `dpnreader` assigned to the people who will use the UI
 - Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
 - Software prerequisites (GitHub Actions access, GHCR access — see Step2 below)
@@ -113,27 +113,29 @@ Ensure the following prerequisites are completed before deployment:
 
 ### Step1c. Identify Pipeline Repository Structure
 
-All CD workflows, their per-cloud configuration and the charts they deploy live in the central repository:
+All CD workflows, their per-cloud configuration and the charts they deploy live in the `dpn-data-pipelines` repository itself:
 
 ```
-.pipelines/
-├── github-action-pipelines/
+dpn-data-pipelines/
+├── .github/
 │   ├── workflows/
-│   │   ├── dpn-gha-self-service-cd.yml             <- DPN CD - Self-Service Data Pipelines (standard path)
-│   │   ├── dpn-self-service-rollback.yml       <- DPN Rollback - Self-Service Data Pipelines
-│   │   ├── dpn-self-service-uninstall.yml      <- DPN Uninstall - Self-Service Data Pipelines
-│   │   ├── dpn-gha-cd-data-pipelines.yml           <- DPN CD - Data Pipelines (single reference chart per run)
-│   │   └── dpn-gha-cd-data-pipelines-aws-poc.yml   <- DPN CD - Data Pipelines (AWS PoC)
+│   │   ├── dpn-gha-self-service-cd.yaml          <- DPN CD - Self-Service Data Pipelines (standard path)
+│   │   ├── dpn-gha-self-service-rollback.yaml    <- DPN Rollback - Self-Service Data Pipelines
+│   │   ├── dpn-gha-self-service-uninstall.yaml   <- DPN Uninstall - Self-Service Data Pipelines
+│   │   ├── dpn-gha-data-pipelines-cd.yaml        <- DPN CD - Data Pipelines (single reference chart per run)
+│   │   ├── dpn-gha-data-pipelines-rollback.yaml  <- DPN Rollback - Data Pipelines
+│   │   └── dpn-gha-data-pipelines-uninstall.yaml <- DPN Uninstall - Data Pipelines
 │   ├── actions/
 │   │   └── cloud-login/action.yml
 │   └── config/
 │       └── aws/<environment>-<cluster>.json
-└── dpn-data-pipelines/
-    ├── blueprints/{producer,consumer}/{file,topic}/{adaptor|extractor}/charts/values/aws/<environment>-<cluster>.yaml
-    └── service/charts/values/aws/<environment>-<cluster>.yaml
+├── blueprints/{producer,consumer}/{file,topic}/{adaptor|extractor}/charts/values.yaml
+└── service/charts/values/aws/<environment>-<cluster>.yaml
 ```
 
-`dpn-gha-self-service-cd.yml` reads `.github/config/aws/<environment>-<cluster>.json` (`AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `IMAGE_REGISTRY`, and the optional `OAUTH2_PROXY_EXTERNAL_URL`) and logs in through the shared `cloud-login` action with `cloud: aws`.
+`dpn-gha-self-service-cd.yaml` reads `.github/config/aws/<environment>-<cluster>.json` (`AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `IMAGE_REGISTRY`, and the optional `OAUTH2_PROXY_EXTERNAL_URL`) and logs in through the repository's `.github/actions/cloud-login` action with `cloud: aws`. The AWS login uses GitHub OIDC role-chaining into the target account's `oidc_github_runner_admin` role, so no AWS secret is stored in GitHub, but that role and its trust must exist.
+
+All workflows run on a self-hosted runner with the labels `[self-hosted, vmss]` (register a runner with those labels, or change `runs-on` to a runner pool you control) and use the GitHub Environment `<environment>-<cluster>` (for example `test-dpn01`), which must exist in the repository.
 
 ---
 
@@ -160,7 +162,7 @@ The following diagram represents an overview of DPN Consumer Data Pipeline CI/CD
 
 ### Step2a. Data Pipeline CI (component source repository)
 
-CI (build, test, and image push to GHCR) for the data pipeline components is not part of the central repository's GitHub Actions workflows — build images via your own CI process, or use the DSI-provided prebuilt GHCR images (see [Step5](#step5-containerized-deployment-using-dsi-provided-container-images)).
+CI (build, test, and image push to GHCR) for the data pipeline components is not part of the repository's GitHub Actions workflows, which cover CD only — build images via your own CI process, or use the DSI-provided prebuilt GHCR images (see [Step5](#step5-containerized-deployment-using-dsi-provided-container-images)).
 
 Five images are needed, one per blueprint plus the UI — there is no per-schema or per-product image:
 
@@ -187,30 +189,31 @@ Verify that the image registry contains the five images above with the expected 
 
 #### Step2c. Execute Data Pipeline CD Workflow
 
-Go to **Actions → DPN CD - Self-Service Data Pipelines → Run workflow** (`dpn-gha-self-service-cd.yml`), and supply:
+Go to **Actions → DPN CD - Self-Service Data Pipelines → Run workflow** (`dpn-gha-self-service-cd.yaml`), and supply:
 
 | Input | Value |
 |---|---|
 | `environment` | `dev` / `test` (default `test`) |
 | `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
+| `cloud` | `aws` (default `aws`; the input also offers `azure` and `gcp`) |
 | `imageTag` | The image tag to deploy |
 
-There is no `cloud` input — the workflow is AWS-only. In one run it:
+In one run it:
 
 1. Verifies the `ns-dpn-dp-01` namespace exists.
-2. Installs `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` from `blueprints/consumer/{file,topic}/extractor/charts` with `values/aws/<environment>-<cluster>.yaml`, setting `imageRegistry` to the config JSON's `IMAGE_REGISTRY` and `imageTag` to the input.
-3. Installs `dpn-self-service` from `service/charts` with `values/aws/<environment>-<cluster>.yaml`. The oauth2-proxy (Keycloak login, HTTPS) is enabled with `oauth2Proxy.externalUrl` set to the config JSON's `OAUTH2_PROXY_EXTERNAL_URL`, or else to the hostname of the existing `dpn-self-service-external` LoadBalancer. On a first deploy with neither, it installs once with the proxy off, waits up to 3 minutes for AWS to assign an NLB hostname, then redeploys with the proxy on — register `<that URL>/oauth2/callback` on `dpn-service-client` afterwards (the workflow prints a warning with the URL).
+2. Installs `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` from `blueprints/consumer/{file,topic}/extractor/charts`, applying `values/aws/<environment>-<cluster>.yaml` only if the chart ships one (otherwise the chart defaults are used), setting `imageRegistry` to the config JSON's `IMAGE_REGISTRY`, `imageName` to the release name, `imageTag` to the input and `cloudProviderType` to `aws`.
+3. Installs `dpn-self-service` from `service/charts` with `values/aws/<environment>-<cluster>.yaml` (checked in for `dev-dpn01`, `dev-dpn02`, `test-dpn01` and `test-dpn02`). The oauth2-proxy (Keycloak login, HTTPS) is enabled with `oauth2Proxy.externalUrl` set to the config JSON's `OAUTH2_PROXY_EXTERNAL_URL`, or else to the hostname of the existing `dpn-self-service-external` LoadBalancer. On a first deploy with neither, it installs once with the proxy off, waits up to 3 minutes for AWS to assign an NLB hostname, then redeploys with the proxy on — register `<that URL>/oauth2/callback` on `dpn-service-client` afterwards (the workflow prints a warning with the URL).
 
 > **Notes:**
-> - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. Confirm the value in the consumer charts' values before running (see [Configure Scheduling](../02-configuration/07-configure-dpn-data-pipelines.md#step6-configure-scheduling)).
-> - The `imageTag` input is applied to the three Helm releases. The image tag used for UI-created producers comes from the Self-Service chart's `env.DPN_IMAGE_TAG` (default `latest`), which this workflow does not override — set it in the values file if producers must run a pinned tag.
-> - Two other data pipeline CD workflows exist: **DPN CD - Data Pipelines** (`dpn-gha-cd-data-pipelines.yml`, inputs `environment`, `cluster`, `cloud`, `configType`, `processType`, `productType`, `schemaType`, `imageTag`, optional `imageName`) helm-installs a single reference chart, `blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, as release `dpn-<configType>-<processType>-<adaptor|extractor>-<productType>` into the config JSON's `NAMESPACE`; with `cloud: aws` and `processType: file` it also creates the source/target S3 buckets and the chart's IRSA role. **DPN CD - Data Pipelines (AWS PoC)** (`dpn-gha-cd-data-pipelines-aws-poc.yml`) is a narrower proof-of-concept variant hardcoded to AWS. Use `dpn-gha-self-service-cd.yml` for the standard deployment.
+> - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. This is preconfigured in the consumer charts' values; keep the default (see the [Configuration Guide overview](../02-configuration/07-configure-dpn-data-pipelines.md#overview)).
+> - The `imageTag` input is applied to the three Helm releases, and is also passed to the Self-Service UI as `env.DPN_IMAGE_TAG`, so UI-created producers run the same tag.
+> - One other data pipeline CD workflow exists: **DPN CD - Data Pipelines** (`dpn-gha-data-pipelines-cd.yaml`, inputs `environment`, `cluster`, `cloud`, `configType`, `processType`, `productType`, `schemaType`, `imageTag`, optional `imageName`) helm-installs a single reference chart, `blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, as release `dpn-<configType>-<processType>-<adaptor|extractor>-<productType>` into the config JSON's `NAMESPACE`; with `cloud: aws` and `processType: file` it also creates the source/target S3 buckets and the chart's IRSA role. Use `dpn-gha-self-service-cd.yaml` for the standard deployment.
 
 ##### One-time setup for a new environment: create secrets and restart pods
 
 Every time the DPN Data Pipeline is deployed into a **new environment** (a new `<environment>-<cluster>`), do the following once:
 
-1. Create the secrets the data pipeline pods read, in `ns-dpn-dp-01`, as described in [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step8-configure-secrets). Confirm they exist:
+1. Create the secrets the data pipeline pods read, in `ns-dpn-dp-01`, as described in the [Secrets Table](../02-configuration/07-configure-dpn-data-pipelines.md#step-02-secrets-table). Confirm they exist:
 
    ```bash
    kubectl get secrets -n ns-dpn-dp-01
@@ -227,7 +230,7 @@ Every time the DPN Data Pipeline is deployed into a **new environment** (a new `
 
 This is needed only once per environment. Later CD runs into the same environment reuse the existing secrets. Repeat steps 1 and 2 only when a secret is rotated.
 
-> **Rollback and uninstall:** the three releases are rolled back with **DPN Rollback - Self-Service Data Pipelines** (`dpn-self-service-rollback.yml`, inputs `environment`, `cluster`, `cloud`, `release_name`, `targetRevision`, `confirm`) and removed with **DPN Uninstall - Self-Service Data Pipelines** (`dpn-self-service-uninstall.yml`, `release_name` can also be `all`). Neither touches UI-created producer Deployments, which are managed from the UI. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
+> **Rollback and uninstall:** the three releases are rolled back with **DPN Rollback - Self-Service Data Pipelines** (`dpn-gha-self-service-rollback.yaml`, inputs `environment`, `cluster`, `cloud`, `release_name`, `targetRevision`, `confirm`) and removed with **DPN Uninstall - Self-Service Data Pipelines** (`dpn-gha-self-service-uninstall.yaml`, inputs `environment`, `cluster`, `cloud`, `release_name`, `confirm`; `release_name` can also be `all`). Neither touches UI-created producer Deployments, which are managed from the UI. Releases deployed by `dpn-gha-data-pipelines-cd.yaml` in `NAMESPACE` have their own **DPN Rollback - Data Pipelines** (`dpn-gha-data-pipelines-rollback.yaml`) and **DPN Uninstall - Data Pipelines** (`dpn-gha-data-pipelines-uninstall.yaml`) workflows. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
 ---
 
@@ -274,14 +277,14 @@ kubectl logs <pod-name> -n ns-dpn-dp-01
 Producer data products are created from the Self-Service UI, not from a workflow.
 
 1. Open the UI at the address from [Step2e](#step2e-validate-data-pipeline-cd-workflow) and sign in with a user holding the `dpnadmin` role (only `dpnadmin` can create products).
-2. Create a data product following [Setup a New Data Product (Self-Service)](../02-configuration/07-configure-dpn-data-pipelines.md#step1-setup-a-new-data-product-self-service): choose the `product_type`, the `file` or `topic` pathway and the schedule, then review and confirm the proposed names.
+2. Create a data product following the [DPN Data Pipeline UI Operations guide](../../../05-dpn-user-interfaces/11-dpn-data-pipeline-ui-operations.md): choose the `product_type`, the `file` or `topic` pathway and the schedule, then review and confirm the proposed names.
 3. Verify that a Deployment named `dpn-producer-<pathway>-<product_type>` is running:
 
    ```bash
    kubectl get deployments -n ns-dpn-dp-01
    ```
 
-4. Use **Run Now** and the logs view in the UI to confirm a first cycle completes. See [Operate a Data Product](../02-configuration/07-configure-dpn-data-pipelines.md#step7-operate-a-data-product) for the other actions.
+4. Use **Run Now** and the logs view in the UI to confirm a first cycle completes. See the [DPN Data Pipeline UI Operations guide](../../../05-dpn-user-interfaces/11-dpn-data-pipeline-ui-operations.md) for the other actions.
 
 ---
 
@@ -303,7 +306,7 @@ If pods show `ImagePullBackOff` or `ErrImagePull`:
 
 - Confirm the EKS node group has outbound access to `ghcr.io` to pull the images
 
-- Confirm the image reference (`imageRegistry`/`imageName`/`imageTag`) matches an actual published tag — a typo here produces the same failure as a genuine access issue. The consumer charts take `imageRegistry` from the config JSON's `IMAGE_REGISTRY`; the Self-Service UI takes it from its values file.
+- Confirm the image reference (`imageRegistry`/`imageName`/`imageTag`) matches an actual published tag — a typo here produces the same failure as a genuine access issue. The config JSON's `IMAGE_REGISTRY`, when set, overrides `imageRegistry` for all three releases; otherwise the value in each chart's values file is used.
 
 - For products created from the UI, confirm the Self-Service values set the correct `env.DPN_IMAGE_REGISTRY`, `env.DPN_IMAGE_TAG` and `env.DPN_IMAGE_PULL_SECRET`, since the UI passes these to the producer pods it creates.
 
@@ -311,7 +314,9 @@ If pods show `ImagePullBackOff` or `ErrImagePull`:
 
 ### Values File Not Found
 
-If `helm upgrade` fails because `values/aws/<environment>-<cluster>.yaml` does not exist, add the values file for that environment/cluster under the consumer extractor charts and `service/charts` (AWS values are checked in for `test-dpn01` and `test-dpn02` only).
+`dpn-gha-self-service-cd.yaml` applies `values/aws/<environment>-<cluster>.yaml` only when it exists, and uses the chart defaults otherwise. For `service/charts`, AWS values are checked in for `dev-dpn01`, `dev-dpn02`, `test-dpn01` and `test-dpn02`; add one for any other environment/cluster, because the Self-Service AWS settings (IRSA role, registry, pull secret) live there.
+
+`dpn-gha-data-pipelines-cd.yaml` always passes `-f <chart>/values/<cloud>/<environment>-<cluster>.yaml`, so `helm upgrade` fails if that file does not exist. The blueprint charts do not currently ship a `values/` folder; add the file for your environment/cluster before running that workflow.
 
 ---
 
@@ -365,7 +370,7 @@ Common causes:
 
 ### HPA Not Scaling
 
-HPA is disabled by default and should stay disabled while `SCHEDULER_BACKEND: interval` is in use (see [Configure HPA](../02-configuration/07-configure-dpn-data-pipelines.md#step5-configure-horizontal-pod-autoscaler-hpa)).
+HPA is disabled by default and should stay disabled while `SCHEDULER_BACKEND: interval` is in use (see the [Configuration Guide overview](../02-configuration/07-configure-dpn-data-pipelines.md#overview)).
 
 If HPA has been enabled and `kubectl get hpa` shows `<unknown>` under `TARGETS`:
 
@@ -412,9 +417,9 @@ Data Pipeline service images are found in GHCR with following name
 | dpn-consumer-topic-extractor | `<IMAGE_REGISTRY>/dpn-consumer-topic-extractor` (e.g. `ghcr.io/energy-dsi/dpn-consumer-topic-extractor`) | `<version>` |
 | dpn-self-service | `ghcr.io/energy-dsi/dpn-self-service` | `<version>` |
 
-The producer and Self-Service registry paths come from the Self-Service AWS values file (`imageRegistry`, `env.DPN_IMAGE_REGISTRY`); the consumer path comes from the config JSON's `IMAGE_REGISTRY`.
+The producer registry path comes from the Self-Service AWS values file (`env.DPN_IMAGE_REGISTRY`); the consumer and Self-Service paths come from the config JSON's `IMAGE_REGISTRY` (falling back to `imageRegistry` in the values file when it is not set).
 
-Image access setup and the workflow trigger are covered in [Step2](#step2-install-dpn-data-pipeline) above — there is no separate GHCR-specific workflow to run, `dpn-gha-self-service-cd.yml` already deploys from these GHCR images by default.
+Image access setup and the workflow trigger are covered in [Step2](#step2-install-dpn-data-pipeline) above — there is no separate GHCR-specific workflow to run, `dpn-gha-self-service-cd.yaml` already deploys from these GHCR images by default.
 
 ---
 
