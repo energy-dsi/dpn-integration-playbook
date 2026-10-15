@@ -44,22 +44,23 @@ This installation page is a quick-reference summary that points to that guide.
 The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** via one GitHub Actions CD workflow run. The release includes the Federator Server and Client plus Zookeeper (source/target), Kafka (source/target), Kafka UI, and Redis.
 
 ```text
-.pipelines/
-├── .github-actions-pipelines/
+dpn-federator-gateway/
+├── .github/
 │   ├── workflows/
-│   │   └── dpn-gha-federator-gateway-cd.yml
-│   └── config/
-│       └── aws/<environment>-<cluster>.json
-└── dpn-federator-gateway/
-    └── charts/
-        └── dpn-platform/
-            └── values/aws/<environment>-<cluster>.yaml
+│   │   └── dpn-gha-federator-gateway-cd.yaml
+│   ├── config/
+│   │   └── aws/<environment>-<cluster>.json
+│   └── actions/
+│       └── cloud-login/action.yml
+└── charts/
+    └── dpn-platform/
+        └── values/aws/<environment>-<cluster>.yaml
 ```
 
-The Helm chart is no longer taken from a separate component repository — the workflow deploys `dpn-federator-gateway/charts/dpn-platform` (`HELM_DIR`) with `VALUES_FILE=dpn-federator-gateway/charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`, into the `NAMESPACE` set in the config JSON (e.g. `ns-dpn-01`).
+The workflow and the Helm chart live in the same `dpn-federator-gateway` repository — the workflow deploys `charts/dpn-platform` (`HELM_DIR`) with `VALUES_FILE=charts/dpn-platform/values/aws/<environment>-<cluster>.yaml`, into the `NAMESPACE` set in the config JSON (e.g. `ns-dpn-01`).
 
 Key points, detailed in the configuration guide:
-- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; only the S3 access credentials (and the Vault root token, via `certificate-manager-secrets`) are Key Vault secrets.
+- The gateway builds its mTLS keystore/truststore **in memory from Vault** — no shared file share is used; the gateway authenticates to Vault with the Certificate Manager's shared AppRole (`secret-id` read from `certificate-manager-secrets`).
 - The **Server and Client use separate S3 buckets** — the **Client uses the File Scan Service source bucket**.
 - The deployment targets a **single DPN cluster** (`dpn01` or `dpn02`).
 - Kafka brokers run `SASL_SSL`/`OAUTHBEARER` against Keycloak by default (`kafka.authMode: sasl_ssl`).
@@ -74,7 +75,7 @@ In summary:
 
 - Vault and Certificate Manager deployed and in running state
 - Health monitoring service is running state and OTEL Collector healthy
-- `cert-manager-truststore`, `certificate-manager-secrets`, and `tls-auth-secret` secrets present; Vault authentication configured (root token today — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-planned-not-yet-available) for the AppRole caveat)
+- `cert-manager-truststore`, `certificate-manager-secrets`, and `tls-auth-secret` secrets present; Vault authentication configured (AppRole shared with the Certificate Manager in the checked-in AWS values files — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-dpn-gha-certificate-manager-role-id-creationyaml) for the AppRole caveat)
 - S3 access credential secrets are prepared
 - Server and File Scan source S3 buckets provisioned
 - Internal load Balancer IPs are determined
@@ -98,7 +99,7 @@ In summary:
 
 ### Step2a. CI (component source repository)
 
-CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below, which lives in (and deploys the chart from). Where already migrated, this repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
+CI (build, test, security scan, and image push to GHCR) runs as GitHub Actions workflows in the `dpn-federator-gateway` source repository itself — separately from the CD workflow below, `dpn-gha-federator-gateway-cd.yaml`, which lives in the same repository's `.github/workflows/` folder and deploys the chart from its `charts/dpn-platform` folder. This repository ships `maven.yml` (build/test), `oss-checker.yml` (license/dependency scan), and `docker-ghcr.yml` (build and push the image to GHCR).
 
 Once CI pushes new tags, note them for use as `imageTag` in Step2c — the image registry should show:
 
@@ -129,12 +130,14 @@ Go to **Actions → DPN CD - Federator Gateway → Run workflow**, and supply:
 |-----------|-------|
 | `environment` | `dev` / `test` (default `test`) |
 | `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
-| `cloud` | `aws` (default) |
+| `cloud` | `aws` (default; the workflow also offers `azure` and `gcp`) |
 | `imageTag` | The image tag pushed in Step2a — **required**, no default; applied to both the Federator Server and Client |
+| `serverImageRepository` | Optional — Server image path after `ghcr.io/energy-dsi/` (e.g. `dpn-federator-server`); leave blank to use the values file's repository |
+| `clientImageRepository` | Optional — Client image path after `ghcr.io/energy-dsi/` (e.g. `dpn-federator-client`); leave blank to use the values file's repository |
 
-The job runs against the GitHub Environment `<environment>-<cluster>`, reads `.github/config/aws/<environment>-<cluster>.json`, logs in to AWS/EKS through the `.github/actions/cloud-login` composite action (GitHub OIDC), then runs `helm lint`, a `helm upgrade --install --dry-run`, and the real `helm upgrade --install` of release `dpn-platform`. It then waits for the rollout of `dpn-redis`, `dpn-zookeeper-src`, `dpn-zookeeper-target`, `dpn-kafka-src`, `dpn-kafka-target`, `dpn-kafka-ui`, and `dpn-federator-server-<N>` / `dpn-federator-client-<N>` (`<N>` is `1` for `dpn01`, `2` for `dpn02`). On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
+The job runs on a `[self-hosted, vmss]` runner against the GitHub Environment `<environment>-<cluster>`, reads `.github/config/aws/<environment>-<cluster>.json`, logs in to AWS/EKS through the `.github/actions/cloud-login` composite action (GitHub OIDC into the `oidc_github_runner_hub` role, then chained into `oidc_github_runner_admin` in the target account), checks cluster access with `helm ls` / `kubectl get all` in `ns-dpn-01` (this check is hard-coded to `ns-dpn-01`, independent of `NAMESPACE`), then runs `helm lint`, a `helm upgrade --install --dry-run`, and the real `helm upgrade --install` of release `dpn-platform`. It then waits for the rollout of `dpn-redis`, `dpn-zookeeper-src`, `dpn-zookeeper-target`, `dpn-kafka-src`, `dpn-kafka-target`, `dpn-kafka-ui`, and `dpn-federator-server-<N>` / `dpn-federator-client-<N>` (`<N>` is `1` for `dpn01`, `2` for `dpn02`). On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
 
-To roll back or remove the release, use `dpn-rollback-all-components.yml` (**DPN Rollback - All Components Pipelines**, `releaseName: dpn-platform`) or `dpn-uninstall-all-components.yml` (**DPN Uninstall - All components Pipelines**, `componentType: platform`) — both default `cloud` to `azure`, so select `aws` explicitly. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
+To roll back, re-run this CD workflow with an older `imageTag`, or use `dpn-gha-federator-gateway-rollback.yaml` (**DPN Rollback - Federator Gateway**) or `helm rollback dpn-platform <revision> -n <namespace>`; to remove the release, use `dpn-gha-federator-gateway-uninstall.yaml` (**DPN Uninstall - Federator Gateway**) or `helm uninstall dpn-platform -n <namespace>`. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
 ---
 

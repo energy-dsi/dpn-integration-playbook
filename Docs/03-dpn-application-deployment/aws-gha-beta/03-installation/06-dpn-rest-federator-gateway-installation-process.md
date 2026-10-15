@@ -8,7 +8,7 @@ This document covers the installation of the **DPN REST Federator Gateway** (the
 
 This installation page is a quick-reference summary that points to that guide.
 
-**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](03-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and keystore/truststore passwords directly from Vault, and its rendered config depends on the `certificate-manager-secrets` Kubernetes secret already existing in the namespace at deploy time (see the configuration guide's [Step2](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step2-configure-secrets)).
+**Depends on Vault and the Certificate Manager.** Complete [Vault installation](01-dpn-vault-installation-process.md) and [Certificate Manager installation](04-dpn-certificate-manager-installation-process.md) first — the gateway reads its certificate material and keystore/truststore passwords directly from Vault, and its pod references the `cert-manager-truststore`, `tls-auth-secret` and `certificate-manager-secrets` Kubernetes secrets in the namespace (see the configuration guide's [Step2](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step2-configure-secrets)).
 
 ---
 
@@ -39,25 +39,26 @@ The REST Federator Gateway is deployed as **two independently re-runnable jobs**
 Both workflows, and the charts they deploy:
 
 ```text
-.pipelines/
-└── .github-actions-pipelines/
+dpn-rest-federator-gateway/
+├── .github/
 │   ├── workflows/
-│   │   ├── dpn-gha-rest-federator-cd.yml                  <- DPN CD - REST Federator Gateway
-│   │   └── dpn-rest-federator-role-id-creation.yml    <- DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)
+│   │   ├── dpn-gha-rest-federator-cd.yaml                <- DPN CD - REST Federator Gateway
+│   │   └── dpn-gha-rest-federator-role-id-creation.yaml  <- DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)
+│   ├── actions/
+│   │   └── cloud-login/action.yml
 │   └── config/
 │       └── aws/<environment>-<cluster>.json
-└── dpn-rest-federator-gateway/
-    ├── charts/
-    │   ├── dpn-rest-federator/values/aws/<environment>-<cluster>.yaml
-    │   └── dpn-redis/values/aws/<environment>-<cluster>.yaml
-    └── scripts/vault/                                 <- setup-approle.sh, rest-federator-policy.hcl
+├── charts/
+│   ├── dpn-rest-federator/values/aws/<environment>-<cluster>.yaml
+│   └── dpn-redis/values/aws/<environment>-<cluster>.yaml
+└── scripts/vault/                                         <- setup-approle.sh, rest-federator-policy.hcl
 ```
 
 Key points, detailed in the configuration guide:
 - Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — set up once per environment/cluster via [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy.
-- Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — both provisioned automatically by the CD workflow.
+- Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — the IAM role and the Secrets Manager placeholders are provisioned automatically by the CD workflow (see the configuration guide's note on the current chart template gap for AWS).
 - A **HorizontalPodAutoscaler** is on by default (`hpa.enabled: true`) — no separate opt-in step.
-- `certificate-manager-secrets` must already exist in the namespace at deploy time — the rendered config's Vault truststore password is resolved via a Helm `lookup` against it, not an environment variable read at pod start-up.
+- The Vault truststore password is rendered into the config at deploy time from `restFederatorServer.vault.truststorePassword`, which the CD workflow sets via `--set` from Secrets Manager (`dpn/<environment>-<cluster>/rest-federator/VAULT_TRUSTSTORE_PASSWORD`) — it is not read live at pod start-up.
 
 ---
 
@@ -68,7 +69,7 @@ Confirm the prerequisites are met before starting the REST Federator Gateway ins
 In summary:
 
 - Vault and Certificate Manager deployed and in running state, with this gateway's endpoint included in the certificate's SANs
-- `cert-manager-truststore` and `certificate-manager-secrets` secrets present in the target namespace
+- `cert-manager-truststore`, `tls-auth-secret` and `certificate-manager-secrets` secrets present in the target namespace
 - DPN Authentication Service (Keycloak) reachable
 - OAuth2 client ID + Management Node URL + IDP URLs received from DSM
 - Backend service reachable, with a backend API key available
@@ -114,9 +115,9 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step2c. One-Time Vault AppRole Setup
 
-**Run this once per `<environment>-<cluster>` combination, before the first `dpn-gha-rest-federator-cd.yml` run**, and again whenever the AppRole `secret-id` needs rotating.
+**Run this once per `<environment>-<cluster>` combination, before the first `dpn-gha-rest-federator-cd.yaml` run**, and again whenever the AppRole `secret-id` needs rotating.
 
-Go to **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`dpn-rest-federator-role-id-creation.yml`), and supply:
+Go to **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`dpn-gha-rest-federator-role-id-creation.yaml`), and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -128,7 +129,7 @@ This enables the `approle` Vault auth method, writes the `rest-federator-policy`
 
 ### Step2d. Execute CD Workflow
 
-Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-gha-rest-federator-cd.yml`), and supply:
+Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-gha-rest-federator-cd.yaml`), and supply:
 
 | Input | Value |
 |-----------|-------|
@@ -152,7 +153,7 @@ kubectl get hpa -n <namespace>   # confirm the HPA picked up the deployment
 
 The kubectl logs should not show any `[error]` messages if the deployment is successful.
 
-> **Rollback and uninstall:** `dpn-redis` and `dpn-rest-federator` are selectable releases in the central **DPN Rollback - All Components Pipelines** workflow (`dpn-rollback-all-components.yml`, `releaseName` input), and `redis`/`rest-federator` are selectable component types in **DPN Uninstall - All components Pipelines** (`dpn-uninstall-all-components.yml`, `componentType` input). See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
+> **Rollback and uninstall:** roll forward/back by re-running `dpn-gha-rest-federator-cd.yaml` with a previous `imageTag`, or roll back one release (`dpn-redis`, `dpn-rest-federator`, `dpn-demo-runner-server` or `dpn-demo-runner-client`) with `dpn-gha-rest-federator-rollback.yaml` (**DPN Rollback - REST Federator Gateway**). `dpn-gha-rest-federator-uninstall.yaml` (**DPN Uninstall - REST Federator Gateway**) removes all four releases in one run. `helm rollback`/`helm uninstall` against the releases in `NAMESPACE` also work. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
 ---
 
@@ -164,7 +165,7 @@ A common error caused by a password mismatch. Follow the Certificate Manager tro
 
 ### Pod CrashLoop on First Deploy — Empty Truststore Password
 
-If the pod fails immediately with a PKCS12/JKS load error on truststore construction, `certificate-manager-secrets` most likely didn't exist in the namespace when this chart was rendered — the config's `vault.truststore.password` is resolved via a Helm `lookup` against that secret at render time, not read live at pod start-up. Deploy Certificate Manager first, then re-run `dpn-gha-rest-federator-cd.yml` so the config is re-rendered with the real password.
+If the pod fails immediately with a PKCS12/JKS load error on truststore construction, the Vault truststore password rendered into the config was empty or wrong — `vault.truststore.password` is rendered at deploy time from the `dpn/<environment>-<cluster>/rest-federator/VAULT_TRUSTSTORE_PASSWORD` Secrets Manager entry (passed via `--set restFederatorServer.vault.truststorePassword`), not read live at pod start-up. The CD workflow seeds that entry with a `REPLACE_ME` placeholder the first time; update it to the real AWS Vault truststore password, then re-run `dpn-gha-rest-federator-cd.yaml` so the config is re-rendered.
 
 ### 403 from the Backend
 

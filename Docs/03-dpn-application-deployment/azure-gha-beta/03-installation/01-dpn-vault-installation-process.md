@@ -67,27 +67,28 @@ kubectl run ghcr-pull-test --rm -it \
 
 ### Execute CD Pipeline
 
-Trigger the `dpn-gha-vault-https-cd.yml` GitHub Actions workflow. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists.
+Trigger the `dpn-gha-vault-https-cd.yaml` GitHub Actions workflow from the `dpn-federator-certificate-manager` repository. It's already pointing at the GHCR repository by default and fetches the image tag you specify — no separate GHCR-specific workflow variant exists. It deploys the `vault-https` chart from `charts/vault-https` (release `vault-https`) with the values file `charts/vault-https/values/azure/<environment>-<cluster>.yaml`.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-vault-https-cd.yml
+dpn-federator-certificate-manager/
+└── .github/
+    └── workflows/
+        └── dpn-gha-vault-https-cd.yaml
 ```
+
+> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in Azure Key Vault as `VAULT-TLS-CERT` / `VAULT-TLS-KEY` (read by the chart's `SecretProviderClass`) — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml).
 
 Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 
 | Input | Value |
 |-----------|-------|
 | `environment` | `dev` / `test` |
-| `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluster) |
 | `cloud` | `azure` |
 | `vaultImageTag` | Release version or image tag to pull from GHCR — default `1.16` |
 | `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `vault`) — leave blank to use the environment's configured repository |
 | `runVaultInit` | Enable KV v2 + audit logging — default `true`, safe to re-run |
-| `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on Azure, the Key Vault secret `VAULT-TOKEN` in `kv-dpn-azure-<environment>-uks-<nn>`; on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`. See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
+| `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on Azure, the Key Vault secret `VAULT-TOKEN` in the Key Vault named by `KEY_VAULT_NAME` in `.github/config/azure/<environment>-<cluster>.json` (default `false`; set `true` on the first deploy, because the bundle-load and AppRole setup workflows read the token from there). See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
 
 > **Prerequisite:** Azure Key Vault auto-unseal must already be configured — see [Configure DPN Vault Service, Step 1](../02-configuration/01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed) — otherwise this workflow's Vault Init step will fail against a sealed Vault.
 

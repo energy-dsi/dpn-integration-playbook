@@ -36,16 +36,24 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-Keycloak is deployed with the `dpn-gha-keycloak-cd.yml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal Azure Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
+Keycloak is deployed with the `dpn-gha-keycloak-cd.yaml` GitHub Actions workflow (display name **DPN CD - Keycloak**), into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal Azure Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
 
 Unlike the source-built DPN components, this service does **not** build a custom image via a CI pipeline — it deploys stock upstream images (`keycloak/keycloak` and `postgres`), pulled via GHCR by default, so there is no separate CI stage to configure.
 
+The workflow, its config and the Keycloak Helm chart all live in `dpn-authentication-service`:
+
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
-      └── workflows/
-          └── dpn-gha-keycloak-cd.yml
+dpn-authentication-service/
+├── .github/
+│   ├── workflows/
+│   │   └── dpn-gha-keycloak-cd.yaml
+│   ├── actions/
+│   │   └── cloud-login/action.yml
+│   └── config/
+│       └── azure/<environment>-<cluster>.json
+└── charts/
+    └── keycloak/
+        └── values/azure/<environment>-<cluster>.yaml
 ```
 
 ---
@@ -56,10 +64,10 @@ Confirm the prerequisites before starting — see [Configure DPN Authentication 
 
 In summary the following must be in place:
 
-- AKS cluster, and either an identity that can reach Azure Key Vault (via the Secrets Store CSI driver / workload identity) or an IRSA-annotated ServiceAccount for AWS Secrets Manager (`secretsManager.enabled: true`)
-- `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret)
-- Five secrets populated in the chosen backend: `KC-DB-PASSWORD`/`KC_DB_PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`/`KEYCLOAK_ADMIN_PASSWORD`, `KEYSTORE-PASSWORD`/`KC_HTTPS_KEY_STORE_PASSWORD`, `TRUSTSTORE-PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD`, `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET`
-- `.pipelines/github-actions-pipelines/config/azure/<environment>-<cluster>.json` and `values/azure/<environment>-<cluster>.yaml` populated, **with `cloudProvider: azure` set** — this is the chart's own default, so AKS deployments normally need no override here; it only matters if a values file was copied over from an AWS environment and left the AWS-style annotation in place, which AKS does not recognise
+- AKS cluster, and a user-assigned managed identity that can read Azure Key Vault through the Secrets Store CSI driver (`keyvault.clientID` in the values file)
+- `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret) and the shared `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yml`) run with `cloud: azure`
+- Three secrets populated in Azure Key Vault (`KEY_VAULT_NAME`): `KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-SERVICE-CLIENT-SECRET` (the keystore/truststore passwords now come from `tls-auth-secret`, not the SecretProviderClass)
+- `.github/config/azure/<environment>-<cluster>.json` and `charts/keycloak/values/azure/<environment>-<cluster>.yaml` populated (no `cloudProvider` value is needed — the chart is Azure-shaped by default)
 - Target namespace created (the workflow does not create it)
 
 **Note:** Organisations must review the CD workflow for the following before relying on it.
@@ -115,7 +123,7 @@ Confirm Keycloak itself came up as a StatefulSet (one pod per configured replica
 
 ```bash
 kubectl get statefulset dpn-keycloak -n <namespace>
-kubectl get pvc -n <namespace> -l app.kubernetes.io/name=keycloak
+kubectl get pvc -n <namespace> -l app.kubernetes.io/name=dpn-keycloak
 ```
 
 Confirm the internal load balancer has an assigned IP/hostname and is annotated internal:
@@ -131,7 +139,7 @@ Tail the logs and confirm there are no startup errors, and that the realm-config
 kubectl logs -n <namespace> -l app=dpn-keycloak --tail=100
 ```
 
-On success, the workflow's realm-configuration step logs `Keycloak configuration complete: realm <realm>, client <client>.`
+On success, the workflow's realm-configuration step logs `Keycloak configuration complete: realm <realm>, clients <client> + <ui-client>.`
 
 ---
 
@@ -146,12 +154,14 @@ The Deploy job runs `charts/keycloak/scripts/configure-keycloak.sh` automaticall
 | `dpn-service-client` | Shared OIDC client used by every DPN UI — kafka-ui, the Federator Gateway's Job Runner dashboards directly; OpenSearch Dashboards/Jaeger/Perses/Portal via their `oauth2-proxy` sidecars |
 | Realm roles / groups | `dpnreader`/`dpn-readers`, `dpnadmin`/`dpn-admins`, and now **`dpnoperator`/`dpn-operators`** |
 
-**On AWS specifically**, before running `configure-keycloak.sh` the workflow resolves each UI's *real* LoadBalancer hostname (Jaeger, OpenSearch Dashboards, Perses, Portal, Kafka UI) via `kubectl get svc ... -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'` and passes it in as the matching `KC_UI_HOST_*` environment variable — without this, every UI defaults to an unreachable internal placeholder and every real login fails with `Invalid parameter: redirect_uri`. A UI not yet deployed is simply left at the script's own placeholder default rather than failing the step. This lookup step is specific to the AWS code path; on Azure the equivalent hostname resolution is not yet wired into the workflow, so every `KC_UI_HOST_*` value is left at the script's own placeholder default until that is added — confirm manually that the redirect URIs cover every deployed UI's actual internal Load Balancer IP/hostname.
+The workflow does not look up any UI's LoadBalancer hostname/IP before running `configure-keycloak.sh` — every `KC_UI_HOST_*` variable is left at the script's own defaults, which point at each UI's in-cluster Service DNS name (e.g. `KC_UI_HOST_PORTAL` defaults to `dpn-observability.ns-dpn-health-01.svc.cluster.local:8443`). Browsers must be able to resolve these names; otherwise login fails with `Invalid parameter: redirect_uri` — confirm that the redirect URIs cover every deployed UI's actual address, and override the relevant `KC_UI_HOST_*` variables if not. `KC_ADMIN_PASSWORD` and `KC_SERVICE_CLIENT_SECRET` are read from Key Vault (`KEYCLOAK-ADMIN-PASSWORD` and `KC-SERVICE-CLIENT-SECRET` in `KEY_VAULT_NAME`).
 
 Two things to confirm after every deploy:
 
 - The redirect URIs/web origins on `dpn-service-client` cover every UI that needs to authenticate in this environment, including the two Federator Gateway Job Runner dashboards (`KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2`).
 - `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` in this environment's secrets backend matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
+
+To roll back or remove this service, use `dpn-gha-keycloak-rollback.yaml` (**DPN Rollback - Keycloak**) or `dpn-gha-keycloak-uninstall.yaml` (**DPN Uninstall - Keycloak**) with `cloud: azure` (both default to `aws`) — see [Rollback Procedures, Part 6](../04-rollback/04-rollback-procedures.md#part-6--dpn-authentication-service-rollback) and [Uninstall and Decommissioning, Part 6](../05-uninstall/05-uninstall-decommissioning.md#part-6--uninstall-dpn-authentication-service).
 
 ---
 
@@ -159,7 +169,7 @@ Two things to confirm after every deploy:
 
 ### Secrets Preflight Failure
 
-On the Azure Key Vault path, the workflow fails with `[MISSING] <secret> not found in <vault>` if any CSI-mounted secret, or `KC-SERVICE-CLIENT-SECRET`, is absent. Create the missing secret in `KEY_VAULT_NAME` (e.g. `kv-dpn-azure-<environment>-uks-<nn>`) and re-run. (This preflight step is skipped for `cloud: aws` — the AWS Secrets Manager path surfaces a missing secret as a pod mount/CSI error instead; check `kubectl describe secretproviderclass -n <namespace>` and `kubectl describe pod` for the affected pod.)
+On the Azure Key Vault path, the workflow's "Key Vault Secret Preflight" step fails with `[MISSING] <secret> not found in <vault>` if any CSI-mounted secret (`KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-SERVICE-CLIENT-SECRET`) is absent. Create the missing secret in `KEY_VAULT_NAME` (e.g. `kv-dpn-azure-dev-uks-001`) and re-run. A missing `tls-auth-secret` stops the Keycloak pod from starting, because its keystore/truststore password environment variables reference it — re-run `dpn-gha-tls-cd.yml` and check `kubectl describe pod` for the affected pod.
 
 ---
 
@@ -171,10 +181,12 @@ Keycloak aborts at startup if `config.KC_HTTPS_KEY_ALIAS` does not match a real 
 kubectl get secret dpn-tls -n <namespace> \
   -o jsonpath='{.data.keystore\.jks}' | base64 -d > keystore.jks
 
-keytool -list -keystore keystore.jks -storepass <keystore-password>
+keytool -list -keystore keystore.jks \
+  -storepass "$(kubectl get secret tls-auth-secret -n <namespace> \
+    -o jsonpath='{.data.KEYSTORE_PASSWORD}' | base64 -d)"
 ```
 
-Set `config.KC_HTTPS_KEY_ALIAS` in `values/azure/<environment>-<cluster>.yaml` to the alias listed, then re-run the CD workflow.
+For a keystore generated by `dpn-gha-tls-cd.yml` the alias is `dpn-server`. Set `config.KC_HTTPS_KEY_ALIAS` in `charts/keycloak/values/azure/<environment>-<cluster>.yaml` to the alias listed, then re-run the CD workflow.
 
 ---
 
@@ -186,13 +198,13 @@ Keycloak will still start if the certificate behind `KC_HTTPS_KEY_ALIAS` does no
 
 ### Internal Load Balancer Is Not Actually Internal
 
-If the load balancer ends up internet-facing, the almost-certain cause is `cloudProvider` left at a value other than `azure` (e.g. copied in from an AWS environment values file) — the Service then carries the AWS-style annotation instead of `service.beta.kubernetes.io/azure-load-balancer-internal: "true"`, and AKS ignores the annotation it doesn't recognise. Check:
+The chart's `templates/keycloak-service.yaml` always renders `service.beta.kubernetes.io/azure-load-balancer-internal: "true"` on `dpn-keycloak-service-lb` (plus `azure-load-balancer-ipv4` when `service.loadBalancer.loadBalancerIP` is set). If the load balancer ends up internet-facing, check that the annotation is actually present on the live Service — for example that it was not removed by a manual edit or a modified chart:
 
 ```bash
 kubectl get svc dpn-keycloak-service-lb -n <namespace> -o yaml | grep -A5 annotations
 ```
 
-Set `cloudProvider: azure` in the values file and redeploy.
+Restore the annotation by redeploying from the current chart.
 
 ---
 

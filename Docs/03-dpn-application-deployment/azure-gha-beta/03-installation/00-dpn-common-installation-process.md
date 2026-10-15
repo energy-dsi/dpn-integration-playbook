@@ -15,7 +15,7 @@ Release : 2.1.0 - Oct 2026
   - [4. Identify Pipeline Repository Structure](#4-identify-pipeline-repository-structure)
 - [Component Installation Guides](#component-installation-guides)
 - [Common Troubleshooting Guidance](#common-troubleshooting-guidance)
-  - [CI Pipeline Failure](#ci-pipeline-failure)
+  - [CD Pipeline Failure](#cd-pipeline-failure)
   - [Container Image Not Found](#container-image-not-found)
   - [Pods Not Starting](#pods-not-starting)
   - [Container CrashLoopBackOff](#container-crashloopbackoff)
@@ -30,7 +30,7 @@ Release : 2.1.0 - Oct 2026
 
 ## Overview
 
-This document is the starting point for installing and deploying **DPN components into an Azure environment** using the **GitHub Actions pipelines in each component's own ADO repository**, run with `cloud: azure`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
+This document is the starting point for installing and deploying **DPN components into an Azure environment** using the **GitHub Actions workflows in each component's own repository**, run with `cloud: azure`. It covers what's common to every component; component-specific steps (which workflow to run, which inputs to set, how to verify that specific deployment) live in each component's own installation guide — see [Component Installation Guides](#component-installation-guides).
 
 The deployment uses the following repositories:
 
@@ -166,21 +166,21 @@ Refer to [DPN Vault Service Configuration](../02-configuration/01-configure-dpn-
 
 ### 4. Identify Pipeline Repository Structure
 
-All CD workflows and their configuration live in the following location
+There is no separate pipeline repository. Each DPN component repository carries its own CD workflows and their configuration in the following location, and its workflows are run directly from that repository's Actions tab:
 
 ```
-root/
-├── .pipelines/
-  ├── github-actions-pipelines/
-│   ├── workflows/          # one workflow per DPN component (e.g. dpn-gha-vault-https-cd.yml)
+<component-repo>/
+├── .github/
+│   ├── workflows/          # this component's CD workflows (dpn-gha-*.yaml; e.g. dpn-gha-vault-https-cd.yaml)
 │   ├── actions/
-│   │   └── cloud-login/    # shared composite action: azure / aws / gcp OIDC login
+│   │   └── cloud-login/    # composite action: azure / aws / gcp OIDC login + cluster context
 │   └── config/
 │       ├── azure/<environment>-<cluster>.json
-│       ├── aws/<environment>-<cluster>.json
-│       └── gcp/<environment>-<cluster>.json      # not yet supported
-└── /charts/<components>/values/azure/<environment>-<cluster>.yaml
+│       └── aws/<environment>-<cluster>.json
+└── charts/<chart>/values/azure/<environment>-<cluster>.yaml
 ```
+
+The `cloud` input also offers `gcp`, but no component repository has a `gcp` config folder yet. CD workflows take the `workflow_dispatch` inputs `environment` (`dev`/`test`), `cluster` (`dpn01`/`dpn02`) and `cloud`; most CD workflows default `cloud` to `aws`, so select `azure` explicitly. The individual Health Monitoring workflows (`dpn-gha-otel-cd.yaml`, `dpn-gha-kafka-cd.yaml`, etc.) are reusable (`workflow_call`) workflows triggered through `dpn-gha-health-monitoring-cd-install.yaml` (*DPN Health Monitoring*), not run directly.
 
 ---
 
@@ -191,7 +191,7 @@ The DPN currently comprises the following components. Complete the prerequisites
 | Component | Installation Guide | Notes |
 |-----------|---------------------|-------|
 | DPN Vault and Shared File Service | *01-dpn-vault-installation-process.md* | Must be installed and configured (initialised, unsealed, certificate bundle loaded) before the Certificate Manager |
-| DPN Authentication Service | *02-dpn-authentication-service-installation-process.md* | Must be installed and configured before the Health Moniotoring service|
+| DPN Authentication Service | *02-dpn-authentication-service-installation-process.md* | Must be installed and configured before the Health Monitoring service |
 | DPN Health Monitoring Service | *03-dpn-health-monitoring-service-installation-process.md* | ** see that guide for the environment-specific setup |
 | DPN Federator Certificate Manager | *04-dpn-certificate-manager-installation-process.md* | Depends on Vault |
 | DPN Federator Gateway | *05-dpn-federator-gateway-installation-process.md* | Depends on Vault and Certificate Manager being installed and configured first |
