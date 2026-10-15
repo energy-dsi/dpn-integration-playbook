@@ -41,7 +41,7 @@ The following prerequisites must be met.
 - A GitHub Environment named `<environment>-<cluster>` (e.g. `dev-dpn01`) exists in `dpn-file-scan-service`, and a self-hosted runner with the `[self-hosted, vmss]` labels is registered (both workflows target `runs-on: [self-hosted, vmss]`)
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount
 - If sourcing `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` from AWS Secrets Manager (`secretsManager.enabled: true`), both secrets already exist under `secretsManager.secretPrefix`, and the IRSA role also grants `secretsmanager:GetSecretValue` on that prefix — see [Configure DPN File Scan Service, Step5](../02-configuration/08-configure-dpn-file-scan-service.md#step5-configure-secrets). When OTLP OAuth is enabled (`keyvault.otelOauthClientSecretName: KC_SERVICE_CLIENT_SECRET`, as in the provided AWS values files), `KC_SERVICE_CLIENT_SECRET` must also exist under that prefix
-- The `dpn-tls` and `tls-auth-secret` Kubernetes secrets exist in the target namespace — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yml`)
+- The `dpn-tls` and `tls-auth-secret` Kubernetes secrets exist in the target namespace — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`)
 - `.github/config/aws/<environment>-<cluster>.json` is populated, including the `FILESCAN_*` keys (see [Configure DPN File Scan Service, Step3a](../02-configuration/08-configure-dpn-file-scan-service.md#step3a-configure-environment-json-file))
 - DPN Health monitoring service is up and running. OTEL log aggregator container is healthy
 

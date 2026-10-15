@@ -145,7 +145,7 @@ The following values to be modified in that file
 | env.otelOauthTokenEndpointUrl | Keycloak token endpoint used to authenticate OTLP exports as `dpn-service-client`, e.g. `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
 | keyvault.otelOauthClientSecretName | Set to `KC_SERVICE_CLIENT_SECRET` (as in the provided AWS values files) to mount `dpn-service-client`'s secret from `secretsManager.secretPrefix/KC_SERVICE_CLIENT_SECRET`; leave empty to disable OTLP OAuth |
 
-> Optionally, `env.truststorePath` gates whether the chart mounts the `dpn-tls` OTLP truststore volume at all — leave it unset for an environment with no `dpn-tls` secret provisioned. The provided AWS values files set it (and `env.otelExporterCertificate`) to `/etc/secrets/truststore.jks`. Independently of this, the Deployment always reads `TRUSTSTORE_PASSWORD` from the shared `tls-auth-secret` (key `TRUSTSTORE_PASSWORD`), created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yml`), so that secret must exist in the namespace.
+> Optionally, `env.truststorePath` gates whether the chart mounts the `dpn-tls` OTLP truststore volume at all — leave it unset for an environment with no `dpn-tls` secret provisioned. The provided AWS values files set it (and `env.otelExporterCertificate`) to `/etc/secrets/truststore.jks`. Independently of this, the Deployment always reads `TRUSTSTORE_PASSWORD` from the shared `tls-auth-secret` (key `TRUSTSTORE_PASSWORD`), created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`), so that secret must exist in the namespace.
 
 ---
 

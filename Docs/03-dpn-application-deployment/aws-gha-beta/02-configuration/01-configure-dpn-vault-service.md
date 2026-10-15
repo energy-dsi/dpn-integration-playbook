@@ -22,7 +22,7 @@ DSI provides an **automated method** (GitHub Actions workflows) that generates t
     - [Step 2a. Environment config JSON](#step-2a-environment-config-json)
     - [Step 2b. Vault Helm values](#step-2b-vault-helm-values)
   - [Step 3: Deployment Configuration](#step-3-deployment-configuration)
-    - [Step 3A: Configure Vault TLS (`dpn-gha-tls-cd.yml`)](#step-3a-configure-vault-tls-dpn-tls-cdyaml)
+    - [Step 3A: Configure Vault TLS (`dpn-gha-tls-cd.yaml`)](#step-3a-configure-vault-tls-dpn-tls-cdyaml)
     - [Step 3B: Deploy and Initialise Vault (`dpn-gha-vault-https-cd.yaml`)](#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml)
     - [Step 3C: Configure Certificate Bundle (`dpn-gha-vault-load-bundle-cd.yaml`)](#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml)
     - [Step 3D: Deploy Certificate Manager (`dpn-gha-certificate-manager-cd.yaml`)](#step-3d-deploy-certificate-manager-dpn-certificate-manager-cdyml)
@@ -100,7 +100,7 @@ The automated flow uses five GitHub Actions workflows:
 
 | Order | Workflow (display name) | Purpose |
 |-------|----------|---------|
-| 1 | `dpn-gha-tls-cd.yml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) | Generate the DPN Root CA and the common server certificate/key (used as the Vault server TLS certificate), publish the Vault TLS cert/key to AWS Secrets Manager, and create the `cert-manager-truststore` and `tls-auth-secret` Kubernetes secrets |
+| 1 | `dpn-gha-tls-cd.yaml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) | Generate the DPN Root CA and the common server certificate/key (used as the Vault server TLS certificate), publish the Vault TLS cert/key to AWS Secrets Manager, and create the `cert-manager-truststore` and `tls-auth-secret` Kubernetes secrets |
 | 2 | `dpn-gha-vault-https-cd.yaml` (**DPN CD - Vault HTTPS**) | Deploy Vault via Helm, then initialise it and enable the KV v2 engine |
 | 3 | `dpn-gha-vault-load-bundle-cd.yaml` (**DPN CD - Vault Load Cert Bundle**) | Load the DSM-signed client certificate bundle into Vault |
 | 4 | `dpn-gha-certificate-manager-role-id-creation.yaml` (**DPN CD - Certificate Manager Role ID Creation (Vault AppRole Setup)**) | Provision the Certificate Manager's Vault AppRole and publish its `role_id`/`secret_id` to AWS Secrets Manager — see [Step 3E](#step-3e-configure-approle-authentication-dpn-certificate-manager-role-id-creationyml) |
@@ -118,7 +118,7 @@ dpn-federator-certificate-manager/
     │   ├── aws/<environment>-<cluster>.json
     │   └── scripts/create-dpn-tls.sh
     └── workflows/
-        ├── dpn-gha-tls-cd.yml
+        ├── dpn-gha-tls-cd.yaml
         ├── dpn-gha-vault-https-cd.yaml
         ├── dpn-gha-vault-load-bundle-cd.yaml
         ├── dpn-gha-certificate-manager-role-id-creation.yaml
@@ -190,7 +190,7 @@ root/
 
 > **Note:** Keep `replicaCount: 1` — Vault uses a `ReadWriteOnce` persistent volume. The Vault TLS certificate and key are **not** set as literal values here; they are generated in [Step 3A](#step-3a-configure-vault-tls-dpn-tls-cdyaml) and read at runtime via the `SecretProviderClass`.
 >
-> - Step 3A (`dpn-gha-tls-cd.yml`) publishes them to `dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` and `.../VAULT_TLS_KEY` in Secrets Manager, so keep `secretsManager.secretPrefix` set to `dpn/<environment>-<cluster>/vault-https` to match.
+> - Step 3A (`dpn-gha-tls-cd.yaml`) publishes them to `dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` and `.../VAULT_TLS_KEY` in Secrets Manager, so keep `secretsManager.secretPrefix` set to `dpn/<environment>-<cluster>/vault-https` to match.
 
 ---
 
@@ -200,7 +200,7 @@ Trigger the following workflows in order, via **Actions → &lt;workflow name&gt
 
 <a id="step-3a-configure-vault-tls-dpn-tls-cdyaml"></a>
 
-#### Step 3A: Configure Vault TLS (`dpn-gha-tls-cd.yml`)
+#### Step 3A: Configure Vault TLS (`dpn-gha-tls-cd.yaml`)
 
 Trigger **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → Run workflow**. In a single run, this workflow uses `.github/config/scripts/create-dpn-tls.sh` to generate one self-signed DPN Root CA (`CN=dpn-root`) and one common server certificate/key (`CN=dpn-common`, wildcard SANs `*.ns-dpn-01.svc.cluster.local`, `*.ns-dpn-health-01.svc.cluster.local`, `*.ns-dpn-dp-01.svc.cluster.local`, which cover `vault-https.<namespace>.svc.cluster.local`). It then publishes them to AWS Secrets Manager and Kubernetes. The same certificate also serves Keycloak, Kafka and the Federator. See [Common Configuration](00-common-dpn-configuration.md) for the other secrets it creates.
 
@@ -228,9 +228,9 @@ On completion it publishes (Vault-related items):
 - `vault.csr` (with `vault.key`) → CSR file for doing bootstrap from DSM (`CN=vault`). Sign it at the DSM, then load `vault.key` + the returned `certificate.pem` + `ca-chain.pem` in [Step 3C](#step-3c-configure-certificate-bundle-dpn-vault-load-bundle-cdyml)
 - `server.csr` → CSR file for server certificate. Although vault.csr can be used as well for server certificate with large TTL
 
-> **Vault-only alternative (superseded).** `dpn-gha-vault-tls-bootstrap-cd.yaml` (**DPN CD - Vault TLS Bootstrap**) still exists and generates a Vault-only Root CA (`CN=dpn-vault-root`), Vault certificate/key and `cert-manager-truststore`. It is superseded by the Universal TLS pipeline. Its publish step writes only to Azure Key Vault (`az keyvault secret set`) and has no AWS Secrets Manager branch, so on AWS use `dpn-gha-tls-cd.yml` above.
+> **Vault-only alternative (superseded).** `dpn-gha-vault-tls-bootstrap-cd.yaml` (**DPN CD - Vault TLS Bootstrap**) still exists and generates a Vault-only Root CA (`CN=dpn-vault-root`), Vault certificate/key and `cert-manager-truststore`. It is superseded by the Universal TLS pipeline. Its publish step writes only to Azure Key Vault (`az keyvault secret set`) and has no AWS Secrets Manager branch, so on AWS use `dpn-gha-tls-cd.yaml` above.
 >
-> **Note:** Unlike the other workflows on this page, `dpn-gha-tls-cd.yml` does not use the `.github/actions/cloud-login` composite action — it performs the same two-step OIDC role assumption (hub role, then `oidc_github_runner_admin`) and EKS context set-up inline. The repository also contains `dpn-gha-prerequisite-pipeline.yaml` (**DPN CD - Prerequisite Pipeline (Universal TLS)**), which the repository's `.github/workflows/README.md` describes as the newer replacement for `dpn-gha-tls-cd.yml`; this guide documents `dpn-gha-tls-cd.yml`.
+> **Note:** Unlike the other workflows on this page, `dpn-gha-tls-cd.yaml` does not use the `.github/actions/cloud-login` composite action — it performs the same two-step OIDC role assumption (hub role, then `oidc_github_runner_admin`) and EKS context set-up inline. The repository also contains `dpn-gha-prerequisite-pipeline.yaml` (**DPN CD - Prerequisite Pipeline (Universal TLS)**), which the repository's `.github/workflows/README.md` describes as the newer replacement for `dpn-gha-tls-cd.yaml`; this guide documents `dpn-gha-tls-cd.yaml`.
 
 <a id="step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml"></a>
 

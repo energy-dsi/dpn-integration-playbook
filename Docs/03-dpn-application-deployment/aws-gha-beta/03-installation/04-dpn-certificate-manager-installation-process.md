@@ -53,7 +53,7 @@ Confirm the prerequisites before starting — see [Configure DPN Certificate Man
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
-- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yml`)
+- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yaml`)
 - Vault credentials ready — an AppRole identity from `dpn-gha-certificate-manager-role-id-creation.yaml` (`component: certificate-manager`), whose `role_id`/`secret_id` are in Secrets Manager under `dpn/<environment>-<cluster>/certificate-manager/`, plus `VAULT_TOKEN` under the same prefix. On AWS the CD workflow fails if `VAULT_APPROLE_ROLE_ID` is missing
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
@@ -159,7 +159,7 @@ Sometimes the certificate entries in the management-node could get out of sync w
 
 ### Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)
 
-The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yml` creates. It no longer comes from the `SecretProviderClass`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
+The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yaml` creates. It no longer comes from the `SecretProviderClass`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
 
 ```bash
 kubectl get secret tls-auth-secret -n <namespace> -o jsonpath='{.data.TRUSTSTORE_PASSWORD}' | base64 -d

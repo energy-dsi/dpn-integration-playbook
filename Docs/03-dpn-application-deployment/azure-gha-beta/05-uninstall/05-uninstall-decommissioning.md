@@ -281,7 +281,7 @@ The namespace `ns-dpn-dp-01` was created by hand in the cluster bootstrap (see [
 
 | Secret | How it got there |
 |--------|------------------|
-| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yml`, if the namespace existed when it ran |
+| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yaml`, if the namespace existed when it ran |
 | `dpn-keycloak-secrets`, `producer-file-dp-secret`, `consumer-file-dp-secret` | Copied manually from `ns-dpn-01` |
 | `dpn-health-ca` | Created manually (OTEL collector CA bundle) |
 | `ghcr-pull-secret` | Created manually (GHCR pull secret), if used |
@@ -293,7 +293,7 @@ kubectl get all,secrets,pvc -n ns-dpn-dp-01
 kubectl delete namespace ns-dpn-dp-01
 ```
 
-> **Note:** If `dpn-gha-tls-cd.yml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
+> **Note:** If `dpn-gha-tls-cd.yaml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
 
 The secrets copied out of `ns-dpn-01` are only copies; the originals are removed in [Remove Secrets and Certificates](#remove-secrets-and-certificates).
 

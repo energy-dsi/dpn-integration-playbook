@@ -277,7 +277,7 @@ The namespace `ns-dpn-dp-01` was created by hand in the cluster bootstrap (see [
 
 | Secret | How it got there |
 |--------|------------------|
-| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yml`, if the namespace existed when it ran |
+| `dpn-tls`, `tls-auth-secret` | Copied automatically by `dpn-gha-tls-cd.yaml`, if the namespace existed when it ran |
 | `dpn-keycloak-secrets` | Copied manually from `ns-dpn-01` |
 | `aws-access-secret` | Created manually (S3 credentials for the UI, producers and consumer file extractor) |
 | `dpn-health-ca` | Created manually (OTEL collector CA bundle) |
@@ -290,7 +290,7 @@ kubectl get all,secrets,pvc -n ns-dpn-dp-01
 kubectl delete namespace ns-dpn-dp-01
 ```
 
-> **Note:** If `dpn-gha-tls-cd.yml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
+> **Note:** If `dpn-gha-tls-cd.yaml` is run again while the namespace still exists, it re-copies `dpn-tls` and `tls-auth-secret` into it. Delete the namespace after the last run of that workflow, or delete the two secrets again.
 
 The secrets copied out of `ns-dpn-01` are only copies; the originals are removed with the main namespace in [Remove Secrets and Certificates](#remove-secrets-and-certificates). Deactivate the IAM access key held in `aws-access-secret` as described there.
 
@@ -480,7 +480,7 @@ Confirm no Helm releases remain in the namespace:
 helm list -n ns-dpn-health-01
 ```
 
-Remove the namespace itself, if no longer required. This also deletes the secrets `dpn-tls`, `tls-auth-secret` and `dpn-health-tls` that `dpn-gha-tls-cd.yml` placed there:
+Remove the namespace itself, if no longer required. This also deletes the secrets `dpn-tls`, `tls-auth-secret` and `dpn-health-tls` that `dpn-gha-tls-cd.yaml` placed there:
 
 ```bash
 kubectl delete namespace ns-dpn-health-01
@@ -589,7 +589,7 @@ kubectl get secrets -n ns-dpn-01
 kubectl delete secrets --all -n ns-dpn-01
 ```
 
-This includes the `ghcr-pull-secret` used for GHCR image pulls and the secrets created by `dpn-gha-tls-cd.yml` (`cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls`, `tls-auth-secret`). Copies in `ns-dpn-health-01` and `ns-dpn-dp-01` are removed with those namespaces ([Part 5](#step-2--verify-health-monitoring-service-removal), [Part 2, Step 4](#step-4--remove-the-data-pipeline-namespace)).
+This includes the `ghcr-pull-secret` used for GHCR image pulls and the secrets created by `dpn-gha-tls-cd.yaml` (`cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls`, `tls-auth-secret`). Copies in `ns-dpn-health-01` and `ns-dpn-dp-01` are removed with those namespaces ([Part 5](#step-2--verify-health-monitoring-service-removal), [Part 2, Step 4](#step-4--remove-the-data-pipeline-namespace)).
 
 Remove any persistent volume claims not deleted with their release:
 
@@ -612,7 +612,7 @@ kubectl delete namespace ns-dpn-01
 
 The CD workflows create the following AWS resources. `helm uninstall` does not remove any of them.
 
-**Secrets Manager entries.** Every workflow writes under the prefix `dpn/<environment>-<cluster>/` (for example `dpn/dev-dpn01/keycloak/KC_DB_PASSWORD`): `dpn-gha-tls-cd.yml` (TLS material and store passwords under `vault-https/`, `certificate-manager/`, `keycloak/` and `kafka/`), `dpn-gha-vault-https-cd.yaml` (the Vault root token under `vault-https/`, synced to `certificate-manager/`), `dpn-gha-oauth2-proxy-cd.yaml` (`oauth2-proxy/`), `dpn-gha-rest-federator-cd.yaml` (`rest-federator/`), `dpn-gha-demo-runner-cd.yaml` (`demo-runner-server/`, `demo-runner-client/`), `dpn-gha-file-scan-prerequisites-cd.yaml` (`file-scan-service/`), the two Vault AppRole workflows (`dpn-gha-certificate-manager-role-id-creation.yaml`, `dpn-gha-rest-federator-role-id-creation.yaml`), plus the Keycloak secrets under `keycloak/`. List and delete them:
+**Secrets Manager entries.** Every workflow writes under the prefix `dpn/<environment>-<cluster>/` (for example `dpn/dev-dpn01/keycloak/KC_DB_PASSWORD`): `dpn-gha-tls-cd.yaml` (TLS material and store passwords under `vault-https/`, `certificate-manager/`, `keycloak/` and `kafka/`), `dpn-gha-vault-https-cd.yaml` (the Vault root token under `vault-https/`, synced to `certificate-manager/`), `dpn-gha-oauth2-proxy-cd.yaml` (`oauth2-proxy/`), `dpn-gha-rest-federator-cd.yaml` (`rest-federator/`), `dpn-gha-demo-runner-cd.yaml` (`demo-runner-server/`, `demo-runner-client/`), `dpn-gha-file-scan-prerequisites-cd.yaml` (`file-scan-service/`), the two Vault AppRole workflows (`dpn-gha-certificate-manager-role-id-creation.yaml`, `dpn-gha-rest-federator-role-id-creation.yaml`), plus the Keycloak secrets under `keycloak/`. List and delete them:
 
 ```bash
 aws secretsmanager list-secrets --region <AWS_REGION> \

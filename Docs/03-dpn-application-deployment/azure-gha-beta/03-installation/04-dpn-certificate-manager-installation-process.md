@@ -53,7 +53,7 @@ Confirm the prerequisites before starting — see [Configure DPN Certificate Man
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
-- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yml`; `cert-manager-truststore` alone is also created by `dpn-gha-vault-tls-bootstrap-cd.yaml`)
+- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yaml`; `cert-manager-truststore` alone is also created by `dpn-gha-vault-tls-bootstrap-cd.yaml`)
 - Vault credentials ready — an AppRole identity from `dpn-gha-certificate-manager-role-id-creation.yaml` (Key Vault secret `VAULT-APPROLE-SECRET-ID`, with the printed `role_id` copied into `vault.appRole.roleId`), or the root token (`VAULT-TOKEN`) when `vault.authentication: TOKEN`
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
@@ -153,7 +153,7 @@ Sometimes the certificate entries in the management-node could get out of sync w
 
 ### Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)
 
-The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yml` creates. It does not come from the `SecretProviderClass` or `certificate-manager-secrets`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
+The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yaml` creates. It does not come from the `SecretProviderClass` or `certificate-manager-secrets`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
 
 ```bash
 kubectl get secret tls-auth-secret -n <namespace> -o jsonpath='{.data.TRUSTSTORE_PASSWORD}' | base64 -d

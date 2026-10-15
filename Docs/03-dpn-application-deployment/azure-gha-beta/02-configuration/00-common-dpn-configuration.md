@@ -160,9 +160,9 @@ Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster
 | GitHub Actions Secret | Used by | Purpose |
 |-----------------------|---------|---------|
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` | Every CD workflow (passed to `cloud-login`) | Client ID and tenant ID of the federated identity — see [Azure Workload Identity / Federated Identity Credential](../01-prerequisites/01-dpn-prerequisites.md#azure-workload-identity--federated-identity-credential) |
-| `DPN_TLS_KEYSTORE_PASSWORD` | `dpn-gha-tls-cd.yml` (dpn-federator-certificate-manager) | `keystore.jks` password |
-| `DPN_TLS_TRUSTSTORE_PASSWORD` | `dpn-gha-tls-cd.yml`, `dpn-gha-vault-tls-bootstrap-cd.yaml` (dpn-federator-certificate-manager), `dpn-gha-demo-runner-cd.yaml` (dpn-rest-federator-gateway) | `truststore.jks` password |
-| `DPN_TLS_CLIENT_P12_PASSWORD` | `dpn-gha-tls-cd.yml` (dpn-federator-certificate-manager) | `dsm-client.p12` password |
+| `DPN_TLS_KEYSTORE_PASSWORD` | `dpn-gha-tls-cd.yaml` (dpn-federator-certificate-manager) | `keystore.jks` password |
+| `DPN_TLS_TRUSTSTORE_PASSWORD` | `dpn-gha-tls-cd.yaml`, `dpn-gha-vault-tls-bootstrap-cd.yaml` (dpn-federator-certificate-manager), `dpn-gha-demo-runner-cd.yaml` (dpn-rest-federator-gateway) | `truststore.jks` password |
+| `DPN_TLS_CLIENT_P12_PASSWORD` | `dpn-gha-tls-cd.yaml` (dpn-federator-certificate-manager) | `dsm-client.p12` password |
 | `VAULT_KEY`, `CERTIFICATE_PEM`, `CA_CHAIN_PEM` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of `vault.key`, the DSM-signed `certificate.pem` and the DSM `ca-chain.pem` |
 
 ---
@@ -179,7 +179,7 @@ Create the following Kubernetes namespaces in AKS, along with the shared storage
 kubectl create namespace <namespace>
 ```
 
-> **Create `ns-dpn-dp-01` before running `dpn-gha-tls-cd.yml`.** The Universal TLS workflow copies `dpn-tls` and `tls-auth-secret` into `ns-dpn-dp-01` only if that namespace already exists; if it does not, the workflow skips those copies without failing. If you create the namespace afterwards, re-run `dpn-gha-tls-cd.yml` or copy the two secrets by hand (see [Copy shared secrets into ns-dpn-dp-01](#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite)).
+> **Create `ns-dpn-dp-01` before running `dpn-gha-tls-cd.yaml`.** The Universal TLS workflow copies `dpn-tls` and `tls-auth-secret` into `ns-dpn-dp-01` only if that namespace already exists; if it does not, the workflow skips those copies without failing. If you create the namespace afterwards, re-run `dpn-gha-tls-cd.yaml` or copy the two secrets by hand (see [Copy shared secrets into ns-dpn-dp-01](#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite)).
 
 A shared `federator-server` Kubernetes ServiceAccount is used by several components  pods to authenticate across components:
 
@@ -328,10 +328,10 @@ The following secrets are shared by DPN components to use encryption in transit 
 | `certificate-manager-secrets` | `VAULT_TOKEN`, or `VAULT_APPROLE_SECRET_ID` when `vault.authentication: APPROLE` | `<KEY_VAULT_NAME>/VAULT-TOKEN` or `<KEY_VAULT_NAME>/VAULT-APPROLE-SECRET-ID` (synced by the `dpn-certificate-manager-kv-secrets` SecretProviderClass) | Vault credential for PKI bootstrap. The Vault truststore password is no longer synced here — it is read from `tls-auth-secret` (`TRUSTSTORE_PASSWORD`) | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
 | `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD` | `<KEY_VAULT_NAME>/keycloak-KC-SERVICE-CLIENT-SECRET` (set manually before first deploy — see note below), `.../KEYCLOAK-ADMIN-PASSWORD`, `.../KC-DB-PASSWORD`, `.../KC-HTTPS-KEY-STORE-PASSWORD`, `.../KC-HTTPS-TRUST-STORE-PASSWORD` | `dpn-service-client` OIDC client secret, Keycloak's own admin/database passwords, and its keystore/truststore passwords | ns-dpn-01, ns-dpn-dp-01 (manual copy — see [below](#copy-shared-secrets-into-ns-dpn-dp-01-data-pipelines-prerequisite)) | Authentication Service (Keycloak), Data Pipelines (Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
 | `kafka-secrets` | `UNIVERSAL_DPN_CERT_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD`, `KAFKA_OAUTH_CLIENT_SECRET` | `<KEY_VAULT_NAME>/kafka-UNIVERSAL-DPN-CERT-PASSWORD`, plus its own copies of the Keycloak admin/keystore/truststore passwords and the Kafka OAuth client secret | Kafka broker keystore/truststore password and OAuth client credentials | ns-dpn-01 | Kafka brokers (Federator Gateway's `dpn-platform` chart) |
-| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | n/a — created directly via `kubectl create secret generic`, not sourced from Azure Key Vault | Shared passwords for keystore/truststore access and mTLS client cert; written by `dpn-gha-tls-cd.yml` into the target namespace, `ns-dpn-health-01` and, if it already exists, `ns-dpn-dp-01` | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Certificate Manager, Federator Gateway (Server/Client, Kafka Source/Target, Kafka UI, Redis), REST Federator Gateway, File Scan Service, Data Pipelines |
-| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a Key Vault entry | Universal DPN server TLS identity, written by `dpn-gha-tls-cd.yml` into the target namespace, `ns-dpn-health-01` and, if it already exists, `ns-dpn-dp-01` | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis |
-| `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a Key Vault entry | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by the Certificate Manager's `dpn-gha-tls-cd.yml` pipeline | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
-| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by the Certificate Manager's `dpn-gha-tls-cd.yml` pipeline | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | n/a — created directly via `kubectl create secret generic`, not sourced from Azure Key Vault | Shared passwords for keystore/truststore access and mTLS client cert; written by `dpn-gha-tls-cd.yaml` into the target namespace, `ns-dpn-health-01` and, if it already exists, `ns-dpn-dp-01` | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Certificate Manager, Federator Gateway (Server/Client, Kafka Source/Target, Kafka UI, Redis), REST Federator Gateway, File Scan Service, Data Pipelines |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a Key Vault entry | Universal DPN server TLS identity, written by `dpn-gha-tls-cd.yaml` into the target namespace, `ns-dpn-health-01` and, if it already exists, `ns-dpn-dp-01` | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis |
+| `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a Key Vault entry | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by the Certificate Manager's `dpn-gha-tls-cd.yaml` pipeline | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
+| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by the Certificate Manager's `dpn-gha-tls-cd.yaml` pipeline | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
 
 > **Note on `KC_SERVICE_CLIENT_SECRET`:** unlike the other keys in this table, this value is not auto-generated — it must be created in Azure Key Vault as `<KEY_VAULT_NAME>/keycloak-KC-SERVICE-CLIENT-SECRET` before the first Keycloak deploy. The Keycloak CD workflow's realm-configuration step asserts the `dpn-service-client` client's secret matches this stored value on every run, rather than generating a random one, so the client secret never silently drifts.
 
@@ -341,12 +341,12 @@ DPN Data Pipelines run in their own namespace, `ns-dpn-dp-01` (created in [Step2
 
 | Secret | How it reaches `ns-dpn-dp-01` |
 |---|---|
-| `dpn-tls` | Written automatically by `dpn-gha-tls-cd.yml` if `ns-dpn-dp-01` existed when it ran; otherwise copy it as shown below |
+| `dpn-tls` | Written automatically by `dpn-gha-tls-cd.yaml` if `ns-dpn-dp-01` existed when it ran; otherwise copy it as shown below |
 | `tls-auth-secret` | Same as `dpn-tls` |
 | `dpn-keycloak-secrets` | Not copied by any workflow. Copy it as shown below |
 | `producer-file-dp-secret`, `consumer-file-dp-secret` | Not copied. Copy them if you created them in `ns-dpn-01`, or create them directly with `-n ns-dpn-dp-01` (see [Data Pipelines STEP-02](07-configure-dpn-data-pipelines.md#step-02-secrets-table)) |
 
-Each command reads the secret from `ns-dpn-01`, keeps only its type and data, and applies it under the same name in `ns-dpn-dp-01`. Leave out `dpn-tls` and `tls-auth-secret` if `dpn-gha-tls-cd.yml` already wrote them there (`kubectl get secret -n ns-dpn-dp-01`).
+Each command reads the secret from `ns-dpn-01`, keeps only its type and data, and applies it under the same name in `ns-dpn-dp-01`. Leave out `dpn-tls` and `tls-auth-secret` if `dpn-gha-tls-cd.yaml` already wrote them there (`kubectl get secret -n ns-dpn-dp-01`).
 
 Bash (requires `jq`):
 
@@ -366,7 +366,7 @@ foreach ($s in @("dpn-tls","tls-auth-secret","dpn-keycloak-secrets","producer-fi
 }
 ```
 
-> **Re-copy after every rotation.** A copied secret is a one-off snapshot and does not follow its source. Whenever a source secret in `ns-dpn-01` is rotated (for example a new `KC-SERVICE-CLIENT-SECRET` or a new storage connection string), run the copy again and restart the Data Pipelines pods. `dpn-tls` and `tls-auth-secret` are refreshed in `ns-dpn-dp-01` on every `dpn-gha-tls-cd.yml` run, as long as the namespace exists.
+> **Re-copy after every rotation.** A copied secret is a one-off snapshot and does not follow its source. Whenever a source secret in `ns-dpn-01` is rotated (for example a new `KC-SERVICE-CLIENT-SECRET` or a new storage connection string), run the copy again and restart the Data Pipelines pods. `dpn-tls` and `tls-auth-secret` are refreshed in `ns-dpn-dp-01` on every `dpn-gha-tls-cd.yaml` run, as long as the namespace exists.
 
 > **First deployment in a new environment.** Do this copy once in every new environment, then restart the Data Pipelines pods so they pick up the secrets. See [One-time setup for a new environment](../03-installation/07-dpn-data-pipeline-installation-process.md#one-time-setup-for-a-new-environment-create-secrets-and-restart-pods).
 

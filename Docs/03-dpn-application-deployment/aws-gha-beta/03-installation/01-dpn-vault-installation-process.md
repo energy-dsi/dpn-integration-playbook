@@ -75,7 +75,7 @@ dpn-federator-certificate-manager/
         └── dpn-gha-vault-https-cd.yaml
 ```
 
-> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-gha-tls-cd.yml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
+> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-gha-tls-cd.yaml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
 
 Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 

@@ -61,7 +61,7 @@ HashiCorp Vault stores the cryptographic material the Certificate Manager needs 
 
 Vault serves over **HTTPS (TLS 1.2+)** internally and uses **Azure Key Vault auto-unseal** so it unseals itself on start-up — see [Appendix — Azure Key Vault auto-unseal configuration](#appendix--azure-key-vault-auto-unseal-configuration). DSI provides the community edition of the Vault container; organisations may substitute an enterprise edition per their licensing strategy.
 
-Vault's own TLS bootstrap and initialisation are covered by **[Automated Vault Configuration](#automated-vault-configuration)** — GitHub Actions workflows generate that TLS material, deploy and initialise Vault, load the certificate bundle, and deploy the Certificate Manager. The DPN-wide TLS material other components depend on (`dpn-tls`, `dpn-health-tls`, `tls-auth-secret`) is produced by `dpn-gha-tls-cd.yml` — see the note in [Step 3A](#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml) and [Manual — DPN-wide TLS material](#manual--dpn-wide-tls-material-fills-an-automation-gap).
+Vault's own TLS bootstrap and initialisation are covered by **[Automated Vault Configuration](#automated-vault-configuration)** — GitHub Actions workflows generate that TLS material, deploy and initialise Vault, load the certificate bundle, and deploy the Certificate Manager. The DPN-wide TLS material other components depend on (`dpn-tls`, `dpn-health-tls`, `tls-auth-secret`) is produced by `dpn-gha-tls-cd.yaml` — see the note in [Step 3A](#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml) and [Manual — DPN-wide TLS material](#manual--dpn-wide-tls-material-fills-an-automation-gap).
 
 > **Cloud provider note.** The `charts/vault-https` chart's templates are Azure-native: `templates/configmap.yaml` renders `seal "azurekeyvault" { ... }` from `.Values.seal.azureKeyVault.*` (`tenantId`, `clientId`, `keyVaultName`, `keyName`), `templates/deployment.yaml` sets `AZURE_CLIENT_ID` from `seal.azureKeyVault.clientId`, and `templates/secretproviderclass.yaml` sets `provider: azure` and reads `VAULT-TLS-CERT`/`VAULT-TLS-KEY` from the Key Vault in `keyvault.name` using the user-assigned managed identity in `keyvault.clientID`. There is no `cloudProvider` or `serviceAccount` value in this chart. The Azure values files (`charts/vault-https/values/azure/<environment>-<cluster>.yaml`) set `image.repository`, `seal.azureKeyVault.*` and `keyvault.*` with real, already-provisioned values for each environment.
 >
@@ -93,9 +93,9 @@ This page touches five genuinely different secret stores — use this table to c
 |---|---|---|
 | `keypair`, `certificate`, `ca-chain`, `intermediate-ca`, `keystore-password`, `truststore-password` | **Vault's own KV-v2 store** (`pki-client/node-net/client/*`) | Not a Kubernetes Secret, not Key Vault — internal to Vault itself |
 | `VAULT-TLS-CERT`, `VAULT-TLS-KEY` (`keyvault.name`) | **Azure Key Vault**, synced via the CSI `SecretProviderClass` | Mounted into the Vault pod at `/vault/tls` (as `vault.crt` / `vault.key`) |
-| `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` (Step 3A's publish target) | **Azure Key Vault** | Written by both `dpn-gha-vault-tls-bootstrap-cd.yaml` and `dpn-gha-tls-cd.yml` (the latter only writes `VAULT-TRUSTSTORE-PASSWORD` when `storePasswordsInSecretsBackend: true`) |
+| `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` (Step 3A's publish target) | **Azure Key Vault** | Written by both `dpn-gha-vault-tls-bootstrap-cd.yaml` and `dpn-gha-tls-cd.yaml` (the latter only writes `VAULT-TRUSTSTORE-PASSWORD` when `storePasswordsInSecretsBackend: true`) |
 | `truststore.jks` (Step 3A output) | **Kubernetes Secret** `cert-manager-truststore` | Plain K8s object, not Key Vault |
-| `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | **Kubernetes Secret** `tls-auth-secret` | Created by `dpn-gha-tls-cd.yml` only; the Certificate Manager reads its Vault truststore password from here |
+| `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | **Kubernetes Secret** `tls-auth-secret` | Created by `dpn-gha-tls-cd.yaml` only; the Certificate Manager reads its Vault truststore password from here |
 | Full Step 3A working set (`ca/rootCA.key`, `certs/vault.key`, `certs/vault.csr`, … — incl. private keys) | **GitHub Actions workflow artifact** `vault-tls-<environment>-<cluster>` (1-day retention) | Ephemeral CI download — download and delete, not a persistent store |
 | `VAULT_TOKEN` (root token, Step 3B) | **Azure Key Vault** `VAULT-TOKEN` | Only written if `storeRootTokenInSecretsBackend: true` |
 | Full Vault init output (root token + recovery keys) | **GitHub Actions workflow artifact** `vault-init-output-<environment>-<cluster>` (1-day retention) | Separate from the `VAULT_TOKEN` copy above |
@@ -115,7 +115,7 @@ The automated flow uses four GitHub Actions workflows:
 | 3 | `dpn-gha-vault-load-bundle-cd.yaml` (**DPN CD - Vault Load Cert Bundle**) | Load the DSM-signed client certificate bundle into Vault |
 | 4 | `dpn-gha-certificate-manager-cd.yaml` (**DPN CD - Certificate Manager**) | Deploy the Certificate Manager, which reads and renews certificates from Vault |
 
-A fifth capability, **AppRole setup**, is available as `dpn-gha-certificate-manager-role-id-creation.yaml` (**DPN CD - Certificate Manager Role ID Creation (Vault AppRole Setup)**) — run it after order 2 and before order 4 when the Certificate Manager uses `vault.authentication: APPROLE` (the shipped Azure values files do); see [Step 3E](#step-3e-configure-approle-authentication). The DPN-wide TLS workflow `dpn-gha-tls-cd.yml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) also supports `cloud: azure` — see the note in [Step 3A](#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml).
+A fifth capability, **AppRole setup**, is available as `dpn-gha-certificate-manager-role-id-creation.yaml` (**DPN CD - Certificate Manager Role ID Creation (Vault AppRole Setup)**) — run it after order 2 and before order 4 when the Certificate Manager uses `vault.authentication: APPROLE` (the shipped Azure values files do); see [Step 3E](#step-3e-configure-approle-authentication). The DPN-wide TLS workflow `dpn-gha-tls-cd.yaml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) also supports `cloud: azure` — see the note in [Step 3A](#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml).
 
 All of these workflows live in the `dpn-federator-certificate-manager` repository and are run from that repository's **Actions** tab:
 
@@ -125,7 +125,7 @@ dpn-federator-certificate-manager/
     ├── actions/cloud-login/action.yml
     ├── config/azure/<environment>-<cluster>.json
     └── workflows/
-        ├── dpn-gha-tls-cd.yml
+        ├── dpn-gha-tls-cd.yaml
         ├── dpn-gha-vault-tls-bootstrap-cd.yaml
         ├── dpn-gha-vault-https-cd.yaml
         ├── dpn-gha-vault-load-bundle-cd.yaml
@@ -148,7 +148,7 @@ Ensure the following are in place **before** running any workflow:
 | 5 | **Environment config and values files populated** | See [Step 2](#step-2-reference-configuration-data-populate-before-deployment) |
 | 6 | **DSM-signed client bundle available** | The client private key, DSM-signed certificate, and CA chain — loaded in [Step 3C](#step-3c-configure-certificate-bundle-dpn-gha-vault-load-bundle-cdyml) |
 
-> **One-time setup:** Before running any workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration). In particular the workflows **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), populate `.github/config/azure/<environment>-<cluster>.json`, and set the required GitHub Actions secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`; `DPN_TLS_TRUSTSTORE_PASSWORD` for Step 3A — plus `DPN_TLS_KEYSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` if you run `dpn-gha-tls-cd.yml`; the bundle secrets for Step 3C).
+> **One-time setup:** Before running any workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration). In particular the workflows **do not create the namespace** — create it first (`kubectl create namespace <NAMESPACE>`), populate `.github/config/azure/<environment>-<cluster>.json`, and set the required GitHub Actions secrets (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`; `DPN_TLS_TRUSTSTORE_PASSWORD` for Step 3A — plus `DPN_TLS_KEYSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` if you run `dpn-gha-tls-cd.yaml`; the bundle secrets for Step 3C).
 
 ---
 
@@ -220,14 +220,14 @@ Trigger **Actions → DPN CD - Vault TLS Bootstrap → Run workflow**. Using `sc
 | `org` | CSR subject Organisation (O) — default `DSI` |
 | `sans` | Optional extra comma-separated DNS SANs. The internal Kubernetes DNS name (`vault-https.<NAMESPACE>.svc.cluster.local`) is always added automatically |
 
-> **Truststore password comes from a repository secret, not a workflow input.** The truststore password is read from the repository secret `DPN_TLS_TRUSTSTORE_PASSWORD` (the same secret `dpn-gha-tls-cd.yml` uses) and published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD`. There is no `truststorePassword` workflow input — GitHub Actions has no secret-typed `workflow_dispatch` input, and a plain string input would always be visible in the "Run workflow" form regardless of log masking. Set `DPN_TLS_TRUSTSTORE_PASSWORD` as a repository (or environment) secret before running this workflow.
+> **Truststore password comes from a repository secret, not a workflow input.** The truststore password is read from the repository secret `DPN_TLS_TRUSTSTORE_PASSWORD` (the same secret `dpn-gha-tls-cd.yaml` uses) and published to Key Vault as `VAULT-TRUSTSTORE-PASSWORD`. There is no `truststorePassword` workflow input — GitHub Actions has no secret-typed `workflow_dispatch` input, and a plain string input would always be visible in the "Run workflow" form regardless of log masking. Set `DPN_TLS_TRUSTSTORE_PASSWORD` as a repository (or environment) secret before running this workflow.
 
 On completion it publishes:
 - `VAULT-TLS-CERT`, `VAULT-TLS-KEY`, `VAULT-TRUSTSTORE-PASSWORD` → Azure Key Vault (`KEY_VAULT_NAME`, +365-day expiry)
 - `truststore.jks` → Kubernetes secret `cert-manager-truststore`
 - The full working set (`ca/rootCA.key`, `ca/rootCA.crt`, `certs/vault-openssl.cnf`, `certs/vault.key`, `certs/vault.csr`, `certs/vault.crt`, `truststore.jks` — including private keys) as the `vault-tls-<environment>-<cluster>` workflow artifact (1-day retention) — download and secure it, then delete the artifact. Here `certs/vault.csr` is the Vault server CSR, already signed locally by the Root CA as `certs/vault.crt`
 
-> **DPN-wide alternative: `dpn-gha-tls-cd.yml`.** The Universal TLS workflow `dpn-gha-tls-cd.yml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) also supports `cloud: azure`. In one run it generates one DPN Root CA (`CN=dpn-root`) and one wildcard server certificate (`CN=dpn-common`) with `.github/config/scripts/create-dpn-tls.sh`, publishes `VAULT-TLS-CERT` / `VAULT-TLS-KEY` (and, when `storePasswordsInSecretsBackend: true`, `VAULT-TRUSTSTORE-PASSWORD`, `KC-HTTPS-KEY-STORE-PASSWORD`, `KC-HTTPS-TRUST-STORE-PASSWORD`, `KC-SPI-TRUSTSTORE-FILE-PASSWORD`, `UNIVERSAL-DPN-CERT-PASSWORD`, `DSM-CLIENT-P12-PASSWORD`) to Key Vault with a +355-day expiry, and creates the `cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls` and `tls-auth-secret` Kubernetes secrets. Its artifact `dpn-tls-azure-<environment>-<cluster>` also contains `certs/vault.key` + `certs/vault.csr` (`CN=vault`, wildcard SANs) — the CSR to sign at the DSM for [Step 3C](#step-3c-configure-certificate-bundle-dpn-gha-vault-load-bundle-cdyml). It reads the keystore, truststore and client P12 passwords from the `DPN_TLS_KEYSTORE_PASSWORD`, `DPN_TLS_TRUSTSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` secrets. **The Certificate Manager requires `tls-auth-secret`**, which `dpn-gha-vault-tls-bootstrap-cd.yaml` does not create — run `dpn-gha-tls-cd.yml` (or create it manually per [Manual — DPN-wide TLS material](#manual--dpn-wide-tls-material-fills-an-automation-gap)). Both workflows write the same `VAULT-TLS-CERT` / `VAULT-TLS-KEY` objects, so whichever runs last determines Vault's server certificate.
+> **DPN-wide alternative: `dpn-gha-tls-cd.yaml`.** The Universal TLS workflow `dpn-gha-tls-cd.yaml` (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**) also supports `cloud: azure`. In one run it generates one DPN Root CA (`CN=dpn-root`) and one wildcard server certificate (`CN=dpn-common`) with `.github/config/scripts/create-dpn-tls.sh`, publishes `VAULT-TLS-CERT` / `VAULT-TLS-KEY` (and, when `storePasswordsInSecretsBackend: true`, `VAULT-TRUSTSTORE-PASSWORD`, `KC-HTTPS-KEY-STORE-PASSWORD`, `KC-HTTPS-TRUST-STORE-PASSWORD`, `KC-SPI-TRUSTSTORE-FILE-PASSWORD`, `UNIVERSAL-DPN-CERT-PASSWORD`, `DSM-CLIENT-P12-PASSWORD`) to Key Vault with a +355-day expiry, and creates the `cert-manager-truststore`, `dpn-tls`, `fed-gateway-tls`, `dpn-health-tls` and `tls-auth-secret` Kubernetes secrets. Its artifact `dpn-tls-azure-<environment>-<cluster>` also contains `certs/vault.key` + `certs/vault.csr` (`CN=vault`, wildcard SANs) — the CSR to sign at the DSM for [Step 3C](#step-3c-configure-certificate-bundle-dpn-gha-vault-load-bundle-cdyml). It reads the keystore, truststore and client P12 passwords from the `DPN_TLS_KEYSTORE_PASSWORD`, `DPN_TLS_TRUSTSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` secrets. **The Certificate Manager requires `tls-auth-secret`**, which `dpn-gha-vault-tls-bootstrap-cd.yaml` does not create — run `dpn-gha-tls-cd.yaml` (or create it manually per [Manual — DPN-wide TLS material](#manual--dpn-wide-tls-material-fills-an-automation-gap)). Both workflows write the same `VAULT-TLS-CERT` / `VAULT-TLS-KEY` objects, so whichever runs last determines Vault's server certificate.
 
 <a id="step-3b-deploy-and-initialise-vault-dpn-gha-vault-https-cdyml"></a>
 <a id="step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml"></a>
@@ -326,9 +326,9 @@ The root token remains required for the bundle-load workflow (Step 3C), which au
 
 ## Manual — DPN-wide TLS material (fills an automation gap)
 
-On the Azure/ADO path, a single pipeline (`dpn-tls-cd`) generates one self-signed Root CA and one wildcard server certificate, then publishes it in every format the platform needs — Vault's own PEM listener cert, plus the `dpn-tls`, `dpn-health-tls`, and `tls-auth-secret` Kubernetes secrets that Keycloak, Kafka, both Federators, and the health-monitoring `oauth2-proxy` gateways all read from. **On this GitHub Actions path the equivalent workflow is `dpn-gha-tls-cd.yml`** (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**), which supports `cloud: azure` and automates everything in this section — see the note in [Step 3A](#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml). `dpn-gha-vault-tls-bootstrap-cd.yaml` on its own only produces Vault's own TLS cert/key and `cert-manager-truststore`.
+On the Azure/ADO path, a single pipeline (`dpn-tls-cd`) generates one self-signed Root CA and one wildcard server certificate, then publishes it in every format the platform needs — Vault's own PEM listener cert, plus the `dpn-tls`, `dpn-health-tls`, and `tls-auth-secret` Kubernetes secrets that Keycloak, Kafka, both Federators, and the health-monitoring `oauth2-proxy` gateways all read from. **On this GitHub Actions path the equivalent workflow is `dpn-gha-tls-cd.yaml`** (**DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1**), which supports `cloud: azure` and automates everything in this section — see the note in [Step 3A](#step-3a-configure-bootstrap-vault-tls-dpn-gha-vault-tls-bootstrap-cdyml). `dpn-gha-vault-tls-bootstrap-cd.yaml` on its own only produces Vault's own TLS cert/key and `cert-manager-truststore`.
 
-The Azure values files for Federator Gateway, Health Monitoring's Kafka UI/OTel collector, and Data Pipelines **reference `dpn-tls` and `dpn-health-tls`** as pre-existing secrets, and the Certificate Manager's Deployment reads `tls-auth-secret`. If you cannot run `dpn-gha-tls-cd.yml`, create these by hand, once per environment/cluster — this section shows how, mirroring what `dpn-tls-cd` does on the ADO path (see [the ADO edition of this guide](../../azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step1-generate-the-dpn-universal-tls-material) for the same steps in ADO-pipeline form).
+The Azure values files for Federator Gateway, Health Monitoring's Kafka UI/OTel collector, and Data Pipelines **reference `dpn-tls` and `dpn-health-tls`** as pre-existing secrets, and the Certificate Manager's Deployment reads `tls-auth-secret`. If you cannot run `dpn-gha-tls-cd.yaml`, create these by hand, once per environment/cluster — this section shows how, mirroring what `dpn-tls-cd` does on the ADO path (see [the ADO edition of this guide](../../azure-ado-beta/02-configuration/01-configure-dpn-vault-service.md#step1-generate-the-dpn-universal-tls-material) for the same steps in ADO-pipeline form).
 
 ### Step1: Generate the DPN universal TLS material
 
@@ -495,7 +495,7 @@ You'll end up with these artefacts:
 
 ### Step2: Publish to Azure Key Vault
 
-Use the same Key Vault object names `dpn-gha-tls-cd.yml` writes — `VAULT-TLS-CERT` / `VAULT-TLS-KEY` are the names the `vault-https` chart's `SecretProviderClass` reads (from `keyvault.name`), and the password objects are the names the other components' `SecretProviderClass`es read:
+Use the same Key Vault object names `dpn-gha-tls-cd.yaml` writes — `VAULT-TLS-CERT` / `VAULT-TLS-KEY` are the names the `vault-https` chart's `SecretProviderClass` reads (from `keyvault.name`), and the password objects are the names the other components' `SecretProviderClass`es read:
 
 ```bash
 KEY_VAULT_NAME="<KEY_VAULT_NAME>"
@@ -511,13 +511,13 @@ az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "UNIVERSAL-DPN-CERT
 az keyvault secret set --vault-name "$KEY_VAULT_NAME" --name "DSM-CLIENT-P12-PASSWORD" --value "$CLIENT_P12_PASS"
 ```
 
-If your Key Vault enforces a maximum-validity policy, add `--expires <date>` to each command (`dpn-gha-tls-cd.yml` uses +355 days).
+If your Key Vault enforces a maximum-validity policy, add `--expires <date>` to each command (`dpn-gha-tls-cd.yaml` uses +355 days).
 
 As on the ADO path, `KEYCLOAK-ADMIN-PASSWORD` / `KC-DB-PASSWORD` / `KC-SERVICE-CLIENT-SECRET` are not cert material and are not covered here — set those separately per [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) and [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md).
 
 ### Step3: Create the Kubernetes secrets
 
-If you are not running `dpn-gha-tls-cd.yml`, create the Kubernetes secrets the components read directly — the same shape `dpn-gha-tls-cd.yml` (and `dpn-tls-cd` on the ADO path) creates. `certificate-manager-secrets` is normally synced by the Certificate Manager's own `SecretProviderClass` when `keyvault.enabled: true` (as in the shipped Azure values files); create it by hand only if you deploy with `keyvault.enabled: false` and `existingSecret.name: "certificate-manager-secrets"`:
+If you are not running `dpn-gha-tls-cd.yaml`, create the Kubernetes secrets the components read directly — the same shape `dpn-gha-tls-cd.yaml` (and `dpn-tls-cd` on the ADO path) creates. `certificate-manager-secrets` is normally synced by the Certificate Manager's own `SecretProviderClass` when `keyvault.enabled: true` (as in the shipped Azure values files); create it by hand only if you deploy with `keyvault.enabled: false` and `existingSecret.name: "certificate-manager-secrets"`:
 
 ```bash
 NS="<targetNamespace>"        # e.g. ns-dpn-01
