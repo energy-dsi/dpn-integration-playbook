@@ -47,7 +47,7 @@ root/
 
 The Helm charts live under `charts/<chart>`, and each component workflow uses the per-cluster values file `charts/<chart>/values/azure/<environment>-<cluster>.yaml`. On Azure, OpenSearch and Prometheus layer that file over shared base values (`charts/opensearch/opensearch-community-values.yaml`, `charts/prometheus/prometheus-community-values.yaml`); Thanos layers it over the chart's own `values.yaml`; and `oauth2-proxy` layers it over the per-UI `values-<component>.yaml`.
 
-Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying `environment` (dev/test), `cluster` (dpn01/dpn02), `cloud` (select `azure` — the input defaults to `aws`), `imageTag` (OTel Collector image tag, default `0.95.0`), and **`portalImageTag`** (the DPN Portal container image tag from GHCR — required, no default). `otelImageRepository` (the OTel Collector image path after `ghcr.io/energy-dsi/`) is optional — leave it blank to use the environment's configured repository. `portalImageRepository` (the GHCR path after `ghcr.io/energy-dsi/`) defaults to `1.0.1/dpn-portal` if left blank. The orchestrator's `init` job (**Resolve Deployment Config**) reads the rest of the component config from `.github/config/azure/<environment>-<cluster>.json` and passes it to every job.
+Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying `environment` (dev/test), `cluster` (dpn01/dpn02), `cloud` (select `azure` — the input defaults to `aws`), `imageTag` (OTel Collector image tag, default `0.95.0`), and **`portalImageTag`** (the DPN Portal container image tag from GHCR — required, no default). `otelImageRepository` (the OTel Collector image path after `ghcr.io/energy-dsi/`) is optional — leave it blank to use the environment's configured repository. `portalImageRepository` (the GHCR path after `ghcr.io/energy-dsi/`) defaults to `dpn-portal` if left blank. The orchestrator's `init` job (**Resolve Deployment Config**) reads the rest of the component config from `.github/config/azure/<environment>-<cluster>.json` and passes it to every job.
 
 **What the pipeline does automate:**
 
@@ -89,11 +89,11 @@ This config file's keys are the same common ones described in [Step2.2: Azure En
 
 - **The DPN Portal image.**
 
-    The orchestrator's `portalImageTag` input (and optionally `portalImageRepository`, default `1.0.1/dpn-portal`) is supplied at trigger time, not read from the JSON config file — see [Continuous Deployment (CD)](#continuous-deployment-cd) above.
+    The orchestrator's `portalImageTag` input (and optionally `portalImageRepository`, default `dpn-portal`) is supplied at trigger time, not read from the JSON config file — see [Continuous Deployment (CD)](#continuous-deployment-cd) above.
 
     **Image path convention.**
 
-    This service's Azure values files for Perses, OTel Collector, Data Prepper, Jaeger, Thanos, and the Kafka/Zookeeper/Kafka UI images used by its Kafka stack reference the `ghcr.io/energy-dsi/<component>` path; the DPN Portal image defaults to `ghcr.io/energy-dsi/1.0.1/dpn-portal`. OpenSearch and Prometheus on Azure take their images from the shared community values instead (`opensearchproject/opensearch`, the kube-prometheus-stack chart defaults, and `quay.io/thanos/thanos` for the Thanos sidecar). See [Reference: Container Images Used](../03-installation/03-dpn-health-monitoring-service-installation-process.md#reference-container-images-used) in the installation guide.
+    This service's Azure values files for Perses, OTel Collector, Data Prepper, Jaeger, Thanos, and the Kafka/Zookeeper/Kafka UI images used by its Kafka stack reference the `ghcr.io/energy-dsi/<component>` path; the DPN Portal image defaults to `ghcr.io/energy-dsi/dpn-portal`. OpenSearch and Prometheus on Azure take their images from the shared community values instead (`opensearchproject/opensearch`, the kube-prometheus-stack chart defaults, and `quay.io/thanos/thanos` for the Thanos sidecar). See [Reference: Container Images Used](../03-installation/03-dpn-health-monitoring-service-installation-process.md#reference-container-images-used) in the installation guide.
 
 ---
 

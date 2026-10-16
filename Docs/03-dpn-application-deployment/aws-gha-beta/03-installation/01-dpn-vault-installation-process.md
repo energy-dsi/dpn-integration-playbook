@@ -85,7 +85,7 @@ Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 | `cluster` | `dpn01` / `dpn02` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluster) |
 | `cloud` | `aws` |
 | `vaultImageTag` | Release version or image tag to pull from GHCR — default `1.16` |
-| `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `1.0.1/vault`) — leave blank to use the environment's configured repository |
+| `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `vault`) — leave blank to use the environment's configured repository |
 | `runVaultInit` | Enable KV v2 + audit logging — default `true`, safe to re-run |
 | `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN` (default `false`; set `true` on the first deploy, because the bundle-load and AppRole setup workflows read the token from there). See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
 

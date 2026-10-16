@@ -227,7 +227,7 @@ Trigger it via **Actions → DPN CD - Certificate Manager → Run workflow**. Th
 | `cluster` | `dpn01` / `dpn02` |
 | `cloud` | `aws` |
 | `imageTag` | Tag of the Certificate Manager image to deploy — from the CI build or the prebuilt DSI image (required, no default) |
-| `imageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `1.0.1/certificate-manager`) — leave blank to use the environment's configured repository |
+| `imageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `certificate-manager`) — leave blank to use the environment's configured repository |
 
 > **Note (Vault dependency):** Deploy the Certificate Manager only after Vault is fully set up — this workflow does not initialise Vault itself; that happens in [Step 3B of the Vault workflow](01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml). If Vault's KV v2 engine is not yet enabled, the renewal/sync jobs will fail until it is. On AWS, also run the AppRole setup ([Step2](#step2-configure-vault-authentication)) first, or the **Fetch Vault AppRole Role ID (AWS)** step fails.
 

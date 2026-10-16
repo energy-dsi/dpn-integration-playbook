@@ -75,7 +75,7 @@ Go to **Actions → DPN Health Monitoring → Run workflow** , on the branch you
 | `imageTag` | OTel Collector image tag — default `0.95.0` |
 | `otelImageRepository` | OTel Collector image path after `ghcr.io/energy-dsi/` — optional, leave blank to use the environment's configured repository |
 | `portalImageTag` | DPN Portal container image tag — **required**, no default (the short git-SHA the DPN Portal application's own CI build printed) |
-| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `1.0.1/dpn-portal` |
+| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `dpn-portal` |
 
 The workflow's `init` job (**Resolve Deployment Config**) reads `.github/config/aws/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, DPN Portal, OAuth2 Proxy ×4, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
 
@@ -128,7 +128,7 @@ The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheu
 
 This section lists the **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` that the workflow deploys. Organisations may point the Helm values at a different image repository instead if they build their own.
 
-The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced at the unversioned GHCR path `ghcr.io/energy-dsi/<component>`** in `charts/<chart>/values/aws/<environment>-<cluster>.yaml`. The only version-prefixed default is the DPN Portal image (`portalImageRepository` default `1.0.1/dpn-portal`) — confirm the `1.0.1` segment is still current before relying on it for a new environment.
+The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this AWS path, this service's own chart images are referenced at the GHCR path `ghcr.io/energy-dsi/<component>`** in `charts/<chart>/values/aws/<environment>-<cluster>.yaml`. The DPN Portal image is set by `portalImageRepository` (default `dpn-portal`).
 
 | Purpose | GHCR Path |
 |---|---|
@@ -146,7 +146,7 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | kube-state-metrics | `ghcr.io/energy-dsi/kube-state-metrics:<latest or DSI provided stable version>` |
 | Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
 | Thanos | `ghcr.io/energy-dsi/thanos:<latest or DSI provided stable version>` |
-| DPN Portal | `ghcr.io/energy-dsi/1.0.1/dpn-portal:<tag supplied via portalImageTag>` |
+| DPN Portal | `ghcr.io/energy-dsi/dpn-portal:<tag supplied via portalImageTag>` |
 
 > **Nginx (dashboard proxy) has been removed** from this service — replaced by the DPN Portal + `oauth2-proxy` releases above.
 
