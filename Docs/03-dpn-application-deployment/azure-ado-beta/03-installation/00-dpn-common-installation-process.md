@@ -280,7 +280,7 @@ Check that:
 
 ### Certificate Renewal Job Failing
 
-When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
+When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify CD Pipeline](04-dpn-certificate-manager-installation-process.md#step2d-verify-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
 
 Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](../02-configuration/01-configure-dpn-vault-service.md#automated-vault-configuration).
 

@@ -57,7 +57,7 @@ In summary the following prerequisites must be met.
 - Vault credentials ready — `VAULT-APPROLE-SECRET-ID` + `role_id` (recommended) or `VAULT-TOKEN`
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
-- Populated `config/<env>.json` and `values-<env>.yaml`
+- Populated `config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml`
 
 **Note:** Organisations must review the CI/CD Pipeline codes for the following. 
 
@@ -86,7 +86,7 @@ Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── ci-pipelines/
-            └── azure-pipelines-certificate-manager-ci.yaml
+            └── azure-pipelines-certificate-manager-ci.yml
 ```
 
 The CI pipeline requires the following paramters to be passed.
@@ -123,8 +123,8 @@ The CD Pipeline would require the following run time parameters.
 |-----------|-------|
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
-|`image tag` | The same image tag number with build ID value created in the CI pipeline during pushing the image | 
+| `dpnCluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `imageTag` | The same image tag number with build ID value created in the CI pipeline during pushing the image | 
 
 On success the deployment stage ends with `DPN DEPLOYMENT COMPLETE`.
 
@@ -210,14 +210,14 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 ### Step4b. Execute CD Pipeline
 
-Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+There is **no separate GHCR-specific pipeline file** for the Certificate Manager — the same `certificate-manager-cd.yaml` pipeline (see [Step2c](#step2c-execute-cd-pipeline)) is used for both ACR-built and GHCR-sourced images. Point it at the GHCR image by setting `image.repository: ghcr.io/energy-dsi/dpn-federator-certificate-manager` in `charts/certificate-manager/values-<env>-<cluster>.yaml`, then run the pipeline with `imageTag` set to the GHCR release tag you want to deploy (e.g. `1.0.0`) instead of a CI build ID:
 
 ```text
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── cd-pipelines/
-            └── certificate-manager-ghcr-cd.yaml
+            └── certificate-manager-cd.yaml
 ```
 The CD Pipeline would require the following run time parameters. 
 
@@ -225,8 +225,8 @@ The CD Pipeline would require the following run time parameters.
 |-----------|-------|
 | `ServiceConnection` | `A given Service Connection able to deploy the services` |
 | `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
-| `releaseTag` | Provides the release version or image tag to be pulled from GHCR |
+| `dpnCluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `imageTag` | Release version or image tag to be pulled from GHCR, e.g. `1.0.0` |
 
 Execute this CD Pipeline to perform deployment.
 
