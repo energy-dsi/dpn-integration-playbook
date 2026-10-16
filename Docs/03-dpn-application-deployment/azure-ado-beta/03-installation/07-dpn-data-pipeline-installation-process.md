@@ -123,4 +123,4 @@ dpn-consumer-topic-extractor-xxxxxxxx-xxxxx
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 |
 | Sep-2026 | DSI Assurance   | Final  | V2.0.0 |
-| Oct-2026 | DSI Assurance   | Draft  | V3.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V3.0.0 |

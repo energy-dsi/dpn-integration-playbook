@@ -149,20 +149,12 @@ There is no ADO-style approval-check concept for GitHub Actions workflows by def
 
 The DPN Data Pipeline is a set of single-container pipeline stages — one producer adaptor per data product and one consumer extractor per pathway — as outlined in the [Configuration Guide](../02-configuration/07-configure-dpn-data-pipelines.md#overview).
 
-The following diagram represents an overview of DPN Producer Data Pipeline CI/CD architecture. 
-
-![DPN Data Pipeline Producer DevOPS Architecture](../../../04-dpn-architecture/images/dpn_data_pipeline_producer.png)
-
-The following diagram represents an overview of DPN Consumer Data Pipeline CI/CD architecture. 
-
-![DPN Data Pipeline Consumer DevOPS Architecture](../../../04-dpn-architecture/images/dpn_data_pipeline_consumer.png)
-
 
 ---
 
 ### Step2a. Data Pipeline CI (component source repository)
 
-CI (build, test, and image push to GHCR) for the data pipeline components is not part of the repository's GitHub Actions workflows, which cover CD only — build images via your own CI process, or use the DSI-provided prebuilt GHCR images (see [Step5](#step5-containerized-deployment-using-dsi-provided-container-images)).
+CI (build, test, and image push to GHCR) for the data pipeline components is not part of the repository's GitHub Actions workflows, which cover CD only — build images via your own CI process, or use the DSI-provided prebuilt GHCR images .
 
 Five images are needed, one per blueprint plus the UI — there is no per-schema or per-product image:
 
@@ -261,8 +253,6 @@ kubectl get pods -n ns-dpn-dp-01
 kubectl rollout status deployment/dpn-self-service -n ns-dpn-dp-01
 kubectl get svc dpn-self-service-external -n ns-dpn-dp-01   # internal NLB hostname
 ```
-
-![DPN Reference Implementation](../../../04-dpn-architecture/images/dpn_ref_implementation.png)
 
 Verify clean logs inside the container:
 
