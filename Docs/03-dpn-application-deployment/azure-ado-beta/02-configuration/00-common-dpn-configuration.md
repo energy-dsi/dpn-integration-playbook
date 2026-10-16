@@ -175,20 +175,22 @@ Root-Repository/
             └── <env>-<cluster>.json
 ```
 
-| Key | Put here | Example |
-|-----|----------|---------|
-| `ENV_NAME` | A label for this environment — not read by any pipeline, descriptive only | `dev` |
-| `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID (the one hosting the AKS cluster) | `11111111-2222-3333-4444-555555555555` |
-| `RESOURCE_GROUP` | The resource group containing your AKS cluster | `rg-my-dpn` |
-| `AKS_CLUSTER` | Your AKS cluster's name | `aks-my-dpn` |
-| `NAMESPACE` | Kubernetes namespace for the deployment — leave as-is unless you changed [Step2.3](#step23-aks-namespace-configuration)'s namespace names | `ns-dpn-01` |
-| `KEY_VAULT_NAME` | Your Azure Key Vault's name | `kv-my-dpn` |
+| Key | Description | Example (placeholder) |
+|-----|-------------|-----------------------|
+| ENV_NAME | Deployment environment abbreviation | `<env>` |
+| AZURE_SUBSCRIPTION_ID | Subscription ID where the infrastructure is deployed | `<subscription-id>` |
+| RESOURCE_GROUP | Resource group containing the AKS cluster | `rg-<env>-uks-dpn-01` |
+| AKS_CLUSTER | Name of the AKS cluster | `aks-<env>-uks-dpn-01` |
+| NAMESPACE | Kubernetes namespace for the deployment | `ns-dpn-01` |
+| KEY_VAULT_NAME | Azure Key Vault for secrets and certificates | `kv-dpn-<env>-<region>-<seq>` |
 | BASE_REGISTRY | Base container registry URL | `<image-registry-url>` |
 | CONTAINER_REGISTRY / CONTAINER_REGISTRY_URL | Registry name / URL | `<image-registry-url>`|
 
 > **Note:** The **service connection**, **environment**, and **DPN cluster** are supplied as pipeline **runtime parameters** when you trigger a run — they are **not** keys in the JSON file. The Helm **values file** is likewise named from those same two parameters: `values-<env>-<cluster>.yaml`.
 
-> **Participants need only one config file and one values file.** You will only ever run with a single environment and a single cluster — populate `config/dev-dpn01.json` and `values-dev-dpn01.yaml` with your own values and always select `environment: dev`, `dpnCluster: dpn01` when running a pipeline. Treat `dev`/`dpn01` purely as fixed file-naming labels, not as a reference to any DSI environment.
+> **Choosing your `<env>`/`<cluster>` naming.** `environment` and `dpnCluster` are just labels that select which config/values file a pipeline run reads — name them however suits your own setup:
+> - **Single environment, single cluster:** pick one fixed pair (e.g. `environment: dev`, `dpnCluster: dpn01`) and always run with it — one `config/<env>-<cluster>.json` and one `values-<env>-<cluster>.yaml` is all you'll ever need.
+> - **Multiple environments and/or multiple clusters:** use a distinct `environment` value per environment (e.g. `dev`, `test`, `prod`) and/or a distinct `dpnCluster` value per cluster (e.g. `dpn01`, `dpn02`), and maintain one config/values file pair per combination you run — same naming pattern, just more of them.
 
 ---
 
