@@ -68,6 +68,17 @@ Root-Repository
 
 > **GCP is not supported yet.** GCP support is planned for a future release.
 
+**Sanitised values for the Self-Service Data Pipelines service.** In the `release-external` branch these values are replaced by the placeholder `<<your specific value>>`. Set them before you run `dpn-gha-data-pipelines-cd.yaml` or `dpn-gha-self-service-cd.yaml`:
+
+| Key | Where | Description | Example (placeholder) |
+|-----|-------|-------------|-----------------------|
+| `IMAGE_REGISTRY` | `env:` block of `.github/workflows/dpn-gha-data-pipelines-cd.yaml` | Base container registry the data pipeline images are pulled from | `ghcr.io/energy-dsi` (or your own, for example `<account-id>.dkr.ecr.<region>.amazonaws.com`) |
+| `imageRegistry` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry the self-service application image is pulled from | `ghcr.io/energy-dsi` |
+| `env.DPN_IMAGE_REGISTRY` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry path (including the `/dsi` namespace) the service uses for the pipeline images it deploys | `ghcr.io/energy-dsi/dsi` |
+| `env.DPN_REGISTRY_BACKUP_CONTAINER` | `service/charts/values/aws/<environment>-<cluster>.yaml` | S3 bucket that `service/registry_backup.py` mirrors the self-service registry to for disaster recovery | `<registry-backup-bucket-name>` |
+| `serviceAccount.irsaRoleArn` | `service/charts/values/aws/<environment>-<cluster>.yaml` | IAM role ARN the self-service `ServiceAccount` assumes through IRSA, with access to the data pipeline S3 buckets | `arn:aws:iam::<account-id>:role/<irsa-role-name>` |
+| `loadBalancer.loadBalancerIP` | `service/charts/values.yaml` | Optional static IP for the internal LoadBalancer in front of the self-service UI. Leave it empty on EKS to let AWS allocate the address | `<static-ip>` |
+
 ---
 
 ## STEP-02: Secrets Table

@@ -84,6 +84,14 @@ This config file's keys are the same common ones described in [Step2.2: AWS Envi
 
 ---
 
+**Sanitised values in the Helm values files.** In the `release-external` branch these values are replaced by the placeholder `<<your specific value>>`. Set them in `charts/<chart>/values/aws/<environment>-<cluster>.yaml`:
+
+| Key | Chart | Description | Example (placeholder) |
+|-----|-------|-------------|-----------------------|
+| `clusterName` and the `cluster` attribute `value` | `otel-collector` | EKS cluster name; the collector tags every metric, log and trace with it as the `cluster` attribute. Use the same value in both places | `eks-dpn-<env>-<region>` |
+
+---
+
 ## Step 2: Prepare Secrets Configuration
 
 DPN Health Monitoring requires the following Kubernetes secrets/external secrets to be created for deployment. The `dpn-nginx-basic-auth` secret previously required here is **no longer needed** — the Nginx observability proxy it authenticated has been retired.

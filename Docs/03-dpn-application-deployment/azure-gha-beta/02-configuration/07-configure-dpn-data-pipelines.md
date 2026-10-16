@@ -68,6 +68,12 @@ Root-Repository
 
 > **GCP is not supported yet.** GCP support is planned for a future release.
 
+**Sanitised value for the Self-Service Data Pipelines service.** In the `release-external` branch this value is replaced by the placeholder `<<your specific value>>`. Set it before you run `dpn-gha-self-service-cd.yaml`:
+
+| Key | Where | Description | Example (placeholder) |
+|-----|-------|-------------|-----------------------|
+| `loadBalancer.loadBalancerIP` | `service/charts/values.yaml` | Static private IP for the internal LoadBalancer in front of the self-service UI. It must be an unused address in the AKS subnet | `<private-ip-in-aks-subnet>` |
+
 ---
 
 ## STEP-02: Secrets Table
