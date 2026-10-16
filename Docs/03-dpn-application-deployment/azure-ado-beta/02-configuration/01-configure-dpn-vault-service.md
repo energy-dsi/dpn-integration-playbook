@@ -149,18 +149,18 @@ Root-Repository
               └── values-<env>-<cluster>.yaml <- Your environment overrides
 ```
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
 | `image.repository` | Complete URL of the Vault image | `<DSI public image repository>/hashicorp/vault` |
 | `image.tag` | Vault image tag (also overridable at runtime) | `1.16` |
-| `namespace` | Kubernetes namespace — same as `NAMESPACE` in the config JSON | `ns-dpn-01` |
-| `seal.azureKeyVault.tenantId` | Your Azure AD tenant ID (the tenant your subscription belongs to) | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` |
-| `seal.azureKeyVault.clientId` | Client ID of the managed identity from [Step 1, Prerequisite 4](#step-1-prerequisites-before-vault-can-be-deployed) | `ffffffff-1111-2222-3333-444444444444` |
-| `seal.azureKeyVault.keyVaultName` | Same Key Vault as `KEY_VAULT_NAME` in the config JSON | `kv-my-dpn` |
-| `seal.azureKeyVault.keyName` | Fixed — name of the auto-unseal key created in [Step 1, Prerequisite 3](#step-1-prerequisites-before-vault-can-be-deployed) | `vault-unseal-key` |
-| `keyvault.tenantId` | Same Azure AD tenant ID as `seal.azureKeyVault.tenantId` above | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` |
-| `keyvault.clientID` | Same managed-identity client ID as `seal.azureKeyVault.clientId` above | `ffffffff-1111-2222-3333-444444444444` |
-| `keyvault.name` | Same Key Vault as `KEY_VAULT_NAME` in the config JSON | `kv-my-dpn` |
+| `namespace` | Kubernetes namespace | `ns-dpn-01` |
+| `seal.azureKeyVault.tenantId` | Tenant ID of the auto-unseal Key Vault | `<tenant-id>` |
+| `seal.azureKeyVault.clientId` | Managed-identity client ID used for auto-unseal | `<managed-identity-client-id>` |
+| `seal.azureKeyVault.keyVaultName` | Auto-unseal Key Vault name | `kv-dpn-<env>-<region>-<seq>` |
+| `seal.azureKeyVault.keyName` | Auto-unseal key name | `vault-unseal-key` |
+| `keyvault.tenantId` | Tenant ID of the TLS-cert Key Vault (CSI) | `<tenant-id>` |
+| `keyvault.clientID` | Managed-identity client ID used by the CSI driver | `<managed-identity-client-id>` |
+| `keyvault.name` | TLS-cert Key Vault name (CSI) | `kv-dpn-<env>-<region>-<seq>` |
 
 > **Note:** Keep `replicaCount: 1` — Vault uses a `ReadWriteOnce` persistent volume. The Vault TLS certificate and key are **not** set here; they are generated and published to Key Vault in [Step 3A](#step-3-deployment-configuration) and mounted into the pod via the CSI driver.
 
@@ -202,18 +202,18 @@ Required before running:
 
 Runtime parameters:
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `ServiceConnection` | Your Azure DevOps service connection's name | `sc-dpn-dev-001` |
-| `environment` | `dev` — see the single-environment/cluster note at the top of this page | `dev` |
-| `dpnCluster` | `dpn01` — see the same note | `dpn01` |
-| `targetNamespace` | Fixed — leave as the default, same as `NAMESPACE` in the config JSON | `ns-dpn-01` |
-| `country` | Your organisation's country code | `GB` |
-| `org` | Your organisation's name or abbreviation — display only, not validated by DSM | `NESO` |
-| `keystorePassword` | A password you choose — published to Key Vault as `KEYSTORE-PASSWORD` | *(choose your own)* |
-| `truststorePassword` | A password you choose — published to Key Vault as `TRUSTSTORE-PASSWORD` | *(choose your own)* |
-| `clientP12Password` | A password you choose — published to Key Vault as `DPN-CLIENT-P12-PASSWORD` | *(choose your own)* |
-| `extraVaultSans` | **Required** — do not leave this blank. The pipeline's own input box has no default value and nothing stops you running it empty, but if you do, the DSM-signed certificate will not cover your DPN's endpoints and cross-DPN connections will fail. Comma-separated, **no spaces**: your organisation's own producer **and** consumer hostnames — the externally-reachable endpoints other DPNs/DSM will connect to — for the gRPC Federator and (if deployed) the REST Federator Gateway. Same values you'll later put in the Certificate Manager's `cert.subject.altNames` | `producer.dpn01.myorg.example.com,consumer.dpn01.myorg.example.com,producer-rest01.dpn01.myorg.example.com` |
+| Parameter | Description | Example (placeholder) |
+|-----------|-------------|------------------------|
+| `ServiceConnection` | Azure service connection for your environment | `sc-dpn-<env>-001` |
+| `environment` | Target environment | `<env>` |
+| `dpnCluster` | Target DPN cluster | `dpn01` |
+| `targetNamespace` | Namespace where Keycloak/Kafka/Federator run | `ns-dpn-01` |
+| `country` | CSR subject Country (C) | `GB` |
+| `org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
+| `keystorePassword` | Password for `keystore.jks`, published as `KEYSTORE-PASSWORD` | `<choose a password>` |
+| `truststorePassword` | Password for `truststore.jks`, published as `TRUSTSTORE-PASSWORD` | `<choose a password>` |
+| `clientP12Password` | Password for `dpn-client.p12`, published as `DPN-CLIENT-P12-PASSWORD` | `<choose a password>` |
+| `extraVaultSans` | **Required, not optional** — the pipeline's input box has no default and nothing stops you running it empty, but if you do, the DSM-signed certificate won't cover your DPN's endpoints and cross-DPN connections will fail. Participant producer **and** consumer host endpoints, gRPC/REST | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
 
 > **Coordinated cutover.** After this pipeline runs (first time, or a password rotation), restart Vault, Certificate Manager, Keycloak, both Kafka brokers, and both Federators so each picks up the new material.
 

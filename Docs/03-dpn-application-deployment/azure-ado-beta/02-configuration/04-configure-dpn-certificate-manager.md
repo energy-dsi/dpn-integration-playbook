@@ -115,61 +115,59 @@ DSI proposes only the selective changes below; other parameters may be customise
 
 **Core deployment**
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `managementNode.baseUrl` | The DSM Management Node URL DSI gave you during onboarding — see [Common Configuration, Step1](00-common-dpn-configuration.md#step1-dsi-dsm-endpoint-configuration) for your environment's endpoint | `https://management.dsm01.dsipreprod1.neso.energy` |
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `managementNode.baseUrl` | DSI DSM Management Node URL for your environment | `https://management.dsm01.dsiXXX.neso.energy` |
 
 **OAuth2 (Management Node authentication)**
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `oauth2.clientId` | The Client ID DSM issued you during onboarding | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` |
-| `oauth2.tokenUri` | The Authentication endpoint DSI gave you — same table as `managementNode.baseUrl` above, path `/realms/management-node/protocol/openid-connect/token` | `https://auth-mtls.dsm01.dsipreprod1.neso.energy/realms/management-node/protocol/openid-connect/token` |
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `oauth2.clientId` | Client ID received from DSM | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
+| `oauth2.tokenUri` | IDP token URL received from DSM | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
 
 **Vault connectivity** (see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication))
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `vault.uri` | Fixed — your Vault service's in-cluster HTTPS address, substituting your `NAMESPACE` | `https://vault-https.ns-dpn-01.svc.cluster.local:8200` |
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `vault.uri` | HTTPS address of the DPN Vault service | `https://vault-https.<namespace>.svc.cluster.local:8200` |
 | `vault.authentication` | `APPROLE` (recommended, and the chart's own default) or `TOKEN` | `APPROLE` |
-| `vault.authRole` | Fixed — leave as the chart default | `certificate-manager` |
-| `vault.pkiMount` / `vault.secretPath` | Fixed — leave as the chart default | `pki-client` / `pki-client/node-net/client` |
-| `vault.appRole.role` | Fixed — leave as the chart default | `certificate-manager` |
-| `vault.appRole.roleId` | The `role_id` printed when you ran `vault-approle-setup-cd` ([Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended)) — not sensitive, safe to commit | `27df8420-2cd2-5086-672e-04b28cecd81c` |
-| `vault.appRole.mountPath` | Fixed — leave as the chart default | `approle` |
-| `certIdent.keystoreAlias` | Fixed — leave as the chart default | `federator` |
+| `vault.authRole` | Vault role name used for the `TOKEN`/`KUBERNETES` login paths | `certificate-manager` |
+| `vault.pkiMount` / `vault.secretPath` | KV v2 mount and path holding the certificate material | `pki-client` / `pki-client/node-net/client` |
+| `vault.appRole.role` | AppRole role name (must match the role created by `vault-approle-setup-cd`) | `certificate-manager` |
+| `vault.appRole.roleId` | Non-sensitive role-id printed by `vault-approle-setup-cd` | `<role_id>` |
+| `vault.appRole.mountPath` | Mount path of Vault's AppRole auth method | `approle` |
+| `certIdent.keystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
 
 **Certificate subject** (used by the Certificate Manager to generate its CSR)
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `cert.subject.country` | Your organisation's country code | `UK` |
-| `cert.subject.org` | Your organisation's name or abbreviation — display only, not validated by DSM | `NESO` |
-| `cert.subject.cn` | A label identifying this DPN node — your choice | `dpn01.myorg.example.com` |
-| `cert.subject.altNames` | Comma-separated, **no spaces**: every producer/consumer hostname your organisation exposes — your own externally-resolvable DNS names other DPNs will connect to, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.myorg.example.com,consumer.dpn01.myorg.example.com,producer-rest01.dpn01.myorg.example.com` |
-| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days — leave at the default unless advised otherwise | `60` |
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `cert.subject.country` | CSR subject Country (C) | `UK` |
+| `cert.subject.org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
+| `cert.subject.cn` | CSR subject Common Name (CN) | `dpn-<env>-01` |
+| `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
+| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
 > **In-memory keystore — no `certDest`/`mtls`/`fileShare` parameters.** Earlier chart versions wrote P12 files to a shared file share and exposed `certDest.*`/`mtls.*`/`fileShare.*` values to configure that path. These no longer exist: the keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account.
 
 **OTel Collector authentication**
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `otel.oauth2.enabled` | Leave `true` — already on by default | `true` |
-| `otel.oauth2.tokenUri` | Fixed — your Keycloak's in-cluster token endpoint, substituting your `NAMESPACE` | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| `otel.oauth2.clientId` | Fixed — leave as the chart default | `dpn-service-client` |
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `otel.oauth2.enabled` | Attach an `Authorization: Bearer` token to OTLP export, authenticated via the `dpn-service-client` Keycloak client — **on by default**, since that client is already registered in Keycloak for every environment | `true` |
+| `otel.oauth2.tokenUri` | Keycloak token endpoint — set per `values-<env>-<cluster>.yaml`, same host/realm as the gRPC Federator's own `redis.idp.token.url` for that environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `otel.oauth2.clientId` | Keycloak client ID — same value in every environment | `dpn-service-client` |
 
 No new secret is provisioned for this — the client secret is read from the pre-existing `dpn-keycloak-secrets` Kubernetes secret (key `KC_SERVICE_CLIENT_SECRET`), the same one the gRPC Federator Gateway already uses for its own Redis/Kafka OAuth. That secret is **not created by this chart** — it's produced by the DPN Authentication Service's own `SecretProviderClass` and must already exist in this component's namespace.
 
 **Azure Key Vault**
 
-| Parameter | Put here | Example |
-|-----------|----------|---------|
-| `keyvault.name` | Your Azure Key Vault's name — same as `KEY_VAULT_NAME` in the config JSON | `kv-my-dpn` |
-| `keyvault.clientID` | Client ID of the managed identity from [Configure DPN Vault Service, Step 1, Prerequisite 4](01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed) | `ffffffff-1111-2222-3333-444444444444` |
-| `keyvault.tenantId` | Your Azure AD tenant ID | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` |
-| `vaultTruststore.secretName` | Fixed — leave as the chart default; this secret is created automatically by `dpn-tls-cd` | `cert-manager-truststore` |
-| `existingSecret.name` | Fixed — leave as the chart default when `keyvault.enabled: true` | `certificate-manager-secrets` |
+| Parameter | Purpose | Example |
+|-----------|---------|---------|
+| `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, managed-identity client ID, and tenant ID — update these in the values file | `kv-dpn-<env>-<region>-<seq>` / `<managed-identity-client-id>` / `<tenant-id>` |
+| `vaultTruststore.secretName` | Pre-existing Kubernetes secret holding `truststore.jks` to trust Vault's HTTPS endpoint | `cert-manager-truststore` |
+| `existingSecret.name` | Use a pre-created Kubernetes secret instead of the chart-managed one (required when `keyvault.enabled: true`) | `certificate-manager-secrets` |
 
 ### Step3b: Configure Secrets
 
