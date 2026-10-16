@@ -32,9 +32,9 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yaml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; by default the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, unless the optional AWS EFS-backed file share (`fileShare.create: true`) is enabled, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
+The Certificate Manager is deployed with a single GitHub Actions CD workflow, `dpn-gha-certificate-manager-cd.yaml`. It is a headless Spring Boot service that renews the DSM-signed certificate and persists it in Vault; the Certificate Manager and the Federator Gateway each build their own mTLS keystore/truststore in memory from that same Vault material — no shared file share is used, see [Configure DPN Certificate Manager](../02-configuration/04-configure-dpn-certificate-manager.md#overview).
 
-Set `cloudProvider: aws` in the environment values file (the chart's base `values.yaml` sets no `cloudProvider`); `aws` selects AWS equivalents (AWS Secrets Manager, and an EFS-backed dynamically-provisioned PVC) — see the known limitation in [Configure DPN Certificate Manager, Step3a](../02-configuration/04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values).
+Set `cloudProvider: aws` in the environment values file (the chart's base `values.yaml` sets no `cloudProvider`); `aws` selects AWS equivalents (AWS Secrets Manager) — see the known limitation in [Configure DPN Certificate Manager, Step3a](../02-configuration/04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values).
 
 The workflow and the `certificate-manager` Helm chart both live in the `dpn-federator-certificate-manager` repository. The chart is at `charts/certificate-manager` (release `dpn-certificate-manager`), with values file `charts/certificate-manager/values/aws/<environment>-<cluster>.yaml`.
 

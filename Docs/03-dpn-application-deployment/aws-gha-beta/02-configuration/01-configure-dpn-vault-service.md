@@ -134,7 +134,7 @@ Ensure the following are in place **before** running any workflow:
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **EKS cluster** provisioned and reachable | Target cluster for the deployment |
-| 2 | **Namespaces, `efs-sc` StorageClass, `federator-server` ServiceAccount, `ghcr-pull-secret`** | See [Step2.3: EKS Namespace Configuration](00-common-dpn-configuration.md#step23-eks-namespace-configuration) |
+| 2 | **Namespaces, EBS `gp3` StorageClass, `federator-server` ServiceAccount, `ghcr-pull-secret`** | See [Step2.3: EKS Namespace Configuration](00-common-dpn-configuration.md#step23-eks-namespace-configuration). Vault's own PVC is EBS-backed (`gp3`) |
 | 3 | **AWS KMS key + IAM role for auto-unseal, and an IRSA ServiceAccount** | See [Appendix — AWS KMS auto-unseal configuration](#appendix--aws-kms-auto-unseal-configuration) — required for the pipeline path to work at all, since it has no interactive unseal step |
 | 4 | **GitHub Actions OIDC role** for the AWS account (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role)) — the `cloud-login` composite action assumes the hub role and then `oidc_github_runner_admin` in the target account, and sets up `kubectl`, `helm` and (if missing) the AWS CLI; the TLS workflow sets up Java/`keytool` itself | No agent setup needed per environment |
 | 5 | **Environment config and values files populated** | See [Step 2](#step-2-reference-configuration-data-populate-before-deployment) |
@@ -180,7 +180,7 @@ root/
 | `image.repository` | Complete URL of the Vault image | `ghcr.io/energy-dsi/vault` |
 | `image.tag` | Vault image tag (also overridable at runtime) | `1.16` |
 | `namespace` | Kubernetes namespace | `ns-dpn-01` |
-| `persistence.storageClassName` | Persistent volume StorageClass — an EBS-backed class (`gp2`/`gp3`), **not** the `efs-sc` class used by Certificate Manager's file share; Vault needs a `ReadWriteOnce` volume | `gp3` |
+| `persistence.storageClassName` | Persistent volume StorageClass — an EBS-backed class (`gp2`/`gp3`); Vault needs a `ReadWriteOnce` volume | `gp3` |
 | `seal.awsKms.region` | Region of the auto-unseal KMS key | `<AWS_REGION>` |
 | `seal.awsKms.kmsKeyArn` | Auto-unseal KMS key ARN (an alias also works) | `arn:aws:kms:<region>:<account-id>:key/<key-id>` |
 | `serviceAccount.create` | Create the IRSA-annotated ServiceAccount used for KMS auto-unseal | `true` |

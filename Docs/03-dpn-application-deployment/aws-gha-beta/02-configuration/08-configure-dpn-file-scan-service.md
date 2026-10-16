@@ -107,7 +107,7 @@ dpn-file-scan-service/
 
 > The four `FILESCAN_*` keys are used only by `dpn-gha-file-scan-prerequisites-cd.yaml` (its "Validate Required Values (AWS)" step fails if any is empty). The deploy workflow `dpn-gha-file-scan-cd.yaml` uses `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER` and `NAMESPACE`; the bucket and queue names the running service uses come from the Helm values file ([Step4](#step4-configure-helm-chart-files)), so keep the two in sync.
 >
-> The same JSON file is shared with other components, so it also carries keys this service does not read (e.g. `EFS_FILESYSTEM_ID`, `OAUTH2_PROXY_EXTERNAL_URL`) — leave those as they are.
+> The same JSON file is shared with other components, so it also carries keys this service does not read (e.g. `OAUTH2_PROXY_EXTERNAL_URL`) — leave those as they are.
 
 > **No `KEY_VAULT_NAME` or IRSA-role-ARN key in this JSON file.** The IAM permissions come entirely from the IRSA role already attached to the ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)), which this config file does not need to reference — there is no `FILESCAN_IRSA_ROLE_ARN`-style key. This component's real AWS config file also carries no `KEY_VAULT_NAME` entry at all: nothing in its GitHub Actions workflow reads one.
 
