@@ -205,7 +205,9 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`).
 
-The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level):
+The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level).
+
+**Below secrets need to be manually added in the Github environment secrets manually**:
 
 | GitHub Actions Secret | Used by | Purpose |
 |-----------------------|---------|---------|
