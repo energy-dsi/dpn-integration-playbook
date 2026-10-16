@@ -219,7 +219,7 @@ One-time repository setup (from the repository's `.github/workflows/README.md`):
 | `cluster` | The target DPN cluster — `dpn01` or `dpn02` (default `dpn01`) |
 | `cloud` | Target cloud provider — `azure`, `aws` or `gcp` (default `aws`). Resolves `.github/config/<cloud>/<environment>-<cluster>.json` |
 | `imageTag` | Tag of the REST Federator Server image to deploy (required) |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-rest-federator-server`) — leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server`, where `IMAGE_REGISTRY` comes from the config JSON |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-rest-federator-server`) — leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server`, where `IMAGE_REGISTRY` comes from the config JSON |
 
 On AWS, the **deploy-rest-federator** job runs three additional steps ahead of the Helm lint/deploy:
 

@@ -86,7 +86,7 @@ The parameters required for running the pipeline are:
 | `imageTag` | OTel Collector image tag — default `0.95.0` |
 | `otelImageRepository` | OTel Collector image path after `ghcr.io/energy-dsi/` — optional, leave blank to use the environment's configured repository |
 | `portalImageTag` | DPN Portal container image tag — **required**, no default (the short git-SHA the DPN Portal application's own CI build printed) |
-| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `1.0.1/dpn-portal` |
+| `portalImageRepository` | DPN Portal GHCR path after `ghcr.io/energy-dsi/` — optional, defaults to `dpn-portal` |
 
 The workflow's `init` job (**Resolve Deployment Config**) reads `.github/config/azure/<environment>-<cluster>.json`, then every component job (Kafka, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, OTel, DPN Portal, OAuth2 Proxy ×4, Validate) runs in dependency order automatically — there's a single workflow to trigger, not a separate one per component. Before running it, confirm:
 
@@ -139,7 +139,7 @@ The OTel Collector's `prometheusremotewrite/metrics` exporter posts to Prometheu
 
 This section lists the **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` that the workflow deploys. Organisations may point the Helm values at a different image repository instead if they build their own.
 
-The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this Azure path, this service's own chart images are referenced at the unversioned GHCR path `ghcr.io/energy-dsi/<component>`**, except the DPN Portal image (`portalImageRepository` default `1.0.1/dpn-portal`). OpenSearch and Prometheus are the exception on Azure: as currently checked in, their shared community values pull `opensearchproject/opensearch`, the kube-prometheus-stack chart's default images, and `quay.io/thanos/thanos` (Thanos sidecar) rather than the GHCR paths below — point those values at GHCR if your cluster cannot reach the public registries.
+The Health Monitoring service 3rd party platform images are found in GHCR with following names. **On this Azure path, this service's own chart images are referenced at the GHCR path `ghcr.io/energy-dsi/<component>`**, except the DPN Portal image (`portalImageRepository` default `dpn-portal`). OpenSearch and Prometheus are the exception on Azure: as currently checked in, their shared community values pull `opensearchproject/opensearch`, the kube-prometheus-stack chart's default images, and `quay.io/thanos/thanos` (Thanos sidecar) rather than the GHCR paths below — point those values at GHCR if your cluster cannot reach the public registries.
 
 | Purpose | GHCR Path |
 |---|---|
@@ -155,7 +155,7 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | Prometheus | `ghcr.io/energy-dsi/prometheus:<latest or DSI provided stable version>` |
 | Perses | `ghcr.io/energy-dsi/perses:<latest or DSI provided stable version>` |
 | Thanos | `ghcr.io/energy-dsi/thanos:<latest or DSI provided stable version>` |
-| DPN Portal | `ghcr.io/energy-dsi/1.0.1/dpn-portal:<tag supplied via portalImageTag>` |
+| DPN Portal | `ghcr.io/energy-dsi/dpn-portal:<tag supplied via portalImageTag>` |
 
 > **Nginx (dashboard proxy) has been removed** from this service — replaced by the DPN Portal + `oauth2-proxy` releases above.
 

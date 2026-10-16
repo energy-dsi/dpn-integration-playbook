@@ -38,7 +38,7 @@ The deployment uses the following repository:
 
 The deployment process consists of:
 
-- **Continuous Integration (CI)** — not part of this GitHub Actions-based deployment path (see [Common Configuration, Continuous Integration](../02-configuration/00-common-dpn-configuration.md#continuous-integration-ci)). The five container images are built and pushed to the GitHub Container Registry (GHCR) under `ghcr.io/energy-dsi`:
+- **Continuous Integration (CI)** — not applicable for GitHub Actions-based deployment. The five container images are already built in and pushed to the GitHub Container Registry (GHCR) under `ghcr.io/energy-dsi`:
 
   | Image | Purpose |
   |-------|---------|
@@ -48,9 +48,8 @@ The deployment process consists of:
   | `dpn-consumer-topic-extractor` | Consumer topic extractor |
   | `dpn-self-service` | DPN Self-Service UI |
 
-  > **Registry on Azure:** the Azure config JSON (`.github/config/azure/<environment>-<cluster>.json`) has no `IMAGE_REGISTRY` key and no Azure values files are checked in for these charts, so the CD workflow does not set an image registry on Azure by default. See the known limitation in [STEP-02b](#step-02b-execute-data-pipeline-cd-workflow) before running it.
-
-- **Continuous Deployment (CD)** — deploys into **Azure Kubernetes Service (AKS)** with the **`DPN CD - Self-Service Data Pipelines`** workflow (`dpn-gha-self-service-cd.yaml`, `cloud: azure`), which installs three Helm releases into `ns-dpn-dp-01`:
+ 
+ - **Continuous Deployment (CD)** — deploys into **Azure Kubernetes Service (AKS)** with the **`DPN CD - Self-Service Data Pipelines`** workflow (`dpn-gha-self-service-cd.yaml`, `cloud: azure`), which installs three Helm releases into `ns-dpn-dp-01`:
   - `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` — the two fixed consumer pipelines
   - `dpn-self-service` — the DPN Self-Service UI
 

@@ -126,7 +126,7 @@ Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`.github
 | `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
 | `cloud` | `azure` (default is `aws`, so select it explicitly) |
 | `imageTag` | The REST Federator Server image tag to deploy (required) |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-rest-federator-server`). Leave blank to use `ghcr.io/energy-dsi/1.0.1/dpn-rest-federator-server` |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-rest-federator-server`). Leave blank to use `ghcr.io/energy-dsi/dpn-rest-federator-server` |
 
 The workflow runs **deploy-redis** (Helm release `dpn-redis`) then **deploy-rest-federator** (Helm release `dpn-rest-federator`), both into the config JSON's `NAMESPACE`. On Azure, **deploy-rest-federator** fetches the Vault truststore password from Key Vault (`TRUSTSTORE-PASSWORD`) before running **Helm Lint + Dry Run** and **Helm Deploy** — the AppRole `role-id` is read from the checked-in values file (populated manually in [Step2b](#step2b-one-time-vault-approle-setup)) rather than fetched from a secrets backend.
 
