@@ -186,6 +186,9 @@ root/
 | `serviceAccount.create` | Create the IRSA-annotated ServiceAccount used for KMS auto-unseal | `true` |
 | `serviceAccount.name` | ServiceAccount name (default `dpn-vault`) | `dpn-vault` |
 | `serviceAccount.irsaRoleArn` | IAM role ARN whose trust policy scopes `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, granting `kms:Encrypt`/`kms:Decrypt`/`kms:DescribeKey` on the unseal key | `arn:aws:iam::<account-id>:role/<role-name>` |
+| `oauth2.tokenUri` | DSM Keycloak token endpoint the Vault bootstrap uses to authenticate to the DSM Management Node. Set in `charts/vault-https/values/aws/<environment>-<cluster>.yaml` | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
+| `oauth2.clientId` | Client ID received from DSM for this DPN node. Set in `charts/vault-https/values/aws/<environment>-<cluster>.yaml`; `oauth2.authMode` stays `private_key_jwt` | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
+| `managementNode.baseUrl` | Base URL of the DSM Management Node. Set in `charts/vault-https/values/aws/<environment>-<cluster>.yaml` | `https://management.dsm01.dsiXXX.neso.energy` |
 | `secretsManager.secretPrefix` | AWS Secrets Manager prefix the CSI `SecretProviderClass` reads the Vault TLS cert/key from (`<prefix>/VAULT_TLS_CERT`, `<prefix>/VAULT_TLS_KEY`), mounted at `/vault/tls` via the pod's default IAM identity | `dpn/<environment>-<cluster>/vault-https` |
 
 > **Note:** Keep `replicaCount: 1` — Vault uses a `ReadWriteOnce` persistent volume. The Vault TLS certificate and key are **not** set as literal values here; they are generated in [Step 3A](#step-3a-configure-vault-tls-dpn-tls-cdyaml) and read at runtime via the `SecretProviderClass`.

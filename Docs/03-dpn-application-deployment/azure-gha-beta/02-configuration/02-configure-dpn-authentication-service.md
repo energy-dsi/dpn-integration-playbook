@@ -168,7 +168,7 @@ The workflow loads `.github/config/azure/<environment>-<cluster>.json` into the 
 | `environment` | `test` | `dev` / `test` |
 | `cluster` | `dpn01` | `dpn01` / `dpn02` |
 | `cloud` | `aws` | `azure` / `aws` / `gcp` — select `azure` |
-| `keycloakImageRepository` | *(blank)* | Optional — path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/keycloak`); blank uses the values file's `image.repository` |
+| `keycloakImageRepository` | *(blank)* | Optional — path after `ghcr.io/energy-dsi/` (e.g. `keycloak`); blank uses the values file's `image.repository` |
 | `keycloakImageTag` | *(blank)* | Optional — blank uses the configured `image.tag` |
 | `postgresImageRepository` / `postgresImageTag` | *(blank)* | Same, for the bundled PostgreSQL image (`postgres.image.repository` / `postgres.image.tag`) |
 

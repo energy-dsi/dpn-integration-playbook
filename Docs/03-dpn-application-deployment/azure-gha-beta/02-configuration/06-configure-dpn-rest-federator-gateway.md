@@ -163,6 +163,7 @@ No per-environment values file currently overrides these — every environment i
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
+| `restFederatorServer.service.loadBalancerIP` | Static private IP of the REST Federator Server internal LoadBalancer. The `dpn-demo-runner-server` chart has the same key under `service.loadBalancerIP`. Use an unused address in the AKS subnet, one per service. Set in `charts/dpn-rest-federator/values/azure/<environment>-<cluster>.yaml` | `<private-ip-in-aks-subnet>` |
 | `keyvault.enabled` | Render the Azure Key Vault `SecretProviderClass` and mount its CSI volume. **`false` in all Azure values files today** | `false` |
 | `keyvault.clientID` | Client ID of the user-assigned managed identity with Key Vault `get`/`list` on the secrets in `keyvault.objects` | `<managed-identity-client-id>` |
 | `keyvault.name` / `keyvault.tenantId` | Key Vault the CSI driver reads from, and its tenant | `<key-vault-name>` / `<tenant-id>` |
@@ -226,7 +227,7 @@ The workflow runs two jobs in order, each independently re-runnable: **deploy-re
 | `cluster` | The target DPN cluster — `dpn01` or `dpn02` (default `dpn01`) |
 | `cloud` | Target cloud provider — `azure`, `aws`, or `gcp` (default `aws`, so select `azure`; gcp not yet supported — config pending). Resolves `.github/config/<cloud>/<environment>-<cluster>.json` |
 | `imageTag` | Tag of the REST Federator Server image to deploy (required) |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-rest-federator-server`) — leave blank to use `ghcr.io/energy-dsi/1.0.1/dpn-rest-federator-server` on Azure (`<IMAGE_REGISTRY>/dpn-rest-federator-server` on AWS) |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-rest-federator-server`) — leave blank to use `ghcr.io/energy-dsi/dpn-rest-federator-server` on Azure (`<IMAGE_REGISTRY>/dpn-rest-federator-server` on AWS) |
 
 On Azure, the **deploy-rest-federator** job runs one additional step ahead of the Helm lint/deploy:
 

@@ -137,7 +137,7 @@ Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-gha
 | `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
 | `cloud` | `aws` (default) |
 | `imageTag` | The image tag pushed in Step2a |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `1.0.1/dpn-rest-federator-server`). Leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server` from the config JSON |
+| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-rest-federator-server`). Leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server` from the config JSON |
 
 The workflow runs **deploy-redis** (Helm release `dpn-redis`) then **deploy-rest-federator** (Helm release `dpn-rest-federator`), both into the config JSON's `NAMESPACE`. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role and seeds the `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running **Helm Lint + Dry Run** and **Helm Deploy**.
 
