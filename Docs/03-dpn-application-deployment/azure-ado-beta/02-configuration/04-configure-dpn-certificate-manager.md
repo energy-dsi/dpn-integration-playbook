@@ -6,7 +6,7 @@ This section describes how to configure and deploy the **DPN Federator Certifica
 
 > **Depends on Vault.** The Certificate Manager **cannot run without the DPN HashiCorp Vault service**. Vault must already be deployed, initialised (KV v2 enabled at `pki-client`), and loaded with the certificate bundle before you deploy the Certificate Manager. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md).
 
-> **Single environment:** These instructions target **one environment** (`<env>`). Substitute your own environment name wherever you see `<env>` (for `config/<env>.json` and `values-<env>.yaml`). You do not need to create multiple environment files.
+> **Single environment:** These instructions target **one environment/cluster combination** (`<env>`/`<cluster>`). Substitute your own values wherever you see `<env>`/`<cluster>` (for `config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml`). You do not need to create multiple environment files.
 
 ---
 
@@ -18,8 +18,8 @@ This section describes how to configure and deploy the **DPN Federator Certifica
 - [Step3: Environment Configuration](#step3-environment-configuration)
   - [Step3a: Set Up Helm Values](#step3a-set-up-helm-values)
   - [Step3b: Configure Secrets](#step3b-configure-secrets)
-    - [Option A — Through Azure Key Vault (`keyvault.enabled: true`)](#option-a--through-azure-key-vault-keyvaultenabled-true)
-    - [Option B - Through Vault truststore (Kubernetes secret)](#option-b---through-vault-truststore-kubernetes-secret)
+    - [Vault authentication credential (`certificate-manager-secrets`)](#vault-authentication-credential-certificate-manager-secrets)
+    - [Vault HTTPS truststore (`cert-manager-truststore`)](#vault-https-truststore-cert-manager-truststore)
 - [Step4: Setup Deployment Configuration](#step4-setup-deployment-configuration)
 - [Review Notes](#review-notes)
 
@@ -62,11 +62,11 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | 4 | **AKS cluster** + (if using Azure Key Vault for secrets) a **user-assigned managed identity** and the **Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
 | 5 | **OAuth2 client ID and Management Node URL** | Received from DSM during onboarding to establish the DPN connection — authentication is JWT-based, no client secret is issued |
 | 6 | **Certificate Manager container image available** | Built via the DSI-provided CI process or obtained prebuilt from the DSI GitHub Container Registry (GHCR). Its tag is supplied to the CD pipeline as `imageTag` (see the CI/CD overview in [Common Configuration](00-common-dpn-configuration.md#continuous-integration-ci)) |
-| 7 | **`config/<env>.json` and `values-<env>.yaml` populated** | See [Pre-Deployment Configuration](#step3-environment-configuration) |
+| 7 | **`config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml` populated** | See [Pre-Deployment Configuration](#step3-environment-configuration) |
 
 > **No shared file share required.** Unlike earlier releases, the Certificate Manager does not need a provisioned Azure File Share or `azure-fileshare-secret` — it builds the mTLS keystore/truststore in memory directly from Vault. See [Step2](#step2-configure-vault-authentication) and the note in [Overview](#overview).
 
-> **Azure DevOps pipeline setup (one-time):** Before running the CD pipeline, complete [Azure DevOps Configuration](00-common-dpn-configuration.md#step2-azure-devops-configuration) — the pipeline **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), set up the Azure **service connection**, and populate `config/<env>.json`.
+> **Azure DevOps pipeline setup (one-time):** Before running the CD pipeline, complete [Azure DevOps Configuration](00-common-dpn-configuration.md#step2-azure-devops-configuration) — the pipeline **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), set up the Azure **service connection**, and populate `config/<env>-<cluster>.json`.
 
 ## Step2: Configure Vault Authentication
 
@@ -77,7 +77,7 @@ The Certificate Manager reads and writes its certificate material directly in Va
 | Root token | `TOKEN` | Simplest to bootstrap with, but the token has full access to Vault. Kept for backward compatibility; see [Configure DPN Vault Service](01-configure-dpn-vault-service.md#step-3b-configuration-to-initialise-vault-vault-https-cd) |
 | **AppRole** (recommended, chart default) | `APPROLE` | Scoped, short-lived credentials specific to the Certificate Manager. Provisioned by the `vault-approle-setup-cd` pipeline — see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 
-To switch to AppRole once the identity has been provisioned, set in `values-<env>.yaml`:
+To switch to AppRole once the identity has been provisioned, set in `values-<env>-<cluster>.yaml`:
 
 ```yaml
 vault:
@@ -101,79 +101,87 @@ Organisations must change the default passwords during secret set up and follow 
 
 ### Step3a: Set Up Helm Values
 
-Copy `values.yaml` (reference — do not edit directly) to `values-<env>.yaml` and set the parameters below. The CD pipeline resolves `values-<env>.yaml` from the environment you select at runtime.
+Copy `values.yaml` (reference — do not edit directly) to `values-<env>-<cluster>.yaml` and set the parameters below. The CD pipeline resolves `values-<env>-<cluster>.yaml` from the environment and cluster you select at runtime.
 
 ```text
 Root-Repository
   └── charts
         └── certificate-manager
-              ├── values.yaml        <- Reference file; do not edit directly
-              ├── values-<env>.yaml  <- Your environment overrides
+              ├── values.yaml                 <- Reference file; do not edit directly
+              ├── values-<env>-<cluster>.yaml <- Your environment overrides
 ```
 
 DSI proposes only the selective changes below; other parameters may be customised if required. All of these map to container environment variables via the chart ConfigMap.
 
 **Core deployment**
 
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `managementNode.baseUrl` | DSI DSM Management Node URL for your environment | `https://management.dsm01.dsiXXX.neso.energy` |
+| Parameter | Put here | Example |
+|-----------|----------|---------|
+| `managementNode.baseUrl` | The DSM Management Node URL DSI gave you during onboarding — see [Common Configuration, Step1](00-common-dpn-configuration.md#step1-dsi-dsm-endpoint-configuration) for your environment's endpoint | `https://management.dsm01.dsipreprod1.neso.energy` |
 
 **OAuth2 (Management Node authentication)**
 
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `oauth2.clientId` | Client ID received from DSM | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
-| `oauth2.tokenUri` | IDP token URL received from DSM | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
+| Parameter | Put here | Example |
+|-----------|----------|---------|
+| `oauth2.clientId` | The Client ID DSM issued you during onboarding | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` |
+| `oauth2.tokenUri` | The Authentication endpoint DSI gave you — same table as `managementNode.baseUrl` above, path `/realms/management-node/protocol/openid-connect/token` | `https://auth-mtls.dsm01.dsipreprod1.neso.energy/realms/management-node/protocol/openid-connect/token` |
 
 **Vault connectivity** (see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication))
 
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `vault.uri` | HTTPS address of the DPN Vault service | `https://vault-https.<namespace>.svc.cluster.local:8200` |
+| Parameter | Put here | Example |
+|-----------|----------|---------|
+| `vault.uri` | Fixed — your Vault service's in-cluster HTTPS address, substituting your `NAMESPACE` | `https://vault-https.ns-dpn-01.svc.cluster.local:8200` |
 | `vault.authentication` | `APPROLE` (recommended, and the chart's own default) or `TOKEN` | `APPROLE` |
-| `vault.authRole` | Vault role name used for the `TOKEN`/`KUBERNETES` login paths | `certificate-manager` |
-| `vault.pkiMount` / `vault.secretPath` | KV v2 mount and path holding the certificate material | `pki-client` / `pki-client/node-net/client` |
-| `vault.appRole.role` | AppRole role name (must match the role created by `vault-approle-setup-cd`) | `certificate-manager` |
-| `vault.appRole.roleId` | Non-sensitive role-id printed by `vault-approle-setup-cd` | `<role_id>` |
-| `vault.appRole.mountPath` | Mount path of Vault's AppRole auth method | `approle` |
-| `certIdent.keystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
+| `vault.authRole` | Fixed — leave as the chart default | `certificate-manager` |
+| `vault.pkiMount` / `vault.secretPath` | Fixed — leave as the chart default | `pki-client` / `pki-client/node-net/client` |
+| `vault.appRole.role` | Fixed — leave as the chart default | `certificate-manager` |
+| `vault.appRole.roleId` | The `role_id` printed when you ran `vault-approle-setup-cd` ([Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended)) — not sensitive, safe to commit | `27df8420-2cd2-5086-672e-04b28cecd81c` |
+| `vault.appRole.mountPath` | Fixed — leave as the chart default | `approle` |
+| `certIdent.keystoreAlias` | Fixed — leave as the chart default | `federator` |
 
 **Certificate subject** (used by the Certificate Manager to generate its CSR)
 
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `cert.subject.country` | CSR subject Country (C) | `UK` |
-| `cert.subject.org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
-| `cert.subject.cn` | CSR subject Common Name (CN) | `dpn-<env>-01` |
-| `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
-| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
+| Parameter | Put here | Example |
+|-----------|----------|---------|
+| `cert.subject.country` | Your organisation's country code | `UK` |
+| `cert.subject.org` | Your organisation's name or abbreviation — display only, not validated by DSM | `NESO` |
+| `cert.subject.cn` | A label identifying this DPN node — your choice | `dpn01.myorg.example.com` |
+| `cert.subject.altNames` | Comma-separated, **no spaces**: every producer/consumer hostname your organisation exposes — your own externally-resolvable DNS names other DPNs will connect to, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.myorg.example.com,consumer.dpn01.myorg.example.com,producer-rest01.dpn01.myorg.example.com` |
+| `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days — leave at the default unless advised otherwise | `60` |
 
 > **In-memory keystore — no `certDest`/`mtls`/`fileShare` parameters.** Earlier chart versions wrote P12 files to a shared file share and exposed `certDest.*`/`mtls.*`/`fileShare.*` values to configure that path. These no longer exist: the keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account.
 
 **OTel Collector authentication**
 
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `otel.oauth2.enabled` | Attach an `Authorization: Bearer` token to OTLP export, authenticated via the `dpn-service-client` Keycloak client — **on by default**, since that client is already registered in Keycloak for every environment | `true` |
-| `otel.oauth2.tokenUri` | Keycloak token endpoint — set per `values-<env>-<cluster>.yaml`, same host/realm as the gRPC Federator's own `redis.idp.token.url` for that environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| `otel.oauth2.clientId` | Keycloak client ID — same value in every environment | `dpn-service-client` |
+| Parameter | Put here | Example |
+|-----------|----------|---------|
+| `otel.oauth2.enabled` | Leave `true` — already on by default | `true` |
+| `otel.oauth2.tokenUri` | Fixed — your Keycloak's in-cluster token endpoint, substituting your `NAMESPACE` | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `otel.oauth2.clientId` | Fixed — leave as the chart default | `dpn-service-client` |
 
 No new secret is provisioned for this — the client secret is read from the pre-existing `dpn-keycloak-secrets` Kubernetes secret (key `KC_SERVICE_CLIENT_SECRET`), the same one the gRPC Federator Gateway already uses for its own Redis/Kafka OAuth. That secret is **not created by this chart** — it's produced by the DPN Authentication Service's own `SecretProviderClass` and must already exist in this component's namespace.
 
 **Azure Key Vault**
 
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, managed-identity client ID, and tenant ID — update these in the values file | `kv-dpn-<env>-<region>-<seq>` / `<managed-identity-client-id>` / `<tenant-id>` |
-| `vaultTruststore.secretName` | Pre-existing Kubernetes secret holding `truststore.jks` to trust Vault's HTTPS endpoint | `cert-manager-truststore` |
-| `existingSecret.name` | Use a pre-created Kubernetes secret instead of the chart-managed one (required when `keyvault.enabled: true`) | `certificate-manager-secrets` |
+| Parameter | Put here | Example |
+|-----------|----------|---------|
+| `keyvault.name` | Your Azure Key Vault's name — same as `KEY_VAULT_NAME` in the config JSON | `kv-my-dpn` |
+| `keyvault.clientID` | Client ID of the managed identity from [Configure DPN Vault Service, Step 1, Prerequisite 4](01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed) | `ffffffff-1111-2222-3333-444444444444` |
+| `keyvault.tenantId` | Your Azure AD tenant ID | `aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee` |
+| `vaultTruststore.secretName` | Fixed — leave as the chart default; this secret is created automatically by `dpn-tls-cd` | `cert-manager-truststore` |
+| `existingSecret.name` | Fixed — leave as the chart default when `keyvault.enabled: true` | `certificate-manager-secrets` |
 
 ### Step3b: Configure Secrets
 
-#### Option A — Through Azure Key Vault (`keyvault.enabled: true`)
+Two independent secrets are involved — the chart needs both, but they're populated differently and are not alternatives to each other.
 
-The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `certificate-manager-secrets` Kubernetes secret. Populate the row matching the `vault.authentication` method you chose in [Step2](#step2-configure-vault-authentication) — the other is unused:
+#### Vault authentication credential (`certificate-manager-secrets`)
+
+Holds whichever of `VAULT_TOKEN` / `VAULT_APPROLE_SECRET_ID` matches the `vault.authentication` method you chose in [Step2](#step2-configure-vault-authentication). Choose **one** of the following two ways to populate it:
+
+**Option A — Through Azure Key Vault (`keyvault.enabled: true`)**
+
+The `SecretProviderClass` pulls the matching row below from `<keyvault.name>` into the `certificate-manager-secrets` Kubernetes secret. Also set `existingSecret.name: certificate-manager-secrets` so the chart uses this CSI-managed secret instead of creating its own:
 
 | AKV Secret | Kubernetes secret / key | Purpose | Example (placeholder) |
 |------------|-------------------------|---------|-----------------------|
@@ -182,9 +190,21 @@ The `SecretProviderClass` pulls the following from `<keyvault.name>` into the `c
 
 > **Note:** `VAULT-APPROLE-SECRET-ID` is produced by the `vault-approle-setup-cd` pipeline (see [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended)). `VAULT-TOKEN` is produced during Vault setup by the Vault init stage (`storeRootTokenInAkv: true`) and is only needed if you have not migrated to AppRole. Confirm whichever you use exists in Key Vault before deploying.
 
-#### Option B - Through Vault truststore (Kubernetes secret)
+**Option B — Directly in the values file (no Azure Key Vault / CSI driver needed)**
 
-The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (default `cert-manager-truststore`) and mounted at `vaultTruststore.mountPath`. This secret is **created automatically by the `dpn-tls-cd` pipeline** — no manual `kubectl create secret` is required.
+Leave `keyvault.enabled: false` and `existingSecret.name` empty, and instead set the value directly in `values-<env>-<cluster>.yaml`:
+
+```yaml
+secrets:
+  vaultAppRoleSecretId: "<generated secret-id>"   # when vault.authentication: APPROLE
+  vaultToken: ""                                  # when vault.authentication: TOKEN
+```
+
+The chart then creates its **own** Kubernetes secret, named `<fullnameOverride>-secrets` (`dpn-certificate-manager-secrets` with the default `fullnameOverride`) — simplest to bootstrap with, but the plaintext secret then lives in the values file, so treat that file as sensitive and prefer Option A once Key Vault is available.
+
+#### Vault HTTPS truststore (`cert-manager-truststore`)
+
+The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (default `cert-manager-truststore`) and mounted at `vaultTruststore.mountPath`. This secret is **created automatically by the `dpn-tls-cd` pipeline** regardless of which option above you chose — no manual `kubectl create secret` is required.
 
 ---
 
@@ -200,18 +220,18 @@ Root-Repository/
             └── certificate-manager-cd.yaml
 ```
 
-The pipeline runs three stages: **Validate** (`helm lint` + dry-run) → **Deploy** (`helm upgrade --install`, approval-gated, followed by a rolling restart) → **Verify** (rollout + PVC status).
+The pipeline runs three stages: **Validate** (`helm lint` + dry-run) → **Approval** → **Deploy** (`helm upgrade --install`) → **Verify** (rollout status + keystore health check).
 
 Runtime parameters:
 
 | Parameter | Description |
 |-----------|-------------|
-| `serviceConnection` | Azure service connection for your environment |
-| `environment` | Your target environment; resolves `config/<env>.json` and `values-<env>.yaml` |
+| `ServiceConnection` | Azure service connection for your environment |
+| `environment` | Your target environment; resolves `config/<env>-<cluster>.json` and `values-<env>-<cluster>.yaml` |
+| `dpnCluster` | Target DPN cluster — `dpn01` or `dpn02` (pdev/ptest/puat only ever use `dpn01`) |
 | `imageTag` | Tag (Build ID) of the Certificate Manager image to deploy — from the CI build or the prebuilt DSI image |
-| `vaultInitEnabled` | Run the one-time Vault init Job (`vaultInitJob.enabled`) that enables KV v2 + `pki-client`. Set `true` **only** on the first deploy if Vault was not already initialised during Vault setup; otherwise leave `false` |
 
-> **Note (Vault dependency):** Deploy the Certificate Manager only after Vault is fully set up. If `vaultInitEnabled` is left `false` but Vault's KV v2 engine is not yet enabled, the renewal/sync jobs will fail until Vault is initialised.
+> **Note (Vault dependency):** Deploy the Certificate Manager only after Vault is fully set up — this pipeline has **no Vault-init toggle of its own**; KV v2 at `pki-client` is enabled entirely by `vault-https-cd`'s own VaultInit stage (see [Configure DPN Vault Service, Step 3B](01-configure-dpn-vault-service.md#step-3b-configuration-to-initialise-vault-vault-https-cd)). If that hasn't run yet, the renewal/sync jobs will fail until it has.
 
 ---
 ## Review Notes
