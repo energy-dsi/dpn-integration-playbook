@@ -38,13 +38,14 @@ The Federator Gateway Server and Client read the same certificate material direc
 
 > **No more SMB file share.** Earlier releases distributed `keystore.p12`/`truststore.p12` between the Certificate Manager and the Federator Gateway via a shared Azure SMB file share. That file share has been fully removed from this chart: there is no `fileShare.*` values block, no PV/PVC template, and no toggle to re-enable it — the keystore/truststore are built in memory from Vault material instead.
 
-**How it uses Vault:** the Certificate Manager reads and writes the following KV v2 paths under the `pki-client` mount. The first three are loaded during Vault setup; the last three are written by the Certificate Manager itself:
+**How it uses Vault:** the Certificate Manager reads and writes the following KV v2 paths under the `pki-client` mount. The first three are loaded during Vault setup; the last one is written by the Certificate Manager itself:
 
 | Path (`pki-client/node-net/client/…`) | Content | Written by |
 |---------------------------------------|---------|------------|
 | `keypair`, `certificate`, `ca-chain` | Client key pair, DSM-signed certificate, CA chain | Vault bundle load (during [Vault setup](01-configure-dpn-vault-service.md#step-3-deployment-configuration)) |
 | `intermediate-ca` | Intermediate CA certificate | Certificate Manager (renewal) |
-| `keystore-password`, `truststore-password` | Passwords for the generated P12 files | Certificate Manager |
+
+> **No keystore/truststore passwords are stored in Vault.** The in-memory keystore/truststore are protected by a password generated fresh at start-up (`SecureRandom`) and held only in memory for that process's lifetime — never written to or read from Vault, a file, or any secret store.
 
 The service integrates with **HashiCorp Vault** (secret persistence), the **Management Node** API (PKI operations), and an **OAuth2 Identity Provider** (token auth). All external communication is over mTLS.
 
@@ -125,6 +126,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 |-----------|---------|-----------------------|
 | `oauth2.clientId` | Client ID received from DSM | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | `oauth2.tokenUri` | IDP token URL received from DSM | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
+| `oauth2.authMode` | **Must be set to `private_key_jwt`** — the chart's own default, `client_credentials`, requires a client secret, but DSM issues this client with none | `private_key_jwt` |
 
 **Vault connectivity** (see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication))
 
