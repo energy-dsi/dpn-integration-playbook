@@ -148,7 +148,7 @@ Every DPN component repository carries the same set of keys in this file, so set
 | EFS_FILESYSTEM_ID | ID of the EFS filesystem behind the `efs-sc` StorageClass | `fs-<id>` |
 | OAUTH2_PROXY_EXTERNAL_URL | *(optional)* External URL of the Self-Service Data Pipelines UI, used by `dpn-gha-self-service-cd.yaml` | `https://dpn-self-service-external.ns-dpn-dp-01.svc.cluster.local` |
 
-**Sanitised values in the workflow files (not in the config JSON).** In the `release-external` branches, two values that identify the shared GitHub-to-AWS OIDC bootstrap role are replaced by the placeholder `<<your specific value>>`. Set them once per repository before you run any AWS workflow:
+**Workflow-level values (not in the config JSON).** Two values that identify the shared GitHub-to-AWS OIDC bootstrap role must be set once per repository before you run any AWS workflow:
 
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|

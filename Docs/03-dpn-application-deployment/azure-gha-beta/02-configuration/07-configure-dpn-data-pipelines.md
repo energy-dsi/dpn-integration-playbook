@@ -68,7 +68,7 @@ Root-Repository
 
 > **GCP is not supported yet.** GCP support is planned for a future release.
 
-**Sanitised value for the Self-Service Data Pipelines service.** In the `release-external` branch this value is replaced by the placeholder `<<your specific value>>`. Set it before you run `dpn-gha-self-service-cd.yaml`:
+**Environment-specific value for the Self-Service Data Pipelines service.** Set it before you run `dpn-gha-self-service-cd.yaml`:
 
 | Key | Where | Description | Example (placeholder) |
 |-----|-------|-------------|-----------------------|

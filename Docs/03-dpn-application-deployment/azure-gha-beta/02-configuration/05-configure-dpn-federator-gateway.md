@@ -211,9 +211,9 @@ A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Targe
 | `serviceAccount.create` | Render the `ServiceAccount` and attach it to every pod in this release | `true` |
 | `serviceAccount.name` | Name of the `ServiceAccount` | `dpn-federator-gateway` |
 | `serviceAccount.azureClientId` | Client ID of the user-assigned managed identity the `ServiceAccount` is federated to | `<azure-client-id>` |
-| `keyvault.clientID` | Client ID of the user-assigned managed identity the Key Vault CSI driver uses (sanitised as `<<your specific value>>` in `release-external`) | `<azure-client-id>` |
-| `keyvault.name` | Azure Key Vault the CSI driver reads from (sanitised in `release-external`) | `<key-vault-name>` |
-| `keyvault.tenantId` | Microsoft Entra tenant ID of that Key Vault (sanitised in `release-external`) | `<tenant-id>` |
+| `keyvault.clientID` | Client ID of the user-assigned managed identity the Key Vault CSI driver uses. Set in `charts/dpn-platform/values/azure/<environment>-<cluster>.yaml` | `<azure-client-id>` |
+| `keyvault.name` | Azure Key Vault the CSI driver reads from. Set in `charts/dpn-platform/values/azure/<environment>-<cluster>.yaml` | `<key-vault-name>` |
+| `keyvault.tenantId` | Microsoft Entra tenant ID of that Key Vault. Set in `charts/dpn-platform/values/azure/<environment>-<cluster>.yaml` | `<tenant-id>` |
 | `secretsManager.secretPrefix` | Not used on Azure — Key Vault objects are read by flat name, not a prefixed path (Kafka's Keycloak admin password and OAuth client secret come from the `dpn-keycloak-secrets` Kubernetes secret instead; see the note above [Step1](#step1-meet-prerequisites)) | n/a |
 
 The managed identity's federated credential must scope the OIDC subject to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and the identity must be granted Key Vault `get`/`list` on secrets for `federatorClient.storage.azure.container`'s access keys — the Server has no static container parameter of its own (see [Step3a](#step3a-configure-federator-server)).

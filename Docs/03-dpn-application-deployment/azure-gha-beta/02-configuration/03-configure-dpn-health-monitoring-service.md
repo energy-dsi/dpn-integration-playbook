@@ -97,7 +97,7 @@ This config file's keys are the same common ones described in [Step2.2: Azure En
 
 ---
 
-**Sanitised values in the Helm values files.** In the `release-external` branch these values are replaced by the placeholder `<<your specific value>>`. Set them in `charts/<chart>/values/azure/<environment>-<cluster>.yaml`:
+**Environment-specific values in the Helm values files.** Set them in `charts/<chart>/values/azure/<environment>-<cluster>.yaml`:
 
 | Key | Chart | Description | Example (placeholder) |
 |-----|-------|-------------|-----------------------|
