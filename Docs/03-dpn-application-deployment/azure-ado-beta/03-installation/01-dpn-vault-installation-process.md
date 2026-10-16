@@ -29,9 +29,9 @@ Every DPN node's certificate is generated and signed from the DSI portal's Certi
 
 ### Bootstrapping the Federator Certificate
 
-1. Generate a key pair and `.csr` file on the DPN node (`openssl genrsa` + `openssl req`).
-2. Request a **Federator bootstrap certificate** (portal `Type: BOOTSTRAP`, short-lived) from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
-3. Upload the signed bundle (`bootstrap.key`, `certificate.pem`, `ca-chain.pem`) to Azure DevOps Secure Files and load it into Vault — see [Configure DPN Vault Service, Step 3C](../02-configuration/01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-vault-load-bundle-cd).
+1. Download `certs/bootstrap.csr` from the `dpn-tls-cd` pipeline's artifact (Step 3A) — do **not** generate a new key pair/CSR by hand; this file is already generated for you and must be the one you submit.
+2. Request a **Federator bootstrap certificate** (portal `Type: BOOTSTRAP`, short-lived) from the DSI portal's Certificate Management page, submitting that CSR — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
+3. Upload the signed bundle (the same `bootstrap.key` from that artifact, plus the `certificate.pem`/`ca-chain.pem` DSM returns) to Azure DevOps Secure Files and load it into Vault — see [Configure DPN Vault Service, Step 3C](../02-configuration/01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-vault-load-bundle-cd) (full detail in [Between Step 3A and Step 3C](../02-configuration/01-configure-dpn-vault-service.md#between-step-3a-and-step-3c-get-bootstrapcsr-signed-by-dsm)).
 
 Once installed, the Certificate Manager renews this certificate automatically — no manual re-bootstrap is required afterwards.
 

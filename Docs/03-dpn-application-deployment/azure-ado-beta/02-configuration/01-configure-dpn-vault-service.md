@@ -23,6 +23,7 @@ DSI provides an **automated method** (Azure DevOps pipelines) that generates the
     - [Step 2b. Vault Helm values — `charts/vault-https/values-<env>-<cluster>.yaml`](#step-2b-vault-helm-values--chartsvault-httpsvalues-env-clusteryaml)
   - [Step 3: Deployment Configuration](#step-3-deployment-configuration)
     - [Step 3A: Configure DPN Universal TLS (`dpn-tls-cd`)](#step-3a-configure-dpn-universal-tls-dpn-tls-cd)
+    - [Between Step 3A and Step 3C: get `bootstrap.csr` signed by DSM](#between-step-3a-and-step-3c-get-bootstrapcsr-signed-by-dsm)
     - [Step 3B: Configuration to Initialise Vault (`vault-https-cd`)](#step-3b-configuration-to-initialise-vault-vault-https-cd)
     - [Step 3C: Configure Certificate Bundle (`vault-load-bundle-cd`)](#step-3c-configure-certificate-bundle-vault-load-bundle-cd)
     - [Step 3D: Configure AppRole Authentication (recommended)](#step-3d-configure-approle-authentication-recommended)
@@ -128,13 +129,13 @@ Two files must be populated for each environment. **Use your own values — the 
 
 The pipelines resolve environment settings from this file (see [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration)). Vault uses the following keys:
 
-| Key | Put here | Example |
-|-----|----------|---------|
-| `AZURE_SUBSCRIPTION_ID` | Your Azure subscription ID | `11111111-2222-3333-4444-555555555555` |
-| `RESOURCE_GROUP` | Resource group containing your AKS cluster | `rg-my-dpn` |
-| `AKS_CLUSTER` | Your AKS cluster's name | `aks-my-dpn` |
-| `NAMESPACE` | Kubernetes namespace — leave as-is unless you changed [Step2.3](00-common-dpn-configuration.md#step23-aks-namespace-configuration)'s namespace names | `ns-dpn-01` |
-| `KEY_VAULT_NAME` | Your Azure Key Vault's name | `kv-my-dpn` |
+| Key | Description | Example (placeholder) |
+|-----|-------------|-----------------------|
+| `AZURE_SUBSCRIPTION_ID` | Subscription hosting the infrastructure | `<subscription-id>` |
+| `RESOURCE_GROUP` | Resource group containing the AKS cluster | `rg-<env>-uks-dpn-01` |
+| `AKS_CLUSTER` | AKS cluster name | `aks-<env>-uks-dpn-01` |
+| `NAMESPACE` | Kubernetes namespace | `ns-dpn-01` |
+| `KEY_VAULT_NAME` | Azure Key Vault for secrets and certificates | `kv-dpn-<env>-<region>-<seq>` |
 
 #### Step 2b. Vault Helm values — `charts/vault-https/values-<env>-<cluster>.yaml`
 
@@ -187,9 +188,8 @@ Configure the following three pipelines in order. Each takes the environment and
   - `dpn-tls` — server keystore/truststore used by Keycloak, Kafka, Federator Gateway, Redis (target namespace, `ns-dpn-health-01`, **and** `ns-dpn-dp-01`)
   - `dpn-health-tls` — `kubernetes.io/tls` certificate for the health-monitoring `oauth2-proxy` gateways (target namespace **and** `ns-dpn-health-01`)
   - `tls-auth-secret` — the shared `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`/`DPN_CLIENT_P12_PASSWORD` values every component above reads, instead of each syncing its own copy from Key Vault (target namespace, `ns-dpn-health-01`, **and** `ns-dpn-dp-01`)
-- Publishes `certs/bootstrap.csr` and `certs/bootstrap.key` as a pipeline artifact.
-**Note** this is the DSM bootstrap CSR to be used. Sign `bootstrap.csr` at the DSM Vault to obtain the `certificate.pem`/`ca-chain.pem` package, then upload them together with this same `bootstrap.key` as the Secure Files [Step 3C](#step-3c-configure-certificate-bundle-vault-load-bundle-cd) expects — the Secure File slot is named `bootstrap.key`, not `vault.key`.
-- The above `certs/bootstrap.csr` and `certs/bootstrap.key` to be used for server sign as well as part of longer TTL certificate requrirement for participants to set in Edge Proxy 
+- Publishes `certs/bootstrap.csr` and `certs/bootstrap.key` as a pipeline artifact — see [Between Step 3A and Step 3C](#between-step-3a-and-step-3c-get-bootstrapcsr-signed-by-dsm) below for what to do with them next.
+- The same `certs/bootstrap.csr` and `certs/bootstrap.key` are also what a participant uses for the longer-TTL server/edge certificate requirement — see [Requesting a DPN Server Certificate](#requesting-a-dpn-server-certificate).
 
 Required before running:
 
@@ -216,6 +216,17 @@ Runtime parameters:
 | `extraVaultSans` | **Required** — do not leave this blank. The pipeline's own input box has no default value and nothing stops you running it empty, but if you do, the DSM-signed certificate will not cover your DPN's endpoints and cross-DPN connections will fail. Comma-separated, **no spaces**: your organisation's own producer **and** consumer hostnames — the externally-reachable endpoints other DPNs/DSM will connect to — for the gRPC Federator and (if deployed) the REST Federator Gateway. Same values you'll later put in the Certificate Manager's `cert.subject.altNames` | `producer.dpn01.myorg.example.com,consumer.dpn01.myorg.example.com,producer-rest01.dpn01.myorg.example.com` |
 
 > **Coordinated cutover.** After this pipeline runs (first time, or a password rotation), restart Vault, Certificate Manager, Keycloak, both Kafka brokers, and both Federators so each picks up the new material.
+
+#### Between Step 3A and Step 3C: get `bootstrap.csr` signed by DSM
+
+This is a manual, out-of-pipeline step that happens **after Step 3A has run** (so `bootstrap.csr` exists) and **before Step 3C** (which needs the signed result). Nothing in Azure DevOps does this for you.
+
+| | |
+|---|---|
+| **File you send to DSM** | `certs/bootstrap.csr` only — download it from Step 3A's `dpn-tls-${{ environment }}-${{ dpnCluster }}` pipeline artifact. **Never send `bootstrap.key`** — it's your private key and must never leave your environment. |
+| **Where** | The DSI portal's **Certificate Management** page (request type **BOOTSTRAP**) — see the [DSI Certificate Management UI Guide](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate) for the click-through walkthrough. |
+| **What DSM returns** | A ZIP download containing `certificate.pem` and `ca-chain.pem`. |
+| **What to do with the result** | Upload all three files — the `bootstrap.key` from Step 3A's artifact (unchanged), plus this `certificate.pem` and `ca-chain.pem` from DSM — as the Secure Files [Step 3C](#step-3c-configure-certificate-bundle-vault-load-bundle-cd) expects, then run that pipeline. |
 
 #### Step 3B: Configuration to Initialise Vault (`vault-https-cd`)
 
@@ -266,13 +277,15 @@ Runtime parameters: `ServiceConnection`, `environment`, `dpnCluster`.
 
 The Vault root token is a single, all-privileges credential — every component that needs it (Certificate Manager, Federator Gateway, REST Federator Gateway) ends up holding full access to Vault. **AppRole** is the recommended alternative: each component authenticates with its own scoped identity (a `role_id` plus a `secret_id`) and receives a short-lived, auto-renewed token restricted to that component's own policy.
 
-**This is provisioned differently per component today — there is no single, generic "run once per component" pipeline.** Each component's Vault-side setup lives in that component's own repository, and only one of the three currently has an automated pipeline:
+**Current practice: provision one AppRole identity (the Certificate Manager's) and reuse it for all three components.** Only the Certificate Manager has an automated provisioning pipeline — the Federator Gateway and REST Federator Gateway are pointed at that same `role_id`/`secret_id` rather than each getting a separate one:
 
 | Component | Policy / role name | Automated? |
 |-----------|---------------------|------------|
 | Certificate Manager | `certificate-manager-policy` / `certificate-manager` | **Yes** — `vault-approle-setup-cd.yaml` (below) |
-| Federator Gateway | `federator-policy` / `federator` | No — manual script, see [Federator Gateway (manual)](#federator-gateway-and-rest-federator-gateway-manual) below |
-| REST Federator Gateway | *(none shipped yet)* | No — the chart accepts AppRole values, but no policy file or setup script exists in that repo yet; see below |
+| Federator Gateway | Reuses the Certificate Manager's `role_id`/`secret_id` | N/A — see [Federator Gateway and REST Federator Gateway](#federator-gateway-and-rest-federator-gateway-reuse-the-certificate-managers-approle) below |
+| REST Federator Gateway | Reuses the Certificate Manager's `role_id`/`secret_id` | N/A — see the same section below |
+
+> A dedicated, per-component AppRole identity is still possible for either Federator component if your organisation wants stricter isolation — see the note in that section below.
 
 #### Certificate Manager (automated)
 
@@ -288,27 +301,32 @@ The pipeline runs that repository's `vault/setup-approle.sh` inside the Vault po
 
 1. Write the least-privilege `certificate-manager-policy`, scoped to `pki-client/*`.
 2. Create/update the `certificate-manager` AppRole role (`token_ttl=1h`, `token_max_ttl=4h`, non-expiring `secret_id`).
-3. Publish the generated **secret-id** to Key Vault as `VAULT-APPROLE-SECRET-ID` (consumed automatically by the Certificate Manager's `SecretProviderClass`), and print the **role-id** for you to copy into `vault.appRole.roleId` in that component's Helm values.
+3. Publish the generated **secret-id** to Key Vault as `VAULT-APPROLE-SECRET-ID` (consumed automatically by the Certificate Manager's `SecretProviderClass`), and print the **role-id** in the pipeline run's logs only — it is not written anywhere automatically. Copy it from the log output into `vault.appRole.roleId` in the Certificate Manager's Helm values.
+
+> **Reusing this same identity for the Federator Gateway and REST Federator Gateway.** The `VAULT-APPROLE-SECRET-ID` Key Vault secret from step 3 above is shared — each component's own `SecretProviderClass` syncs that same Key Vault value into the `certificate-manager-secrets` Kubernetes secret in its own namespace, so nothing extra is needed there. The **role-id is not synced automatically anywhere** (it isn't secret, so it isn't stored in Key Vault at all) — you must manually paste the same role-id you copied from this pipeline's log output into `vaultConfig.appRole.roleId` (Federator Gateway) and `restFederatorServer.vault.appRole.roleId` (REST Federator Gateway) as well, the same manual step repeated once per component's values file.
 
 > **Key Vault governance note:** the `VAULT-APPROLE-SECRET-ID` Key Vault secret is stamped with a 355-day expiry to satisfy Key Vault's maximum-validity policy. The underlying Vault secret-id itself does not expire — **re-run this pipeline before the Key Vault copy expires** to rotate it, then redeploy the Certificate Manager to pick up the refreshed value.
 
 To switch the Certificate Manager over once its AppRole identity exists, see [Configure DPN Certificate Manager, Step2](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication).
 
-#### Federator Gateway and REST Federator Gateway (manual)
+#### Federator Gateway and REST Federator Gateway (reuse the Certificate Manager's AppRole)
 
-Neither of the Federator Gateway components has a CD pipeline for this step yet. For the **Federator Gateway**, its own repository ships `vault/setup-approle.sh` and `vault/federator-policy.hcl` (policy: `pki-client/*` read/list) — run the script by hand against the Vault pod:
+**Current practice: don't provision a separate AppRole identity for these two components — reuse the Certificate Manager's.** Run `vault-approle-setup-cd.yaml` once (as above). Its `secret-id` output needs no extra action — it's already in Key Vault as `VAULT-APPROLE-SECRET-ID` and both components' own `SecretProviderClass` syncs that same value into the shared `certificate-manager-secrets` Kubernetes secret alongside the Certificate Manager. The **role-id is the one manual step**, repeated once per component — copy the same role-id from the pipeline's log output into each:
 
-```bash
-POD=$(kubectl get pod -n <namespace> -l app=dpn-vault-https -o jsonpath='{.items[0].metadata.name}')
-kubectl cp vault/setup-approle.sh "<namespace>/$POD:/tmp/setup-approle.sh"
-kubectl cp vault/federator-policy.hcl "<namespace>/$POD:/tmp/federator-policy.hcl"
-kubectl exec -n <namespace> "$POD" -- sh -c \
-  "VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN=<admin token> sh /tmp/setup-approle.sh"
-```
+- **Federator Gateway:** set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId` to that role-id in the Federator Gateway's values file — see [Configure DPN Federator Gateway, Step1](05-configure-dpn-federator-gateway.md#step1-meet-prerequisites).
+- **REST Federator Gateway:** the chart exposes the equivalent `restFederatorServer.vault.appRole.*` values — set `restFederatorServer.vault.appRole.roleId` to the same role-id.
 
-This prints a `role_id` (not sensitive) and a `secret_id` (sensitive — handle it the same way the automated pipeline does: store it directly in Key Vault as `VAULT-APPROLE-SECRET-ID` for that component's environment, don't leave it in shell history or logs). Set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId` in the Federator Gateway's values file per [Configure DPN Federator Gateway, Step1](05-configure-dpn-federator-gateway.md#step1-meet-prerequisites).
+This works because `certificate-manager-policy` is already scoped to `pki-client/*` (read/list), the same access both Federator components need to read the certificate material Vault holds — there's no extra privilege being handed out by sharing it. It does mean all three components share one Vault identity rather than each having its own least-privilege policy, so rotating or revoking it affects all three together; treat it as the accepted practice today, not a temporary workaround.
 
-For the **REST Federator Gateway**, the chart already exposes `restFederatorServer.vault.appRole.*` values, but **no policy file or setup script is shipped in that repository yet** — there is nothing to run, automated or manual. An organisation that wants AppRole for this component today must author its own Vault policy (the same `pki-client/*` read/list shape used by the other two components is a reasonable starting point) and create the AppRole role directly with `vault write auth/approle/role/<role-name> ...`, following the same pattern as the Federator Gateway's script above.
+> **Provisioning a separate, component-specific AppRole is still possible** if your organisation wants that stricter isolation instead. The Federator Gateway's own repository ships `vault/setup-approle.sh` and `vault/federator-policy.hcl` (policy: `pki-client/*` read/list) for exactly that:
+> ```bash
+> POD=$(kubectl get pod -n <namespace> -l app=dpn-vault-https -o jsonpath='{.items[0].metadata.name}')
+> kubectl cp vault/setup-approle.sh "<namespace>/$POD:/tmp/setup-approle.sh"
+> kubectl cp vault/federator-policy.hcl "<namespace>/$POD:/tmp/federator-policy.hcl"
+> kubectl exec -n <namespace> "$POD" -- sh -c \
+>   "VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true VAULT_TOKEN=<admin token> sh /tmp/setup-approle.sh"
+> ```
+> This prints its own `role_id` (not sensitive) and `secret_id` (sensitive — don't leave it in shell history or logs). The REST Federator Gateway can use this same `pki-client/*` policy for a dedicated identity of its own — create its AppRole role directly with `vault write auth/approle/role/<role-name> ...` bound to that policy, following the same pattern as the Federator Gateway's script above.
 
 > **`token` remains supported for backward compatibility** across all three components, and is still required for the bundle-load pipeline (Step 3C), which always authenticates as the Vault admin — AppRole is for the long-running application components that read certificate material at runtime, not for that one-off bootstrap step.
 
@@ -665,7 +683,7 @@ az keyvault secret set --vault-name <KEY_VAULT_NAME> --name VAULT-APPROLE-SECRET
   --expires "$(date -u -d '+355 days' '+%Y-%m-%dT%H:%M:%SZ')"
 ```
 
-Then follow [Configure DPN Certificate Manager, Step2](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication) to switch it over. For the **Federator Gateway** and **REST Federator Gateway**, use the same pattern with their own `vault/setup-approle.sh` / policy files — see [Step 3D, Federator Gateway (manual)](#federator-gateway-and-rest-federator-gateway-manual).
+Then follow [Configure DPN Certificate Manager, Step2](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication) to switch it over. **Point the Federator Gateway and REST Federator Gateway at this same `role_id`/`secret_id`** rather than provisioning separate identities for them — see [Step 3D, Federator Gateway and REST Federator Gateway](#federator-gateway-and-rest-federator-gateway-reuse-the-certificate-managers-approle).
 
 ### Step8: Coordinated restart
 
