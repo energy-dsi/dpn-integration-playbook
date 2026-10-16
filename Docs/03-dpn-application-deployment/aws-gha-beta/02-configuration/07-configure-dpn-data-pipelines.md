@@ -150,4 +150,4 @@ kubectl get secret dpn-tls dpn-keycloak-secrets ghcr-pull-secret -n ns-dpn-dp-01
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|-------------------------------------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
-| Oct-2026 | DSI Assurance   | Draft  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |

@@ -146,4 +146,4 @@ kubectl get secret dpn-tls dpn-keycloak-secrets producer-file-dp-secret consumer
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
-| Oct-2026 | DSI Assurance   | Draft  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |
