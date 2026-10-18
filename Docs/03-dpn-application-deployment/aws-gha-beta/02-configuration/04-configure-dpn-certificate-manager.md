@@ -166,6 +166,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 |-----------|---------|-----------------------|
 | `serviceAccount.create` | Create the IRSA-annotated ServiceAccount | `true` |
 | `serviceAccount.name` | ServiceAccount name (default `dpn-certificate-manager`) | `dpn-certificate-manager` |
+| `imagePullSecrets` | Image pull secrets for the pod (default `[]`) | `- name: ghcr-pull-secret` |
 | `serviceAccount.irsaRoleArn` | IAM role ARN whose trust policy scopes `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, granting Secrets Manager `GetSecretValue` | `arn:aws:iam::<account-id>:role/<role-name>` |
 
 **AWS Secrets Manager** (native AWS backend — only used when `secretsManager.enabled: true`)

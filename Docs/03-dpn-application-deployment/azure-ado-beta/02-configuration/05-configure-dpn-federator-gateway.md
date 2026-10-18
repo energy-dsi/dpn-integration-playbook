@@ -277,3 +277,4 @@ DPN DEPLOYMENT COMPLETE
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 | 
 | Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 | 

@@ -315,7 +315,7 @@ No pods matching the patterns below should remain in any namespace:
 
 ## Part 3 — Uninstall DPN Federator Certificate Manager
 
-This part removes the Federator Certificate Manager and the HashiCorp Vault service. The Certificate Manager release also owns the shared certificate PVC `pvc-dpn-certs-fileshare` (EFS, created when `fileShare.create` is `true`), which the Federator Server and Client mount at `/tls`. Removing the release removes that PVC and the P12 keystore and truststore on it.
+This part removes the Federator Certificate Manager and the HashiCorp Vault service. The Certificate Manager builds its keystore and truststore in memory from Vault and creates no PVC, so there is no certificate file share to clean up.
 
 > **Warning:** Once the Certificate Manager and Vault are removed, the Federator Gateway will no longer be able to renew or synchronise certificates. Per [Uninstallation Sequence](#uninstallation-sequence), proceed directly to [Part 4](#part-4--uninstall-dpn-federator-gateway) immediately after this step.
 
@@ -345,11 +345,10 @@ After the commands complete, confirm that the Certificate Manager and Vault pods
 kubectl get pods -n ns-dpn-01
 ```
 
-Confirm the associated services and the shared certificate PVC have been removed:
+Confirm the associated services have been removed:
 
 ```bash
 kubectl get svc -n ns-dpn-01
-kubectl get pvc pvc-dpn-certs-fileshare -n ns-dpn-01
 ```
 
 No pods with names matching the patterns below should remain:
