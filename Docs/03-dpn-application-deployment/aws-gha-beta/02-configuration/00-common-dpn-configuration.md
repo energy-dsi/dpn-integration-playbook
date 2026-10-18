@@ -151,8 +151,8 @@ Every DPN component repository carries the same set of keys in this file, so set
 
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|
-| `HUB_ROLE_ARN` | `env:` entry at the top of each AWS-capable `dpn-gha-*-cd.yaml` workflow (for example `dpn-gha-certificate-manager-cd.yaml`, `dpn-gha-vault-https-cd.yaml`, `dpn-gha-keycloak-cd.yaml`, `dpn-gha-kafka-cd.yaml`, `dpn-gha-otel-cd.yaml`, `dpn-gha-perses-cd.yaml`). ARN of the shared hub IAM role the runner's GitHub OIDC token assumes first | `arn:aws:iam::<hub-account-id>:role/<hub-role-name>` |
-| `role-to-assume` | Input of the "Configure AWS credentials (OIDC bootstrap role)" step in `.github/actions/cloud-login/action.yml`. Use the **same** hub role ARN as `HUB_ROLE_ARN`; the action then role-chains into your account's `oidc_github_runner_admin` role | `arn:aws:iam::<hub-account-id>:role/<hub-role-name>` |
+| `HUB_ROLE_ARN` | `env:` entry at the top of each `dpn-gha-*-cd.yaml` workflow. Set it to the ARN of your hub IAM role | `arn:aws:iam::<hub-account-id>:role/<hub-role-name>` |
+| `role-to-assume` | Input of the "Configure AWS credentials (OIDC bootstrap role)" step in `.github/actions/cloud-login/action.yml`. Set it to the same hub role ARN as `HUB_ROLE_ARN` | `arn:aws:iam::<hub-account-id>:role/<hub-role-name>` |
 
 > **Note:** `environment` (`dev`/`test`), `cluster` (`dpn01`/`dpn02`), and `cloud` (`aws`) are supplied as `workflow_dispatch` **inputs** when you trigger a run in the Actions tab — they are **not** keys in the JSON file. The Helm **values file** is derived from those inputs: `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. Each workflow sets this through its `CHART_DIR` / `VALUES_FILE` environment variables.
 >
