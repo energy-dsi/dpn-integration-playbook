@@ -278,8 +278,7 @@ helm rollback vault <rollbackRevision> -n ns-dpn-01        # only if dpn-gha-vau
 
 ```bash
 kubectl get pods -n ns-dpn-01
-# keystore/truststore are on the shared PVC pvc-dpn-certs-fileshare, mounted by the Federator Server at /tls
-kubectl -n ns-dpn-01 exec deploy/dpn-federator-server-1 -- ls /tls
+kubectl get svc -n ns-dpn-01
 ```
 
 ---
