@@ -103,7 +103,7 @@ The following cloud services and licenses are required to run DPN nodes on the A
 - An **administrative EC2 instance** deployed in the same VPC where the DPN components are deployed with minimal configuration, for any local/manual operations (Session Manager access, no public IP required)
 - **AWS Systems Manager (SSM) Session Manager** to connect to that instance without a bastion host or exposed SSH
 - The **Secrets Store CSI driver with the AWS provider** installed on the EKS cluster — component charts sync AWS Secrets Manager values into Kubernetes Secrets through `SecretProviderClass` objects (`provider: aws`)
-- An **Amazon EFS filesystem with the EFS CSI driver** and an `efs-sc` StorageClass, used by the Certificate Manager's shared file-share PVC (other component PVCs use the `gp3` StorageClass). See [EKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-eks-namespace-configuration)
+- An **Amazon EBS filesystem with the EBS CSI Driver**  `gp3` StorageClass (EBS-backed) used by component PVCs (Vault, Kafka/Zookeeper, Keycloak). See [EKS Namespace Configuration](../02-configuration/00-common-dpn-configuration.md#step23-eks-namespace-configuration)
 
 ---
 ## Accessibility Prerequisites

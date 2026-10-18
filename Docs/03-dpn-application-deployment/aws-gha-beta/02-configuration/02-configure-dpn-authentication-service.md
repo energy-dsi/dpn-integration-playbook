@@ -14,6 +14,7 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 - [Step1: Meet the Prerequisites](#step1-meet-the-prerequisites)
 - [Step2: Configure Secrets](#step2-configure-secrets)
   - [Option A — AWS Secrets Manager (`secretsManager.enabled: true`)](#option-a--aws-secrets-manager-secretsmanagerenabled-true)
+  - [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa)
 - [Step3: Configure TLS](#step3-configure-tls)
 - [Step4: Environment Configuration](#step4-environment-configuration)
   - [Step4a: Horizontal Pod Autoscaling (optional)](#step4a-horizontal-pod-autoscaling-optional)
@@ -44,7 +45,7 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 | # | Prerequisite | Notes |
 |---|--------------|-------|
-| 1 | **EKS cluster** and an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets). The IAM role (`dpn-keycloak-secrets-role` in the provided values files) is **not** created by `dpn-gha-keycloak-cd.yaml` — it must already exist and be able to read the entries under `secretsManager.secretPrefix` |
+| 1 | **EKS cluster** and an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets). The IAM role (`dpn-keycloak-secrets-role` in the provided values files) is **not** created by `dpn-gha-keycloak-cd.yaml` — it must already exist and be able to read the entries under `secretsManager.secretPrefix`. See [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa) for the permission and trust policies |
 | 2 | **`dpn-tls` and `tls-auth-secret` Kubernetes secrets present in the namespace** | `dpn-tls` is an `Opaque` secret holding `ca.crt`/`keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret); `tls-auth-secret` holds the matching `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`. Both are created by the **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** workflow (`dpn-gha-tls-cd.yaml`, in `dpn-federator-certificate-manager`) before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
 | 3 | **Three secrets populated in AWS Secrets Manager** | See [Step2: Configure Secrets](#step2-configure-secrets) |
 | 4 | **Container image available** | Stock upstream Keycloak/PostgreSQL pulled via GHCR (`ghcr.io/energy-dsi/keycloak`, `ghcr.io/energy-dsi/postgres`); repository pinned in the environment values file, tag defaulting to the chart's `values.yaml`. The CD workflow's optional `keycloakImageRepository`/`keycloakImageTag`/`postgresImageRepository`/`postgresImageTag` inputs override these per run |
@@ -73,6 +74,73 @@ Example `secretPrefix`: `dpn/<environment>-<cluster>/keycloak`. None of these th
 > **Keystore/truststore passwords no longer come from the SecretProviderClass.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read from the shared `tls-auth-secret` Kubernetes secret (keys `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) created by `dpn-gha-tls-cd.yaml`. That workflow also publishes `keycloak/KC_HTTPS_KEY_STORE_PASSWORD`, `keycloak/KC_HTTPS_TRUST_STORE_PASSWORD` and `keycloak/KC_SPI_TRUSTSTORE_FILE_PASSWORD` under `dpn/<environment>-<cluster>/` in Secrets Manager (when `storePasswordsInSecretsBackend: true`), but the Keycloak chart does not mount them.
 
 > **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy. This applies to either secrets backend.
+
+### Create the IAM role `dpn-keycloak-secrets-role` (IRSA)
+
+The Keycloak pod reads the Secrets Manager entries above through the Secrets Store CSI driver, using an **IAM role for service accounts (IRSA)**. This role is created manually, once per AWS account/cluster — the CD workflow does not create it. Name it `dpn-keycloak-secrets-role` (the name used in the provided values files), and annotate the ServiceAccount with its ARN:
+
+```yaml
+serviceAccount:
+  create: true
+  automountServiceAccountToken: true   # required for IRSA
+  annotations:
+    eks.amazonaws.com/role-arn: "arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role"
+```
+
+**1. Permissions policy** — read-only access to the Keycloak secrets under this environment's prefix, and nothing else:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret"
+            ],
+            "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/keycloak/*"
+        }
+    ]
+}
+```
+
+| Placeholder | Replace with |
+|---|---|
+| `<region>` | AWS region of the cluster, e.g. `eu-west-2` |
+| `<account-id>` | The 12-digit AWS account ID hosting the EKS cluster |
+| `<environment>-<cluster>` | The environment/cluster this role serves, e.g. `dev-dpn01` — must match `secretsManager.secretPrefix` in the values file |
+
+**2. Trust policy** — allows only the Keycloak ServiceAccount in this cluster to assume the role through the cluster's OIDC provider:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "arn:aws:iam::<account-id>:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<oidc-id>"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "oidc.eks.<region>.amazonaws.com/id/<oidc-id>:aud": "sts.amazonaws.com",
+                    "oidc.eks.<region>.amazonaws.com/id/<oidc-id>:sub": "system:serviceaccount:<namespace>:<service-account-name>"
+                }
+            }
+        }
+    ]
+}
+```
+
+| Placeholder | Replace with |
+|---|---|
+| `<oidc-id>` | The cluster's OIDC provider ID: `aws eks describe-cluster --name <cluster-name> --query "cluster.identity.oidc.issuer" --output text` (the trailing path segment) |
+| `<namespace>` | The Keycloak namespace, `ns-dpn-01` |
+| `<service-account-name>` | The Keycloak ServiceAccount name. With `serviceAccount.name` left empty it defaults to the Helm release name, `dpn-keycloak` |
+
+> **Keep the scope narrow.** The permissions policy grants access only to `…/keycloak/*` under one environment's prefix. Do not widen it to `dpn/*` or `*`: other components (Kafka, certificate-manager, federator) have their own roles and prefixes. Create the role once per account — `dev-dpn01`, `dev-dpn02`, `test-dpn01` and `test-dpn02` each live in their own account with their own prefix.
 
 ---
 
@@ -122,7 +190,7 @@ root/
 | `service.loadBalancer.loadBalancerIP` | Static IP for Keycloak's LoadBalancer Service, rendered as the Azure `azure-load-balancer-ipv4` annotation plus `spec.loadBalancerIP`. The provided AWS values files leave it unset — leave it empty on EKS | `""` |
 | `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, identity client ID, tenant ID read by `templates/secretproviderclass.yaml`. Not set in the provided AWS values files | `kv-dpn-<env>-<region>-<seq>` / `<client-id>` / `<tenant-id>` |
 | `secretsManager.enabled` / `secretsManager.secretPrefix` | Use AWS Secrets Manager instead of AKV (see [Step2, Option A](#option-a--aws-secrets-manager-secretsmanagerenabled-true)) | `true` / `dpn/<env>-<cluster>/keycloak` |
-| `serviceAccount.create` / `serviceAccount.automountServiceAccountToken` / `serviceAccount.annotations` | IRSA ServiceAccount — required when `secretsManager.enabled: true` | `true` / `true` / `eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` |
+| `serviceAccount.create` / `serviceAccount.automountServiceAccountToken` / `serviceAccount.annotations` | IRSA ServiceAccount — required when `secretsManager.enabled: true`. The role is described in [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa) | `true` / `true` / `eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` |
 | `image.repository` | GHCR path for the Keycloak image (tag defaults to the chart's `image.tag`, `26.3.2`) | `ghcr.io/energy-dsi/keycloak` |
 | `postgres.image.repository` | GHCR path for the bundled PostgreSQL image (tag defaults to `postgres.image.tag`, `16-alpine`) | `ghcr.io/energy-dsi/postgres` |
 | `postgres.persistence.storageClassName` / `persistence.storageClass` | Storage class for the PostgreSQL PVC and the Keycloak per-replica PVCs | `gp3` |
