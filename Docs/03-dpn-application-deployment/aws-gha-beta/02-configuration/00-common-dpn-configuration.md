@@ -145,7 +145,6 @@ Every DPN component repository carries the same set of keys in this file, so set
 | FILESCAN_DEST_BUCKET | Destination S3 bucket for scanned files (File Scan Service) | `<destination-bucket-name>` |
 | FILESCAN_SNS_TOPIC_NAME | SNS topic GuardDuty publishes scan findings to (File Scan Service) | `<sns-topic-name>` |
 | FILESCAN_SQS_QUEUE_NAME | SQS queue subscribed to that SNS topic (File Scan Service) | `<sqs-queue-name>` |
-| EFS_FILESYSTEM_ID | ID of the EFS filesystem behind the `efs-sc` StorageClass | `fs-<id>` |
 | OAUTH2_PROXY_EXTERNAL_URL | *(optional)* External URL of the Self-Service Data Pipelines UI, used by `dpn-gha-self-service-cd.yaml` | `https://dpn-self-service-external.ns-dpn-dp-01.svc.cluster.local` |
 
 **Workflow-level values (not in the config JSON).** Two values that identify the shared GitHub-to-AWS OIDC bootstrap role must be set once per repository before you run any AWS workflow:
@@ -206,7 +205,9 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`).
 
-The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level):
+The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level).
+
+**Below secrets need to be manually added in the Github environment secrets manually**:
 
 | GitHub Actions Secret | Used by | Purpose |
 |-----------------------|---------|---------|

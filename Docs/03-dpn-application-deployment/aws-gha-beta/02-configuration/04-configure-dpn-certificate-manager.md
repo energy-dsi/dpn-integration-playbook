@@ -32,9 +32,9 @@ The Certificate Manager runs as a headless daemon (no HTTP endpoints) executing 
 - **Renewal job** — obtains/renews the DSM-signed certificate via the Management Node PKI API and persists the material in Vault.
 - **Sync job** — refreshes the mTLS keystore/truststore from the Vault material. By default both are built **in memory** directly from certificate material read from Vault at start-up/refresh — no shared file share is used, and no P12 files are ever written to disk.
 
-The Federator Gateway Server and Client read the same certificate material directly from Vault and build their own in-memory keystore/truststore the same way — they no longer mount a shared volume to pick up P12 files from the Certificate Manager, **unless** the optional AWS EFS file share below is enabled.
+The Federator Gateway Server and Client read the same certificate material directly from Vault and build their own in-memory keystore/truststore the same way — they no longer mount a shared volume to pick up P12 files from the Certificate Manager.
 
-> **In-memory by default; an opt-in shared EFS file share exists for AWS.** No PV/PVC is created by the `certificate-manager` chart by default — the `mountCertFileShare`-style flags some values files retain are for backward compatibility only. On AWS, setting `fileShare.create: true` provisions a `ReadWriteMany` PVC dynamically from an EFS-backed StorageClass (`efs-sc`, via the EFS CSI driver's access-point provisioning — see [Step2.3: EKS Namespace Configuration](00-common-dpn-configuration.md#step23-eks-namespace-configuration)), shared by the Certificate Manager, Federator Server, and Federator Client. Leave `fileShare.create: false` (the default) unless your environment specifically needs a shared file rather than each pod's own in-memory keystore.
+> **In-memory only — no shared file share.** No PV/PVC is created by the `certificate-manager` chart — the `mountCertFileShare`-style flags some values files retain are unused legacy fields. The previous AWS EFS-backed shared file share (`fileShare.create: true`, an `efs-sc` StorageClass) is **no longer supported**; every component builds its own keystore/truststore in memory from Vault.
 
 **How it uses Vault:** the Certificate Manager reads and writes the following KV v2 paths under the `pki-client` mount. The first three are loaded during Vault setup; the last three are written by the Certificate Manager itself:
 
@@ -63,7 +63,7 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | 7 | **Config JSON and values file populated, with `cloudProvider: aws` set** | See [Pre-Deployment Configuration](#step3-environment-configuration) — the chart's base `values.yaml` sets no `cloudProvider`; the shipped `values/aws/*.yaml` files set `cloudProvider: aws` |
 | 8 | **Certificate Manager AppRole provisioned** | Run `dpn-gha-certificate-manager-role-id-creation.yaml` with `component: certificate-manager` first. On AWS the CD workflow reads `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` and fails if it is missing — see [Step2](#step2-configure-vault-authentication) |
 
-> **No shared file share required by default.** The Certificate Manager does not need a provisioned file share — it builds the mTLS keystore/truststore in memory directly from Vault. An opt-in AWS EFS-backed shared file share exists (`fileShare.create: true`) for environments that need one; see [Step2](#step2-configure-vault-authentication) and the note in [Overview](#overview).
+> **No file share required.** The Certificate Manager does not need a provisioned file share — it builds the mTLS keystore/truststore in memory directly from Vault. EFS is not used by this component.
 
 > **One-time setup:** Before running the CD workflow, complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) — the workflow **does not create the namespace** (create it first with `kubectl create namespace <NAMESPACE>`), and populate `.github/config/aws/<environment>-<cluster>.json`.
 
@@ -119,7 +119,7 @@ dpn-federator-certificate-manager/
             └── values/aws/<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
-> **Known limitation (current `develop` of `dpn-federator-certificate-manager`):** the `charts/certificate-manager` templates currently render only the Azure Key Vault `SecretProviderClass` (gated on `keyvault.enabled`) and do not reference `cloudProvider`, `secretsManager.*`, `serviceAccount.*` or `fileShare.*`. The `values/aws/<environment>-<cluster>.yaml` files set those keys, but the AWS behaviour described below only takes effect once the chart's AWS templates are present — confirm this with DSI before deploying on AWS.
+> **Known limitation (current `develop` of `dpn-federator-certificate-manager`):** the `charts/certificate-manager` templates currently render only the Azure Key Vault `SecretProviderClass` (gated on `keyvault.enabled`) and do not reference `cloudProvider`, `secretsManager.*` or `serviceAccount.*`. The `values/aws/<environment>-<cluster>.yaml` files set those keys, but the AWS behaviour described below only takes effect once the chart's AWS templates are present — confirm this with DSI before deploying on AWS.
 
 DSI proposes only the selective changes below; other parameters may be customised if required. All of these map to container environment variables via the chart ConfigMap.
 
@@ -127,7 +127,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `cloudProvider` | **Set to `aws`.** Selects the AWS Secrets Manager/IRSA/EFS-fileShare path below (see the known limitation above); the chart's base `values.yaml` sets no `cloudProvider` | `aws` |
+| `cloudProvider` | **Set to `aws`.** Selects the AWS Secrets Manager/IRSA path below (see the known limitation above); the chart's base `values.yaml` sets no `cloudProvider` | `aws` |
 | `managementNode.baseUrl` | DSI DSM Management Node URL for your environment | `https://management.dsm01.dsiXXX.neso.energy` |
 
 **OAuth2 (Management Node authentication)**
@@ -158,16 +158,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
 | `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
-> **In-memory keystore by default — `certDest`/`mtls` parameters don't exist.** The keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account, **unless** you opt into the AWS file share below.
-
-**AWS EFS file share** (optional — see the [Overview](#overview) note; leave `fileShare.create: false` unless you need a shared file)
-
-| Parameter | Purpose | Example (placeholder) |
-|-----------|---------|-----------------------|
-| `fileShare.create` | Provision the shared PVC | `true` |
-| `fileShare.storageClassName` | EFS-backed StorageClass (dynamic access-point provisioning — no PV or `nodeStageSecretRef` needed) | `efs-sc` |
-| `fileShare.size` | Requested capacity (EFS is elastic; this is nominal) | `1Gi` |
-| `fileShare.pvcName` | PVC name — mounted by this chart, the Federator Server, and the Federator Client | `pvc-dpn-certs-fileshare` |
+> **In-memory keystore — `certDest`/`mtls`/`fileShare` parameters don't exist.** The keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account. EFS is not used by this component.
 
 **AWS ServiceAccount / IRSA** (required when `secretsManager.enabled: true`)
 
