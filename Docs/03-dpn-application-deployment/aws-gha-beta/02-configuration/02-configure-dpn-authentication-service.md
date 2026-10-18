@@ -191,6 +191,7 @@ root/
 | `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, identity client ID, tenant ID read by `templates/secretproviderclass.yaml`. Not set in the provided AWS values files | `kv-dpn-<env>-<region>-<seq>` / `<client-id>` / `<tenant-id>` |
 | `secretsManager.enabled` / `secretsManager.secretPrefix` | Use AWS Secrets Manager instead of AKV (see [Step2, Option A](#option-a--aws-secrets-manager-secretsmanagerenabled-true)) | `true` / `dpn/<env>-<cluster>/keycloak` |
 | `serviceAccount.create` / `serviceAccount.automountServiceAccountToken` / `serviceAccount.annotations` | IRSA ServiceAccount — required when `secretsManager.enabled: true`. The role is described in [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa) | `true` / `true` / `eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` |
+| `imagePullSecret` | Name of the image pull secret (default empty = anonymous pulls) | `ghcr-pull-secret` |
 | `image.repository` | GHCR path for the Keycloak image (tag defaults to the chart's `image.tag`, `26.3.2`) | `ghcr.io/energy-dsi/keycloak` |
 | `postgres.image.repository` | GHCR path for the bundled PostgreSQL image (tag defaults to `postgres.image.tag`, `16-alpine`) | `ghcr.io/energy-dsi/postgres` |
 | `postgres.persistence.storageClassName` / `persistence.storageClass` | Storage class for the PostgreSQL PVC and the Keycloak per-replica PVCs | `gp3` |
