@@ -315,4 +315,4 @@ Follow the same verification steps mentioned in step2c and step2d as above.
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 | 
 | Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
-
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 | 
