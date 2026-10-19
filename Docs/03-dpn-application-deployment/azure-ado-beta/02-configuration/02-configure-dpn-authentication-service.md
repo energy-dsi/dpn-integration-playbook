@@ -39,7 +39,7 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 
 | # | Prerequisite | Notes |
 |---|--------------|-------|
-| 1 | **AKS cluster**, a **user-assigned managed identity**, and the **Secrets Store CSI driver** | The managed identity needs *get* access to the four CSI-mounted Key Vault secrets below (`KC-SERVICE-CLIENT-SECRET` is fetched separately by the pipeline, not via CSI) |
+| 1 | **AKS cluster**, a **user-assigned managed identity**, and the **Secrets Store CSI driver** | The managed identity needs *get* access to the three CSI-mounted Key Vault secrets below (`KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-SERVICE-CLIENT-SECRET`). The pipeline also reads `KC-SERVICE-CLIENT-SECRET` directly with `az keyvault secret show` for its preflight check and for the realm-configuration step |
 | 2 | **`dpn-tls` and `tls-auth-secret` present in the namespace** | Created automatically by the `dpn-tls-cd` pipeline (`dpn-federator-certificate-manager` repository) — run it before deploying Keycloak. See [Step3: Configure TLS](#step3-configure-tls) |
 | 3 | **Three Key Vault secrets populated** | See [Step2: Configure Secrets](#step2-configure-secrets) |
 | 4 | **No image tag input needed** | The pipeline hardcodes upstream `quay.io/keycloak/keycloak:26.3.2` (and `postgres:16-alpine`) and imports both into ACR itself during Deploy — there is no `imageTag` parameter to supply |

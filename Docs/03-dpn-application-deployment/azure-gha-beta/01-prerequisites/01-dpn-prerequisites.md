@@ -98,8 +98,7 @@ The following tools are optional but recommended for deployment and operations:
 
 The following cloud services and licenses are required to run DPN nodes on the Azure platform.
 
-- A Git Hub user account and **PAT token** to fetch from GitHub.
-- A Docker.io **user account** and **password** to fetch from docker repository
+- A GitHub user account (or bot account) and a **PAT token** with `read:packages` scope, to pull the DSI-provided container images from GitHub Container Registry (`ghcr.io/energy-dsi`). No Docker Hub account is needed.
 - An active **Azure subscription** with sufficient service quotas for AKS, Virtual Machines, Storage Accounts, Entra ID (Azure AD), and Key Vault
 - An **administrative Virtual Machine** deployed in the same VNet where the DPN components are deployed with minimal configuration, for any local/manual operations (Azure Bastion / Run Command access, no public IP required)
 - **Azure Bastion** (or Azure Run Command) to connect to that instance without a jump box or exposed SSH
@@ -137,7 +136,7 @@ A **Federated Identity Credential in your target Azure subscription**, with:
 
 A **Service Principal or Managed Identity** used for managing **Azure Kubernetes Service (AKS)** with the following permissions:
 
-- Pull access to the container registry (GHCR, or your own registry) — to pull container images
+- Pull access to GitHub Container Registry (`ghcr.io/energy-dsi`), via the `ghcr-pull-secret` image pull secret — to pull the DSI-provided container images
 - Read access to whichever secrets store backs your cluster's secrets — to access secrets inside containers
 
 #### Data Pipeline Access

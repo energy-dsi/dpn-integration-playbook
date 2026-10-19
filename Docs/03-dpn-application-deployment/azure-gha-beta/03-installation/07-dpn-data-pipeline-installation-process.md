@@ -117,7 +117,7 @@ Ensure the following prerequisites are completed before deployment:
 
 **Note:** Organisations must review the CI/CD workflow code for the following.
 
-- If running your own CI, keep only the relevant build, unit test, and image-push steps — DSI's own CI examples include tool usage such as CheckMarx, SonarQube, and JFrog Xray that your organisation may not need
+- This deployment does not use CI: the container images are built and published by DSI, so there are no build, test or image-push steps to run
 - The container image is appropriate and referred from the GHCR repository unless the organisation plans to use a separate image repository of its own
 - There should not be any placeholder values left in `.github/config/azure/<environment>-<cluster>.json` (for example `dev-dpn01.json`). The DSI package provides these to ensure configuration is modified by Organisations.
 - The DSM endpoints are correctly pointing to the respective environment

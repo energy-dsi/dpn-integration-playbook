@@ -126,7 +126,7 @@ dpn-federator-gateway/
                 └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
-> All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at the container registry via `image.repository`. Set these to your registry, e.g. `ghcr.io/energy-dsi/<image>`. Only the parameters most likely to change per deployment are listed below.
+> All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at GitHub Container Registry via `image.repository`, e.g. `ghcr.io/energy-dsi/<image>` — the provided Azure values files already do this; keep them on the DSI-published GHCR images. Only the parameters most likely to change per deployment are listed below.
 
 ### Step3a: Configure Federator Server
 
