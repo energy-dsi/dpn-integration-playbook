@@ -34,7 +34,7 @@ This installation page is a quick-reference summary that points to that guide.
 
 ## Overview
 
-Keycloak is deployed with the `dpn-gha-keycloak-cd.yaml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through an internal AWS Network Load Balancer only. Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
+Keycloak is deployed with the `dpn-gha-keycloak-cd.yaml` GitHub Actions workflow, into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false`), reachable in-cluster and through the `dpn-keycloak-service-lb` `LoadBalancer` Service, which is intended to be an internal AWS Network Load Balancer but is not guaranteed to be (see [Internal Load Balancer Is Not Actually Internal](#internal-load-balancer-is-not-actually-internal)). Keycloak itself runs as a **StatefulSet** (one PersistentVolumeClaim per replica); its bundled PostgreSQL instance runs as a plain Deployment.
 
 Unlike the source-built DPN components, this service does **not** build a custom image via a CI pipeline — it deploys stock upstream images (`keycloak/keycloak` and `postgres`), pulled via GHCR by default, so there is no separate CI stage to configure.
 
@@ -69,7 +69,7 @@ In summary the following must be in place:
 
 **Note:** Organisations must review the CD workflow for the following before relying on it.
 
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui) — a mismatch does not fail the pipeline, it fails login for every dependent UI
+- `KC_SERVICE_CLIENT_SECRET` (Secrets Manager entry `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET`) matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui) — a mismatch does not fail the pipeline, it fails login for every dependent UI
 - The environment parameters point to the correct deployment environment
 - Required firewall rules are applied (outbound access to the container registry, and inbound from consuming namespaces to the internal load balancer)
 
@@ -155,7 +155,7 @@ The Deploy job runs `charts/keycloak/scripts/configure-keycloak.sh` automaticall
 Two things to confirm after every deploy:
 
 - The redirect URIs/web origins on `dpn-service-client` cover every UI that needs to authenticate in this environment, including the two Federator Gateway Job Runner dashboards (`KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2`).
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` in this environment's secrets backend matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
+- `KC_SERVICE_CLIENT_SECRET` in this environment's Secrets Manager matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
 
 ---
 
@@ -208,7 +208,7 @@ If a specific UI cannot complete login, or logout leaves the SSO session alive w
 
 - The UI's internal Service DNS name registered by `configure-keycloak.sh` (see [Step3](#step3-post-deployment-realm-and-client-configuration)) resolves from the browser — if not, check Route 53 Resolver / VPC DNS forwarding for `*.svc.cluster.local`.
 - For UIs behind `oauth2-proxy` (OpenSearch Dashboards, Jaeger, Perses, Portal), the bare root hostname (no path) matches the `post.logout.redirect.uris` entry and the `post_logout_redirect_uri` the proxy actually sends.
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` in the secrets backend matches the secret configured on the consuming service's side.
+- `KC_SERVICE_CLIENT_SECRET` in Secrets Manager matches the secret configured on the consuming service's side.
 
 ---
 

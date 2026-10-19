@@ -33,7 +33,7 @@ Release : 2.1.0 - Oct 2026
   - [Step 1 — Remove Keycloak](#step-1--remove-keycloak)
   - [Step 2 — Verify Keycloak Removal](#step-2--verify-keycloak-removal)
 - [Part 7 — Post-Uninstallation Cleanup](#part-7--post-uninstallation-cleanup)
-  - [Remove Container Images from ACR / GHCR](#remove-container-images-from-acr--ghcr)
+  - [Remove GHCR Image Access](#remove-ghcr-image-access)
   - [Remove Kafka Topics](#remove-kafka-topics)
   - [Remove Secrets and Certificates](#remove-secrets-and-certificates)
   - [Disable the Deployment Workflows](#disable-the-deployment-workflows)
@@ -55,7 +55,7 @@ The uninstallation process removes the following components:
 - DPN Health Monitoring Service (Kafka-health, OpenTelemetry Collector, OpenSearch, Prometheus, Thanos, Data Prepper, Jaeger, Perses, DPN Portal and the `oauth2-proxy` gateways)
 - DPN Authentication Service (Keycloak and its bundled PostgreSQL)
 - Kubernetes resources and Helm releases
-- Container images in Azure Container Registry / GHCR
+- GHCR image pull secrets and the GitHub PAT used to create them
 
 Each component repository has its own uninstall GitHub Actions workflow, and all of them accept `cloud: azure`:
 
@@ -543,38 +543,15 @@ After Parts 1–6 have completed successfully, perform the following manual clea
 
 ---
 
-### Remove Container Images from ACR / GHCR
+### Remove GHCR Image Access
 
-Remove container images from your own Azure Container Registry if they are no longer required (skip this if you deploy exclusively from DSI-provided GHCR images).
+All DPN components run from DSI-published container images in GitHub Container Registry (`ghcr.io/energy-dsi/...`). Those packages are shared, DSI-managed images, so there is nothing to delete in a registry you own.
 
-List all repositories:
+Clean up the credentials used to pull them:
 
-```bash
-az acr repository list --name <acr-name> --output table
-```
-
-Delete each repository as required:
-
-```bash
-az acr repository delete \
-  --name <acr-name> \
-  --repository <image-name> \
-  --yes
-```
-
-Repeat for all DPN-related images, including:
-
-- `dpn-federator-server`
-- `dpn-federator-client`
-- `dpn-federator-certificate-manager`
-- `dpn-file-scan-service`
-- `dsi/dpn-self-service`
-- `dsi/dpn-producer-file-adaptor-generic`, `dsi/dpn-producer-topic-adaptor-generic`
-- `dsi/dpn-consumer-file-extractor`, `dsi/dpn-consumer-topic-extractor`
-- images used by `dpn-gha-data-pipelines-cd.yaml`: `dpn-consumer-<processType>-extractor`, `dpn-producer-<processType>-adaptor-<schemaType>`
-- legacy pre-2.1.0 images: `consumer-<processType>-<extractor|mapper>`, `producer-<processType>-<adaptor|mapper>-*`
-
-If any component was deployed using DSI-provided GHCR images (`ghcr.io/energy-dsi/...`), no image deletion is required on the `energy-dsi` GHCR itself — those images are shared, DSI-managed packages. Only remove the `ghcr-pull-secret` Kubernetes secret used to authenticate against it, per [Remove Secrets and Certificates](#remove-secrets-and-certificates).
+- Remove the `ghcr-pull-secret` Kubernetes secret (and `ghcr-pull-secret-new` in `ns-dpn-health-01`) from every DPN namespace — this happens automatically if you delete the namespace, otherwise follow [Remove Secrets and Certificates](#remove-secrets-and-certificates).
+- Revoke the GitHub Personal Access Token (`read:packages`) that was used to create the pull secret, if it is no longer needed.
+- Optionally clear the cached images from the AKS nodes (`crictl rmi`), which happens automatically when the nodes are recycled.
 
 ---
 
@@ -646,7 +623,7 @@ After all parts are complete, confirm the following conditions are met before cl
 | No Helm releases | `helm list -n <namespace>` | No releases found |
 | No persistent volume claims | `kubectl get pvc -n <namespace>` | No resources found |
 | No secrets remaining | `kubectl get secrets -n <namespace>` | No resources found |
-| ACR repositories cleared | `az acr repository list --name <acr-name> --output table` | No DPN repositories listed |
+| GHCR pull secrets removed | `kubectl get secret -A --field-selector type=kubernetes.io/dockerconfigjson` | No `ghcr-pull-secret*` secrets remain in DPN namespaces |
 
 If all commands return no DPN resources, the DPN platform has been successfully decommissioned.
 

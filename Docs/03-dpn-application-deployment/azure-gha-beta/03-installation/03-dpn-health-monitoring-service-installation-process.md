@@ -36,7 +36,7 @@ This describes installation using the GitHub Actions orchestrator workflow `dpn-
 - The `dpn-health-tls` Secret (`kubernetes.io/tls`, with `tls.crt`/`tls.key`/`ca.crt`) already present in `ns-dpn-health-01` — consumed by every `oauth2-proxy` release and the OTel Collector's TLS OTLP receivers.
 - The Keycloak `dpn-service-client` credential already present in Azure Key Vault (`KEY_VAULT_NAME` from the config JSON) as the secret `KC-SERVICE-CLIENT-SECRET` (loaded manually; `dpn-gha-keycloak-cd.yaml`'s Azure deploy path reads it but does not create it) — `dpn-gha-oauth2-proxy-cd.yaml` only verifies that it exists, and each `oauth2-proxy` release's `SecretProviderClass` then syncs it into `ns-dpn-health-01` using the managed identity configured in `charts/oauth2-proxy/values/azure/<environment>-<cluster>.yaml`.
 - A DPN Portal container image already built and pushed to GHCR, with its tag (a short git-SHA) ready to supply as the workflow's `portalImageTag` input.
-- Access to the environment-specific container registry for Kafka/Zookeeper images, and to Docker Hub/Quay.io for everything else.
+- Outbound access from the cluster to `ghcr.io`: the images this service deploys (Kafka/Zookeeper, Data Prepper, Jaeger, Perses, OTel Collector, Thanos, DPN Portal) are pulled from `ghcr.io/energy-dsi`. The Azure values files do not yet point OpenSearch (`opensearchproject/opensearch`) and the Prometheus stack (`quay.io`) at their DSI GHCR images, so those two still need outbound access to Docker Hub/Quay.io unless you override `image.repository` to `ghcr.io/energy-dsi/opensearch` and `ghcr.io/energy-dsi/prometheus` (see [Reference: Container Images Used](#reference-container-images-used)).
 - A required-reviewer rule on the GitHub Environment (`<environment>-<cluster>`) if you want a manual approval gate before deployment — there is no ADO-style environment approval built into the workflow itself.
 - SMTP relay details and an alert recipient address.
 - The metrics-server running in the cluster (metrics-server ships enabled by default on AKS) — required for the OTEL Collector's HPA.
@@ -123,7 +123,7 @@ Confirm the config JSON used the **corrected** environment values for this run.
 
 ### Kafka/Zookeeper Image Pull Fails
 
-Confirm the `kafka.image.repository` / `zookeeper.image.repository` entries in `charts/kafka-stack/values/azure/<environment>-<cluster>.yaml` use a fully-resolved registry path like `ghcr.io/energy-dsi/dpn-kafka` (or your own ACR repository URL), not a bare placeholder, and that the `ghcr-pull-secret-new` pull secret exists in `ns-dpn-health-01` (see [Step1a](#step1a-configure-ghcr-image-access)). `dpn-gha-kafka-cd.yaml` takes the image from this values file — the `ACR_NAME` / `BASE_REGISTRY` keys in `.github/config/azure/<environment>-<cluster>.json` are passed through to the workflows but are not used to build any image path.
+Confirm the `kafka.image.repository` / `zookeeper.image.repository` entries in `charts/kafka-stack/values/azure/<environment>-<cluster>.yaml` use a fully-resolved registry path like `ghcr.io/energy-dsi/dpn-kafka`, not a bare placeholder, and that the `ghcr-pull-secret-new` pull secret exists in `ns-dpn-health-01` (see [Step1a](#step1a-configure-ghcr-image-access)). `dpn-gha-kafka-cd.yaml` takes the image from this values file — the `ACR_NAME` / `BASE_REGISTRY` keys in `.github/config/azure/<environment>-<cluster>.json` are passed through to the workflows but are not used to build any image path.
 
 ### OTel Collector Metrics Never Show Up in Prometheus
 

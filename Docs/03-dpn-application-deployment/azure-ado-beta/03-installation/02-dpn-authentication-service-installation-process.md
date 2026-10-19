@@ -73,7 +73,7 @@ In summary the following must be in place:
 
 - AKS cluster, a user-assigned managed identity, and the Secrets Store CSI driver
 - `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret)
-- Five Key Vault secrets populated: `KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-HTTPS-KEY-STORE-PASSWORD`, `KC-HTTPS-TRUST-STORE-PASSWORD`, `KC-SERVICE-CLIENT-SECRET`
+- Three Key Vault secrets populated: `KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-SERVICE-CLIENT-SECRET` (the keystore/truststore passwords come from `tls-auth-secret`, not Key Vault)
 - `.pipelines/azure-pipelines/config/<env>-<cluster>.json` and `charts/keycloak/values-<env>-<cluster>.yaml` populated
 - Target namespace and Azure DevOps service connection created (the pipeline does not create either)
 
@@ -202,7 +202,7 @@ The pipeline runs **Guard** (blocks `dpn02` for single-DPN environments) → **A
 
 ### Key Vault Secret Preflight Failure
 
-The Validate stage fails with `[MISSING] <secret> not found in <vault>` if any of the four CSI-mounted secrets, or `KC-SERVICE-CLIENT-SECRET`, is absent from the environment's Key Vault. Create the missing secret and re-run.
+The Validate stage fails with `[MISSING] <secret> not found in <vault>` if any of the three CSI-mounted secrets (`KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-SERVICE-CLIENT-SECRET`) is absent from the environment's Key Vault. Create the missing secret and re-run.
 
 ---
 
