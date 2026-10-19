@@ -81,7 +81,7 @@ A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for produc
 
 **DPN Data Pipeline Producer**
 - Files are extracted from the organisation's source storage location automatically on a scheduled basis
-- Processed by adaptor and mapper components
+- Processed by the adaptor component
 - Published to Kafka topics with the final file location
 - Published to the target storage location
 
@@ -89,7 +89,6 @@ A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for produc
 - Federator Client receives the file in a consumer-specific storage account or bucket
 - Checksum and hash validation are performed on the received file(s)
 - The file is processed by the extractor service and placed into another target container
-- Mapper components perform schema validation based on the schema type specified in the file name
 - The processed file is stored in the consumer target storage container or bucket
 - A Kafka-based streaming message is sent to a destination Kafka topic to mark the end of the data pipeline process
 
@@ -105,7 +104,7 @@ A synchronous, HTTPS-based alternative to the gRPC Federator Gateway, for produc
 **Note** - Opensearch is recommended to be used for log monitoring at this moment, prometheus and Jaeger dashboard UI improvements under process for future release.
 
 **DPN Streaming Service — Kafka**
-This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor, mapper, and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
+This component is responsible for event emission and storing the locations of data product files produced by the Data Pipeline Producer. It also signals events occurring between the adaptor and extractor processes. The Kafka service additionally provides a UI to monitor topics and messages. This component is packaged with the Federator component.
 
 **DPN Caching Service**
 This component uses Redis caching to store Kafka offsets for various topics and to cache tokens as necessary for the Federator Server and Clients. It is also bundled with the Federator Gateway package.
@@ -281,7 +280,7 @@ Check that:
 
 ### Certificate Renewal Job Failing
 
-When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify Federator Certificate Manager CD Pipeline](#step-6--verify-federator-certificate-manager-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
+When the CD pipeline is run and pods are started for the first time, the log verification step described in [Verify CD Pipeline](04-dpn-certificate-manager-installation-process.md#step2d-verify-cd-pipeline) may show Vault access errors. This occurs because the Vault configuration has not yet been completed at this stage.
 
 Ensure that both the Vault and certificate manager pods are restarted after configuring the Vault as described in [HashiCorp Vault Configuration](../02-configuration/01-configure-dpn-vault-service.md#automated-vault-configuration).
 
@@ -336,3 +335,4 @@ Verify that the mutual TLS certificates are correctly loaded in Vault and that t
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 | 
 | Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 | 

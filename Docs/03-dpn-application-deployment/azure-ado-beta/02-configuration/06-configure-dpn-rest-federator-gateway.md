@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN REST Federator Gateway Configuration
 
 This section describes how to configure and deploy the **DPN REST Federator Gateway**, provided by the `dpn-rest-federator-gateway` repository. It is a **REST/HTTPS-based alternative to the gRPC Federator Gateway**, for producers and consumers that need a synchronous, request/response API instead of a streamed Kafka-to-Kafka pipeline. It reuses the same Management Node, Identity Provider, and certificate infrastructure as the gRPC Federator Gateway, so both federation styles can be run side by side against a single DPN control plane.
@@ -20,6 +22,7 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
   - [Step3a: Configure the Gateway](#step3a-configure-the-gateway)
   - [Step3b: Configure Vault Authentication](#step3b-configure-vault-authentication)
   - [Step3c: Configure Autoscaling](#step3c-configure-autoscaling)
+  - [Step3d: Configure OTel Collector Security](#step3d-configure-otel-collector-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Integrating a Consumer](#integrating-a-consumer)
 - [Review Notes](#review-notes)
@@ -115,7 +118,7 @@ This release delivers **endpoint registration, method-listing, GET/POST proxying
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed**, with this gateway's endpoint included in the certificate's SANs | e.g. `producer-rest01.<dpn>...` alongside the gRPC Federator's `producer.<dpn>...`/`consumer.<dpn>...` — see [Configure DPN Certificate Manager, Step3a](04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; trusts Vault's HTTPS endpoint |
-| 4 | **Vault AppRole identity provisioned** *(recommended)*, or the root token | No policy file or setup script ships in this repository yet — the Vault-side AppRole role must be authored/created manually. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
+| 4 | **Vault AppRole identity provisioned** *(recommended)*, or the root token | Reuse the Certificate Manager's — run `vault-approle-setup-cd` once (if not already done for the Certificate Manager), then manually paste that same role-id into `restFederatorServer.vault.appRole.roleId` below. No separate policy/script is needed. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **DPN Authentication Service (Keycloak) reachable** | Inbound JWTs are validated against its JWKS endpoint. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) |
 | 6 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
 | 7 | **OAuth2 client ID + Management Node URL + IDP URLs** | Received from DSM during onboarding, same as the gRPC Federator |
@@ -167,7 +170,7 @@ Root-Repository
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `restFederatorServer.vault.authMethod` | `token` or `approle` (recommended) | `approle` |
-| `restFederatorServer.vault.appRole.roleId` | Non-sensitive role-id for this component's AppRole role | `<role_id>` |
+| `restFederatorServer.vault.appRole.roleId` | The **same** role-id as the Certificate Manager's AppRole — copied manually from the `vault-approle-setup-cd` pipeline's log output, same as every other component reusing this identity | `<role_id>` |
 | `restFederatorServer.vault.appRole.useSecretIdRef` | Source the AppRole `secret-id` from a Kubernetes Secret (`certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID`) rather than a plaintext value | `true` |
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
@@ -183,7 +186,12 @@ Root-Repository
 
 No per-environment values file currently overrides these — every environment inherits the chart defaults above.
 
----
+### Step3d: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.otel.tls.enabled` | Turns on HTTPS for OTLP export to the Collector. Defaults to `false`, so existing environments aren't affected unless someone opts in | `false` |
+| `restFederatorServer.otel.oauth2.enabled` | Adds an `Authorization: Bearer` token to OTLP export, using the `dpn-service-client` Keycloak client already used elsewhere in this chart (no new client or secret to set up). Defaults to `false` | `false` |
 
 ## Step4: Configure Deployment Parameters
 
@@ -245,3 +253,4 @@ See the `dpn-rest-federator-gateway` repository's `demo/demo-runner-client` for 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V1.0.0 | 

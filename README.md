@@ -39,7 +39,7 @@ The architecture consists of two logical processes:
 ### Producer Process
 
 - Producer process is responsible for fetching data from organisational internal data sources
-- Processed through adaptor and producer mapper components
+- Processed through the adaptor component
 - Publishes the data, or its location, to Kafka topics
 - Transmitted to external organisations via the DPN Federator Server
 
@@ -175,7 +175,7 @@ To further support the node after installation, the following operational docume
 | [AWS Infrastructure Uninstallation Guide](Docs/02-dpn-infrastructure-deployment/aws/05-uninstall-decommissioning.md) / [AWS Application Uninstallation Guide](Docs/03-dpn-application-deployment/aws-gha-beta/05-uninstall/05-uninstall-decommissioning.md) | Remove DPN components from AWS |
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
-| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
+| [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) / [Release 2.1.0 Configuration Changes](Docs/06-release-notes/release-2.1.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
 
 ---
 
@@ -191,7 +191,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
 - [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step5-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step-04-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/azure-ado-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 **AWS (GitHub Actions) components:**
@@ -202,7 +202,7 @@ Each component's installation/RUNBOOK document includes a troubleshooting sectio
 - [Certificate Manager Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/04-dpn-certificate-manager-installation-process.md#step3-troubleshooting)
 - [Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/05-dpn-federator-gateway-installation-process.md#step3-troubleshooting)
 - [REST Federator Gateway Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/06-dpn-rest-federator-gateway-installation-process.md#step3-troubleshooting)
-- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step4-troubleshooting)
+- [Data Pipeline Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/07-dpn-data-pipeline-installation-process.md#step-04-troubleshooting)
 - [File Scan Service Troubleshooting](Docs/03-dpn-application-deployment/aws-gha-beta/03-installation/08-dpn-file-scan-service-installation-process.md#step4-troubleshooting)
 
 ---
@@ -297,7 +297,6 @@ The repository is organised into structured documentation sections that guide or
 │   │
 │   ├── 05-dpn-user-interfaces                  # Day-2 operations UIs
 │   │   ├── 01-hashicorp-vault-ui-operations.md
-│   │   ├── 02-apache-airflow-scheduler-ui-operations.md
 │   │   ├── 03-federator-client-job-runner-ui-operations.md
 │   │   ├── 04-kafka-ui-operations.md
 │   │   ├── 05-opensearch-dashboard-ui-operations.md
@@ -309,7 +308,8 @@ The repository is organised into structured documentation sections that guide or
 │   │   └── images
 │   │
 │   └── 06-release-notes                        # Per-release configuration deltas
-│       └── release-2.0.0-configuration-changes.md
+│       ├── release-2.0.0-configuration-changes.md
+│       └── release-2.1.0-configuration-changes.md
 │
 ├── ACKNOWLEDGEMENTS.md
 ├── CHANGELOG.md
@@ -358,12 +358,7 @@ Data pipelines perform validation and transformation of exchanged datasets.
 | Component | Purpose |
 |----------|---------|
 | Adaptor | Initial data ingestion (producer/source side) |
-| Producer Mapper | Producer-side schema validation |
 | Extractor | Data extraction and storage (consumer/target side) |
-| Consumer Mapper | Consumer-side schema validation |
-| Apache Airflow | Orchestration layer scheduling the pipeline stages (webserver, scheduler, worker, triggerer, Postgres metadata DB) |
-
-The mapper component can also be extended for more capabilities, for example transformations or schema assurance.
 
 ## Health Monitoring Stack
 
@@ -391,7 +386,6 @@ Day-to-day monitoring and operation of a running DPN node is performed through t
 | Interface | Purpose | Guide |
 |---|---|---|
 | Hashicorp Vault UI | Certificate and secrets management | [Guide](Docs/05-dpn-user-interfaces/01-hashicorp-vault-ui-operations.md) |
-| Apache Airflow UI | Data pipeline scheduling and monitoring | [Guide](Docs/05-dpn-user-interfaces/02-apache-airflow-scheduler-ui-operations.md) |
 | Federator Client JobRunr Dashboard | Monitor, trigger, and troubleshoot consumer jobs | [Guide](Docs/05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) |
 | Kafka UI | Kafka topic and broker monitoring | [Guide](Docs/05-dpn-user-interfaces/04-kafka-ui-operations.md) |
 | OpenSearch Dashboard | Pipeline health monitoring and log investigation | [Guide](Docs/05-dpn-user-interfaces/05-opensearch-dashboard-ui-operations.md) |

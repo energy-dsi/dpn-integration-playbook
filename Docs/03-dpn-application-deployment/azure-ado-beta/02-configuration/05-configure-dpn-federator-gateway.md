@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Federator Gateway Configuration
 
 This section describes how to configure and deploy the **DPN Federator Gateway** (Server and Client, plus their supporting services) into a single target environment and a single DPN cluster on Azure Kubernetes Service (AKS). The Federator Gateway handles all secure communication between DPN node and other DPN nodes or the DSI DSM — sending and receiving data only to and from trusted parties over mutual TLS (mTLS).
@@ -27,6 +29,7 @@ This section describes how to configure and deploy the **DPN Federator Gateway**
   - [Step3c: Configure Key Vault If Used](#step3c-configure-key-vault-if-used)
   - [Step3d: Configure Kafka Security](#step3d-configure-kafka-security)
   - [Step3e: Configure Redis Security](#step3e-configure-redis-security)
+  - [Step3f: Configure OTel Collector Security](#step3f-configure-otel-collector-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Review Notes](#review-notes)
 
@@ -52,7 +55,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 
 - The gateway builds its mTLS keystore/truststore **in memory** directly from certificate material in Vault (`vaultConfig.tlsEnabled: true`, `vaultConfig.tlsBasePath: node-net/client`) — no shared file share is used (`vaultConfig.mountCertFileShare: false`).
 - The keystore/truststore **passwords are read from Vault** at start-up (`vaultConfig.keystorePasswordPath` / `truststorePasswordPath`) — they are **not** stored as Federator Key Vault secrets.
-- The gateway authenticates to Vault itself via **AppRole** (`vaultConfig.authMethod: approle`, recommended) or the Vault root token (`token`). Unlike the Certificate Manager, there is no CD pipeline for this — the AppRole identity is provisioned by running this repository's own `vault/setup-approle.sh` manually against the Vault pod. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended).
+- The gateway authenticates to Vault itself via **AppRole** (`vaultConfig.authMethod: approle`, recommended) or the Vault root token (`token`). **Current practice: reuse the Certificate Manager's AppRole identity rather than provisioning a separate one.** `vault-approle-setup-cd` (run once, for the Certificate Manager) already puts the `secret-id` in Key Vault as `VAULT-APPROLE-SECRET-ID`, which this component's own `SecretProviderClass` syncs into the same `certificate-manager-secrets` Kubernetes secret the Certificate Manager uses — no extra action needed for that part. The `role-id` is **not** stored anywhere automatically (it isn't sensitive, so the pipeline only prints it in its run log) — manually copy that same role-id into `vaultConfig.appRole.roleId` here too. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) — a dedicated identity via this repository's own `vault/setup-approle.sh` is also possible if your organisation wants stricter per-component isolation.
 - The only Federator secrets in Key Vault are the **storage connection strings** (one for the Server, a separate one for the Client) and, if using AppRole, the Vault `secret-id`.
 
 > **Storage account separation for Server and Client (MUST READ)**
@@ -72,7 +75,7 @@ Ensure the following are in place **before** deploying the Federator Gateway:
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed** | Renews the certificate into Vault, and creates the `certificate-manager-secrets` Kubernetes secret used for the Vault AppRole `secret-id` (or root token) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; mounted at `/vault/truststore` so the gateway trusts Vault's HTTPS endpoint |
-| 4 | **Vault AppRole identity provisioned** *(recommended)* | No CD pipeline exists for this yet — run this repository's `vault/setup-approle.sh` manually against the Vault pod, then set `vaultConfig.authMethod: approle` and `vaultConfig.appRole.roleId`. `token` remains available for backward compatibility. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
+| 4 | **Vault AppRole identity provisioned** *(recommended)* | Reuse the Certificate Manager's — run `vault-approle-setup-cd` once (if not already done for the Certificate Manager), then set `vaultConfig.authMethod: approle` and manually paste that same role-id into `vaultConfig.appRole.roleId` here. `token` remains available for backward compatibility. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | The managed identity must have *get* access to the Key Vault secrets |
 | 6 | **Azure Key Vault secrets created** | The two storage connection strings — see [Step2: Configure Secrets](#step2-configure-secrets) |
 | 7 | **Storage accounts provisioned** | The **Server's** storage account, and the **File Scan Service source** storage account used by the **Client** |
@@ -152,6 +155,10 @@ Root-Repository
 | `federatorServer.idp.tokenUrl` | Token endpoint for access tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
 | `federatorServer.storage.azure.endpoint` | Blob endpoint of the **Server's** storage account | `https://st<env>dpn01<region>01.blob.core.windows.net` |
 
+> **`federatorServer.idp.clientId` (and the equivalent audience check on inbound requests) is now compared case-sensitively**, per RFC 7519 §4.1.3 — a client ID that previously matched regardless of case will now be rejected if its case doesn't match exactly what DSM issued. Confirm the value configured here matches DSM's registration byte-for-byte.
+>
+> **Heartbeat interval is now 15 minutes (was 1 hour).** This is a fixed value in the chart's rendered config (`server.heartbeat.interval=PT15M`, an ISO-8601 duration) — it is **not** a `values.yaml` key today, so changing it per environment means editing the chart template itself, not an environment's values file.
+
 ### Step3b: Configure Federator Client
 
 > **Single cluster:** the Client (and this whole release) targets one DPN cluster. Its connection configuration points at a single remote Federator Server.
@@ -165,6 +172,24 @@ Root-Repository
 | `federatorClient.storage.azure.endpoint` | **Blob endpoint of the File Scan Service source storage account** if available else use a separate storage account (not the Server's account) | `https://stfss<env>dpn<region>01.blob.core.windows.net` |
 | `federatorClient.storage.provider` | `AZURE/S3/GCP/LOCAL` | Note. Important to set this value based on cloud provider. This parameter decides which storage provider to be invoked based on cloud type |
 | `federatorClient.storage.azure.container` | Container where inbound files are written (File Scan source container) | `dp-consumer-raw` |
+
+**JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `federatorClient.auth.enabled` | Front the JobRunr dashboard with a built-in Keycloak-authenticating gateway (`JobRunnerAuthGateway`) instead of leaving it open on the internal network | `true` |
+| `federatorClient.auth.issuerUrl` / `.audience` | Keycloak realm issuer and OIDC client ID (reuses the same client Kafka's OAuth already uses) | as received from DSM |
+| `federatorClient.auth.adminRole` / `.readerRole` | Keycloak roles gating full vs. view-only dashboard access — leave both blank to allow any authenticated user full access | `dpnadmin` / `dpnreader` |
+| `federatorClient.service.jobRunnerAuthPort` | The gateway's own bind port. Exposed via the `-external` LoadBalancer Service **only when `nginxSidecar.enabled: false`** (see below) | `8086` |
+
+> **Keycloak redirect URI:** register `https://<federatorClient.name>-external.<namespace>.svc.cluster.local:<jobRunnerAuthPort>/oauth2/callback` on the Keycloak client.
+
+**Nginx reverse-proxy sidecar (required)** — fronts the JobRunr dashboard for TLS termination:
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `federatorClient.nginxSidecar.enabled` | Must be set to `true`. The chart default is `false`, which falls back to the Java-based proxy — known to have latency/stalling issues under load | `true` |
+| `federatorClient.service.jobRunnerInternalPort` | Dashboard's internal bind port once nginx fronts it | `18085` |
 
 ### Step3c: Configure Key Vault If Used
 
@@ -196,8 +221,24 @@ The following parameter needs to be set if key vault is used as secret provider.
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `redis.tls.enabled` | Setup redis on encrypted connection | `true` |
+| `redis.tls.enabled` | Whether Redis only accepts TLS connections — **on by default** in every environment, not opt-in | `true` |
 | `redis.truststore.path` / `redis.truststore.password` | Client-side truststore the Server/Client use to trust Redis's certificate. Identical for both roles, so set once in `common-configuration.properties` rather than duplicated per role | as received alongside the other TLS material |
+
+Redis's own server certificate is **not** a separate value to configure — it's extracted at pod start-up (by an init container, using `openssl`) from the same shared `dpn-tls` keystore Kafka already uses, whose SAN already covers the in-cluster Redis hostname. Redis is configured for **server-authentication only** (`--tls-auth-clients no`) — there is no client certificate/mTLS requirement for connecting to it, mirroring Kafka's own `SASL_SSL` listener (`KAFKA_SSL_CLIENT_AUTH=none`).
+
+> **No Redis username/password (ACL) authentication.** Earlier releases supported `redis.username`/`redis.password` for Redis's own ACL auth — these have been **removed**. Access control is now enforced entirely at the application layer: every Redis-touching call site (other than the Federator's own IDP token cache, which deliberately bypasses this to avoid a circular dependency) requires a valid Keycloak session before a connection is returned. This is independent of `kafka.authMode` / Keycloak's SASL role for Kafka — Redis TLS and its Keycloak gate apply regardless of that Kafka setting.
+>
+> **Only this component's own Redis is TLS-enabled today.** The REST Federator Gateway's separate `dpn-redis` release (its own cache, not this one) does not yet have TLS — that migration is tracked as a separate, not-yet-delivered enabler.
+
+### Step3f: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `otel.tls.enabled` | Whether OTLP export uses HTTPS against the Collector — **on by default**, matching every environment's behaviour before this flag existed | `true` |
+| `otel.oauth.enabled` | Attach an `Authorization: Bearer` token (fetched via the `dpn-service-client` Keycloak client — the same one already used to gate Redis access) to every OTLP export call — **on by default in every environment** | `true` |
+| `otel.truststorePath` | Trust anchor for the Collector's OTLP HTTPS receiver (server-side TLS only). Same JKS truststore Redis and the JobRunr dashboard auth already use | `/etc/secrets/truststore.jks` |
+
+No separate Keycloak client or secret is provisioned for OTel — it reuses `dpn-service-client`, the same credential already wired for Redis/Kafka OAuth. Setting `otel.tls.enabled: false` only works once the Collector side also exposes a genuine plaintext listener — today it terminates TLS unconditionally, so a plaintext exporter against it fails the handshake outright rather than falling back.
 
 ---
 
@@ -236,3 +277,4 @@ DPN DEPLOYMENT COMPLETE
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 | 
 | Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 | 

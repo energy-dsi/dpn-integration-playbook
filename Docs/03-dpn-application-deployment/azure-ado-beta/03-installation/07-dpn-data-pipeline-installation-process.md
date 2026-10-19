@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Data Pipeline Installation Process
 
 ---
@@ -5,507 +7,113 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Step1: Installation Prerequisites](#step1-installation-prerequisites)
-  - [Step1a. Clone and Prepare Source Repositories](#step1a-clone-and-prepare-source-repositories)
-  - [Step1b. Prepare Infrastructure and Application Prerequisites](#step1b-prepare-infrastructure-and-application-prerequisites)
-  - [Step1c. Identify Pipeline Repository Structure](#step1c-identify-pipeline-repository-structure)
-  - [Step1d. Configure Environment Approval Gates](#step1d-configure-environment-approval-gates)
-- [Step2: Install DPN Data Pipeline](#step2-install-dpn-data-pipeline)
-  - [Step2a. Configure Data Pipeline CI Pipeline](#step2a-configure-data-pipeline-ci-pipeline)
-  - [Step 2b. Execute Data Pipeline CI Pipeline](#step-2b-execute-data-pipeline-ci-pipeline)
-  - [Step2c. Validate Data Pipeline CI Pipeline](#step2c-validate-data-pipeline-ci-pipeline)
-  - [Step2d. Configure Data Pipeline CD Pipeline](#step2d-configure-data-pipeline-cd-pipeline)
-  - [Step2e. Execute Data Pipeline CD Pipeline](#step2e-execute-data-pipeline-cd-pipeline)
-  - [Step2f. Validate Data Pipeline CD Pipeline](#step2f-validate-data-pipeline-cd-pipeline)
-- [Step3: (Optional) Deploy the Scheduler Backend Using Apache Airflow](#step3-optional-deploy-the-scheduler-backend-using-apache-airflow)
-  - [Step3a. Verify Prerequisites](#step3a-verify-prerequisites)
-  - [Step3b. Execute Airflow CD Pipeline](#step3b-execute-airflow-cd-pipeline)
-  - [Step3c. Verify CD Pipeline Execution](#step3c-verify-cd-pipeline-execution)
-- [Step4: Troubleshooting](#step4-troubleshooting)
-  - [CI Pipeline Failure](#ci-pipeline-failure)
-  - [Container Image Not Found](#container-image-not-found)
-  - [Image Pull Failures](#image-pull-failures)
-  - [Data Pipeline Image Tag Malformed](#data-pipeline-image-tag-malformed)
-  - [Pods Not Starting](#pods-not-starting)
-  - [Data Pipeline Pod Overwritten by Its Sibling Stage](#data-pipeline-pod-overwritten-by-its-sibling-stage)
-  - [Container CrashLoopBackOff](#container-crashloopbackoff)
-  - [HPA Not Scaling](#hpa-not-scaling)
-  - [Kafka Topic Issues](#kafka-topic-issues)
-- [Step5: Containerized Deployment Using DSI Provided Container Images](#step5-containerized-deployment-using-dsi-provided-container-images)
-  - [Platform & Third-Party Images](#platform--third-party-images)
-  - [Step5a. Configure GHCR Image Access](#step5a-configure-ghcr-image-access)
-  - [Step5b. Execute CD Pipeline](#step5b-execute-cd-pipeline)
-  - [Step5c. Verify CD Pipeline](#step5c-verify-cd-pipeline)
+- [STEP-01: Prerequisites](#step-01-prerequisites)
+- [STEP-02: Run the CI Pipeline](#step-02-run-the-ci-pipeline)
+- [STEP-03: Run the CD Pipeline](#step-03-run-the-cd-pipeline)
+- [STEP-04: Troubleshooting](#step-04-troubleshooting)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-This document provides step-by-step instructions for installing and deploying **DPN Data Pipeline component** using **Azure DevOps (ADO) pipelines**.
+This guide lists **only what a participant organisation must do** to install the DPN Data Pipeline on Azure using Azure DevOps (ADO) pipelines. Repository: https://github.com/energy-dsi/dpn-data-pipelines.git
 
-The deployment uses the following repositories:
+| Action | Where |
+|--------|-------|
+| **Required participant action:** complete the prerequisites | [STEP-01](#step-01-prerequisites) |
+| **Required participant action:** run the CI pipeline | [STEP-02](#step-02-run-the-ci-pipeline) |
+| **Required participant action:** run the CD pipeline | [STEP-03](#step-03-run-the-cd-pipeline) |
 
-- https://github.com/energy-dsi/dpn-data-pipelines.git
-
-The deployment process consists of:
-
-- **Continuous Integration (CI)** — builds container images
-- **Continuous Deployment (CD)** — deploys images into **Azure Kubernetes Service (AKS)**
-
----
-
-## Step1: Installation Prerequisites
-
-The following prerequisites must be completed before beginning the installation process.
-
-### Step1a. Clone and Prepare Source Repositories
-
-Clone the official repositories from GitHub.
-
-```bash
-git clone https://github.com/energy-dsi/dpn-data-pipelines.git
-```
-
-Switch to the desired branch.
-
-```bash
-git checkout main
-```
-
-or
-
-```bash
-git checkout release/<version>
-```
-
-Push the code to the organisation's Azure DevOps repository.
-
-```bash
-git remote add ado https://dev.azure.com/<org>/<project>/_git/<repository>
-git push -u ado main
-```
+> **Informational (no action required):**
+> - CI builds and pushes five images to your Azure Container Registry (ACR): the producer file and topic images, the consumer file and topic extractors, and the Self-Service UI.
+> - CD deploys the Self-Service UI and the two consumer pipelines into `ns-dpn-dp-01` using Helm.
+> - Producer data products are created at runtime by the Self-Service UI. They are not deployed by the pipelines.
 
 ---
 
-### Step1b. Prepare Infrastructure and Application Prerequisites
+## STEP-01: Prerequisites
 
-Ensure the following prerequisites are completed before deployment:
+**Required participant actions.** Complete all of the following before running the pipelines.
 
-- AKS cluster provisioned and accessible, with the **metrics-server** running (required for HPA — enabled by default on AKS)
-- DPN Streaming Service (Kafka) deployed, with the required topics pre-created (see [DPN Streaming Service (Kafka)](../02-configuration/07-configure-dpn-data-pipelines.md#step9b-configure-streaming-service-kafka) in the Configuration Guide)
-- DPN Health Monitoring Service deployed and OTEL collector container is in running state
-- Blob/S3 storage containers provisioned for the `file` integration pathway (see [Storage Blob / S3 Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step9a-storage-blob--s3-configuration))
-- Kubernetes secrets provisioned for producer/consumer storage connection strings (see [Secrets Configuration](../02-configuration/07-configure-dpn-data-pipelines.md#step8-configure-secrets))
-- Network and firewall rules applied as described in [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration), including outbound access to `ghcr.io`
-- Software prerequisites (Azure DevOps access, GHCR access — see Step 4 below)
+| # | Action | Detail |
+|---|--------|--------|
+| 1 | Copy the repository to your Azure DevOps repository | Clone `dpn-data-pipelines`, check out `main` (or `release/<version>`) and push it to your ADO repository |
+| 2 | Provide the platform services | AKS (with metrics-server), ACR attached to AKS, DPN Streaming Service (Kafka), DPN Authentication Service (Keycloak) and DPN Health Monitoring Service (OTEL collector running) |
+| 3 | Update the configuration values | Complete the [Configuration Table](../02-configuration/07-configure-dpn-data-pipelines.md#step-01-configuration-table) |
+| 4 | Create the secrets | Complete the [Secrets Table](../02-configuration/07-configure-dpn-data-pipelines.md#step-02-secrets-table) in `ns-dpn-dp-01` |
+| 5 | Update the environment config file | In `.pipelines/azure-pipelines/config/<environment>-<cluster>.json`, set your ACR name, subscription, resource group, AKS cluster, Key Vault and namespace |
+| 6 | Update the pipeline files | Set your agent pool name. Remove or replace the security and quality stages in the CI pipeline that you do not use (Checkmarx, FOSSA, SonarQube, JFrog X-Ray). Leave no `<<Your specific value>>` placeholders |
+| 7 | Set the approval gate | Configure the approval check on the Azure DevOps Environment used by the CD pipeline |
+| 8 | Apply network and firewall rules | See [Network and Ports Configuration](../02-configuration/00-common-dpn-configuration.md#step5-network-and-ports-configuration) |
 
-[Refer to the **Prerequisites** and **Configuration** documentation for details](../01-prerequisites/01-dpn-prerequisites.md)
-
-**Note:** Organisations must review the CI/CD Pipeline codes for the following. 
-
-- DSI Package contains certain tool usage recommendations to run CI pipeline. For example CheckMarx, SonarQube, JfrogXray etc. These steps should be carefully removed by Organisations and keep only relevant build, unit test and image push step using Helm before running the CI pipeline
-- The agent pool name has been modified to Organisation required agent pool name
-- There should not be any `<<Your specific value>>` in the parameters. The DSI package has provided this specific paramter to ensure configuration is modified by Organisations
-- The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
-- The environment parameters are pointing to correct deployment environment
-- The DSM endpoints are correctly pointing to the target deployment environment
-- Required Firewall rules are applied
-- Both CI and CD pipelines to be verified for the above prerequisites before execution
+[Refer to the **Prerequisites** documentation for details](../01-prerequisites/01-dpn-prerequisites.md)
 
 ---
 
-### Step1c. Identify Pipeline Repository Structure
+## STEP-02: Run the CI Pipeline
 
-Each DPN code repository includes the necessary CI and CD pipelines in the following folder structure for reference.
-
-```
-Root-Repository/
-└── .pipelines/
-    └── azure-pipelines/
-        ├── ci-pipelines/
-        └── cd-pipelines/
-```
-
----
-
-### Step1d. Configure Environment Approval Gates
-
-Before running the CD pipeline against any environment, confirm the corresponding Azure DevOps Environment has its approval check configured.
-
---
-
-## Step2: Install DPN Data Pipeline
-
-The DPN Data Pipeline is a series of data validation stages processed through the adaptor and mapper components as outlined in the architecture overview above.
-
-The following diagram represents an overview of DPN Producer Data Pipeline CI/CD architecture. 
-
-![DPN Data Pipeline Producer DevOPS Architecture](../../../04-dpn-architecture/images/dpn_data_pipeline_producer.png)
-
-The following diagram represents an overview of DPN Consumer Data Pipeline CI/CD architecture. 
-
-![DPN Data Pipeline Consumer DevOPS Architecture](../../../04-dpn-architecture/images/dpn_data_pipeline_consumer.png)
-
-
----
-
-### Step2a. Configure Data Pipeline CI Pipeline
-
-Create a new Azure DevOps Pipeline from the CI pipeline YAML file located at the following path:
-
-```
-Root-Repository/
-└── .pipelines/
-    └── azure-pipelines/
-        └── ci-pipelines/
-            └── dsi-data-pipelines-ci.yaml
-```
-
----
-
-### Step 2b. Execute Data Pipeline CI Pipeline
-
-The CI pipeline is designed to support both Producer and Consumer configurations. When triggering the pipeline, parameters must be selected carefully, as the required inputs vary depending on the selected configuration type.
-
-##### Common Parameters (Required for Both Producer and Consumer)
-
-- **Pipeline Version** — Select the appropriate branch(e.g. `release`)
-- **Environment** — Choose the target environment (e.g. `dev`)
-- **Service Connection** — Select the Azure service connection corresponding to the chosen environment
-
-##### Consumer Configuration
-
-When **Config Type = `consumer`** is selected:
-
-- **Process Type** — Not required (selection is ignored by the pipeline)
-- **Schema Type** — Not required
-
-The pipeline proceeds with consumer-specific configuration and deployment only.
-
-##### Producer Configuration
-
-When **Config Type = `producer`** is selected:
-
-- **Process Type** — Mandatory. Supported values: `file` and `topic`. (This may be extended in future releases.)
-- **Schema Type** — Mandatory. Remove 'Default' before providing currently supported values: `eq`, `dl`, `eqbd`, `ssh`. (This list is extensible in future releases.)
-- **Product Type** — Mandatory. Remove 'Default' before providing supoorted values. Must be provided to correctly parameterise the producer pipeline.
-
-Failure to provide Process Type and Schema Type when running the pipeline in producer mode will result in an invalid or incomplete execution.
-
-> **Notes:**
-> - The same CI pipeline is used for both producer and consumer, with behaviour controlled entirely by parameter selection.
-> - Schema Type and Process Type are validated only when `producer` is selected.
-> - Future enhancements may introduce additional schema types and process types without changing the overall pipeline structure.
-
----
-
-#### Step2c. Validate Data Pipeline CI Pipeline
-
-Verify that image registry has been updated with the expected image tag.
-
----
-
-#### Step2d. Configure Data Pipeline CD Pipeline
-
-Create a new Azure DevOps Pipeline from the CD pipeline YAML file located at the following path:
-
-```
-Root-Repository/
-└── .pipelines/
-    └── azure-pipelines/
-        └── cd-pipelines/
-            └── dsi-data-pipelines-cd.yaml
-```
-
-> **Notes:**
-> - Organisations must determine which data templates they require for processing. The pipelines are designed to be generic, processing a specific type (producer or consumer), integration pathway (file, topic), cloud provider type (Azure, AWS, GCP), and consumer ID.
-> - before running this pipeline, confirm the `SCHEDULER_BACKEND` value set on each product's `values.yaml`: `kafka-trigger` for automated, Airflow-orchestrated scheduling; `interval` for schedule-based execution without Airflow; or `standalone` for manual, one-time execution (see [Configure DPN Data Pipelines → Step6: Configure Scheduling](../02-configuration/07-configure-dpn-data-pipelines.md#step6-configure-scheduling))
-
----
-
-#### Step2e. Execute Data Pipeline CD Pipeline
-
-Execute the CD pipeline and verify that the containers are deployed on the Azure Kubernetes platform. There should be the following two containers running per data product file produced, for each template type (`DL`, `EQ`, `EQBD`, or `SSH`) at each integration pathway level on the producer side:
-
-```
-producer-{integration type}-adaptor-{data product type}-xxxxxxxx
-producer-{integration type}-mapper-{data product type}-yyyyyyyy
-```
-
-Similarly, the following containers will be deployed on the consumer side for each data product consumer ID subscribed to a specific data product type:
-
-```
-consumer-{integration type}-extractor-{data product type}-{consumer ID}-xxxxxxxx
-consumer-{integration type}-mapper-{data product type}-{consumer ID}-xxxxxxxx
-```
-
-Example container names post-deployment:
-
-```
-producer-file-adaptor-eqbd-xxxxxxxx
-producer-file-mapper-eqbd-xxxxxxxx
-consumer-file-extractor-xxxxxxxx
-consumer-file-mapper-xxxxxxxx
-```
-
-The remaining pipeline parameters are same as per CI pipeline run above.
----
-
-#### Step2f. Validate Data Pipeline CD Pipeline
-
-Once a successful deployment has completed, the DPN Kubernetes cluster should show an output similar to the example below. This example uses selective `eq` and `dl` producer sample data products on the producer side, and an organisation receiving two data products using the schema type and organisation name.
-
-```text
-- Product type  : eq-sample-1, dl-sample-1
-- Schema type   : eq and dl
-- Cloud type    : azure
-- Process type  : file
-```
-
-![DPN Reference Implementation](../../../04-dpn-architecture/images/dpn_ref_implementation.png)
-
-```bash
-kubectl get pods -n <namespace>
-```
-
-Verify clean logs inside the container:
-
-```bash
-kubectl logs <pod-name> -n <namespace>
-```
-
----
-
-## Step3: (Optional) Deploy the Scheduler Backend Using Apache Airflow
-
-### Step3a. Verify Prerequisites
-
-- Verify the `SCHEDULER_BACKEND` is set as `kafka-trigger` (automated, software-triggered scheduling using Apache Airflow)
-- Airflow environment configuration must be made for the deployment environment in the following location.
-
-```
-Root-Repository/
-└── charts/
-    └── airflow/
-        ├── values-<env>-dpn01.yaml   <- Environment-specific Airflow overrides
-        └── dags/
-              └── {product_type}.py   <- One DAG per data product using the kafka-trigger backend
-```
-
-- Confirm a DAG file exists under `charts/airflow/dags/` for every product using `SCHEDULER_BACKEND: kafka-trigger`
-
-### Step3b. Execute Airflow CD Pipeline
-
-Deploy Airflow using `dpn-data-pipeline-airflow-cd.yaml` pipeline. The CD Pipeline provided needs to be modified in the following places to point to the Organisation's service connection and environment.
+**Required participant action.** Create a pipeline from `.pipelines/azure-pipelines/ci-pipelines/dpn-self-service-ci.yaml` and run it with these parameters:
 
 | Parameter | Value |
 |-----------|-------|
-| `ServiceConnection` | `A given Service Connection able to deploy the services` |
-| `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
+| `ServiceConnection` | Azure service connection that can push to the ACR |
+| `environment` | Target environment, e.g. `dev` |
+| `cluster` | `dpn01` or `dpn02` |
 
-### Step3c. Verify CD Pipeline Execution
+**Record the image tag** shown in the run summary (the run's build number). The CD pipeline needs it.
 
-- Verify the webserver, scheduler, triggerer, worker, Postgres, and Redis pods are all `Running`:
-  
-   ```bash
-   kubectl get pods -n <namespace> -l app.kubernetes.io/part-of=airflow
-   ```
-
-- Confirm each product's DAG is visible in the Airflow UI/webserver
-
----
-
-## Step4: Troubleshooting
-
-### CI Pipeline Failure
-
-Possible causes:
-
-- Image Registry Authentication/push failure — verify the CI pipeline's credentials have `write:packages` scope on the image registry
-
-- Missing or incorrect Process Type / Schema Type / Product Type parameters when triggering a producer run (see [Producer Configuration](#producer-configuration))
-
-Verify pipeline logs and ensure all credentials and parameters are correct.
-
----
-
-### Container Image Not Found
-
-Check whether the CI pipeline pushed the image to correct image repository.
-
-If the expected package/tag is not listed, re-run the relevant CI pipeline and ensure it completes without errors before proceeding to the CD pipeline.
-
----
-
-### Image Pull Failures
-
-If pods show `ImagePullBackOff` or `ErrImagePull`:
-
-- If the image digest is private, confirm the `imagePullSecrets` referenced by the chart exists in the target namespace and contains a valid, non-expired GitHub PAT with `read:packages`.
-
-- Confirm the AKS node pool has correct access to the image registry to pull the images
-
-- Confirm the image reference (`imageRegistry`/`imageName`/`imageTag`) matches an actual published tag — a typo here produces the same failure as a genuine access issue.
-
----
-
-### Data Pipeline Image Tag Malformed
-
-If a data pipeline image tag or repository name is missing its schema/product segment (e.g. it ends in a trailing `-` or `:` instead of the expected `<buildId>-<productType>`), the product's `values.yaml` most likely has `productType` and/or `schemaType` left blank.
-
-Check the affected product's `values.yaml` for both the adaptor and schema_mapper charts:
+To check the result, confirm the images exist in the ACR under that tag:
 
 ```bash
-grep -E "^productType:|^schemaType:" producer/{file|topic}/<product_type>/{adaptor,schema_mapper}/charts/values.yaml
+az acr repository show-tags --name <acr-name> --repository dsi/dpn-consumer-file-extractor --output table
 ```
----
-
-### Pods Not Starting
-
-Check pod events to identify scheduling or image pull issues:
-
-```bash
-kubectl describe pod <pod-name> -n <namespace>
-```
-
-Review the `Events` section at the bottom of the output. Common causes include insufficient node resources, missing Persistent Volume Claims, or image pull errors due to incorrect image credentials
 
 ---
 
-### Data Pipeline Pod Overwritten by Its Sibling Stage
+## STEP-03: Run the CD Pipeline
 
-If only one pod appears for a product where two are expected (adaptor and schema_mapper), check whether both charts' `values.yaml` files use the same final `name`/`imageName`:
-
-```bash
-grep -E "^name:|^imageName:" producer/{file|topic}/<product_type>/{adaptor,schema_mapper}/charts/values.yaml
-```
-
-If they match, the two Helm releases are colliding on the same Kubernetes resource name and one is overwriting the other. Give the schema_mapper chart a distinct `-mapper`-suffixed `name`/`imageName` and re-run the CD pipeline for that product.
-
----
-
-### Container CrashLoopBackOff
-
-A `CrashLoopBackOff` status means the container starts, crashes, and Kubernetes repeatedly attempts to restart it. Check the logs to identify the root cause:
-
-```bash
-kubectl logs <pod-name> -n <namespace>
-```
-
-Common causes:
-
-- Invalid or missing environment variables — check the Helm values file for typographical errors or missing entries
-- Missing secrets or incorrect SAS Token for Blob storage — verify all required secrets exist as Kubernetes secrets with the correct names and values
-- Kafka topic is not pre-populated — run the Kafka Topic Creator job or manually create topics via the Kafka UI
-
----
-
-### HPA Not Scaling
-
-If `kubectl get hpa` shows `<unknown>` under `TARGETS`:
-
-- Confirm metrics-server is running: `kubectl get deployment metrics-server -n kube-system`.
-- Confirm the affected pods have CPU/memory `requests` set in their Deployment spec — HPA cannot compute a percentage without a request baseline.
-
-If metrics are available but replica count never changes, confirm `hpa.minReplicas`/`hpa.maxReplicas` allow room to scale, and that current load is actually crossing the configured `targetCPUUtilizationPercentage`/`targetMemoryUtilizationPercentage` threshold.
-
----
-
-### Kafka Topic Issues
-
-Verify Kafka topics using the Kafka UI:
-
-```
-http://kafka-ui:8085
-```
-
-Check that:
-
-- The topic exists in both the source and destination Kafka clusters
-- The topic name in the data pipeline configuration matches exactly (topic names are case-sensitive)
-- There are no consumer group errors shown in the Kafka UI for the data pipeline's consumer group(s)
-- For the `topic` pathway specifically, `srcGroupId` values are unique per product and free of stray environment/test suffixes
-
----
-
-## Step5: Containerized Deployment Using DSI Provided Container Images
-
-This section covers deployment using **custom and 3rd party open source container images** published by DSI to `ghcr.io/energy-dsi` image repository. Organisations using this approach pull DSI-provided images directly rather than building container images via CI pipelines.
-
-Data Pipeline service images are found in GHCR with following name
-
-| Image Name | GHCR Path | Tag |
-|---|---|---|
-| producer-file-adaptor-eq | `ghcr.io/energy-dsi/producer-file-adaptor-eq` | `e.g. 1.0.0` |
-| producer-file-mapper-eq | `ghcr.io/energy-dsi/producer-file-mapper-eq` | `<version>` |
-| producer-file-adaptor-eqbd | `ghcr.io/energy-dsi/producer-file-adaptor-eqbd` | `<version>` |
-| producer-file-mapper-eqbd | `ghcr.io/energy-dsi/producer-file-mapper-eqbd` | `<version>` |
-| producer-file-adaptor-dl | `ghcr.io/energy-dsi/producer-file-adaptor-dl` | `<version>` |
-| producer-file-mapper-dl | `ghcr.io/energy-dsi/producer-file-mapper-dl` | `<version>` |
-| producer-file-adaptor-ssh | `ghcr.io/energy-dsi/producer-file-adaptor-ssh` | `<version>` |
-| producer-file-mapper-ssh | `ghcr.io/energy-dsi/producer-file-mapper-ssh` | `<version>` |
-| producer-topic-adaptor-eq | `ghcr.io/energy-dsi/producer-topic-adaptor-eq` | `<version>` |
-| producer-topic-mapper-eq | `ghcr.io/energy-dsi/producer-topic-mapper-eq` | `<version>` |
-| producer-topic-adaptor-eqbd | `ghcr.io/energy-dsi/producer-topic-adaptor-eqbd` | `<version>` |
-| producer-topic-mapper-eqbd | `ghcr.io/energy-dsi/producer-topic-mapper-eqbd` | `<version>` |
-| producer-topic-adaptor-dl | `ghcr.io/energy-dsi/producer-topic-adaptor-dl` | `<version>` |
-| producer-topic-mapper-dl | `ghcr.io/energy-dsi/producer-topic-mapper-dl` | `<version>` |
-| producer-topic-adaptor-ssh | `ghcr.io/energy-dsi/producer-topic-adaptor-ssh` | `<version>` |
-| producer-topic-mapper-ssh | `ghcr.io/energy-dsi/producer-topic-mapper-ssh` | `<version>` |
-| consumer-file-extractor | `ghcr.io/energy-dsi/consumer-file-extractor` | `<version>` |
-| consumer-file-mapper | `ghcr.io/energy-dsi/consumer-file-mapper` | `<version>` |
-| consumer-topic-extractor | `ghcr.io/energy-dsi/consumer-topic-extractor` | `<version>` |
-| consumer-topic-mapper | `ghcr.io/energy-dsi/consumer-topic-mapper` | `<version>` |
-
-
----
-
-### Step5a. Configure GHCR Image Access
-
-All custom and third-party images are pulled from `ghcr.io/energy-dsi`.
-
-Even though the `energy-dsi` GHCR packages are **public**, GitHub Container Registry still requires authentication (a GitHub username and Personal Access Token) to pull images reliably. Unauthenticated pulls are subject to strict rate limits and may fail in automated environments.
-
-Create a GitHub Personal Access Token with `read:packages` scope. Once the token is available, create a kubernetes secret from the same.This secret will be used during the image pull.
-
-```bash
-kubectl create secret docker-registry ghcr-pull-secret \
-     --docker-server=ghcr.io \
-     --docker-username=<github-username-or-bot-account> \
-     --docker-password=<GitHub PAT with read:packages scope> \
-     -n <namespace>
-```
-
-### Step5b. Execute CD Pipeline
-
-Create the CD pipelines from the following yaml file. The CD Pipelines are already pointing to GHCR repository. This CD pipelines fetche the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
-
-```text
-Root-Repository/
-└── .pipelines/
-    └── azure-pipelines/
-        └── cd-pipelines/
-            └── dpn-data-pipelines-ghcr-cd.yaml
-            └── dpn-data-pipeline-airflow-ghcr-cd.yaml            
-```
-The CD Pipeline would require the following run time parameters. 
+**Required participant action.** Create a pipeline from `.pipelines/azure-pipelines/cd-pipelines/dpn-self-service-cd.yaml` and run it with these parameters:
 
 | Parameter | Value |
 |-----------|-------|
-| `ServiceConnection` | `A given Service Connection able to deploy the services` |
-| `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
-| `releaseTag` | Provides the release version or image tag to be pulled from GHCR |
+| `ServiceConnection` | Service connection that can deploy to the AKS cluster |
+| `environment` | Same environment as the CI run |
+| `cluster` | `dpn01` or `dpn02` |
+| `imageTag` | The image tag recorded in [STEP-02](#step-02-run-the-ci-pipeline) |
 
-Execute this CD Pipeline to perform deployment.
+Approve the deployment when the approval gate is raised.
+
+**Required after the first deployment:** register the Self-Service UI address as a redirect URI on the Keycloak client `dpn-service-client` (`<url>/oauth2/callback`, with **Standard flow** enabled). The pipeline prints the address in a warning. Login does not work until this is done.
+
+To check the result, all three pods must show `Running`:
+
+```bash
+kubectl get pods -n ns-dpn-dp-01
+```
+
+```text
+dpn-self-service-xxxxxxxx-xxxxx
+dpn-consumer-file-extractor-xxxxxxxx-xxxxx
+dpn-consumer-topic-extractor-xxxxxxxx-xxxxx
+```
+
+> **Informational (no action required):** The UI address is filled in automatically by the pipeline. To roll back or remove the platform, use `dpn-self-service-rollback.yaml` or `dpn-self-service-uninstall-cd.yaml`.
 
 ---
 
-### Step5c. Verify CD Pipeline
+## STEP-04: Troubleshooting
 
-Follow the same verification steps mentioned in Step2e/Step2f (data pipeline deployment) and Step3c (Airflow) as above.
+| Symptom | Likely cause | Action |
+|---------|--------------|--------|
+| CI fails at push | The service connection cannot push to the ACR | Grant push permission on the ACR |
+| CI fails in a scan stage | A tool stage is not configured for your organisation | Remove or replace the stage |
+| `ImagePullBackOff` / `ErrImagePull` | AKS cannot pull from the ACR, or the image tag does not exist | Attach the ACR to AKS. Check the tag exists in the ACR |
+| Pod stuck in `Pending` or not starting | Insufficient node resources, or a Secret the pod references is missing | `kubectl describe pod <pod> -n ns-dpn-dp-01` and read the Events |
+| `CrashLoopBackOff` | Missing or incorrect secret, wrong truststore password, or invalid configuration value | `kubectl logs <pod> -n ns-dpn-dp-01`. Check the [Secrets Table](../02-configuration/07-configure-dpn-data-pipelines.md#step-02-secrets-table) and that storage connection strings are base64-encoded |
+| Kafka SASL `invalid_token` | The Keycloak token endpoint uses the load-balancer hostname | Use the `dpn-keycloak` ClusterIP service URL |
+| UI login fails | The redirect URI is not registered in Keycloak, or the user has no `dpnadmin`, `dpnoperator` or `dpnreader` role | Register `<url>/oauth2/callback` on `dpn-service-client`. Assign a role |
+| `401` on every UI request | The request bypassed the login proxy (for example `kubectl port-forward`) | Use the UI's external address |
 
 ---
 
@@ -513,5 +121,6 @@ Follow the same verification steps mentioned in Step2e/Step2f (data pipeline dep
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
-| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| May-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 |

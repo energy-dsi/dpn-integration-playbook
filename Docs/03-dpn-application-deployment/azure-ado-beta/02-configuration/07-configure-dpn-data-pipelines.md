@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Data Pipeline Configuration
 
 ---
@@ -5,707 +7,131 @@
 ## Table of Contents
 
 - [Overview](#overview)
-- [Data Pipeline Blueprints](#data-pipeline-blueprints)
-- [Step1: Setup a New Data Product From Blueprint](#step1-setup-a-new-data-product-from-blueprint)
-- [Step2: Setup Data Consumers From Blueprint](#step2-setup-data-consumers-from-blueprint)
-- [Step3: Setup Producer Helm Charts](#step3-setup-producer-helm-charts)
-  - [Step3a: Set Up Producer Helm Charts For File Based Pathways](#step3a-set-up-producer-helm-charts-for-file-based-pathways)
-  - [Step3b: Set Up Producer Helm Charts For Topic Based Pathways](#step3b-set-up-producer-helm-charts-for-topic-based-pathways)
-- [Step4: Setup Consumer Helm Charts](#step4-setup-consumer-helm-charts)
-  - [Step4a: Setup Consumer Helm Charts For File Based Integration Pathway](#step4a-setup-consumer-helm-charts-for-file-based-integration-pathway)
-  - [Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway](#step4b-setup-consumer-helm-charts-for-topic-based-integration-pathway)
-- [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa)
-- [Step6: Configure Scheduling](#step6-configure-scheduling)
-  - [Option A (Helm): Configure Scheduling Using Airflow](#option-a-helm-configure-scheduling-using-airflow)
-  - [Scheduler Backend Options](#scheduler-backend-options)
-  - [Behavior](#behavior)
-  - [Option B (Helm): Configure Scheduling Without Airflow](#option-b-helm-configure-scheduling-without-airflow)
-- [Step7: Onboard a New Data Product on Airflow Scheduler](#step7-onboard-a-new-data-product-on-airflow-scheduler)
-- [Step8: Configure Secrets](#step8-configure-secrets)
-  - [Step8a: Configure Storage Secrets](#step8a-configure-storage-secrets)
-  - [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls)
-- [Step9: Configure DPN Data Store](#step9-configure-dpn-data-store)
-  - [Step9a: Storage Blob / S3 Configuration](#step9a-storage-blob--s3-configuration)
-  - [Step9b: Configure Streaming Service (Kafka)](#step9b-configure-streaming-service-kafka)
+- [STEP-01: Configuration Table](#step-01-configuration-table)
+- [STEP-02: Secrets Table](#step-02-secrets-table)
 - [Review Notes](#review-notes)
 
 ---
 
 ## Overview
 
-DPN Data Pipeline ensures secure and governed data exchange by validating and transforming datasets before and after transmission. It is expected to perform schema assurance, metadata validation, and controlled processing across producer and consumer stages. This ensures all shared data conforms to required schemas, security classifications, and governance standards, enabling reliable and compliant data sharing. The DPN data pipeline provides blueprints of different data template schemas following CIM validation models, i.e. EQ, EQBD, SSH, DL.
+This guide lists **only what a participant organisation must set** to run the DPN Data Pipeline on Azure. Everything not listed here is preconfigured or handled by the platform and must be left at its default.
 
-## Data Pipeline Blueprints
+| Action | Where |
+|--------|-------|
+| **Required participant action:** update the values in the Configuration Table | [STEP-01](#step-01-configuration-table) |
+| **Required participant action:** create the secrets in the Secrets Table | [STEP-02](#step-02-secrets-table) |
 
-DSI provides the following schema types belonging to CIM validation models at this moment. Organisations are expected to verify and augment any new schema type following the DSM data template definition, and to bring their own adaptor and mapper components accordingly. 
+> **Informational (no action required):**
+> - Pipeline images, registry and tag are set by the CI/CD pipelines.
+> - Kafka connection and security (`SASL_SSL` with `OAUTHBEARER`), scheduling (`interval`) and autoscaling (off) are preconfigured; keep the defaults.
+> - Storage containers and Kafka topics are created automatically by the pipeline. Their names must not already exist.
+> - Files keep their original name in the target container.
 
-| Schema | Description |
-|------|-------------|
-| DL | Diagram Layout |
-| EQ | Equipment |
-| EQBD | Equipment Boundary |
-| SSH | Steady State Hypothesis |
+---
 
-DSI provides the above schema-type blueprints from which organisations prepare their data products. The `values.yaml` files within the blueprints directory **must not** be modified directly. The blueprints folder is organised by integration pathway (e.g. `file` and `topic`) and by schema type within each pathway.
+## STEP-01: Configuration Table
 
-```text
-Root-Repository
-  └── blueprints
-        └── consumer
-              └── file
-                    ├── extractor
-                    │     └── charts
-                    │           └── values.yaml
-                    └── schema_mapper
-                          └── charts
-                                └── values.yaml
-              └── topic
-                    ├── extractor
-                    │     └── charts
-                    │           └── values.yaml
-                    └── schema_mapper
-                          └── charts
-                                └── values.yaml                                
-        └── producer
-              └── file
-                    ├── dl
-                    │     ├── adaptor
-                    │     │     └── charts
-                    │     │           └── values.yaml
-                    │     └── schema_mapper
-                    │           └── charts
-                    │                 └── values.yaml
-                    ├── eq
-                    │     ├── adaptor
-                    │     │     └── charts
-                    │     │           └── values.yaml
-                    │     └── schema_mapper
-                    │           └── charts
-                    │                 └── values.yaml
-                    ├── eqbd
-                    │     ├── adaptor
-                    │     │     └── charts
-                    │     │           └── values.yaml
-                    │     └── schema_mapper
-                    │           └── charts
-                    │                 └── values.yaml
-                    └── ssh
-                          ├── adaptor
-                          │     └── charts
-                          │           └── values.yaml
-                          └── schema_mapper
-                                └── charts
-                                      └── values.yaml
-              └── topic
-                    ├── dl
-                    │     ├── adaptor
-                    │     │     └── charts
-                    │     │           └── values.yaml
-                    │     └── schema_mapper
-                    │           └── charts
-                    │                 └── values.yaml
-                    ├── eq
-                    │     ├── adaptor
-                    │     │     └── charts
-                    │     │           └── values.yaml
-                    │     └── schema_mapper
-                    │           └── charts
-                    │                 └── values.yaml
-                    ├── eqbd
-                    │     ├── adaptor
-                    │     │     └── charts
-                    │     │           └── values.yaml
-                    │     └── schema_mapper
-                    │           └── charts
-                    │                 └── values.yaml
-                    └── ssh
-                          ├── adaptor
-                          │     └── charts
-                          │           └── values.yaml
-                          └── schema_mapper
-                                └── charts
-                                      └── values.yaml                                      
-```
+Set the parameters below in the `values.yaml` file of each chart. Make the changes in **your own copy** of the `dpn-data-pipelines` repository, then commit and push to the branch the CD pipeline runs from. The pipeline deploys what is in that branch.
 
-## Step1: Setup a New Data Product From Blueprint
-
-The following steps are required when an organisation produces a data product:
-
-1. Define the **`product_type`** name — the identifier/name of the data product being published. Each product type must conform to one of the schema types available in the blueprints.
-2. Define the **`process_type`** - file/topic for the data product.
-3. Copy the relevant schema folder (e.g. `eq`, `eqbd`, `dl`, or `ssh`) from `Root-Repository/blueprints/producer/file/{schema_type}` to `Root-Repository/producer/file/{schema_type}` if **process_type is file**.
-4. Copy the relevant schema folder (e.g. `eq`, `eqbd`, `dl`, or `ssh`) from `Root-Repository/blueprints/producer/topic/{schema_type}` to `Root-Repository/producer/topic/{schema_type}` if **process_type is topic**.
-5. Rename the copied `{schema_type}` folder to `{product_type}` (e.g. rename `eq` to `eq-dp-01`). Only hyphens are permitted as special characters; **all other special characters are disallowed**.
-6. Ensure the `product_type` value is passed consistently during the CI pipeline run. This `product_type` defines the name of the data product being published. In some cases the term `product_name` is used which has the same value. 
-
-**Note** The `product_type` value needs to exactly match the folder name of the data product in the dpn-data-pipelines repository otherwise pipeline execution will fail. 
+The `values.yaml` files are in the `blueprints` folder of the repository:
 
 ```text
 Root-Repository
-  └── producer
-        └── file
-              └── {product_type}   <- e.g. eq-sample-1
-                    ├── adaptor
-                    │     └── charts
-                    │           └── values.yaml
-                    └── schema_mapper
-                          └── charts
-                                └── values.yaml
+└── blueprints
+    ├── producer
+    │   ├── file
+    │   │   └── adaptor
+    │   │       └── charts
+    │   │           └── values.yaml   <- Edit: orgName, cloudProviderType
+    │   └── topic
+    │       └── adaptor
+    │           └── charts
+    │               └── values.yaml   <- Edit: orgName
+    └── consumer
+        ├── file
+        │   └── extractor
+        │       └── charts
+        │           └── values.yaml   <- Edit: cloudProviderType
         └── topic
-              └── {product_type}   <- e.g. eq-sample-1
-                    ├── adaptor
-                    │     └── charts
-                    │           └── values.yaml
-                    └── schema_mapper
-                          └── charts
-                                └── values.yaml                                
+            └── extractor
+                └── charts
+                    └── values.yaml   <- No change needed
 ```
 
-## Step2: Setup Data Consumers From Blueprint
+| Parameter | Purpose | Required value |
+|-----------|---------|----------------|
+| `orgName` | Your organisation name abbreviation, with no space in between. **Required: the default `example-org` must be changed** | `<your-org-abbreviation>` |
+| `cloudProviderType` | This value provides which cloud environment the data pipeline is going to run | `azure` |
 
-The following step is required when an organisation is consuming data products:
+**Available values for the cloud provider** (`cloudProviderType`): `azure`, `aws`, `gcp` (lowercase). Use `azure` for this Azure deployment.
 
-1. Define the **process_type** file/topic integration pathway for the subscribed data product.
-2. Copy the consumer folder from `Root-Repository/blueprints/consumer/file` to `Root-Repository/consumer/file` as-is, without modification, if **process_type is file**.
-3. Copy the consumer folder from `Root-Repository/blueprints/consumer/topic` to `Root-Repository/consumer/topic` as-is, without modification, if **process_type is topic**.
+> **GCP is not supported yet.** GCP support is planned for a future release.
 
-```text
-Root-Repository
-  └── consumer
-        └── file
-              ├── extractor
-              │     └── charts
-              │           └── values.yaml
-              └── schema_mapper
-                    └── charts
-                          └── values.yaml
-        └── topic
-              ├── extractor
-              │     └── charts
-              │           └── values.yaml
-              └── schema_mapper
-                    └── charts
-                          └── values.yaml                
+---
+
+## STEP-02: Secrets Table
+
+The secrets below are required in the data pipeline namespace (`ns-dpn-dp-01`) **before** you run the CD pipeline. The containers do not start without them.
+
+> **Required: these secrets must exist in the `ns-dpn-01` namespace first.** Kubernetes secrets cannot be shared across namespaces, so the secrets are sourced from `ns-dpn-01` and copied into `ns-dpn-dp-01`. Follow this order for **each** secret in the table:
+> 1. **Verify** it exists in `ns-dpn-01` (command below).
+> 2. **If it exists**, **copy** it into `ns-dpn-dp-01` with the copy commands below.
+> 3. **If it does not exist**, **create** it directly in `ns-dpn-dp-01`. `dpn-tls` and `dpn-keycloak-secrets` are platform-provided and must not be created by hand: if either is missing from `ns-dpn-01`, complete the DPN Certificate Manager / Authentication Service installation first.
+
+| Secret | Keys | Value | Used by |
+|--------|------|-------|---------|
+| `producer-file-dp-secret` | `SRC_CONNECTION_STRING`, `TARGET_CONNECTION_STRING` | Blob Storage connection strings for the producer source and target storage accounts. The same value may be used for both | Self-Service UI and producer file products |
+| `consumer-file-dp-secret` | `SRC_CONNECTION_STRING`, `TARGET_CONNECTION_STRING` | Blob Storage connection strings for the consumer source and target storage accounts. The same value may be used for both | Consumer file extractor |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka TLS trust) |
+| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka OAuth) |
+
+**Verify the secrets in `ns-dpn-01`:**
+
+```bash
+kubectl get secret dpn-tls dpn-keycloak-secrets producer-file-dp-secret consumer-file-dp-secret -n ns-dpn-01
 ```
 
-> **Note:** The `values.yaml` file can be replicated for multiple environments or DPN deployments (e.g. `values-<env>-dpn01.yaml`, `values-<env>-dpn02.yaml`). The organisation must specify the values file name in the pipeline configuration as described in the [Azure Environment Configuration](00-common-dpn-configuration.md#step22-azure-environment-configuration) section.
+Any secret reported as `NotFound` does not exist in `ns-dpn-01`; create it in `ns-dpn-dp-01` (storage secrets only, see below).
 
-## Step3: Setup Producer Helm Charts
+**Copy the secrets into `ns-dpn-dp-01`** (for each secret that exists in `ns-dpn-01`). Run each command below (PowerShell) for that secret:
 
-### Step3a: Set Up Producer Helm Charts For File Based Pathways
+```powershell
+# dpn-tls
+kubectl get secret dpn-tls -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
 
-The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper, using **file** based integration pathway. Most parameters are shared across both stages; where a parameter applies to only one stage this is called out explicitly.
+# dpn-keycloak-secrets
+kubectl get secret dpn-keycloak-secrets -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
 
-> **Note:** `srcContainerName` applies to the **adaptor only** — it reads the source file. `mapperContainerName`/`mapperTopicName` reuse the same name across stages but the role flips: it is the adaptor's *output* and the schema mapper's *input*. `targetContainerName`/`targetTopicName` are always the schema mapper's output.
+# producer-file-dp-secret
+kubectl get secret producer-file-dp-secret -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
 
-**Identity & Image**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
-| name | Helm release / resource name for this deployment instance | `producer-file-mapper-example` |
-| cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
-| acrName | Azure Container Registry name to pull images from (when `cloudProviderType: azure`) | `""` (leave empty if not applicable) |
-| imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
-| imageTag | Image tag to deploy | `latest` |
-| productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
-| PRODUCT_NAME | Runtime env var alias of `productType` — same value, consumed by application code rather than Helm templating (see [Step1](#step1-setup-a-new-data-product-from-blueprint)) | `eq-sample-1` |
-| orgName | Organisation name abbreviation (no spaces) | `orga` |
-| schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
-
-**Storage**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| srcContainerName | Source storage container name (**adaptor only**) | `eq-sample-1-stage` |
-| mapperContainerName | Storage container name for the mapper stage | `eq-sample-1-raw` |
-| targetContainerName | Storage container name for the target stage | `eq-sample-1-target` |
-| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets) | `producer-file-dp-secret` |
-
-**AWS S3** (only when `cloudProviderType: aws`)
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| awsEndpointUrl | Custom S3 endpoint URL, if not using the default AWS endpoint | `""` (leave empty to use the AWS default) |
-| awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
-| awsAccessSecret | Kubernetes secret holding AWS access credentials | `aws-access-secret` |
-
-**Kafka Connectivity**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka.ns-dpn-01.svc.cluster.local:9092` |
-| mapperTopicName | Kafka topic name for the mapper stage | `dpn-producer-eq-sample-1-raw` |
-| targetTopicName | Kafka topic name for the target stage | `dpn-producer-eq-sample-1-target` |
-
-Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
-
-**Scheduling & Scaling**
-
-`SCHEDULER_BACKEND`, `EXECUTION_MODE`, `scheduleInterval`, `PIPELINE_CONTROL_TOPIC`, and `PIPELINE_STATUS_TOPIC` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) for the full parameter set and behavior. `replicaCount` and the `hpa.*` block are covered in [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa).
-
-**Observability**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| STATSD_HOST | StatsD host for metrics emission (leave empty to disable) | `""` |
-| STATSD_PORT | StatsD port | `8125` |
-| SERVICE_NAME | Service name reported to tracing/metrics backends | `dpn data pipeline` |
-| SERVICE_VERSION | Service version reported to tracing/metrics backends | `1.0.0` |
-| OTEL_EXPORTER_OTLP_ENDPOINT | OTel collector's OTLP endpoint. Defaults to the HTTPS endpoint on port `4318` | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
-| OTEL_EXPORTER_OTLP_INSECURE | Whether the OTLP endpoint above is called over plaintext. Defaults to `false` (HTTPS, port `4318`) | `false` |
-| ENVIRONMENT | Deployment environment label attached to telemetry | `production` |
-
-> **Note:** `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE` default to the HTTPS endpoint on port `4318` with `INSECURE: false`, and this is the supported out-of-the-box configuration. Plaintext HTTP on port `4317` is also supported, but only as a manual, user-driven change — to switch to it, update **both** values together:
->
-> | Mode | OTEL_EXPORTER_OTLP_ENDPOINT | OTEL_EXPORTER_OTLP_INSECURE |
-> |------|------------------------------|------------------------------|
-> | HTTPS (default) | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` | `false` |
-> | Plaintext HTTP (manual) | `dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4317` | `true` |
->
-> Changing only the port or only the flag results in a mismatched configuration — the port and the `INSECURE` flag must be updated together.
-
-### Step3b: Set Up Producer Helm Charts For Topic Based Pathways
-
-The values.yaml file created in Step 1 for a specific data product running in a specific environment must be modified as follows, for both the producer adaptor and schema mapper, using **topic** based integration pathway. As with the file pathway, most parameters are shared across both stages; where a parameter applies to only one stage this is called out explicitly.
-
-> **Note:** `srcTopicName` and `srcGroupId` apply to the **adaptor only** — it consumes from the upstream source topic. `mapperTopicName` reuses the same name across stages but the role flips: it is the adaptor's *output* and the schema mapper's *input*. `targetTopicName` is the schema mapper's output only.
-
-**Identity & Image**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
-| name | Helm release / resource name for this deployment instance | `producer-topic-adaptor-example` |
-| acrName | Azure Container Registry name to pull images from | `""` (leave empty if not applicable) |
-| imageName | Image name in the DSI registry | `{image name of adaptor or schema_mapper}` |
-| imageTag | Image tag to deploy | `latest` |
-| productType | Product type name — alphanumeric and hyphens only | `eq-sample-1` |
-| PRODUCT_NAME | Runtime env var alias of `productType` — same value, consumed by application code rather than Helm templating (see [Step1](#step1-setup-a-new-data-product-from-blueprint)) | `eq-sample-1` |
-| orgName | Organisation name abbreviation (no spaces) | `orga` |
-| schemaType | Schema type | `eq` / `eqbd` / `dl` / `ssh` |
-
-> **Note:** `cloudProviderType` and the AWS S3 / storage-secret parameters from the file pathway (see [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways)) do not apply here — the topic pathway is Kafka-to-Kafka only and does not read or write blob/S3 storage, so this stage's `values.yaml` has no `cloudProviderType`, `awsEndpointUrl`, `awsAccessSecret`, or `storageConnectionSecret` keys at all.
-
-**Kafka Connectivity**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka.ns-dpn-01.svc.cluster.local:9092` |
-| srcTopicName | Kafka topic name for the adaptor input stage (**adaptor only**) | `dpn-producer-eq-sample-1-src` |
-| mapperTopicName | Kafka topic name for the adaptor-out / mapper-in stage | `dpn-producer-eq-sample-1-raw` |
-| targetTopicName | Kafka topic name for the mapper-out / target-in stage (**schema mapper only**) | `dpn-producer-orga-eq-eq-sample-1-target` {Automatically created} |
-| srcGroupId | Kafka consumer group for the adaptor's source topic (**adaptor only**) | `producer-topic-adaptor-eq-sample-1` |
-| consumerRetryDelaySecs | Delay, in seconds, before retrying a failed consume | `5` |
-| TOPIC_TASK_TIMEOUT_SECS | Timeout, in seconds, for processing a single topic message/task | `60` |
-| DRAIN_IDLE_SECS | Idle time, in seconds, with no new messages before the consumer stops draining the topic | `15` |
-
-Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
-
-**Scheduling & Scaling**
-
-`SCHEDULER_BACKEND`, `EXECUTION_MODE`, and `replicaCount` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) and [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa) for the full parameter sets.
-
-**Observability**
-
-Most of the observability block documented for the file pathway (`SERVICE_NAME` / `SERVICE_VERSION`, `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE`, `ENVIRONMENT`) applies here unchanged — see the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
-
-> **Note:** the topic pathway's reference `values.yaml` sets the StatsD port via the Helm value `statsdPort` (e.g. `8125`) rather than the `STATSD_HOST` / `STATSD_PORT` env vars used on the file pathway, and does not set a StatsD host equivalent. Confirm which of the two your chart version actually consumes before copying values across pathways.
-
-## Step4: Setup Consumer Helm Charts
-
-### Step4a: Setup Consumer Helm Charts For File Based Integration Pathway
-
-The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper using **file** based integration pathway
-
-**Identity & Image**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
-| name | Helm release / resource name for this deployment instance | `consumer-file-extractor` |
-| cloudProviderType | Cloud provider to run on | `azure` / `aws` / `gcp` |
-| acrName | Azure Container Registry name to pull images from (when `cloudProviderType: azure`) | `""` (leave empty if not applicable) |
-| imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
-| imageTag | Image tag to deploy | `latest` |
-
-**Storage**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| srcContainerName | Source storage container name | `dp-consumer-stage` |
-| mapperContainerName | Storage container name for the mapper stage | `dp-consumer-trfm` |
-| targetContainerName | Storage container name for the target stage | `dp-consumer-target` |
-| storageConnectionSecret | Kubernetes secret holding the storage connection string(s) for this stage — see [Step8a](#step8a-configure-storage-secrets) | `consumer-file-dp-secret` |
-
-**AWS S3** (only when `cloudProviderType: aws`)
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| awsEndpointUrl | Custom S3 endpoint URL, if not using the default AWS endpoint | `""` (leave empty to use the AWS default) |
-| awsRegion | AWS region for the S3 bucket(s) | `us-east-1` |
-| awsAccessSecret | Kubernetes secret holding AWS access credentials | `aws-access-secret` |
-
-**Kafka Connectivity**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka-target.ns-dpn-01.svc.cluster.local:9092` |
-| mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-file-trfm` |
-| targetTopicName | Kafka topic name for the mapper out and target in stage | `dp-consumer-file-target` |
-| DRAIN_IDLE_SECS | Idle time, in seconds, with no new messages before the consumer stops draining the topic | `15` |
-| topicTaskTimeoutSecs | Timeout, in seconds, for processing a single topic message/task. Note the reference `values.yaml` for this pathway uses this lower/camel-case name rather than the `TOPIC_TASK_TIMEOUT_SECS` env var seen on the topic pathway — confirm which your chart version reads before copying values across pathways | `60` |
-
-Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
-
-**Scheduling & Scaling**
-
-`SCHEDULER_BACKEND`, `EXECUTION_MODE`, `scheduleInterval`, `PIPELINE_CONTROL_TOPIC`, and `PIPELINE_STATUS_TOPIC` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) for the full parameter set and behavior. `replicaCount` and the `hpa.*` block are covered in [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa).
-
-**Observability**
-
-`SERVICE_NAME` / `SERVICE_VERSION`, `PRODUCT_NAME`, `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE`, and `ENVIRONMENT` apply here as documented in the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
-
-> **Note:** the file-based consumer's reference `values.yaml` sets only `STATSD_PORT` (no `STATSD_HOST` equivalent).
-
-### Step4b: Setup Consumer Helm Charts For Topic Based Integration Pathway
-
-The values.yaml file created in Step 2 for all data products running in a specific environment must be modified as follows, for both the consumer extractor and schema mapper using **topic** based integration pathway
-
-**Identity & Image**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| namespace | Name of the Kubernetes namespace | `ns-dpn-01` |
-| name | Helm release / resource name for this deployment instance | `dpn-consumer-topic-eq-neso-oil-adaptor` |
-| imageName | Image name in the DSI registry | `{image name of extractor or consumer_mapper}` |
-
-> **Note:** `cloudProviderType` and the AWS S3 / storage-secret parameters from the file pathway (see [Step4a](#step4a-setup-consumer-helm-charts-for-file-based-integration-pathway)) do not apply here, for the same reason as the topic-pathway producer (see [Step3b](#step3b-set-up-producer-helm-charts-for-topic-based-pathways)) — this stage does not read or write blob/S3 storage.
-
-**Kafka Connectivity**
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| bootstrapServer | Kafka bootstrap server address for this stage | `dpn-kafka-target.ns-dpn-01.svc.cluster.local:9092` |
-| srcTopicName | Kafka topic name for the extractor in stage | `dp-consumer-topic-stage` |
-| srcGroupId | Kafka consumer group for the extractor's source topic | `consumer_topic_eqbd_pg_gas_test` |
-| mapperTopicName | Kafka topic name for the extractor out and mapper in stage | `dp-consumer-topic-trfm` |
-| targetTopicName | Kafka topic name for the mapper out and target in stage | Not Required, Auto Created from metadata |
-| consumerRetryDelaySecs | Delay, in seconds, before retrying a failed consume | `5` |
-| TOPIC_TASK_TIMEOUT_SECS | Timeout, in seconds, for processing a single topic message/task | `60` |
-| DRAIN_IDLE_SECS | Idle time, in seconds, with no new messages before the consumer stops draining the topic | `15` |
-
-Kafka authentication (SASL/TLS/OAuth) is configured separately from topic naming — see [Step8b: Configure Kafka Security (SASL/TLS)](#step8b-configure-kafka-security-sasltls).
-
-**Scheduling & Scaling**
-
-`PRODUCT_NAME`, `SCHEDULER_BACKEND`, `EXECUTION_MODE`, `scheduleInterval`, `PIPELINE_CONTROL_TOPIC`, and `PIPELINE_STATUS_TOPIC` also live in this values.yaml — see [Step6: Configure Scheduling](#step6-configure-scheduling) for the full parameter set and behavior. `replicaCount` and the `hpa.*` block are covered in [Step5: Configure Horizontal Pod Autoscaler (HPA)](#step5-configure-horizontal-pod-autoscaler-hpa).
-
-**Observability**
-
-`SERVICE_NAME` / `SERVICE_VERSION`, `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_EXPORTER_OTLP_INSECURE`, and `ENVIRONMENT` apply here as documented in the Observability table under [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways).
-
-> **Note:** as with the topic-based producer, the reference `values.yaml` here sets the StatsD port via the Helm value `statsdPort` (e.g. `8125`) rather than `STATSD_HOST` / `STATSD_PORT`, and does not set a StatsD host equivalent.
-
-DSI proposes only selective changes to the values file but provides the provision to customise other parameters if required.
-
-> **Naming conventions**
-
-Organisations are recommended to adopt the following naming convention
-
-> - Storage container names and product type names should use only alphanumeric characters and hyphens (`-`) — this is enforced for `product_type` (see [Step1](#step1-setup-a-new-data-product-from-blueprint)). Kafka topic names and consumer group IDs are not restricted by the pipeline's own validation to hyphen-only naming — the shipped reference configuration uses underscores in some Kafka consumer group IDs (e.g. `consumer_topic_eqbd_pg_gas_test`), so treat the hyphen-only form as a convention to prefer, not a hard requirement enforced by the code.
-> - Organisation names must be abbreviated without spaces.
-> - Schema type must match the blueprint schema type exactly: `eq`, `eqbd`, `dl`, or `ssh`.
-
-## Step5: Configure Horizontal Pod Autoscaler (HPA)
-
-Each adaptor, schema_mapper, and extractor Deployment can scale horizontally based on load, rather than running a fixed `replicaCount`. This requires the Kubernetes **metrics-server** to be running in the AKS cluster (standard on AKS by default).
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| hpa.enabled | Enables the Horizontal Pod Autoscaler for this stage | `false` |
-| hpa.minReplicas | Minimum pod count, including at idle | `1` |
-| hpa.maxReplicas | Maximum pod count under peak load | `3` |
-| hpa.scaleUp.cpuUtilization | Average CPU utilisation (as % of requested CPU) that triggers scale-out | `80` |
-| hpa.scaleUp.memoryUtilization | Average memory utilisation (as % of requested memory) that triggers scale-out | `80` |
-| hpa.scaleUpBehavior.stabilizationWindowSeconds | How long the controller waits before acting on a scale-out signal (Kubernetes HPA v2 `behavior.scaleUp`) | `60` |
-| hpa.scaleUpBehavior.policies | Scale-out policies (`type`: `Pods` or `Percent`, `value`, `periodSeconds`) | `[{type: Pods, value: 1, periodSeconds: 60}]` |
-| hpa.scaleDown.stabilizationWindowSeconds | How long the controller waits before acting on a scale-in signal (Kubernetes HPA v2 `behavior.scaleDown`) | `300` |
-| hpa.scaleDown.policies | Scale-in policies (`type`: `Pods` or `Percent`, `value`, `periodSeconds`) | `[{type: Percent, value: 50, periodSeconds: 60}]` |
-
-> **Note:** when `hpa.enabled: true`, the chart's `replicaCount` value is treated only as the **initial** replica count at first deploy — the HPA controller owns the replica count from that point on. Do not rely on `replicaCount` to reflect the running pod count once HPA is active; check `kubectl get hpa` instead.
-
-> **Note:** `hpa.enabled` defaults to `false`. Leave it disabled while `SCHEDULER_BACKEND: interval` is in use (see [Step6](#step6-configure-scheduling)) — interval-based scheduling does not partition work across replicas, so scaling out under that backend does not safely distribute load. Only enable HPA once the stage's trigger/partitioning model actually supports concurrent replicas (e.g. `kafka-trigger` consumption over a partitioned topic).
-
-Recommended starting point: enable HPA on `adaptor` and `schema_mapper` stages, which see variable load depending on file/message volume; leave `extractor` at a fixed `replicaCount` initially unless consumer-side volume is also expected to vary significantly, then revisit.
-
-## Step6: Configure Scheduling
-
-Each data pipeline stage (adaptor, schema mapper, extractor) is triggered in one of two ways: **Automated Scheduling** or **Manual Scheduling**. Which one applies is controlled by the `SCHEDULER_BACKEND` parameter in that stage's `values.yaml`.
-
-#### Option A: Helm Configure Scheduling Using Airflow
-
-Under automated scheduler, the pipeline stage is started by a software trigger rather than by an operator. The trigger mechanism is a pair of shared Kafka topics:
-
-### Scheduler Backend Options
-
-| Value | Description |
-|---------|---------|
-| `kafka-trigger` | Event-driven execution. The pipeline waits for a trigger message on the configured Kafka control topic before starting a run. Recommended for Kubernetes deployments and orchestrated workflows controlled via Apache Airflow. DSI uses this configuration to automate the pipeline runs |
-| `interval` | Schedule-based execution. The pipeline runs repeatedly according to the configured `scheduleInterval` without airflow |
-
-There are other options available i.e. standalone but not exercised as part of DSI package.
-
-### Behavior
-
-- With **`SCHEDULER_BACKEND=kafka-trigger`**, a message published to `PIPELINE_CONTROL_TOPIC` starts a run, and the pipeline reports progress to `PIPELINE_STATUS_TOPIC`.This message is pushed via Airflow.
-- With **`SCHEDULER_BACKEND=interval`**, the pipeline runs automatically at the configured `scheduleInterval` when `EXECUTION_MODE=automatic`.There is no intervention of Airflow based scheduling
-
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| SCHEDULER_BACKEND | Set to `kafka-trigger` to enable  Airflow triggered scheduling | `kafka-trigger` |
-| PIPELINE_CONTROL_TOPIC | Kafka topic the pipeline stage listens on for a start signal | `dpn-pipeline-control` |
-| PIPELINE_STATUS_TOPIC | Kafka topic the pipeline stage publishes run status/progress to | `dpn-pipeline-status` |
-| EXECUTION_MODE | `automatic` — the stage self-schedules on `scheduleInterval`| `automatic` |
-| scheduleInterval | Polling interval in seconds. Only used when `EXECUTION_MODE: automatic` | `60` |
-
-A message published to `PIPELINE_CONTROL_TOPIC` starts a run; the pipeline stage reports progress back on `PIPELINE_STATUS_TOPIC`. No operator action is required once this is configured — this is why it's referred to as automated.
-
-#### Option B: Helm Configure Scheduling Without Airflow
-
-Manual scheduler requires Organisations to start pipeline manually and monitor the execution — no orchestration framework runs it for them.
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| SCHEDULER_BACKEND | Set to `standalone` for one-time, operator-initiated execution — no Kafka control topic and no Airflow involvement | `standalone` |
-
-## Step7: Onboard a New Data Product on Airflow Scheduler
-
-Scheduling configuration on Airflow is **not created automatically** — a Direct Acyclic Graph (DAG) must be added alongside every new data product using `SCHEDULER_BACKEND: kafka-trigger`, in addition to the steps in [Producer Setup](#step1-setup-a-new-data-product-from-blueprint).
-
-```text
-Root-Repository
-  └── charts
-        └── airflow/
-              ├── values-<env>-dpn01.yaml   <- Environment-specific Airflow overrides
-              └── dags/
-                    └── {product_type}.py   <- One DAG per data product
+# consumer-file-dp-secret
+kubectl get secret consumer-file-dp-secret -n ns-dpn-01 -o json | ConvertFrom-Json | ForEach-Object { @{apiVersion="v1";kind="Secret";type=$_.type;data=$_.data;metadata=@{name=$_.metadata.name;namespace="ns-dpn-dp-01"}} } | ConvertTo-Json -Depth 10 | kubectl apply -f -
 ```
 
-Every existing DAG under `charts/airflow/dags/` is a copy of the same template — a four-task chain (`trigger_adaptor` → `wait_adaptor_done` → `trigger_schema_mapper` → `wait_schema_mapper_done`) driving the already-running adaptor/schema_mapper pods over Kafka. The `file`-pathway reference DAG (`dpn_producer_file_bp_natural_gas.py`) documents this explicitly in its own docstring and isolates everything that changes per product into one block:
+Repeat the copy for `dpn-tls` and `dpn-keycloak-secrets` whenever either is rotated in `ns-dpn-01`.
 
-```python
-# ── Product identity ──────────────────────────────────────────────────────────
-# These are the only three lines that change when you copy this DAG for another product.
-PRODUCT         = "bp-natural-gas"
-PIPELINE_TYPE   = "file"
-PIPELINE_ROLE   = "producer"
-
-BOOTSTRAP_SERVER = os.getenv("bootstrapServer", "dpn-kafka-src.ns-dpn-01.svc.cluster.local:9094")
-SCHEDULE         = '*/3 * * * *'
-```
-
-**Cron Expression Format**
-
-The SCHEDULE field above uses a cron scheduler expression format. The cron expression is evaluated in the following way.
-
-```text
-* * * * *
-│ │ │ │ │
-│ │ │ │ └── Day of Week (0-7) (Sunday = 0 or 7)
-│ │ │ └──── Month (1-12)
-│ │ └────── Day of Month (1-31)
-│ └──────── Hour (0-23)
-└────────── Minute (0-59)
-```
-
-**Example Cron Expression**
-
-```text
-*/3 * * * *
-│   │ │ │ │
-│   │ │ │ └── Every day of the week
-│   │ │ └──── Every month
-│   │ └────── Every day of the month
-│   └──────── Every hour
-└──────────── Every 3 minutes
-```
-
-To onboard a new product:
-
-- Copy `dpn_producer_file_bp_natural_gas.py` (recommended, over a `topic`-pathway DAG — see the note below) and rename the file to `dpn_producer_{pathway}_{product_type}.py`, following the existing naming convention.
-
-- Update the **Product identity** block: `PRODUCT` to the new `product_type`, `PIPELINE_TYPE` to `file` or `topic` as appropriate, and `BOOTSTRAP_SERVER`/`SCHEDULE` if they differ from the default.
-
-- Update the DAG definition's `dag_id` and `tags` to match the new product (e.g. `dag_id="producer_file_<product_type>"`, `tags=["dpn", "producer", "file", "<product_type>", "kafka-trigger"]`).
-
-- Nothing else needs to change — the four-task chain, the `PipelineStatusSensor`, and the trigger-publishing logic are all generic and read `PRODUCT`/`PIPELINE_TYPE`/`PIPELINE_ROLE` rather than hardcoding product-specific behaviour.
-
-- Set `SCHEDULER_BACKEND: airflow` on the product's `values.yaml` to match.
-
-## Step8: Configure Secrets
-
-DSI Data Pipeline uses Kubernetes secrets by design, as this is a Bring-Your-Own (BYO) component. Storage credentials and Kafka authentication material are two separate secret concerns, covered in Step8a and Step8b respectively.
-
-### Step8a: Configure Storage Secrets
-
-Two secret objects are created for storage access — one for Producer and one for Consumer.
-
-> - Producer secret name: `producer-<processType>-dp-secret`
-> - Consumer secret name: `consumer-<processType>-dp-secret`
-> - `<processType>` is `file` for the file-based pathway, or `topic` for the topic-based pathway. Future values may include `rest`, etc.
-
-**Producer Secrets**
-
-The producer secrets contain the storage account connection strings and SAS tokens for each stage. The connection string format is:
-
-```text
-https://<storage-account>.blob.core.windows.net/?<sas-token>
-```
-
-The secret object `producer-<processType>-dp-secret` contains the following. If the same storage account is used for all stages, the same connection string value may be used for all three:
-
-| Variable | Description |
-|----------|-------------|
-| SRC_CONNECTION_STRING | Blob Storage connection string for the source storage account |
-| MAPPER_CONNECTION_STRING | Blob Storage connection string for the mapper storage account |
-| TARGET_CONNECTION_STRING | Blob Storage connection string for the target storage account |
-
-Create the producer secret using the following command:
+**Create the storage secrets (only if they do not exist in `ns-dpn-01`).** Connection string format: `https://<storage-account>.blob.core.windows.net/?<sas-token>`. The values must be **base64-encoded** before they are stored, because the container decodes them itself:
 
 ```bash
 kubectl create secret generic producer-file-dp-secret \
-  --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string>' | base64)" \
-  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string>' | base64)" \
-  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string>' | base64)" \
-  -n <your namespace>
+  --from-literal=SRC_CONNECTION_STRING="$(echo -n '<source connection string>' | base64)" \
+  --from-literal=TARGET_CONNECTION_STRING="$(echo -n '<target connection string>' | base64)" \
+  -n ns-dpn-dp-01
 ```
 
-**Consumer Secrets**
+Repeat with the name `consumer-file-dp-secret` and the consumer connection strings.
 
-The secret object `consumer-<processType>-dp-secret` contains the following. If the same storage account is used for all stages, the same connection string value may be used for all three:
-
-| Variable | Description |
-|----------|-------------|
-| SRC_CONNECTION_STRING | Blob Storage connection string for the consumer source storage account |
-| MAPPER_CONNECTION_STRING | Blob Storage connection string for the consumer mapper storage account |
-| TARGET_CONNECTION_STRING | Blob Storage connection string for the consumer target storage account |
-
-Create the consumer secret using the following command:
+**Confirm the result:**
 
 ```bash
-kubectl create secret generic consumer-file-dp-secret \
-  --from-literal=SRC_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob source connection string>' | base64)" \
-  --from-literal=MAPPER_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob mapper connection string>' | base64)" \
-  --from-literal=TARGET_CONNECTION_STRING="$(echo -n 'BlobEndpoint=<your blob target connection string>' | base64)" \
-  -n <your namespace>
+kubectl get secret dpn-tls dpn-keycloak-secrets producer-file-dp-secret consumer-file-dp-secret -n ns-dpn-dp-01
 ```
 
-### Step8b: Configure Kafka Security (SASL/TLS)
+> **Informational (no action required):** The secrets `tls-auth-secret` and `dpn-health-ca` are provided by the DPN Certificate Manager and Health Monitoring services. Verify that they exist in `ns-dpn-dp-01`.
 
-Every stage that connects to Kafka — producer adaptor/schema mapper and consumer extractor/schema mapper alike — authenticates using SASL over TLS, with OAuth2 client-credentials issued by Keycloak. These are set directly in each stage's `values.yaml`, alongside `bootstrapServer` (see [Step3a](#step3a-set-up-producer-helm-charts-for-file-based-pathways)):
-
-| Parameter | Purpose | Example |
-|-----------|---------|---------|
-| KAFKA_SECURITY_PROTOCOL | Transport security for the Kafka connection | `SASL_SSL` (set to `SSL` or `PLAINTEXT` to opt out) |
-| KAFKA_SASL_MECHANISM | SASL mechanism | `OAUTHBEARER` (OAuth2 client-credentials via Keycloak) |
-| KAFKA_OAUTH_CLIENT_ID | Keycloak service-account client ID | `dpn-service-client` |
-| KAFKA_OAUTH_TOKEN_ENDPOINT_URL | Keycloak realm token endpoint | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| kafkaTlsSecretName | Kubernetes secret providing the `truststore.jks` mounted into the pod | `dpn-tls` |
-| kafkaOauthSecretName | Kubernetes secret providing the OAuth2 client credentials and truststore password | `kafka-secrets` |
-
----
-
-## Step9: Configure DPN Data Store
-
-The DPN Data Store consists of two sub-components:
-
-- **Storage Blob / S3** — File storage for pipeline artefacts
-- **Kafka Streaming Service** — Event streaming between DPN components
-
-### Step9a: Storage Blob / S3 Configuration
-
-Storage Blob / S3 is the integration layer between the organisation's internal data source, the Federator Gateway, Data Pipelines, and the data destination.
-
-The file-based integration pathway requires a set of storage containers (buckets) to be defined upfront, based on the data product template in use. The following naming convention is recommended when provisioning containers:
-
-**Note** The storage containers must be precreated by participant Organisation before setting up the data product. DPN Data Pipeline does not create storage containers at this point. This action to be taken in future release. The following container list is a naming convention for Data Pipeline containers only
-
-| Process | Source Container Name | Target Container Name |
-|---------|-----------------------|-----------------------|
-| adaptor | `{product_type}-stage` | `{product_type}-raw` |
-| producer-mapper | `{product_type}-raw` | `{product_type}-target` |
-| extractor | `dp-consumer-stage` | `dp-consumer-trfm` |
-| consumer-mapper | `dp-consumer-trfm` | `dp-consumer-target` |
-
-```text
-Example container names (product_type = eq-sample-1):
-
-  eq-sample-1-stage
-  eq-sample-1-raw
-  eq-sample-1-target
-  dp-consumer-stage
-  dp-consumer-trfm
-  dp-consumer-target
-```
-
-> **Note:** Each storage container is mapped to a single data product type on the producer side. One data product type carries a single version of the file at any given time (e.g. the `eq-sample-1-raw` container contains `sample_1_v1.xml` only, until a version revision changes it to `sample_1_v2.xml`).
-
-> **Note:** Storage containers are accessed asynchronously by the Federator Gateway and the organisation's data source and destination to pick up and deposit files.
-
----
-
-### Step9b: Configure Streaming Service (Kafka)
-
-The DPN Streaming Service uses Kafka to emit events between DPN components, including the Data Pipeline adaptor, mapper, extractor, Federator Gateway, and organisation data source/destination endpoints.
-
-The DPN data pipeline processes files by pushing streaming messages onto predefined Kafka topics. The proposed topic names are listed below. Organisations may customise the naming convention if required, but any topic name changes must be reflected in the CD pipeline configuration.
-
-For file based integration pathway, the following convention is recommended
-
-| Process | Source Topic Name | Target Topic Name | Bootstrap Server |
-|---------|-------------------|-------------------|------------------|
-| adaptor | N/A | `dpn-producer-{product_type}-raw` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
-| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{product_type}-target` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
-| extractor | N/A | `dp-consumer-topic-trfm` | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
-| consumer-mapper | `dp-consumer-topic-trfm` | `dp-consumer-topic-target` | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
-
-For streaming based integration pathway, the following convention is recommended
-
-| Process | Source Topic Name | Target Topic Name | Bootstrap Server |
-|---------|-------------------|-------------------|------------------|
-| adaptor | `dpn-producer-{product_type}-stage` | `dpn-producer-{product_type}-raw` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
-| producer-mapper | `dpn-producer-{product_type}-raw` | `dpn-producer-{orgname}-{schema_type}-{product_type}-target` | `dpn-kafka-src.<namespace>.svc.cluster.local:9092` |
-| extractor | `dp-consumer-topic-stage` | `dp-consumer-topic-trfm` | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
-| consumer-mapper | `dp-consumer-topic-trfm` | Auto created based on data product name in meta data | `dpn-kafka-target.<namespace>.svc.cluster.local:9092` |
-
-
-where **`product_type`** is the name of the data product name such as `eq-sample-1` as described in previous sections.
-
-These topics must be pre-created via the Kafka UI before the `dpn-data-pipeline` CI and CD tasks are executed.
-
-The Kafka message structure used by the DSI Data Pipeline follows the convention below. This enables the Federator Server to locate and retrieve the file from the specified storage location during file transfer:
-
-```json
-{
-  "sourceType": "{cloud type}",
-  "storageContainer": "{name of the storage container where the file is placed}",
-  "path": "folder-name/file-name"
-}
-```
-
-Example:
-
-```json
-{
-  "sourceType": "AZURE",
-  "storageContainer": "eq-sample-1-target",
-  "path": "eq-orga-sample_v1.xml"
-}
-```
-
-> **Note:** Valid values for `sourceType` are `AZURE`, `GCP`, and `S3`. 
+> **Note:** The topic pathway needs no storage secret.
 
 ---
 
@@ -713,5 +139,6 @@ Example:
 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
-| May-2026 | DSI Assurance   | Final  | V1.0.0 | 
-| Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| May-2026 | DSI Assurance   | Final  | V1.0.0 |
+| Sep-2026 | DSI Assurance   | Final  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 |

@@ -29,15 +29,15 @@ Every DPN node's certificate is generated and signed from the DSI portal's Certi
 
 ### Bootstrapping the Federator Certificate
 
-1. Generate a key pair and `.csr` file on the DPN node (`openssl genrsa` + `openssl req`).
-2. Request a **Federator bootstrap certificate** (portal `Type: BOOTSTRAP`, short-lived) from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
-3. Upload the signed bundle (`vault.key`, `certificate.pem`, `ca-chain.pem`) to Azure DevOps Secure Files and load it into Vault — see [Configure DPN Vault Service, Step 3C](../02-configuration/01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-vault-load-bundle-cd).
+1. Download `certs/bootstrap.csr` from the `dpn-tls-cd` pipeline's artifact (Step 3A) — do **not** generate a new key pair/CSR by hand; this file is already generated for you and must be the one you submit.
+2. Request a **Federator bootstrap certificate** (portal `Type: BOOTSTRAP`, short-lived) from the DSI portal's Certificate Management page, submitting that CSR — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
+3. Upload the signed bundle (the same `bootstrap.key` from that artifact, plus the `certificate.pem`/`ca-chain.pem` DSM returns) to Azure DevOps Secure Files and load it into Vault — see [Configure DPN Vault Service, Step 3C](../02-configuration/01-configure-dpn-vault-service.md#step-3c-configure-certificate-bundle-vault-load-bundle-cd) (full detail in [Between Step 3A and Step 3C](../02-configuration/01-configure-dpn-vault-service.md#between-step-3a-and-step-3c-get-bootstrapcsr-signed-by-dsm)).
 
 Once installed, the Certificate Manager renews this certificate automatically — no manual re-bootstrap is required afterwards.
 
 ### Edge Certificate (Server Sign Certificate)
 
-**Placeholder** — for organisations that front their DPN deployment with an edge proxy (e.g. Cloudflare) instead of exposing the Federator directly:
+For organisations that front their DPN deployment with an edge proxy (e.g. Cloudflare) instead of exposing the Federator directly:
 
 1. Generate a **server sign certificate** CSR on the edge component, requested with a **60-day TTL** longer than the Federator bootstrap certificate's short-lived default, since this certificate fronts the edge listener rather than bootstrapping the Federator.
 2. Request an **Edge component certificate** from the DSI portal's Certificate Management page — see [DSI Certificate Management UI Guide, Step 6](../../../05-dpn-user-interfaces/10-dsi-certificate-management-ui-operations.md#3-walkthrough-issuing-a-certificate).
@@ -93,23 +93,27 @@ kubectl run ghcr-pull-test --rm -it \
 
 ### Execute CD Pipeline
 
-Create a CD pipeline from the following yaml file. The CD Pipeline is already pointing to GHCR repository. This CD pipeline fetches the latest image. In case Organisation need to use a specific version then it should be modified inside the CD pipeline.
+There is **no separate GHCR-specific pipeline file** for Vault — the same `vault-https-cd.yaml` pipeline is used for both ACR-built and GHCR-sourced images. Point it at the GHCR image by setting `image.repository: ghcr.io/energy-dsi/vault` in `charts/vault-https/values-<env>-<cluster>.yaml` (see [Configure DPN Vault Service, Step 2b](../02-configuration/01-configure-dpn-vault-service.md#step-2b-vault-helm-values--chartsvault-httpsvalues-env-clusteryaml)), then create/run the CD pipeline from:
 
 ```text
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── cd-pipelines/
-            └── dpn-vault-https-ghcr-cd.yaml
+            └── vault-https-cd.yaml
 ```
-The CD Pipeline would require the following run time parameters. 
+
+The CD Pipeline requires the following runtime parameters — see [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-configuration-to-initialise-vault-vault-https-cd) for full details:
 
 | Parameter | Value |
 |-----------|-------|
-| `ServiceConnection` | `A given Service Connection able to deploy the services` |
-| `environment` | `environment abbreviation` |
-| `cluster` | `dpn01` (DSI provides two dpn configurations per environment. Organisations may keep only one such as dpn01 to run a single DPN cluser)` |
-| `Vault Image Tag` | Provides the release version or image tag to be pulled from GHCR , default is 1.16 |
+| `ServiceConnection` | A given Service Connection able to deploy the services |
+| `environment` | Environment abbreviation |
+| `dpnCluster` | `dpn01` (DSI provides two DPN configurations per environment. Organisations may keep only one, such as `dpn01`, to run a single DPN cluster) |
+| `vaultImageTag` | Release version or image tag to be pulled from GHCR, default `1.16` |
+| `testMode` | Leave `false` for a normal deployment |
+| `runVaultInit` | `true` to also run Vault init (KV v2 + audit logging) on this run |
+| `storeRootTokenInAkv` | `true` on the first deploy, so the bundle-load pipeline can read the root token |
 
 Execute this CD Pipeline to perform deployment.
 
@@ -133,3 +137,4 @@ The kubectl logs should not showcase any [error] message if the deployment is su
 |-------------|------------------|--------|----------|
 | May-2026 | DSI Assurance   | Final  | V1.0.0 | 
 | Sep-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V2.1.0 | 

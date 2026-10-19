@@ -17,6 +17,28 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **PATCH** (`0.0.X`) – Backward-compatible minor corrections, typos , image rectification.
 - **Pre-release versions** – Use suffixes such as `-alpha`, `-beta`, `-rc.1` (e.g., `2.1.0-beta.1`).
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
+---
+## Release 2.1.0 - Oct 2026
+
+**See [Release 2.1.0 Configuration Changes](Docs/06-release-notes/release-2.1.0-configuration-changes.md) for a full component-by-component Added/Removed/Modified breakdown of every configuration item.**
+
+### Added
+
+- DPN Data Pipeline Orchestration user guide — the Keycloak-SSO-gated landing page to manage and run data products.
+
+### Changed
+
+- DPN data pipeline installation and configuration guide updated to replace apache airflow based data orchestration with a self service data product management.
+- Keycloak authentication on the OTel Collector.
+- In DPN UI Portal the GRPC Gateway client changed from http to https and a new role named as dpnoperator has been provisioned to have access to DPN UI Portal
+
+### Fixed
+
+- None
+
+### Dependencies
+
+- None
 
 ---
 ## Release 2.0.0 - Sep 2026

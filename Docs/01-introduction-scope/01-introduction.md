@@ -48,7 +48,6 @@ The pipeline includes several processing stages:
 - Adaptor (source)
 - Security labelling (producer/source)
 - Extractor (consumer/target)
-- The mapper component can also be extended for more capabilities for example transformations or schema assurance.
 
 These processing stages ensure that datasets conform to the required **data schemas and governance rules** before being exchanged.
 

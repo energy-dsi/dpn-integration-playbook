@@ -1,3 +1,5 @@
+Release : 2.1.0 - Oct 2026
+
 # DPN Deployment Configuration Guide
 
 ---
@@ -13,9 +15,12 @@
     - [Step2.1: Self-Hosted Runner Set Up](#step21-self-hosted-runner-set-up)
     - [Step2.2: AWS Environment Configuration](#step22-aws-environment-configuration)
     - [Step2.3: EKS Namespace Configuration](#step23-eks-namespace-configuration)
+    - [Step2.4: GitHub Actions Secrets and Environments](#step24-github-actions-secrets-and-environments)
   - [Step3: Secrets Configuration](#step3-secrets-configuration)
   - [Step4: Certificate Configuration](#step4-certificate-configuration)
   - [Step5: Network and Ports Configuration](#step5-network-and-ports-configuration)
+  - [Step6: DPN Internal Domain Naming (DNS) Configuration](#step6-dpn-internal-domain-naming-dns-configuration)
+  - [Step7: DPN Secrets Reference](#step7-dpn-secrets-reference)
 - [Review Notes](#review-notes)
 
 ---
@@ -65,7 +70,7 @@ The **Continuous Deployment (CD)** pipeline deploys the container images to the 
 
 During deployment, the pipeline performs the following steps:
 
-1. Read the environment/cluster config JSON (`.pipelines/github-actions-pipelines/config/aws/<environment>-<cluster>.json`) into the job.
+1. Read the environment/cluster config JSON (`.github/config/aws/<environment>-<cluster>.json` in the component's own repository) into the job.
 2. Authenticate to AWS via the shared `cloud-login` composite action — a two-step OIDC role chain (runner → hub role → your account's `oidc_github_runner_admin` role), no long-lived access key involved. See [AWS IAM OIDC Role](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role).
 3. Retrieve credentials for the target EKS cluster (`aws eks update-kubeconfig`).
 4. Validate Helm charts using `helm lint` and a Helm **dry-run**.
@@ -80,8 +85,8 @@ During deployment, the pipeline performs the following steps:
 DSI provides predefined endpoints to support the following environments:
 
 - Development
-- Integration Testing (upcoming)
-- Pre-Production (upcoming)
+- Integration Testing
+- Pre-Production
 
 These endpoints are publicly accessible to simplify integration and testing. Organisations must configure their pipelines to use the **appropriate endpoint for the corresponding deployment environment** as provided by DSI.
 
@@ -91,7 +96,14 @@ These endpoints are publicly accessible to simplify integration and testing. Org
 | Pre Production-Dev (pdev)| Management Node | https://management.dsm01.dsipreprod1.neso.energy |
 | Pre Production-Dev (pdev)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod1.neso.energy |
 | Pre Production-Dev (pdev)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod1.neso.energy |
-
+| Pre Production-test (ptest) | Authentication | https://auth-mtls.dsm01.dsipreprod2.neso.energy |
+| Pre Production-test (ptest)| Management Node | https://management.dsm01.dsipreprod2.neso.energy |
+| Pre Production-test (ptest)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod2.neso.energy |
+| Pre Production-test (ptest)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod2.neso.energy |
+| Pre Production-uat (puat) | Authentication | https://auth-mtls.dsm01.dsipreprod3.neso.energy |
+| Pre Production-uat (puat)| Management Node | https://management.dsm01.dsipreprod3.neso.energy |
+| Pre Production-uat (puat)| DSI DPN GRPC Producer | https://producer.dpn01.dsipreprod3.neso.energy |
+| Pre Production-uat (puat)| DSI DPN REST Producer | https://producer-rest01.dpn01.dsipreprod3.neso.energy |
 ---
 
 ### Step2: GitHub Actions Configuration
@@ -113,13 +125,14 @@ runs-on: [self-hosted, vmss]
 Every CD workflow reads its AWS targeting from a single, consistently-named JSON config file in respective DPN repositories published in GitHub. **Update this file with your environment's values before running any pipeline** for that environment/cluster.
 
 ```text
-root/
-└── .pipelines/
-  └── github-actions-pipelines/
+<component-repo>/
+└── .github/
     └── config/
         └── aws/
             └── <environment>-<cluster>.json     # e.g. dev-dpn01.json
 ```
+
+Every DPN component repository carries the same set of keys in this file, so set the same values in each repository you deploy from.
 
 | Key | Description | Example (placeholder) |
 |-----|-------------|-----------------------|
@@ -127,7 +140,22 @@ root/
 | AWS_ACCOUNT_ID | Account ID hosting the infrastructure | `<account-id>` |
 | EKS_CLUSTER | Name of the EKS cluster | `eks-dpn-<env>-<region>` |
 | NAMESPACE | Kubernetes namespace for the deployment | `ns-dpn-01` |
-| IMAGE_REGISTRY | Base container registry URL | `ghcr.io` (or your own) |
+| IMAGE_REGISTRY | Base container registry URL | `ghcr.io/energy-dsi` (or your own) |
+| FILESCAN_SOURCE_BUCKET | S3 bucket scanned by GuardDuty Malware Protection (File Scan Service) | `<source-bucket-name>` |
+| FILESCAN_DEST_BUCKET | Destination S3 bucket for scanned files (File Scan Service) | `<destination-bucket-name>` |
+| FILESCAN_SNS_TOPIC_NAME | SNS topic GuardDuty publishes scan findings to (File Scan Service) | `<sns-topic-name>` |
+| FILESCAN_SQS_QUEUE_NAME | SQS queue subscribed to that SNS topic (File Scan Service) | `<sqs-queue-name>` |
+| OAUTH2_PROXY_EXTERNAL_URL | *(optional)* External URL of the Self-Service Data Pipelines UI, used by `dpn-gha-self-service-cd.yaml` | `https://dpn-self-service-external.ns-dpn-dp-01.svc.cluster.local` |
+
+**Workflow-level values (not in the config JSON).** Two values that identify the shared GitHub-to-AWS OIDC bootstrap role must be set once per repository before you run any AWS workflow:
+
+| Key | Description | Example (placeholder) |
+|-----|-------------|-----------------------|
+| `HUB_ROLE_ARN` | `env:` entry at the top of each `dpn-gha-*-cd.yaml` workflow. Set it to the ARN of your hub IAM role | `arn:aws:iam::<hub-account-id>:role/<hub-role-name>` |
+| `role-to-assume` | Input of the "Configure AWS credentials (OIDC bootstrap role)" step in `.github/actions/cloud-login/action.yml`. Set it to the same hub role ARN as `HUB_ROLE_ARN` | `arn:aws:iam::<hub-account-id>:role/<hub-role-name>` |
+
+> **Note:** `environment` (`dev`/`test`), `cluster` (`dpn01`/`dpn02`), and `cloud` (`aws`) are supplied as `workflow_dispatch` **inputs** when you trigger a run in the Actions tab — they are **not** keys in the JSON file. The Helm **values file** is derived from those inputs: `<component>/charts/<chart>/values/aws/<environment>-<cluster>.yaml`. Each workflow sets this through its `CHART_DIR` / `VALUES_FILE` environment variables.
+>
 
 ---
 
@@ -137,6 +165,7 @@ Create the following Kubernetes namespaces in EKS, along with the shared storage
 
 - ns-dpn-01
 - ns-dpn-health-01
+- ns-dpn-dp-01 — used by the Self-Service Data Pipelines (`dpn-gha-self-service-cd.yaml` fails with `Namespace ns-dpn-dp-01 does not exist` if it is missing)
 
 ```bash
 kubectl create namespace <NAMESPACE>    # e.g. ns-dpn-01
@@ -162,7 +191,41 @@ kubectl create secret docker-registry ghcr-pull-secret \
   --docker-username=<GH_USER> \
   --docker-password=<GH_PAT_read:packages> \
   -n ns-dpn-health-01
+
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<GH_USER> \
+  --docker-password=<GH_PAT_read:packages> \
+  -n ns-dpn-dp-01
 ```
+
+---
+
+#### Step2.4: GitHub Actions Secrets and Environments
+
+Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`).
+
+The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level).
+
+**Below secrets need to be manually added in the Github environment secrets manually**:
+
+| GitHub Actions Secret | Used by | Purpose |
+|-----------------------|---------|---------|
+| `DPN_TLS_KEYSTORE_PASSWORD` | `dpn-gha-tls-cd.yaml` (dpn-federator-certificate-manager) | `keystore.jks` password (= `KC_HTTPS_KEY_STORE_PASSWORD` = `UNIVERSAL_DPN_CERT_PASSWORD`) |
+| `DPN_TLS_TRUSTSTORE_PASSWORD` | `dpn-gha-tls-cd.yaml`, `dpn-gha-vault-tls-bootstrap-cd.yaml` (dpn-federator-certificate-manager), `dpn-gha-demo-runner-cd.yaml` (dpn-rest-federator-gateway) | `truststore.jks` password (= `KC_HTTPS_TRUST_STORE_PASSWORD` = `VAULT_TRUSTSTORE_PASSWORD`) |
+| `DPN_TLS_CLIENT_P12_PASSWORD` | `dpn-gha-tls-cd.yaml` (dpn-federator-certificate-manager) | `dsm-client.p12` password |
+| `VAULT_KEY` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of `vault.key` (private key for the DSM-signed bundle) |
+| `CERTIFICATE_PEM` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of the DSM-signed `certificate.pem` |
+| `CA_CHAIN_PEM` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of the DSM `ca-chain.pem` |
+
+Secrets are scoped per repository (or per environment within a repository), so set each secret in the component repository whose workflow uses it. The workflows also reference `AZURE_CLIENT_ID` / `AZURE_TENANT_ID`, but those are only used when `cloud: azure` is selected and are not needed on the AWS path.
+
+```bash
+# e.g. set an environment-scoped secret from a file
+gh secret set VAULT_KEY --env <environment>-<cluster> < vault.key
+```
+
+> **Note:** `workflow_dispatch` has no secret-typed input, so these values are never passed as plain-text workflow inputs — they must be pre-configured as secrets before running the workflows that use them.
 
 ---
 
@@ -188,7 +251,7 @@ During the organisation's onboarding process, an initial certificate package con
 - The **P12/PFX certificate** issued by the DSI DSM Certificate Authority (keystore)
 - The **DSI certificate chain pem file** (truststore)
 
-Refer to the [DPN Federator Certificate Manager](03-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
+Refer to the [DPN Federator Certificate Manager](04-configure-dpn-certificate-manager.md) section for detailed instructions on certificate lifecycle management.
 
 The same certificate files are used across all DPN components that require integration with the Data Sharing Mechanism (DSM), specifically the GRPC/REST Federator Gateway and Certificate Lifecycle Manager.
 
@@ -235,7 +298,6 @@ The following internal URLs will be default for accessing the DPN User interface
 These URLs operate on Kuberenetes DNS. To access these URLs, a local host entry needs to be made in the system/Windows VM. The host file is generally present in `C:\Windows\System32\drivers\etc\hosts` location. Open the file in a notepad with admin credential and put the below entries against their load balancer IP. 
 
 ```
-10.XXX.XXX.XXX dpn-airflow-webserver-external.ns-dpn-01.svc.cluster.local	
 10.XXX.XXX.XXX dpn-kafka-ui-external.ns-dpn-01.svc.cluster.local
 10.XXX.XXX.XXX dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local
 10.XXX.XXX.XXX dpn-federator-client-1-external.ns-dpn-01.svc.cluster.local
@@ -250,7 +312,6 @@ These URLs operate on Kuberenetes DNS. To access these URLs, a local host entry 
 | Users & Roles | Keycloak Console | `dpn-keycloak-service-lb.ns-dpn-01.svc.cluster.local` | 8443 | ns-dpn-01 | `dpnadmin` only |
 | Data / Store | DPN Kafka (Kafka UI) | `dpn-kafka-ui-external.ns-dpn-01.svc.cluster.local` | 8086 | ns-dpn-01 | `dpnadmin`, `dpnreader` — native Keycloak OIDC |
 | Gateway | GRPC Gateway Client (Federator Client / Job Runner) | `dpn-federator-client-1-external.ns-dpn-01.svc.cluster.local` | 8085 | ns-dpn-01 | `dpnadmin`, `dpnreader` — plain HTTP (see [Federator Gateway release notes](../../../06-release-notes/release-2.0.0-configuration-changes.md#dpn-federator-gateway)) |
-| Data / Pipeline | Pipeline Orchestrator (Apache Airflow) | `dpn-airflow-webserver-external.ns-dpn-01.svc.cluster.local` | 8080 | ns-dpn-01 | `dpnadmin`, `dpnreader`, `dpnoperator` — native Keycloak OIDC |
 | Security / Services | Certification Vault Service | `dpn-vault-https-lb.ns-dpn-01.svc.cluster.local` | 8200 | ns-dpn-01 | `dpnadmin`, `dpnreader` |
 | Health / Monitoring Service | Log Stack (OpenSearch Dashboards) | `dpn-observability.ns-dpn-health-01.svc.cluster.local` | 5601 | ns-dpn-health-01 | `dpnadmin`, `dpnreader` — via `dpn-oauth2-proxy-osd` Keycloak SSO |
 | Health / Monitoring Service | Traces Stack (Jaeger) | `dpn-observability.ns-dpn-health-01.svc.cluster.local` | 16686 | ns-dpn-health-01 | `dpnadmin`, `dpnreader` — via `dpn-oauth2-proxy-jaeger` Keycloak SSO |
@@ -282,13 +343,14 @@ The following secrets are shared by DPN components to use encryption in transit 
 
 | Kubernetes Secret | Key(s) | Backing AWS Secrets Manager Path | Purpose | Namespace(s) | Consumed by |
 |---|---|---|---|---|---|
-| `certificate-manager-secrets` | `MTLS_KEYSTORE_PASSWORD`, `MTLS_TRUSTSTORE_PASSWORD`, `VAULT_TOKEN`, `OAUTH2_CLIENT_SECRET`, `VAULT_SSL_TRUST_STORE_PASSWORD`, `VAULT_APPROLE_SECRET_ID` (when `vault.authentication: APPROLE`) | `<prefix>/certificate-manager/MTLS_KEYSTORE_PASSWORD`, `.../MTLS_TRUSTSTORE_PASSWORD`, `.../VAULT_TOKEN`, `.../OAUTH2_CLIENT_SECRET`, `.../VAULT_TRUSTSTORE_PASSWORD` (synced in as key `VAULT_SSL_TRUST_STORE_PASSWORD`), `.../VAULT_APPROLE_SECRET_ID` | Vault credentials plus mTLS keystore/truststore passwords for PKI bootstrap | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
-| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD` | `<prefix>/keycloak/KC_SERVICE_CLIENT_SECRET` (set manually before first deploy — see note below), `.../KEYCLOAK_ADMIN_PASSWORD`, `.../KC_DB_PASSWORD`, `.../KC_HTTPS_KEY_STORE_PASSWORD`, `.../KC_HTTPS_TRUST_STORE_PASSWORD` | `dpn-service-client` OIDC client secret, Keycloak's own admin/database passwords, and its keystore/truststore passwords | ns-dpn-01 | Authentication Service (Keycloak), Data Pipelines (Airflow SSO + Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
+| `certificate-manager-secrets` | `VAULT_TOKEN`, `VAULT_APPROLE_SECRET_ID` (when `vault.authentication: APPROLE`) | `<prefix>/certificate-manager/VAULT_TOKEN`, `<prefix>/certificate-manager/VAULT_APPROLE_SECRET_ID` (synced by the `dpn-certificate-manager-kv-secrets` SecretProviderClass). The AppRole role ID is stored separately at `<prefix>/certificate-manager/VAULT_APPROLE_ROLE_ID` by `dpn-gha-certificate-manager-role-id-creation.yaml` and injected by `dpn-gha-certificate-manager-cd.yaml` at deploy time | Vault credentials for PKI bootstrap. The Vault truststore password is no longer synced here — it is read from `tls-auth-secret` (`TRUSTSTORE_PASSWORD`) | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD` | `<prefix>/keycloak/KC_SERVICE_CLIENT_SECRET` (set manually before first deploy — see note below), `.../KEYCLOAK_ADMIN_PASSWORD`, `.../KC_DB_PASSWORD`, `.../KC_HTTPS_KEY_STORE_PASSWORD`, `.../KC_HTTPS_TRUST_STORE_PASSWORD` | `dpn-service-client` OIDC client secret, Keycloak's own admin/database passwords, and its keystore/truststore passwords | ns-dpn-01 | Authentication Service (Keycloak), Data Pipelines (Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
 | `kafka-secrets` | `UNIVERSAL_DPN_CERT_PASSWORD`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_HTTPS_KEY_STORE_PASSWORD`, `KC_HTTPS_TRUST_STORE_PASSWORD`, `KAFKA_OAUTH_CLIENT_SECRET` | `<prefix>/kafka/UNIVERSAL_DPN_CERT_PASSWORD`, plus its own copies of the Keycloak admin/keystore/truststore passwords and the Kafka OAuth client secret | Kafka broker keystore/truststore password and OAuth client credentials | ns-dpn-01 | Kafka brokers (Federator Gateway's `dpn-platform` chart) |
-| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | n/a — created directly via `kubectl create secret generic`, not sourced from AWS Secrets Manager | Shared passwords for keystore/truststore access and mTLS client cert; written once by `dpn-tls-cd.yaml` into both the target namespace and `ns-dpn-health-01` | ns-dpn-01, ns-dpn-health-01 | Certificate Manager, Federator Gateway (Server/Client, Kafka Source/Target, Kafka UI, Redis), REST Federator Gateway, File Scan Service, Data Pipelines/Airflow |
-| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a secrets-manager entry | Universal DPN server TLS identity, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis, Airflow |
-| `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
-| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by the Certificate Manager's `dpn-tls-cd` pipeline | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | n/a — created directly via `kubectl create secret generic`, not sourced from AWS Secrets Manager | Shared passwords for keystore/truststore access and mTLS client cert; written once by `dpn-gha-tls-cd.yaml` into the target namespace, `ns-dpn-health-01` and `ns-dpn-dp-01` (skipped if that namespace does not exist) | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Certificate Manager, Federator Gateway (Server/Client, Kafka Source/Target, Kafka UI, Redis), REST Federator Gateway, File Scan Service, Data Pipelines |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a secrets-manager entry | Universal DPN server TLS identity, written once by `dpn-gha-tls-cd.yaml` (*DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1*) into the target namespace, `ns-dpn-health-01` and `ns-dpn-dp-01` (skipped if absent) | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis |
+| `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by `dpn-gha-tls-cd.yaml` (when `createHealthTls` is `true`) | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
+| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by `dpn-gha-tls-cd.yaml` | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+| `fed-gateway-tls` | `tls.crt`, `tls.key` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the Federator Gateway, written once by `dpn-gha-tls-cd.yaml` | ns-dpn-01 (target namespace) | Federator Gateway |
 
 > **Note on `KC_SERVICE_CLIENT_SECRET`:** unlike the other keys in this table, this value is not auto-generated — it must be created in AWS Secrets Manager at `<prefix>/keycloak/KC_SERVICE_CLIENT_SECRET` before the first Keycloak deploy. The Keycloak CD workflow's realm-configuration step asserts the `dpn-service-client` client's secret matches this stored value on every run, rather than generating a random one, so the client secret never silently drifts.
 
@@ -300,3 +362,4 @@ The following secrets are shared by DPN components to use encryption in transit 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V2.0.0 | 
