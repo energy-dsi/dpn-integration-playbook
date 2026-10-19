@@ -45,11 +45,13 @@ See [Configure DPN Certificate Manager](../03-dpn-application-deployment/azure-a
 
 ## DPN REST Federator Gateway
 
-See [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md).
+See [Configure DPN REST Federator Gateway](../03-dpn-application-deployment/azure-ado-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md) (Azure ADO) or [the AWS GHA equivalent](../03-dpn-application-deployment/aws-gha-beta/02-configuration/06-configure-dpn-rest-federator-gateway.md).
 
 | Change | Item | Details |
 |--------|------|---------|
-| Added | `restFederatorServer.otel.tls.enabled`, `restFederatorServer.otel.oauth2.enabled` | Same OTLP HTTPS/OAuth2 pattern as the gRPC Federator Gateway. Off by default everywhere, so this doesn't change existing behaviour |
+| Added | `restFederatorServer.otel.tls.enabled`, `restFederatorServer.otel.oauth2.enabled` 
+| Added | `restFederatorServer.keycloakAuthEnabled`, `restFederatorServer.redisIdp.*` (`tokenUrl`, `clientId`, `truststorePath`, `clientSecretEnabled`) | Redis access is gated by a Keycloak session using `dpn-service-client` and the existing `dpn-keycloak-secrets` secret. `redisIdp.tokenUrl` is blank by default and **must be set per environment** |
+| Modified | `dpn-redis`, `restFederatorServer.redis.*` | Redis is TLS-only (plaintext disabled) using the shared `dpn-tls` certificate. `redis.username` is no longer used, and `redis.tlsEnabled` is always `true`. Also applies to the demo-runner server and client |
 | Modified | Error logging | Exceptions in the server/client/common modules now log the full stack trace and cause chain instead of just the top-level message (demo/demo-runner modules intentionally out of scope) |
 
 ---
