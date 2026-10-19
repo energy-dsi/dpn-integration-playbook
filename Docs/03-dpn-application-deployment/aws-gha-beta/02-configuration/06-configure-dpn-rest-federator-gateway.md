@@ -177,6 +177,46 @@ Re-run this workflow to rotate the `secret-id`, then re-run `dpn-gha-rest-federa
 
 The IAM role and its trust policy (scoped to `system:serviceaccount:<NAMESPACE>:dpn-rest-federator`, where `NAMESPACE` comes from the config JSON) do **not** need to be created manually — the `dpn-gha-rest-federator-cd.yaml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the role idempotently on every run, and seeds `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders in Secrets Manager the first time (update them to real values before relying on the deployment).
 
+For reference — or if you provision the role yourself — the role and policies the workflow applies are below (also kept in the `dpn-iam` export under `template/roles/dpn-rest-federator-secrets-role/`).
+
+Trust policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com",
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": "system:serviceaccount:ns-dpn-01:dpn-rest-federator"
+        }
+      }
+    }
+  ]
+}
+```
+
+Permission policy (read-only, scoped to this gateway's prefix):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+      "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/rest-federator/*"
+    }
+  ]
+}
+```
+
 ---
 
 ## Step4: Configure Deployment Parameters

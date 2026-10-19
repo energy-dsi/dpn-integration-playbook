@@ -49,6 +49,78 @@ The File Scan Service requires an IAM role (via IRSA — IAM Roles for Service A
 
 The role's trust policy must allow `sts:AssumeRoleWithWebIdentity` from the EKS cluster's OIDC provider, scoped to `system:serviceaccount:<namespace>:dpn-file-scan-service`.
 
+Trust policy (`trust-policy.json`):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com",
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": "system:serviceaccount:ns-dpn-01:dpn-file-scan-service"
+        }
+      }
+    }
+  ]
+}
+```
+
+Permission policy (`dpn-file-scan-service-permissions.json`), matching the table above:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+      "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/file-scan-service/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetObjectTagging", "s3:DeleteObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::<inbound-bucket>",
+        "arn:aws:s3:::<inbound-bucket>/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:PutObjectTagging", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::<outbound-bucket>",
+        "arn:aws:s3:::<outbound-bucket>/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["sqs:GetQueueUrl", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+      "Resource": "arn:aws:sqs:<region>:<account-id>:<scan-results-queue>"
+    }
+  ]
+}
+```
+
+To create the role manually instead of using the prerequisites workflow:
+
+```bash
+aws iam create-role \
+  --role-name dpn-file-scan-service-secrets-role \
+  --assume-role-policy-document file://trust-policy.json
+
+aws iam put-role-policy \
+  --role-name dpn-file-scan-service-secrets-role \
+  --policy-name dpn-file-scan-service-permissions \
+  --policy-document file://dpn-file-scan-service-permissions.json
+```
+
 No AWS access key/secret is configured directly — the container relies on the IRSA role attached to its ServiceAccount, falling back to boto3's default credential chain.
 
 > **Note:** `dpn-gha-file-scan-prerequisites-cd.yaml` (run with `cloud: aws`) can create this role for you — idempotently, under the fixed name `dpn-file-scan-service-secrets-role`, with the inline policy `dpn-file-scan-service-permissions` — with the trust policy and permissions above already attached (bucket and queue names come from `FILESCAN_SOURCE_BUCKET`, `FILESCAN_DEST_BUCKET` and `FILESCAN_SQS_QUEUE_NAME` in the config JSON). On re-run it updates the trust policy and permissions of the existing role. Set `serviceAccount.irsaRoleArn` in [Step4](#step4-configure-helm-chart-files) to the resulting ARN (printed at the end of the step) either way.

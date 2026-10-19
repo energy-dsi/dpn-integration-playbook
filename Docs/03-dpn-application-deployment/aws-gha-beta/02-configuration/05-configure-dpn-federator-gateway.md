@@ -192,6 +192,88 @@ A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Targe
 
 The IAM role's trust policy must scope `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, and its permissions policy must grant S3 read/write on `federatorClient.storage.aws.bucket` — the Server has no static bucket parameter of its own (see [Step3a](#step3a-configure-federator-server)) — plus `secretsmanager:GetSecretValue` on `secretsManager.secretPrefix/*` for when that path is wired into a future chart update.
 
+#### IAM role `dpn-federator-gateway-secrets-role`
+
+Create this role manually, once per account/cluster. Reference policy files are kept in the `dpn-iam` export under `template/roles/dpn-federator-gateway-secrets-role/`.
+
+1. Trust policy (`trust-policy.json`):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+           "Federated": "arn:aws:iam::<account-id>:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>"
+         },
+         "Action": "sts:AssumeRoleWithWebIdentity",
+         "Condition": {
+           "StringEquals": {
+             "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com",
+             "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": "system:serviceaccount:ns-dpn-01:dpn-federator-gateway"
+           }
+         }
+       }
+     ]
+   }
+   ```
+
+2. Permission policy (`dpn-federator-gateway-secrets-policy.json`):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "SecretsManagerRead",
+         "Effect": "Allow",
+         "Action": "secretsmanager:GetSecretValue",
+         "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/federator-gateway/*"
+       },
+       {
+         "Sid": "S3ServerBucket",
+         "Effect": "Allow",
+         "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+         "Resource": [
+           "arn:aws:s3:::<application-bucket>",
+           "arn:aws:s3:::<application-bucket>/*"
+         ]
+       },
+       {
+         "Sid": "S3ClientBucket",
+         "Effect": "Allow",
+         "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+         "Resource": [
+           "arn:aws:s3:::<data-bucket>",
+           "arn:aws:s3:::<data-bucket>/*"
+         ]
+       },
+       {
+         "Sid": "S3ClientChosenDataProductBuckets",
+         "Effect": "Allow",
+         "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
+         "Resource": "arn:aws:s3:::*"
+       }
+     ]
+   }
+   ```
+
+   `<application-bucket>` is the Server's bucket and `<data-bucket>` is `federatorClient.storage.aws.bucket`. The final `arn:aws:s3:::*` statement lets the Client write to whichever data-product buckets the consumer chooses; narrow it to the specific bucket ARNs if your organisation's policy requires.
+
+3. Create the role and attach the policy, then set the role ARN as `serviceAccount.irsaRoleArn`:
+
+   ```bash
+   aws iam create-role \
+     --role-name dpn-federator-gateway-secrets-role \
+     --assume-role-policy-document file://trust-policy.json
+
+   aws iam put-role-policy \
+     --role-name dpn-federator-gateway-secrets-role \
+     --policy-name dpn-federator-gateway-secrets-policy \
+     --policy-document file://dpn-federator-gateway-secrets-policy.json
+   ```
+
 > **Kafka pods on AWS disable Python auto-instrumentation.** Kafka Source/Target and Zookeeper Source/Target pods carry `instrumentation.opentelemetry.io/inject-python: "false"` when `cloudProvider: aws` — the cluster's OTel auto-instrumentation webhook otherwise injects a `urllib3` build incompatible with these images' Python 3.9 startup tooling and crashes the pod on start. No action needed; this is set automatically.
 
 ---
