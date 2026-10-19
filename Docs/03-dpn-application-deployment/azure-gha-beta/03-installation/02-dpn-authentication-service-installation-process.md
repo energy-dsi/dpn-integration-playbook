@@ -65,16 +65,16 @@ Confirm the prerequisites before starting — see [Configure DPN Authentication 
 In summary the following must be in place:
 
 - AKS cluster, and a user-assigned managed identity that can read Azure Key Vault through the Secrets Store CSI driver (`keyvault.clientID` in the values file)
-- `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret) and the shared `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) — both created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`) run with `cloud: azure`
+- `dpn-tls` Kubernetes secret present in the target namespace (Java `keystore.jks`/`truststore.jks`, **not** a `kubernetes.io/tls` secret) and the shared `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) — both created by **DPN CD - Prerequisite Pipeline (Universal TLS)** (`dpn-gha-prerequisite-pipeline.yaml`) run with `cloud: azure`
 - Three secrets populated in Azure Key Vault (`KEY_VAULT_NAME`): `KC-DB-PASSWORD`, `KEYCLOAK-ADMIN-PASSWORD`, `KC-SERVICE-CLIENT-SECRET` (the keystore/truststore passwords now come from `tls-auth-secret`, not the SecretProviderClass)
 - `.github/config/azure/<environment>-<cluster>.json` and `charts/keycloak/values/azure/<environment>-<cluster>.yaml` populated (no `cloudProvider` value is needed — the chart is Azure-shaped by default)
 - Target namespace created (the workflow does not create it)
 
 **Note:** Organisations must review the CD workflow for the following before relying on it.
 
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui) — a mismatch does not fail the pipeline, it fails login for every dependent UI
+- `KC-SERVICE-CLIENT-SECRET` (Key Vault) matches whatever secret value is already configured on the consuming services' side (`dpn-health-monitoring-service`'s oauth2-proxy/kafka-ui) — a mismatch does not fail the pipeline, it fails login for every dependent UI
 - The environment parameters point to the correct deployment environment
-- Required firewall rules are applied (outbound access to the container registry, and inbound from consuming namespaces to the internal load balancer)
+- Required firewall rules are applied (outbound access to `ghcr.io`, and inbound from consuming namespaces to the internal load balancer)
 
 ---
 
@@ -159,7 +159,7 @@ The workflow does not look up any UI's LoadBalancer hostname/IP before running `
 Two things to confirm after every deploy:
 
 - The redirect URIs/web origins on `dpn-service-client` cover every UI that needs to authenticate in this environment, including the two Federator Gateway Job Runner dashboards (`KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2`).
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` in this environment's secrets backend matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
+- `KC-SERVICE-CLIENT-SECRET` in this environment's Key Vault matches the secret value already configured on the consuming services' side — this is a manual, hand-kept-in-sync value, not sourced from a shared location.
 
 To roll back or remove this service, use `dpn-gha-keycloak-rollback.yaml` (**DPN Rollback - Keycloak**) or `dpn-gha-keycloak-uninstall.yaml` (**DPN Uninstall - Keycloak**) with `cloud: azure` (both default to `aws`) — see [Rollback Procedures, Part 6](../04-rollback/04-rollback-procedures.md#part-6--dpn-authentication-service-rollback) and [Uninstall and Decommissioning, Part 6](../05-uninstall/05-uninstall-decommissioning.md#part-6--uninstall-dpn-authentication-service).
 
@@ -214,7 +214,7 @@ If a specific UI cannot complete login, or logout leaves the SSO session alive w
 
 - The UI's LoadBalancer hostname/IP actually matches what's configured on `dpn-service-client` (see [Step3](#step3-post-deployment-realm-and-client-configuration)) — a UI deployed after this Keycloak deploy, or one whose internal IP changed, will still be on the script's placeholder default or a stale value until the redirect URIs are updated and Keycloak is redeployed.
 - For UIs behind `oauth2-proxy` (OpenSearch Dashboards, Jaeger, Perses, Portal), the bare root hostname (no path) matches the `post.logout.redirect.uris` entry and the `post_logout_redirect_uri` the proxy actually sends.
-- `KC-SERVICE-CLIENT-SECRET`/`KC_SERVICE_CLIENT_SECRET` in the secrets backend matches the secret configured on the consuming service's side.
+- `KC-SERVICE-CLIENT-SECRET` in Key Vault matches the secret configured on the consuming service's side.
 
 ---
 
