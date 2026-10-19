@@ -70,6 +70,8 @@ None of these three is created by a workflow — set them manually.
 
 > **Keystore/truststore passwords no longer come from the SecretProviderClass.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read from the shared `tls-auth-secret` Kubernetes secret (keys `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) created by `dpn-gha-tls-cd.yaml`.
 
+> **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy.
+
 > **Note — two different secret sources on this page.** Everything in the table above lives in **Azure Key Vault** and is synced into the cluster automatically via the CSI Secrets Store driver — nothing here needs a manual `kubectl create secret`. `dpn-tls` and `tls-auth-secret` (Step1 prerequisite #2, configured in [Step3](#step3-configure-tls)) are different, unrelated things: plain **Kubernetes** Secrets created ahead of time by the TLS prerequisite workflow, not part of this Azure Key Vault flow at all.
 
 
