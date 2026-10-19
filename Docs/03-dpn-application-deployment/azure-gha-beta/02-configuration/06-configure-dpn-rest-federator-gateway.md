@@ -179,8 +179,8 @@ To read the backend API key from the synced Secret, point `restFederatorServer.b
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `restFederatorServer.otel.tls.enabled` | HTTPS for OTLP export to the Collector. Reuses the mounted vault truststore, so no new secret is needed. Default `false` | `true` |
-| `restFederatorServer.otel.oauth2.enabled` | Send an `Authorization: Bearer` token with OTLP export, using the `redisIdp` Keycloak client (`dpn-service-client`). Default `false` | `true` |
+| `restFederatorServer.otel.tls.enabled` | HTTPS for OTLP export to the Collector. Reuses the mounted vault truststore, so no new secret is needed. | `true` |
+| `restFederatorServer.otel.oauth2.enabled` | Send an `Authorization: Bearer` token with OTLP export, using the `redisIdp` Keycloak client (`dpn-service-client`). | `true` |
 
 Enable both together where the Collector enforces HTTPS and Bearer auth.
 
