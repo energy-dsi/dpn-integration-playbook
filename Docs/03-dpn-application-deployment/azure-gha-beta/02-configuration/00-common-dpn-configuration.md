@@ -250,7 +250,7 @@ The following firewall rules must be applied by the organisation before installi
 | Source IP Address | Source VNet | Source Subnet | Destination IP / Zone / URL | Destination VNet | Destination Subnet | Protocol | Port(s) | Traffic Flow |
 |-------------------|-------------|---------------|-----------------------------|------------------|--------------------|----------|---------|--------------|
 | AKS worker node IP range | DPN Kubernetes VNet | Node subnet | `packages.confluent.io/*` | N/A | N/A | TLS | 443 | Outbound |
-| AKS worker node IP range | DPN Kubernetes VNet | Node subnet | `registry-1.docker.io/*`<br>`auth.docker.io/*`<br>`production.cloudflare.docker.com`<br>`quay.io/*` (**only** while OpenSearch and the Prometheus stack still use their upstream images — see the note in [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md); not needed once they are pointed at `ghcr.io/energy-dsi`) | N/A | N/A | TLS | 443 | Outbound |
+| AKS worker node IP range | DPN Kubernetes VNet | Node subnet | `registry-1.docker.io/*`<br>`auth.docker.io/*`<br>`production.cloudflare.docker.com`<br>`quay.io/*` | N/A | N/A | TLS | 443 | Outbound |
 | AKS worker node IP range | DPN Kubernetes VNet | Node subnet | `ghcr.io`<br>`*.pkg.github.com`<br>`pkg-containers.githubusercontent.com` (GitHub Container Registry — the DPN container images are pulled from `ghcr.io/energy-dsi`) | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | DPN Kubernetes VNet | DPN Kubernetes subnet | `auth-mtls.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
 | DPN Kubernetes subnet IP range | DPN Kubernetes VNet | DPN Kubernetes subnet | `management.dsm01.dsi(xxx).neso.energy` | N/A | N/A | TLS | 443 | Outbound |
