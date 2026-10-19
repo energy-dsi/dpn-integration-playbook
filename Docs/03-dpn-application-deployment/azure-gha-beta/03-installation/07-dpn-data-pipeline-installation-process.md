@@ -24,6 +24,7 @@
   - [Data Product Cannot Be Created](#data-product-cannot-be-created)
   - [HPA Not Scaling](#hpa-not-scaling)
   - [Kafka Topic and Authentication Issues](#kafka-topic-and-authentication-issues)
+- [STEP-05: Containerized Deployment Using DSI Provided Container Images](#step-05-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -371,6 +372,45 @@ Check that:
 - A SASL `invalid_token` error means the Keycloak token endpoint URL points at the load-balancer hostname. It must use the plain `dpn-keycloak` ClusterIP service so that the token's issuer matches what the broker expects.
 - A TLS handshake or truststore password error means `tls-auth-secret` has a wrong `TRUSTSTORE_PASSWORD`, or `dpn-tls` is missing `truststore.jks`.
 - On the consumer topic extractor, messages missing `orgName` or `productType` headers are skipped by design.
+
+---
+
+## STEP-05: Containerized Deployment Using DSI Provided Container Images
+
+This path pulls the **container images published by DSI** to `ghcr.io/energy-dsi`. There is no CI to run (see the [Overview](#overview)).
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| dpn-producer-file-adaptor-generic | `ghcr.io/energy-dsi/dpn-producer-file-adaptor-generic` | `<version>` |
+| dpn-producer-topic-adaptor-generic | `ghcr.io/energy-dsi/dpn-producer-topic-adaptor-generic` | `<version>` |
+| dpn-consumer-file-extractor | `ghcr.io/energy-dsi/dpn-consumer-file-extractor` | `<version>` |
+| dpn-consumer-topic-extractor | `ghcr.io/energy-dsi/dpn-consumer-topic-extractor` | `<version>` |
+| dpn-self-service | `ghcr.io/energy-dsi/dpn-self-service` | `<version>` |
+
+### STEP-05a: Configure GHCR Image Access
+
+Even though the `energy-dsi` GHCR packages are **public**, GHCR still requires authentication (a GitHub username and Personal Access Token) to pull reliably. Unauthenticated pulls are rate-limited and may fail in automated environments.
+
+Create a GitHub Personal Access Token with `read:packages` scope, then create the pull secret in the data pipeline namespace:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+     --docker-server=ghcr.io \
+     --docker-username=<github-username-or-bot-account> \
+     --docker-password=<GitHub PAT with read:packages scope> \
+     -n ns-dpn-dp-01
+```
+
+### STEP-05b: Point the workflow at GHCR
+
+On Azure the workflow does not set a registry by default (see the *Known limitation on Azure* note in [STEP-02b](#step-02b-execute-data-pipeline-cd-workflow)). Before running it:
+
+1. Add `"IMAGE_REGISTRY": "ghcr.io/energy-dsi"` to `.github/config/azure/<environment>-<cluster>.json`. The workflow passes it to Helm as `imageRegistry`.
+2. For the Self-Service chart, add `service/charts/values/azure/<environment>-<cluster>.yaml` with `imageRegistry: ghcr.io/energy-dsi`, `imagePullSecretName: ghcr-pull-secret`, `env.DPN_IMAGE_REGISTRY: ghcr.io/energy-dsi` and `env.DPN_IMAGE_PULL_SECRET: ghcr-pull-secret`. The AWS file `service/charts/values/aws/<environment>-<cluster>.yaml` is a working template.
+
+### STEP-05c: Run and verify
+
+Run **DPN CD - Self-Service Data Pipelines** as described in [STEP-02b](#step-02b-execute-data-pipeline-cd-workflow) with `cloud: azure` and `imageTag` set to the DSI `<version>`, then validate as in [STEP-02c](#step-02c-validate-data-pipeline-cd-workflow).
 
 ---
 

@@ -11,6 +11,7 @@ Release : 2.1.0 - Oct 2026
 - [STEP-02: Run the CI Pipeline](#step-02-run-the-ci-pipeline)
 - [STEP-03: Run the CD Pipeline](#step-03-run-the-cd-pipeline)
 - [STEP-04: Troubleshooting](#step-04-troubleshooting)
+- [STEP-05: Containerized Deployment Using DSI Provided Container Images](#step-05-containerized-deployment-using-dsi-provided-container-images)
 - [Review Notes](#review-notes)
 
 ---
@@ -114,6 +115,50 @@ dpn-consumer-topic-extractor-xxxxxxxx-xxxxx
 | Kafka SASL `invalid_token` | The Keycloak token endpoint uses the load-balancer hostname | Use the `dpn-keycloak` ClusterIP service URL |
 | UI login fails | The redirect URI is not registered in Keycloak, or the user has no `dpnadmin`, `dpnoperator` or `dpnreader` role | Register `<url>/oauth2/callback` on `dpn-service-client`. Assign a role |
 | `401` on every UI request | The request bypassed the login proxy (for example `kubectl port-forward`) | Use the UI's external address |
+
+---
+
+## STEP-05: Containerized Deployment Using DSI Provided Container Images
+
+This section covers deployment using the **container images published by DSI** to `ghcr.io/energy-dsi`, instead of building them with the CI pipeline in [STEP-02](#step-02-run-the-ci-pipeline). Use it when your organisation does not build the images itself.
+
+| Image Name | GHCR Path | Tag |
+|---|---|---|
+| dpn-producer-file-adaptor-generic | `ghcr.io/energy-dsi/dpn-producer-file-adaptor-generic` | `<version>` |
+| dpn-producer-topic-adaptor-generic | `ghcr.io/energy-dsi/dpn-producer-topic-adaptor-generic` | `<version>` |
+| dpn-consumer-file-extractor | `ghcr.io/energy-dsi/dpn-consumer-file-extractor` | `<version>` |
+| dpn-consumer-topic-extractor | `ghcr.io/energy-dsi/dpn-consumer-topic-extractor` | `<version>` |
+| dpn-self-service | `ghcr.io/energy-dsi/dpn-self-service` | `<version>` |
+
+> **Why the images are copied to your ACR first:** the ADO CD pipeline (`dpn-self-service-cd.yaml`) always deploys from `<acr-name>.azurecr.io/dsi` (built from `ACR_NAME` in the environment config file) and has no image pull secret option. The simplest way to use the DSI images is therefore to import them into that ACR, then run the CD pipeline unchanged.
+
+### STEP-05a: Import the DSI images into your ACR
+
+**Required participant action.** Create a GitHub Personal Access Token with `read:packages` scope. Even though the `energy-dsi` packages are public, GHCR needs authentication to pull reliably. Then import all five images under the `dsi/` repository path, keeping the same name and tag:
+
+```bash
+for img in dpn-producer-file-adaptor-generic dpn-producer-topic-adaptor-generic \
+           dpn-consumer-file-extractor dpn-consumer-topic-extractor dpn-self-service; do
+  az acr import --name <acr-name> \
+    --source ghcr.io/energy-dsi/$img:<version> \
+    --image dsi/$img:<version> \
+    --username <github-username> --password <GitHub PAT>
+done
+```
+
+Confirm the images exist under that tag:
+
+```bash
+az acr repository show-tags --name <acr-name> --repository dsi/dpn-consumer-file-extractor --output table
+```
+
+### STEP-05b: Run the CD Pipeline
+
+Complete the prerequisites in [STEP-01](#step-01-prerequisites), except the CI pipeline and scan stage items, which are not needed. Then run the CD pipeline exactly as in [STEP-03](#step-03-run-the-cd-pipeline), with `imageTag` set to the `<version>` you imported. Do **not** run the CI pipeline.
+
+### STEP-05c: Verify
+
+Follow the verification and Keycloak redirect URI steps in [STEP-03](#step-03-run-the-cd-pipeline). Producer data products created later in the Self-Service UI pull the generic producer images from the same `<acr-name>.azurecr.io/dsi` path, so all five images, including the two producer images, must be imported.
 
 ---
 
