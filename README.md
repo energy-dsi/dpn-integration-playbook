@@ -176,6 +176,7 @@ To further support the node after installation, the following operational docume
 | [User Interfaces & Operations](#user-interfaces--operations) | Day-to-day monitoring and operation via component UIs |
 | [Troubleshooting Guide](#troubleshooting) | Diagnose deployment and runtime issues |
 | [Release Notes](CHANGELOG.md) / [Release 2.0.0 Configuration Changes](Docs/06-release-notes/release-2.0.0-configuration-changes.md) / [Release 2.1.0 Configuration Changes](Docs/06-release-notes/release-2.1.0-configuration-changes.md) | What changed since the last release, component by component — check this before upgrading an existing deployment |
+| [Shared DPN Architecture](Docs/07-shared-dpn-architecture/01-shared-dpn-architecture-overview.md) / [Configure a Shared DPN](Docs/07-shared-dpn-architecture/02-configure-shared-dpn.md) / [Deploy and Operate a Shared DPN](Docs/07-shared-dpn-architecture/03-deploy-and-operate-shared-dpn.md) | Run several affiliated LOEs on one DPN deployment — what is shared, what each LOE configures, and how to deploy and operate it |
 
 ---
 
@@ -307,9 +308,14 @@ The repository is organised into structured documentation sections that guide or
 │   │   ├── 10-dsi-certificate-management-ui-operations.md
 │   │   └── images
 │   │
-│   └── 06-release-notes                        # Per-release configuration deltas
-│       ├── release-2.0.0-configuration-changes.md
-│       └── release-2.1.0-configuration-changes.md
+│   ├── 06-release-notes                        # Per-release configuration deltas
+│   │   ├── release-2.0.0-configuration-changes.md
+│   │   └── release-2.1.0-configuration-changes.md
+│   │
+│   └── 07-shared-dpn-architecture              # Multiple LOEs on one shared DPN
+│       ├── 01-shared-dpn-architecture-overview.md
+│       ├── 02-configure-shared-dpn.md
+│       └── 03-deploy-and-operate-shared-dpn.md
 │
 ├── ACKNOWLEDGEMENTS.md
 ├── CHANGELOG.md
