@@ -59,7 +59,6 @@ Vault is deployed and configured entirely through **[Automated Vault Configurati
 
 > **Cloud provider.** The `vault-https` chart is `cloudProvider`-aware (`aws`) — it selects the auto-unseal seal stanza, the ServiceAccount/IRSA wiring, the internal load-balancer annotations, and (see [Step 2c](#step-2c-vault-helm-values)) the CSI `SecretProviderClass` backend accordingly. Set `cloudProvider: aws`.
 >
-> **Known limitation (current `develop` of `dpn-federator-certificate-manager`):** the `charts/vault-https` templates in the component repository currently render only the Azure path (`seal "azurekeyvault"` in `templates/configmap.yaml`, `provider: azure` in `templates/secretproviderclass.yaml`) and do not reference `cloudProvider`, `seal.awsKms.*`, `serviceAccount.*` or `secretsManager.*`. The `values/aws/<environment>-<cluster>.yaml` files set those keys, but they only take effect once the chart's AWS templates are present — confirm this with DSI before deploying on AWS.
 >
 > **Legacy plain-HTTP `vault` chart.** An older, non-TLS `vault` Helm chart (`charts/vault`) and its `dpn-gha-vault-cd.yaml` workflow (**DPN CD - Vault**) still exist alongside `vault-https`. They are **not** part of the documented/supported flow below — `vault-https` (HTTPS-only, as described in this guide) is the only Vault deployment path DSI documents and supports on this path.
 
@@ -164,9 +163,11 @@ The AWS Secrets Manager names the workflows use are not config JSON keys — the
 
 #### Step 2b. Add the Vault https secrets role
 
-The `vault-https` chart's `SecretProviderClass` reads the Vault TLS certificate/key from AWS Secrets Manager (`secretsManager.secretPrefix`, see [Step 2c](#step-2c-vault-helm-values)) via the pod's own IAM identity. This uses the **same IRSA role** as the KMS auto-unseal role in [Appendix — AWS KMS auto-unseal configuration](#appendix--aws-kms-auto-unseal-configuration) — a ServiceAccount can only be annotated with one role ARN, so attach this permission policy to that same role rather than creating a second one.
+The `vault-https` chart's `SecretProviderClass` reads the Vault TLS certificate/key from AWS Secrets Manager (`secretsManager.secretPrefix`, see [Step 2c](#step-2c-vault-helm-values)) via the pod's own IAM identity. This uses the **same IRSA role** as the KMS auto-unseal role in [Appendix — AWS KMS auto-unseal configuration](#appendix--aws-kms-auto-unseal-configuration) — a ServiceAccount can only be annotated with one role ARN, so create one role (`dpn-vault-kms-unseal-role`) and attach **both** the KMS and Secrets Manager permissions to it rather than creating a second role.
 
-1. Create the trust policy, substituting your account ID, OIDC provider, and namespace/ServiceAccount:
+> The Certificate Manager (`dpn-certificate-manager` ServiceAccount) reuses this same role — see [Configure DPN Certificate Manager — IAM role](04-configure-dpn-certificate-manager.md#iam-role-for-the-certificate-manager-serviceaccount) for the extra trust-policy subject and secrets path it needs.
+
+1. Create the trust policy (`trust-policy.json`), substituting your account ID, region, OIDC provider ID, namespace and ServiceAccount names:
 
    ```json
    {
@@ -180,21 +181,54 @@ The `vault-https` chart's `SecretProviderClass` reads the Vault TLS certificate/
          "Action": "sts:AssumeRoleWithWebIdentity",
          "Condition": {
            "StringEquals": {
-             "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": "system:serviceaccount:ns-dpn-01:dpn-vault",
-             "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com"  }}}]}
+             "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com",
+             "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": "system:serviceaccount:ns-dpn-01:dpn-vault"
+           }
+         }
+       }
+     ]
+   }
    ```
 
-2. Create the permission policy scoped to this environment/cluster's Vault secrets path:
+2. Create the permission policy (`dpn-vault-kms-unseal-policy.json`), scoped to the auto-unseal key and to this environment/cluster's Vault secrets path:
 
    ```json
-   { "Version":"2012-10-17",
-     "Statement":[{
-     "Effect":"Allow",
-     "Action":["secretsmanager:GetSecretValue","secretsmanager:DescribeSecret"],
-     "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/vault-https/*"}]}
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": ["kms:Encrypt", "kms:Decrypt", "kms:DescribeKey"],
+         "Resource": [
+           "arn:aws:kms:<region>:<account-id>:key/<unseal-key-id>"
+         ]
+       },
+       {
+         "Effect": "Allow",
+         "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+         "Resource": [
+           "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/vault-https/*"
+         ]
+       }
+     ]
+   }
    ```
 
-3. Create the IAM role as its trust policy (or reuse the role already created for [KMS auto-unseal](#appendix--aws-kms-auto-unseal-configuration)).  Set the role's ARN as `serviceAccount.irsaRoleArn` in the chart's `values/aws/<environment>-<cluster>.yaml` (see [Step 2c](#step-2c-vault-helm-values)).
+3. Create the IAM role with the trust policy and attach the permission policy as an inline policy (or reuse the role if it was already created for [KMS auto-unseal](#appendix--aws-kms-auto-unseal-configuration)):
+
+   ```bash
+   aws iam create-role \
+     --role-name dpn-vault-kms-unseal-role \
+     --assume-role-policy-document file://trust-policy.json \
+     --description "dpn-vault-kms-unseal-role for KMS"
+
+   aws iam put-role-policy \
+     --role-name dpn-vault-kms-unseal-role \
+     --policy-name dpn-vault-kms-unseal-policy \
+     --policy-document file://dpn-vault-kms-unseal-policy.json
+   ```
+
+4. Set the role's ARN (`arn:aws:iam::<account-id>:role/dpn-vault-kms-unseal-role`) as `serviceAccount.irsaRoleArn` in the chart's `values/aws/<environment>-<cluster>.yaml` (see [Step 2c](#step-2c-vault-helm-values)).
 
 #### Step 2c. Vault Helm values
 

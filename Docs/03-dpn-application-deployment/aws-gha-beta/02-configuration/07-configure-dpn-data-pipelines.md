@@ -9,6 +9,7 @@ Release : 2.1.0 - Oct 2026
 - [Overview](#overview)
 - [STEP-01: Configuration Table](#step-01-configuration-table)
 - [STEP-02: Secrets Table](#step-02-secrets-table)
+- [STEP-03: IAM Role for S3 Access (IRSA)](#step-03-iam-role-for-s3-access-irsa)
 - [Review Notes](#review-notes)
 
 ---
@@ -142,6 +143,74 @@ kubectl get secret dpn-tls dpn-keycloak-secrets ghcr-pull-secret -n ns-dpn-dp-01
 > **Informational (no action required):** The secrets `tls-auth-secret` and `dpn-health-ca` are provided by the DPN Certificate Manager and Health Monitoring services. Verify that they exist in `ns-dpn-dp-01`.
 
 > **Note:** The topic pathway needs no storage secret. The Azure storage connection-string secrets (`producer-file-dp-secret`, `consumer-file-dp-secret`) are not used on AWS.
+
+---
+
+## STEP-03: IAM Role for S3 Access (IRSA)
+
+The data pipeline ServiceAccounts reach S3 through one shared IRSA role, `dpn-data-pipeline-s3-role`. Create it manually, once per account/cluster, and set its ARN as `serviceAccount.irsaRoleArn` (see [STEP-01](#step-01-configuration-table)). Reference policy files are kept in the `dpn-iam` export under `template/roles/dpn-data-pipeline-s3-role/`.
+
+**Trust policy** (`trust-policy.json`). Every ServiceAccount in `ns-dpn-dp-01` is trusted (the Self-Service UI creates pipeline ServiceAccounts dynamically), plus the consumer file extractor in `ns-dpn-01`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": [
+            "system:serviceaccount:ns-dpn-dp-01:*",
+            "system:serviceaccount:ns-dpn-01:dpn-consumer-file-extractor"
+          ]
+        }
+      }
+    }
+  ]
+}
+```
+
+**Permission policy** (`dpn-data-pipeline-s3-permissions.json`):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:ListBucket",
+        "s3:DeleteObject",
+        "s3:CreateBucket"
+      ],
+      "Resource": "arn:aws:s3:::*"
+    }
+  ]
+}
+```
+
+> **Scope.** `arn:aws:s3:::*` is needed because data-product bucket names are chosen by users at run time and `s3:CreateBucket` has no resource to narrow. If your organisation requires tighter scoping, restrict the `Resource` to a bucket-name prefix (for example `arn:aws:s3:::dpn-<env>-*`) and agree that naming convention with data-product owners.
+
+```bash
+aws iam create-role \
+  --role-name dpn-data-pipeline-s3-role \
+  --assume-role-policy-document file://trust-policy.json
+
+aws iam put-role-policy \
+  --role-name dpn-data-pipeline-s3-role \
+  --policy-name dpn-data-pipeline-s3-permissions \
+  --policy-document file://dpn-data-pipeline-s3-permissions.json
+```
 
 ---
 
