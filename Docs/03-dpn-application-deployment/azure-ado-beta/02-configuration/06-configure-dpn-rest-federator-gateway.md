@@ -118,7 +118,7 @@ This release delivers **endpoint registration, method-listing, GET/POST proxying
 | 1 | **DPN Vault deployed, initialised, and loaded** | Supplies the certificate material and keystore/truststore passwords under `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
 | 2 | **Certificate Manager deployed**, with this gateway's endpoint included in the certificate's SANs | e.g. `producer-rest01.<dpn>...` alongside the gRPC Federator's `producer.<dpn>...`/`consumer.<dpn>...` — see [Configure DPN Certificate Manager, Step3a](04-configure-dpn-certificate-manager.md#step3a-set-up-helm-values) |
 | 3 | **`cert-manager-truststore` Kubernetes secret present** | Created by the `dpn-tls-cd` pipeline; trusts Vault's HTTPS endpoint |
-| 4 | **Vault AppRole identity provisioned** *(recommended)*, or the root token | No policy file or setup script ships in this repository yet — the Vault-side AppRole role must be authored/created manually. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
+| 4 | **Vault AppRole identity provisioned** *(recommended)*, or the root token | Reuse the Certificate Manager's — run `vault-approle-setup-cd` once (if not already done for the Certificate Manager), then manually paste that same role-id into `restFederatorServer.vault.appRole.roleId` below. No separate policy/script is needed. See [Configure DPN Vault Service, Step 3D](01-configure-dpn-vault-service.md#step-3d-configure-approle-authentication-recommended) |
 | 5 | **DPN Authentication Service (Keycloak) reachable** | Inbound JWTs are validated against its JWKS endpoint. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) |
 | 6 | **AKS cluster, user-assigned managed identity, Secrets Store CSI driver** | Required when `keyvault.enabled: true` |
 | 7 | **OAuth2 client ID + Management Node URL + IDP URLs** | Received from DSM during onboarding, same as the gRPC Federator |
@@ -163,14 +163,14 @@ Root-Repository
 | `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:<port-number>` |
 | `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` where XXX is based on DSI environment |
 | `restFederatorServer.idp.clientId` / `jwksUrl` / `tokenUrl` | Identity Provider client ID and endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
-| `restFederatorServer.redis.host` / `port` | Points at this chart's own `dpn-redis` release | `dpn-rest-federator-redis` / `6379` |
+| `restFederatorServer.redis.host` / `port` | Points at this chart's own `dpn-redis` release | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
 
 ### Step3b: Configure Vault Authentication
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `restFederatorServer.vault.authMethod` | `token` or `approle` (recommended) | `approle` |
-| `restFederatorServer.vault.appRole.roleId` | Non-sensitive role-id for this component's AppRole role | `<role_id>` |
+| `restFederatorServer.vault.appRole.roleId` | The **same** role-id as the Certificate Manager's AppRole — copied manually from the `vault-approle-setup-cd` pipeline's log output, same as every other component reusing this identity | `<role_id>` |
 | `restFederatorServer.vault.appRole.useSecretIdRef` | Source the AppRole `secret-id` from a Kubernetes Secret (`certificate-manager-secrets` / `VAULT_APPROLE_SECRET_ID`) rather than a plaintext value | `true` |
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
@@ -190,8 +190,25 @@ No per-environment values file currently overrides these — every environment i
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `restFederatorServer.otel.tls.enabled` | Turns on HTTPS for OTLP export to the Collector. Defaults to `false`, so existing environments aren't affected unless someone opts in | `false` |
-| `restFederatorServer.otel.oauth2.enabled` | Adds an `Authorization: Bearer` token to OTLP export, using the `dpn-service-client` Keycloak client already used elsewhere in this chart (no new client or secret to set up). Defaults to `false` | `false` |
+| `restFederatorServer.otel.tls.enabled` | HTTPS for OTLP export to the Collector. Reuses the mounted vault truststore, so no new secret is needed. | `true` |
+| `restFederatorServer.otel.oauth2.enabled` | Send an `Authorization: Bearer` token with OTLP export, using the `redisIdp` Keycloak client (`dpn-service-client`). | `true` |
+
+Enable both together where the Collector enforces HTTPS and Bearer auth.
+
+### Step3e: Configure Redis Security
+
+`dpn-redis` is TLS-only (plaintext disabled) and uses the shared `dpn-tls` certificate. There is no Redis username/password; access is gated by a Keycloak session.
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.redis.host` / `port` | Service of the `dpn-redis` release | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
+| `restFederatorServer.redis.tlsEnabled` | Always `true`. `dpn-redis` is TLS-only | `true` |
+| `restFederatorServer.keycloakAuthEnabled` | Gate Redis access with a Keycloak session. `true` in every real environment | `true` |
+| `restFederatorServer.redisIdp.tokenUrl` | Keycloak token endpoint. Set per environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `restFederatorServer.redisIdp.clientId` | Keycloak client used for Redis and OTLP authentication | `dpn-service-client` |
+| `restFederatorServer.redisIdp.clientSecretEnabled` | Read the client secret from `dpn-keycloak-secrets` (`KC_SERVICE_CLIENT_SECRET`) | `true` |
+
+> The `dpn-keycloak-secrets` Secret must exist in the namespace before deploy.
 
 ## Step4: Configure Deployment Parameters
 

@@ -72,7 +72,6 @@ The DPN Portal is the only component built from source. Its image is built, scan
 | 13 | OAuth2 Proxy (Keycloak) — chained releases: opensearch, jaeger, perses, portal | All stages above |
 | 14 | Validate (deployment and gateway checks) | OTel Collector, Perses, Thanos, Data Prepper, Jaeger, OAuth2 Proxy |
 
-> The `Approval Gate` stage is deliberately unbypassable: every later stage is rooted at it, so none can run (including via "run selected stages") without it having succeeded in the same run. The oauth2-proxy releases are deployed one after another rather than in parallel, because they all publish a port on the same static internal load-balancer IP.
 ---
 
 ## Step 1: Prepare Environment Configuration File

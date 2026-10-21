@@ -165,17 +165,14 @@ pool:
 
 Each CD pipeline reads its Azure targeting from an environment-specific JSON config file under the repository's Azure Pipelines folder. **Update this file with your environment's values before running any pipeline.**
 
-The config file naming differs slightly per repository:
-
-- **Vault and Certificate Manager** (`dpn-federator-certificate-manager`): `config/<env>.json`
-- **Federator Gateway** (`dpn-federator-gateway`): `config/<env>-<cluster>.json` (one per DPN cluster)
+All CD pipelines across every DPN repository — including Vault and Certificate Manager (`dpn-federator-certificate-manager`) and the Federator Gateway (`dpn-federator-gateway`) — resolve the same naming pattern, one config file per DPN cluster:
 
 ```text
 Root-Repository/
 └── .pipelines/
     └── azure-pipelines/
         └── config/
-            └── <env>.json
+            └── <env>-<cluster>.json
 ```
 
 | Key | Description | Example (placeholder) |
@@ -189,7 +186,11 @@ Root-Repository/
 | BASE_REGISTRY | Base container registry URL | `<image-registry-url>` |
 | CONTAINER_REGISTRY / CONTAINER_REGISTRY_URL | Registry name / URL | `<image-registry-url>`|
 
-> **Note:** The **service connection**, **environment**, and (Federator Gateway only) **DPN cluster** are supplied as pipeline **runtime parameters** when you trigger a run — they are **not** keys in the JSON file. The Helm **values file** is derived from those parameters: `values-<env>.yaml` (Vault / Certificate Manager) or `values-<env>-<cluster>.yaml` (Federator Gateway).
+> **Note:** The **service connection**, **environment**, and **DPN cluster** are supplied as pipeline **runtime parameters** when you trigger a run — they are **not** keys in the JSON file. The Helm **values file** is likewise named from those same two parameters: `values-<env>-<cluster>.yaml`.
+
+> **Choosing your `<env>`/`<cluster>` naming.** `environment` and `dpnCluster` are just labels that select which config/values file a pipeline run reads — name them however suits your own setup:
+> - **Single environment, single cluster:** pick one fixed pair (e.g. `environment: dev`, `dpnCluster: dpn01`) and always run with it — one `config/<env>-<cluster>.json` and one `values-<env>-<cluster>.yaml` is all you'll ever need.
+> - **Multiple environments and/or multiple clusters:** use a distinct `environment` value per environment (e.g. `dev`, `test`, `prod`) and/or a distinct `dpnCluster` value per cluster (e.g. `dpn01`, `dpn02`), and maintain one config/values file pair per combination you run — same naming pattern, just more of them.
 
 ---
 
