@@ -119,7 +119,6 @@ dpn-federator-certificate-manager/
             └── values/aws/<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
-> **Known limitation (current `develop` of `dpn-federator-certificate-manager`):** the `charts/certificate-manager` templates currently render only the Azure Key Vault `SecretProviderClass` (gated on `keyvault.enabled`) and do not reference `cloudProvider`, `secretsManager.*` or `serviceAccount.*`. The `values/aws/<environment>-<cluster>.yaml` files set those keys, but the AWS behaviour described below only takes effect once the chart's AWS templates are present — confirm this with DSI before deploying on AWS.
 
 DSI proposes only the selective changes below; other parameters may be customised if required. All of these map to container environment variables via the chart ConfigMap.
 
@@ -167,7 +166,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `serviceAccount.create` | Create the IRSA-annotated ServiceAccount | `true` |
 | `serviceAccount.name` | ServiceAccount name (default `dpn-certificate-manager`) | `dpn-certificate-manager` |
 | `imagePullSecrets` | Image pull secrets for the pod (default `[]`) | `- name: ghcr-pull-secret` |
-| `serviceAccount.irsaRoleArn` | IAM role ARN whose trust policy scopes `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, granting Secrets Manager `GetSecretValue` | `arn:aws:iam::<account-id>:role/<role-name>` |
+| `serviceAccount.irsaRoleArn` | IAM role ARN whose trust policy scopes `sts:AssumeRoleWithWebIdentity` to `system:serviceaccount:<namespace>:<serviceAccount.name>`, granting Secrets Manager `GetSecretValue`. The AWS values files reuse the Vault role (`dpn-vault-kms-unseal-role`) — see [IAM role](#iam-role-for-the-certificate-manager-serviceaccount) | `arn:aws:iam::<account-id>:role/dpn-vault-kms-unseal-role` |
 
 **AWS Secrets Manager** (native AWS backend — only used when `secretsManager.enabled: true`)
 
@@ -176,6 +175,47 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `secretsManager.enabled` | Use the AWS Secrets Store CSI driver (`SecretProviderClass` `dpn-certificate-manager-kv-secrets`) instead of the chart-managed Secret resource | `true` |
 | `secretsManager.secretPrefix` | Prefix under which each secret is created in Secrets Manager | `dpn/<env>-<cluster>/certificate-manager` |
 | `existingSecret.name` | Use the CSI-synced secret instead of a chart-created one — set to the name the `SecretProviderClass` syncs to | `certificate-manager-secrets` |
+
+#### IAM role for the Certificate Manager ServiceAccount
+
+The `certificate-manager` chart's AWS templates (`serviceaccount.yaml`, `secretproviderclass.yaml`) annotate the `dpn-certificate-manager` ServiceAccount with `serviceAccount.irsaRoleArn` and read `VAULT_APPROLE_SECRET_ID` (or `VAULT_TOKEN`) from `secretsManager.secretPrefix`. The provided AWS values files point this at the **same role as Vault** — `dpn-vault-kms-unseal-role`, created in [Configure DPN Vault Service — Step 2b](01-configure-dpn-vault-service.md#step-2b-add-the-vault-https-secrets-role) — so no second role is created. Extend that role as follows:
+
+1. Add the Certificate Manager ServiceAccount to the trust policy's `sub` condition (a single `StringEquals` value becomes a `StringLike` list):
+
+   ```json
+   "Condition": {
+     "StringEquals": {
+       "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com"
+     },
+     "StringLike": {
+       "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": [
+         "system:serviceaccount:ns-dpn-01:dpn-vault",
+         "system:serviceaccount:ns-dpn-01:dpn-certificate-manager"
+       ]
+     }
+   }
+   ```
+
+2. Add the Certificate Manager's Secrets Manager path to the role's permission policy (alongside the existing `vault-https/*` entry):
+
+   ```json
+   "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/certificate-manager/*"
+   ```
+
+3. Update the role in place:
+
+   ```bash
+   aws iam update-assume-role-policy \
+     --role-name dpn-vault-kms-unseal-role \
+     --policy-document file://trust-policy.json
+
+   aws iam put-role-policy \
+     --role-name dpn-vault-kms-unseal-role \
+     --policy-name dpn-vault-kms-unseal-policy \
+     --policy-document file://dpn-vault-kms-unseal-policy.json
+   ```
+
+   (`put-role-policy` replaces the inline policy with the same name, so include the existing Vault statements in the file.)
 
 ### Step3b: Configure Secrets
 

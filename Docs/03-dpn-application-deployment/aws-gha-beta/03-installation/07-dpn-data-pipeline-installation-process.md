@@ -194,7 +194,7 @@ In one run it:
 
 1. Verifies the `ns-dpn-dp-01` namespace exists.
 2. Installs `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` from `blueprints/consumer/{file,topic}/extractor/charts`, applying `values/aws/<environment>-<cluster>.yaml` only if the chart ships one (otherwise the chart defaults are used), setting `imageRegistry` to the config JSON's `IMAGE_REGISTRY`, `imageName` to the release name, `imageTag` to the input and `cloudProviderType` to `aws`.
-3. Installs `dpn-self-service` from `service/charts` with `values/aws/<environment>-<cluster>.yaml` (checked in for `dev-dpn01`, `dev-dpn02`, `test-dpn01` and `test-dpn02`). The oauth2-proxy (Keycloak login, HTTPS) is enabled with `oauth2Proxy.externalUrl` set to the config JSON's `OAUTH2_PROXY_EXTERNAL_URL`, or else to the hostname of the existing `dpn-self-service-external` LoadBalancer. On a first deploy with neither, it installs once with the proxy off, waits up to 3 minutes for AWS to assign an NLB hostname, then redeploys with the proxy on — register `<that URL>/oauth2/callback` on `dpn-service-client` afterwards (the workflow prints a warning with the URL).
+3. Installs `dpn-self-service` from `service/charts` with `values/aws/<environment>-<cluster>.yaml`. The oauth2-proxy (Keycloak login, HTTPS) is enabled with `oauth2Proxy.externalUrl` set to the config JSON's `OAUTH2_PROXY_EXTERNAL_URL`, or else to the hostname of the existing `dpn-self-service-external` LoadBalancer. On a first deploy with neither, it installs once with the proxy off, waits up to 3 minutes for AWS to assign an NLB hostname, then redeploys with the proxy on — register `<that URL>/oauth2/callback` on `dpn-service-client` afterwards (the workflow prints a warning with the URL).
 
 > **Notes:**
 > - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. This is preconfigured in the consumer charts' values; keep the default (see the [Configuration Guide overview](../02-configuration/07-configure-dpn-data-pipelines.md#overview)).
@@ -304,7 +304,7 @@ If pods show `ImagePullBackOff` or `ErrImagePull`:
 
 ### Values File Not Found
 
-`dpn-gha-self-service-cd.yaml` applies `values/aws/<environment>-<cluster>.yaml` only when it exists, and uses the chart defaults otherwise. For `service/charts`, AWS values are checked in for `dev-dpn01`, `dev-dpn02`, `test-dpn01` and `test-dpn02`; add one for any other environment/cluster, because the Self-Service AWS settings (IRSA role, registry, pull secret) live there.
+`dpn-gha-self-service-cd.yaml` applies `values/aws/<environment>-<cluster>.yaml` only when it exists, and uses the chart defaults otherwise. Create the file for your environment/cluster, because the Self-Service AWS settings (IRSA role, registry, pull secret) live there.
 
 `dpn-gha-data-pipelines-cd.yaml` always passes `-f <chart>/values/<cloud>/<environment>-<cluster>.yaml`, so `helm upgrade` fails if that file does not exist. The blueprint charts do not currently ship a `values/` folder; add the file for your environment/cluster before running that workflow.
 
