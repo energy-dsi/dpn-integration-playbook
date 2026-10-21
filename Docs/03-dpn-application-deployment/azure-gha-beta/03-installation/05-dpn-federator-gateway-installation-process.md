@@ -83,7 +83,7 @@ In summary:
 
 **Note:** Organisations must review workflow code for the following. 
 
-- If running your own CI, keep only the relevant build, unit test, and image-push steps — DSI's own CI examples include tool usage such as CheckMarx, SonarQube, and JFrog Xray that your organisation may not need
+- This deployment does not use CI: the container images are built and published by DSI, so there are no build, test or image-push steps to run
 - The container image is appropriate and referred from GHCR repository unless Organisation plans to use a separate image repository on their own
 - The config JSON's environment parameters are pointing to correct deployment environment
 - The DSM endpoints are correctly pointing to the respective environment

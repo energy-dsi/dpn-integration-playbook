@@ -163,7 +163,7 @@ Root-Repository
 | `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:<port-number>` |
 | `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` where XXX is based on DSI environment |
 | `restFederatorServer.idp.clientId` / `jwksUrl` / `tokenUrl` | Identity Provider client ID and endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
-| `restFederatorServer.redis.host` / `port` | Points at this chart's own `dpn-redis` release | `dpn-rest-federator-redis` / `6379` |
+| `restFederatorServer.redis.host` / `port` | Points at this chart's own `dpn-redis` release | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
 
 ### Step3b: Configure Vault Authentication
 
@@ -190,8 +190,25 @@ No per-environment values file currently overrides these — every environment i
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `restFederatorServer.otel.tls.enabled` | Turns on HTTPS for OTLP export to the Collector. Defaults to `false`, so existing environments aren't affected unless someone opts in | `false` |
-| `restFederatorServer.otel.oauth2.enabled` | Adds an `Authorization: Bearer` token to OTLP export, using the `dpn-service-client` Keycloak client already used elsewhere in this chart (no new client or secret to set up). Defaults to `false` | `false` |
+| `restFederatorServer.otel.tls.enabled` | HTTPS for OTLP export to the Collector. Reuses the mounted vault truststore, so no new secret is needed. | `true` |
+| `restFederatorServer.otel.oauth2.enabled` | Send an `Authorization: Bearer` token with OTLP export, using the `redisIdp` Keycloak client (`dpn-service-client`). | `true` |
+
+Enable both together where the Collector enforces HTTPS and Bearer auth.
+
+### Step3e: Configure Redis Security
+
+`dpn-redis` is TLS-only (plaintext disabled) and uses the shared `dpn-tls` certificate. There is no Redis username/password; access is gated by a Keycloak session.
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.redis.host` / `port` | Service of the `dpn-redis` release | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
+| `restFederatorServer.redis.tlsEnabled` | Always `true`. `dpn-redis` is TLS-only | `true` |
+| `restFederatorServer.keycloakAuthEnabled` | Gate Redis access with a Keycloak session. `true` in every real environment | `true` |
+| `restFederatorServer.redisIdp.tokenUrl` | Keycloak token endpoint. Set per environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `restFederatorServer.redisIdp.clientId` | Keycloak client used for Redis and OTLP authentication | `dpn-service-client` |
+| `restFederatorServer.redisIdp.clientSecretEnabled` | Read the client secret from `dpn-keycloak-secrets` (`KC_SERVICE_CLIENT_SECRET`) | `true` |
+
+> The `dpn-keycloak-secrets` Secret must exist in the namespace before deploy.
 
 ## Step4: Configure Deployment Parameters
 

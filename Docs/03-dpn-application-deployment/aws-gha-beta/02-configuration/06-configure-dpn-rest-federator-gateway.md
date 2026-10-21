@@ -20,6 +20,8 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
   - [Step3b: Configure Vault Authentication](#step3b-configure-vault-authentication)
   - [Step3c: Configure Autoscaling](#step3c-configure-autoscaling)
   - [Step3d: Configure AWS ServiceAccount (IRSA)](#step3d-configure-aws-serviceaccount-irsa)
+  - [Step3e: Configure Redis Security](#step3e-configure-redis-security)
+  - [Step3f: Configure OTel Collector Security](#step3f-configure-otel-collector-security)
 - [Step4: Configure Deployment Parameters](#step4-configure-deployment-parameters)
 - [Integrating a Consumer](#integrating-a-consumer)
 - [Review Notes](#review-notes)
@@ -176,6 +178,30 @@ Re-run this workflow to rotate the `secret-id`, then re-run `dpn-gha-rest-federa
 | `keyvault.enabled` / `keyvault.secretName` | Despite the name, this gate mounts the CSI secret volume on AWS too; `secretName` is the Kubernetes Secret the `SecretProviderClass` syncs into | `true` / `dpn-rest-federator-server-secrets` |
 
 The IAM role and its trust policy (scoped to `system:serviceaccount:<NAMESPACE>:dpn-rest-federator`, where `NAMESPACE` comes from the config JSON) do **not** need to be created manually — the `dpn-gha-rest-federator-cd.yaml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the role idempotently on every run, and seeds `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders in Secrets Manager the first time (update them to real values before relying on the deployment).
+
+### Step3e: Configure Redis Security
+
+`dpn-redis` is TLS-only (plaintext disabled) and uses the shared `dpn-tls` certificate. There is no Redis username/password; access is gated by a Keycloak session.
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.redis.host` / `port` | Service of the `dpn-redis` release | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
+| `restFederatorServer.redis.tlsEnabled` | Always `true`. `dpn-redis` is TLS-only | `true` |
+| `restFederatorServer.keycloakAuthEnabled` | Gate Redis access with a Keycloak session. `true` in every real environment | `true` |
+| `restFederatorServer.redisIdp.tokenUrl` | Keycloak token endpoint. Set per environment | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
+| `restFederatorServer.redisIdp.clientId` | Keycloak client used for Redis and OTLP authentication | `dpn-service-client` |
+| `restFederatorServer.redisIdp.clientSecretEnabled` | Read the client secret from `dpn-keycloak-secrets` (`KC_SERVICE_CLIENT_SECRET`) | `true` |
+
+> The `dpn-keycloak-secrets` Secret must exist in the namespace before deploy.
+
+### Step3f: Configure OTel Collector Security
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `restFederatorServer.otel.tls.enabled` | HTTPS for OTLP export to the Collector. Reuses the mounted vault truststore, so no new secret is needed. Default `false` | `true` |
+| `restFederatorServer.otel.oauth2.enabled` | Send an `Authorization: Bearer` token with OTLP export, using the `redisIdp` Keycloak client (`dpn-service-client`). Default `false` | `true` |
+
+Enable both together where the Collector enforces HTTPS and Bearer auth.
 
 ---
 

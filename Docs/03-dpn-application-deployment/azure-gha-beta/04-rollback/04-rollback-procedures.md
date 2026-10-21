@@ -57,7 +57,7 @@ The distinction matters for what actually gets reverted:
 
 - **Strategy 2 reverts everything about that revision** — chart version, values, and therefore whatever image tag was in use at that revision too. It doesn't let you pick an image tag independently of the revision; you get exactly what that revision was.
 
-**On image tags:** components pull from GHCR (`ghcr.io/energy-dsi/...`) by default, so `imageTag` is typically a semantic version or a DSI-provided stable tag rather than a numeric build ID — check your registry's tag history (GHCR package page, or `az acr repository show-tags` if you push to your own Azure Container Registry) for what's actually available before choosing one to roll back to.
+**On image tags:** components pull from GHCR (`ghcr.io/energy-dsi/...`) by default, so `imageTag` is typically a semantic version or a DSI-provided stable tag rather than a numeric build ID — check the tag history on the image's GHCR package page (`ghcr.io/energy-dsi/<image>`) for what's actually available before choosing one to roll back to.
 
 ---
 
@@ -155,10 +155,10 @@ Go to **Actions → DPN CD - Data Pipelines → Run workflow** (`dpn-gha-data-pi
 
 To roll back: trigger this workflow exactly as you would for a normal deployment, but set `imageTag` to a previous, known-good tag instead of the latest one. There is no separate "rollback mode" — the workflow always runs `helm upgrade --install` against whatever `imageTag` you give it, whether that's the newest build or an older one.
 
-**Finding a previous tag:** check the GHCR package page for the image, or if pushing to your own Azure Container Registry:
+**Finding a previous tag:** check the GHCR package page for the image (`https://github.com/orgs/energy-dsi/packages`), or list the versions from the command line:
 
 ```bash
-az acr repository show-tags --name <acr-name> --repository <image-name> --orderby time_desc --output table
+gh api /orgs/energy-dsi/packages/container/<image-name>/versions --jq '.[].metadata.container.tags'
 ```
 
 ### Strategy 2 — Helm Revision Rollback
@@ -228,7 +228,7 @@ If only one sub-component's image needs to change, target it directly instead of
 
 ```bash
 kubectl set image deployment/dpn-federator-server-1 \
-  dpn-federator-server-1=<acr-url-or-ghcr>/dpn-federator-server:<imageTag> -n <namespace>
+  dpn-federator-server-1=ghcr.io/energy-dsi/dpn-federator-server:<imageTag> -n <namespace>
 kubectl rollout status deployment/dpn-federator-server-1 -n <namespace>
 ```
 
@@ -293,7 +293,7 @@ Use the standard CD workflow for Strategy 1, and **DPN Rollback - File Scan Serv
 
 ```bash
 kubectl set image deployment/dpn-file-scan-service \
-  dpn-file-scan-service=<acr-url-or-ghcr>/dpn-file-scan-service:<imageTag> -n <namespace>
+  dpn-file-scan-service=ghcr.io/energy-dsi/dpn-file-scan-service:<imageTag> -n <namespace>
 kubectl rollout status deployment/dpn-file-scan-service -n <namespace>
 ```
 

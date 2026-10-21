@@ -126,7 +126,7 @@ dpn-federator-gateway/
                 └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
-> All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at the container registry via `image.repository`. Set these to your registry, e.g. `ghcr.io/energy-dsi/<image>`. Only the parameters most likely to change per deployment are listed below.
+> All component images (`redis`, `zookeeperSrc/Target`, `kafkaSrc/Target`, `kafkaUI`, `federatorServer`, `federatorClient`) point at GitHub Container Registry via `image.repository`, e.g. `ghcr.io/energy-dsi/<image>` — the provided Azure values files already do this; keep them on the DSI-published GHCR images. Only the parameters most likely to change per deployment are listed below.
 
 ### Step3a: Configure Federator Server
 
@@ -200,7 +200,7 @@ Redis's own server certificate is **not** a separate value to configure — it's
 
 > **No Redis username/password (ACL) authentication.** Earlier releases supported `redis.username`/`redis.password` for Redis's own ACL auth — these have been **removed**. Access control is now enforced entirely at the application layer: every Redis-touching call site (other than the Federator's own IDP token cache, which deliberately bypasses this to avoid a circular dependency) requires a valid Keycloak session before a connection is returned. This is independent of `kafka.authMode` — Redis TLS and its Keycloak gate apply regardless of that Kafka setting.
 >
-> **Only this component's own Redis is TLS-enabled today.** The REST Federator Gateway's separate `dpn-redis` release (its own cache, not this one) does not yet have TLS — see [Configure DPN REST Federator Gateway](06-configure-dpn-rest-federator-gateway.md) — that migration is tracked as a separate, not-yet-delivered enabler.
+> **The REST Federator Gateway's separate `dpn-redis` release is also TLS-only with Keycloak gating.** It is a different cache with its own settings — see [Configure DPN REST Federator Gateway, Step3f](06-configure-dpn-rest-federator-gateway.md#step3f-configure-redis-security).
 
 ### Step3e: Configure Azure ServiceAccount (Workload Identity)
 

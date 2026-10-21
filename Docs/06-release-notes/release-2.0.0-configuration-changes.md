@@ -72,7 +72,6 @@ See [Configure DPN Certificate Manager](../03-dpn-application-deployment/azure-a
 | Added | `certIdent.keystoreAlias` | Alias for the in-memory keystore entry (replaces `certDest.keystoreAlias`) |
 | Added | `VAULT-APPROLE-SECRET-ID` → `vaultAppRoleSecretId` | New Key Vault secret / Kubernetes secret key, alternative to `VAULT-TOKEN` |
 | Added | `existingSecret.name`, `vaultTruststore.secretName` | Explicit Key Vault / truststore secret wiring |
-| Added | `otel.env.OTEL_TRUSTSTORE_LOCATION` | Path to the OTel exporter truststore (`/app/truststore/truststore.jks`) |
 | Modified | `VAULT-TOKEN` → `vaultToken` (Kubernetes secret key) | Kept for backward compatibility; only used when `vault.authentication: TOKEN` |
 | Removed | `secrets.mtlsKeystorePassword`, `mtlsTruststorePassword`, `certDestKeystorePassword`, `certDestTruststorePassword` | No longer needed once P12 files are no longer written to disk |
 | Removed | `secrets.oauth2ClientSecret` | Dead OAuth2 code path removed — unrelated to the file-share change |

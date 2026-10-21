@@ -40,10 +40,12 @@ The deployment uses the following repositories:
 - https://github.com/energy-dsi/dpn-file-scan-service.git
 - https://github.com/energy-dsi/dpn-health-monitoring-service.git
 
+DPN on Azure is a **containerised deployment**: every component runs from container images that DSI has already built and published to GitHub Container Registry (`ghcr.io/energy-dsi`). You do not build images or run CI, and you do not need your own container registry.
+
 The deployment process consists of:
 
-- **Continuous Integration (CI)** — builds container images
-- **Continuous Deployment (CD)** — deploys images into **Azure Kubernetes Service (AKS)**
+- **Container images** — pulled directly from `ghcr.io/energy-dsi` using the `ghcr-pull-secret` image pull secret (a GitHub PAT with `read:packages` scope)
+- **Continuous Deployment (CD)** — GitHub Actions workflows in each component repository run Helm to deploy those images into **Azure Kubernetes Service (AKS)**
 
 ---
 
@@ -208,9 +210,8 @@ The DPN currently comprises the following components. Complete the prerequisites
 Possible causes:
 
 - Incorrect GitHub PAT token or missing `read:packages` scope
-- Maven repository authentication failure — verify the `GITHUB_MAVEN_USERNAME`/`GITHUB_MAVEN_TOKEN` GitHub Actions secrets on the component's own source repository
-- Docker login failure — verify the `DOCKERHUB_USERNAME`/`DOCKERHUB_PASSWORD` GitHub Actions secrets
-- Registry login failure — verify the CI workflow's credentials have push access to whichever registry (GHCR, or your own ECR/ACR) the image is pushed to
+- Missing or stale `ghcr-pull-secret` in the target namespace, so the pods cannot pull from `ghcr.io/energy-dsi`
+- No outbound HTTPS access from the AKS nodes to `ghcr.io`
 
 Verify the GitHub Actions run logs and ensure all secrets are correct.
 
@@ -218,19 +219,13 @@ Verify the GitHub Actions run logs and ensure all secrets are correct.
 
 ### Container Image Not Found
 
-Check whether the CI pipeline pushed images to the registry and check whether the same image tag is used as the CD workflow's `imageTag` input.
-
-Compare the digest generated between CI and the CD workflow's "Capture Deployed Image Digest" artifact.
+Check that the image and tag you supplied as the CD workflow's `imageTag` input exist in GHCR under `ghcr.io/energy-dsi`, and that the tag is a DSI-published one (a semantic version or a DSI-provided stable tag).
 
 ```bash
-# GHCR (default registry):
 gh api /orgs/energy-dsi/packages?package_type=container
-
-# Or, if pushing to your own ACR:
-az acr repository show --name <ACR_NAME> --repository <repository>
 ```
 
-If the expected repository is not listed, re-run the relevant CI pipeline and ensure it completes without errors before triggering the CD workflow.
+If the expected package or tag is not listed, use a DSI-provided tag or contact DSI. Images are published by DSI, so there is no CI pipeline of your own to re-run.
 
 ---
 
