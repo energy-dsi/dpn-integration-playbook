@@ -225,7 +225,7 @@ The Self-Service UI and the two consumer pipelines are three separate Helm relea
 | `release_name` | `dpn-self-service`, `dpn-consumer-file-extractor`, `dpn-consumer-topic-extractor`, or `all` (the UI, then both consumers) |
 | `confirm` | The `release_name` value, retyped exactly |
 
-The workflow waits for approval on the GitHub Environment `<environment>-<cluster>`, stops early if the config JSON still contains `TODO` placeholder values (the shipped `aws/test-dpn01.json` and `aws/test-dpn02.json` currently do), previews `helm list`/`helm status` (and warns if UI-created producer Deployments still exist — it does not remove them), then runs `helm uninstall <release> -n ns-dpn-dp-01 --wait --timeout 10m` for each target and lists what remains in the namespace.
+The workflow waits for approval on the GitHub Environment `<environment>-<cluster>`, stops early if the config JSON still contains `TODO` placeholder values, previews `helm list`/`helm status` (and warns if UI-created producer Deployments still exist — it does not remove them), then runs `helm uninstall <release> -n ns-dpn-dp-01 --wait --timeout 10m` for each target and lists what remains in the namespace.
 
 **Option B — manual.** The equivalent commands are:
 

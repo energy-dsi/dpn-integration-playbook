@@ -104,6 +104,81 @@ DPN Health Monitoring requires the following Kubernetes secrets/external secrets
 
 `dpn-gha-oauth2-proxy-cd.yaml` additionally provisions its own AWS IAM role (IRSA) and its own private Secrets Manager copy of the Keycloak client secret automatically on every run — no manual action needed for that part.
 
+### IAM roles (IRSA) for the health-monitoring ServiceAccounts
+
+Two ServiceAccounts in `ns-dpn-health-01` read AWS Secrets Manager through the Secrets Store CSI driver using IRSA. Each has its own role, scoped read-only to its own prefix. Reference policy files are kept in the `dpn-iam` export under `template/roles/<role-name>/`.
+
+| Role | ServiceAccount (`ns-dpn-health-01`) | Secrets Manager scope | Actions | Created by |
+|---|---|---|---|---|
+| `dpn-oauth2-proxy-secrets-role` | `dpn-oauth2-proxy` | `dpn/<environment>-<cluster>/oauth2-proxy/*` | `secretsmanager:GetSecretValue`, `secretsmanager:DescribeSecret` | `dpn-gha-oauth2-proxy-cd.yaml` (automatic) |
+| `dpn-opensearch-secrets-role` | `dpn-opensearch` | `dpn/<environment>-<cluster>/opensearch/*` | `secretsmanager:GetSecretValue` | Manually, once per account/cluster |
+
+**Trust policy** (same shape for both roles — only the `sub` differs):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::<account-id>:oidc-provider/oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com",
+          "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": "system:serviceaccount:ns-dpn-health-01:<dpn-oauth2-proxy | dpn-opensearch>"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Permission policy — `dpn-opensearch-secrets-role`:**
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "secretsmanager:GetSecretValue",
+      "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/opensearch/*"
+    }
+  ]
+}
+```
+
+**Permission policy — `dpn-oauth2-proxy-secrets-role`** (shown for reference; the pipeline creates it):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+      "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/oauth2-proxy/*"
+    }
+  ]
+}
+```
+
+Create the OpenSearch role manually and set its ARN as the ServiceAccount's `eks.amazonaws.com/role-arn` annotation in the chart values:
+
+```bash
+aws iam create-role \
+  --role-name dpn-opensearch-secrets-role \
+  --assume-role-policy-document file://trust-policy.json
+
+aws iam put-role-policy \
+  --role-name dpn-opensearch-secrets-role \
+  --policy-name dpn-opensearch-secrets-read \
+  --policy-document file://dpn-opensearch-secrets-read.json
+```
+
 > **Keycloak SSO is now the only front door for OpenSearch, Jaeger and Perses.** Each is served over **HTTPS** through its own `oauth2-proxy` release, terminating OIDC login against the DPN Authentication Service (Keycloak) — there is no basic-auth fallback any more. The **DPN Portal** tile landing page is itself also fronted by its own `oauth2-proxy` release (`portal`, port `8443`). See [DPN Portal Operations](../../../05-dpn-user-interfaces/08-dpn-portal-ui-operations.md) and [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md).
 >
 > **Prometheus and Thanos have no login of any kind in front of them.** Their `oauth2-proxy` gateways have been retired — neither UI is meant for direct browser access (both are consumed through Perses), so their Query/UI Services now publish directly on an internal AWS NLB. Restrict network access to these at the VPC/security-group level; do not expose them beyond the internal network.
