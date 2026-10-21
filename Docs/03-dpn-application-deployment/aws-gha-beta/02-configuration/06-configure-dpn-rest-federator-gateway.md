@@ -109,7 +109,7 @@ dpn-rest-federator-gateway/
 
 > `dpn-redis`'s own `values.yaml` now honours the chart-wide `imagePullSecret` too (previously only the gateway's own pod did) — no action needed if you already set `imagePullSecret` for the release.
 
-> Both `dpn-rest-federator` and `dpn-redis` ship populated `values/aws/<environment>-<cluster>.yaml` files for all four `dev-dpn01`/`dev-dpn02`/`test-dpn01`/`test-dpn02` combinations. Review them for your environment before the first run — the `dpn-rest-federator` files carry a header listing the values that must be confirmed (Secrets Manager placeholders, IRSA role ARN, AppRole role-id, IDP URLs).
+> Each chart has a `values/aws/<environment>-<cluster>.yaml` file for your environment and cluster. Before the first run, set the values that must be confirmed: Secrets Manager prefix, IRSA role ARN, AppRole role-id and IDP URLs.
 >
 > The `dpn-rest-federator` and `dpn-redis` chart directories also still contain legacy flat `values-<environment>-<cluster>.yaml` files at the chart root; the GitHub Actions workflows use only the `values/<cloud>/<environment>-<cluster>.yaml` files.
 

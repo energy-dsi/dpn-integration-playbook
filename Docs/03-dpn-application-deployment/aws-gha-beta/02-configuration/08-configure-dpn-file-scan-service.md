@@ -169,7 +169,7 @@ dpn-file-scan-service/
 |---|---|---|
 | `AWS_REGION` | Region the S3/SNS/SQS resources live in | `eu-west-2` |
 | `AWS_ACCOUNT_ID` | AWS account ID | `<account-id>` |
-| `EKS_CLUSTER` | EKS cluster name | `eks-dpn-dev-01-eu-west-2` |
+| `EKS_CLUSTER` | Name of your EKS cluster | `<eks-cluster-name>` |
 | `NAMESPACE` | Target namespace | `ns-dpn-01` |
 | `IMAGE_REGISTRY` | Base registry URL | `ghcr.io/energy-dsi` |
 | `FILESCAN_SOURCE_BUCKET` | S3 bucket GuardDuty scans (source/raw uploads) | `dp-consumer-raw-dev-01-<account-id>-<region>` |
