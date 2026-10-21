@@ -11,6 +11,8 @@ Release : 2.1.0 - Oct 2026
 - [Reference Architecture](#reference-architecture)
 - [What Is Shared and What Is Dedicated to Each LOE](#what-is-shared-and-what-is-dedicated-to-each-loe)
 - [LOE Identification and Attribution](#loe-identification-and-attribution)
+- [Operational Independence and Central Management](#operational-independence-and-central-management)
+- [Roles and Responsibilities](#roles-and-responsibilities)
 - [Prerequisites](#prerequisites)
 - [Related Documents](#related-documents)
 - [Review Notes](#review-notes)
@@ -25,7 +27,7 @@ This section of the playbook explains how to set that up. It is written for the 
 
 | Document | What it covers |
 |----------|----------------|
-| **01 — Overview** *(this document)* | The architecture, what is shared versus dedicated, and how an LOE is identified |
+| **01 — Overview** *(this document)* | The architecture, what is shared versus dedicated, how an LOE is identified, and who is responsible for what |
 | [02 — Configure a Shared DPN](02-configure-shared-dpn.md) | What a participant configures, component by component, to add a further LOE |
 | [03 — Deploy and Operate a Shared DPN](03-deploy-and-operate-shared-dpn.md) | Deployment order, verification, day-2 operations, rollback, uninstall and troubleshooting |
 
@@ -33,23 +35,28 @@ The three business outcomes this design addresses:
 
 | # | Outcome | How the Shared DPN delivers it |
 |---|---------|--------------------------------|
-| 1 | **LOE identification and attribution** — the DPN identifies the acting LOE, records activity against it and keeps an audit trail per LOE transaction | Each LOE has its own DSM client identity, its own Vault/AppRole, its own certificate subject and its own named federator and certificate manager. See [LOE Identification and Attribution](#loe-identification-and-attribution) |
-| 2 | **Shared DPN support for multiple LOEs** — LOEs publish and consume through one DPN deployment, with participant separation, and no separate DPN per LOE | One cluster hosts the shared platform services plus one **LOE stack** (Vault, Certificate Manager, Federator, REST Federator) per LOE. See [What Is Shared and What Is Dedicated](#what-is-shared-and-what-is-dedicated-to-each-loe) |
-| 3 | **Operational independence and central management** — maintenance for one LOE does not stop another; common components are managed once; responsibilities are clear | Each LOE stack is its own set of Helm releases, deployed, upgraded and rolled back independently. Shared components are managed centrally |
+| AC1 | **LOE identification and attribution** — the DPN identifies the acting LOE, records activity against it and keeps an audit trail per LOE transaction | Each LOE has its own DSM client identity, its own Vault/AppRole, its own certificate subject and its own named federator and certificate manager. See [LOE Identification and Attribution](#loe-identification-and-attribution) |
+| AC2 | **Shared DPN support for multiple LOEs** — LOEs publish and consume through one DPN deployment, with participant separation, and no separate DPN per LOE | One cluster hosts the shared platform services plus one **LOE stack** (Vault, Certificate Manager, Federator, REST Federator) per LOE. See [What Is Shared and What Is Dedicated](#what-is-shared-and-what-is-dedicated-to-each-loe) |
+| AC3 | **Operational independence and central management** — maintenance for one LOE does not stop another; common components are managed once; responsibilities are clear | Each LOE stack is its own set of Helm releases, deployed, upgraded and rolled back independently. Shared components are managed centrally. See [Operational Independence](#operational-independence-and-central-management) and [Roles and Responsibilities](#roles-and-responsibilities) |
 
 ---
 
 ## Status of the Shared DPN Implementation
 
-Read this before planning a deployment. 
+Read this before planning a deployment. The Shared DPN configuration described here is taken from the `release-internal/*-shared-dpn` branches of the DPN component repositories (state at 21 Oct 2026).
 
-| Component repository | Shared DPN changes |
-|----------------------|--------------------|
-| `dpn-federator-certificate-manager` | Second Vault (`dpn-vault-02`) and second Certificate Manager (`dpn-certificate-manager-02`) |
-| `dpn-federator-gateway` | Second federator server and client (`dpn-federator-server-2` / `dpn-federator-client-2`) as their own Helm release |
-| `dpn-rest-federator-gateway` | Second REST federator server, its own Redis, and a second demo-runner client |
-| `dpn-health-monitoring-service` | Portal tiles for the second federator client and second Vault |
-| `dpn-authentication-service`, `dpn-data-pipelines`, `dpn-file-scan-service` | No change — these are shared as they are |
+| Component repository | Shared DPN branch | Shared DPN changes |
+|----------------------|-------------------|--------------------|
+| `dpn-federator-certificate-manager` | `release-internal/2.1.0-shared-dpn` | Second Vault (`dpn-vault-02`) and second Certificate Manager (`dpn-certificate-manager-02`); `sharedDPN` pipeline parameter |
+| `dpn-federator-gateway` | `release-internal/2.1.0-shared-dpn` | Second federator server and client (`dpn-federator-server-2` / `dpn-federator-client-2`) as their own Helm release |
+| `dpn-rest-federator-gateway` | `release-internal/1.1.0-shared-dpn` | Second REST federator server, its own Redis, and a second demo-runner client |
+| `dpn-health-monitoring-service` | `release-internal/2.1.0-shared-dpn` | Portal tiles for the second federator client and second Vault |
+| `dpn-authentication-service`, `dpn-data-pipelines`, `dpn-file-scan-service` | *(none)* | No change — these are shared as they are |
+
+> **Automation coverage.**
+> - The shared-DPN automation is currently in the **Azure DevOps** pipelines (`.pipelines/azure-pipelines/`), for the `dpn01` cluster of the `pdev`, `ptest` and `puat` environments, with one additional LOE (instance `-02`).
+> - The **GitHub Actions** workflows on `develop` (used by the `azure-gha-beta` and `aws-gha-beta` guides) have **no shared-DPN input yet**: their release names and values-file path are fixed to a single instance. The pattern in this section still applies to them, using the manual Helm steps in [03 — Deploy and Operate](03-deploy-and-operate-shared-dpn.md#deploying-with-github-actions-azure-gha-beta-and-aws-gha-beta-today), until the workflows are extended.
+> - The `-02` overlay files shipped on the branches contain environment-specific values from DSI's pre-production environments. Treat them as **templates**: every identity value (client ID, role ID, certificate subject, IPs, registry) must be replaced with your own.
 
 ---
 
@@ -115,7 +122,7 @@ Key design points:
 
 ## LOE Identification and Attribution
 
-The DPN identifies the acting LOE through identity that is **unique per LOE** at each layer. When an LOE publishes or consumes data, the request travels through that LOE's own federator, which authenticates with that LOE's own credentials.
+(AC1) The DPN identifies the acting LOE through identity that is **unique per LOE** at each layer. When an LOE publishes or consumes data, the request travels through that LOE's own federator, which authenticates with that LOE's own credentials.
 
 | Layer | What identifies the LOE | Where it is configured |
 |-------|------------------------|------------------------|
@@ -125,6 +132,59 @@ The DPN identifies the acting LOE through identity that is **unique per LOE** at
 | **Service identity** | Each LOE's federator and certificate manager has its own Kubernetes service name, so logs and metrics are attributable by workload | `federatorServer.name`, `federatorClient.name`, `restFederatorServer.name`, `fullnameOverride` |
 | **Telemetry** | Each certificate manager reports under its own OTEL service name (`dpn-certificate-manager-02`), so the health monitor shows it as its own component | `otel.env.OTEL_SERVICE_NAME` |
 | **Data product** | Each data product is created by an LOE through the shared self-service and has its own name, storage containers and Kafka topics | Data product definition in the self-service UI |
+
+**Audit trail.** Each LOE transaction can be traced because it passes through that LOE's own federator service, authenticates with its own DSM client and Vault, and is logged and traced under that service's name in the shared health monitoring stack (OpenSearch, Jaeger, Prometheus). The business-level record of data sharing activity attributed to an LOE is held by DSM against the LOE's client ID.
+
+> **Points to confirm with DSI before relying on them for attribution:**
+> 1. **Data product organisation name.** The self-service sets one organisation name for the whole deployment (`DPN_ORG_NAME`) and stamps it on every data product (and into message headers for topic data products). If you need each LOE's name on its data products, agree a **data product naming convention per LOE** (product name, container and topic names that include the LOE), or ask DSI whether a per-LOE self-service instance is required.
+> 2. **Kafka topics for the second federator client.** The shipped `-02` federator client values reuse the primary's `topicPrefix` and `targetTopic`. If LOEs must not share target topics, give each LOE's client its own values (see [02 — Configure](02-configure-shared-dpn.md#step-5-federator-server-and-client-for-the-new-loe)).
+> 3. **OTEL service names for the federators and REST federator.** Only the certificate manager `-02` overlay sets a distinct OTEL service name. Set distinct names on the other components of each LOE so traces and logs can be separated by LOE.
+
+---
+
+## Operational Independence and Central Management
+
+(AC3) The design keeps each LOE's service running while another LOE is being changed.
+
+| Activity | Effect on other LOEs |
+|----------|----------------------|
+| Deploy, upgrade, roll back or uninstall an LOE's **Vault or Certificate Manager** | **None.** Each is a separate Helm release with its own Deployment, Services, ConfigMaps, secrets and (for Vault) storage. With `sharedDPN=true` the pipeline touches only the second instance |
+| Roll back or uninstall an LOE's **Federator or REST Federator** | **None**, when done with Helm on that LOE's own release (`dpn-platform-02`, `dpn-rest-federator-02`) |
+| **Run the Federator or REST Federator CD pipeline** | **Re-applies both LOEs.** These pipelines deploy the primary release first and then the `-02` release in the same run, with the **same `imageTag`**. Supply the tag the primary already runs, or the primary is upgraded too. See [03 — Deploy and Operate](03-deploy-and-operate-shared-dpn.md#deploying-with-azure-devops-shareddpn) |
+| Rotate an LOE's credentials (AppRole `secret-id`, Vault token, DSM client) | **None.** Each LOE has its own credential entries; a run for one LOE cannot read or overwrite another's |
+| Restart one LOE's certificate manager | **None** |
+| Upgrade or restart a **shared** component (Kafka, Redis, Keycloak, OTEL Collector, File Scan, Data Pipelines) | **Affects all LOEs.** Plan these centrally and in a maintenance window |
+| Change the shared TLS material (`dpn-tls`, `tls-auth-secret`) | **Affects all LOEs.** Pods that mount it need a restart |
+
+Limits of independence to be aware of:
+
+- **Same cluster.** A cluster-level incident or maintenance window affects every LOE.
+- **Shared Vault unseal key and TLS.** The second Vault is a separate Vault with separate storage and its own root token, but it reuses the primary's auto-unseal key, managed identity and TLS certificate. Whoever administers the shared Key Vault can therefore reach every LOE's Vault. Restrict that access to the central team.
+- **The gRPC federators share Kafka and Redis.** A fault or misconfiguration in shared Kafka or Redis affects both LOEs' gRPC federators. The REST federator is less coupled: each LOE gets its own Redis.
+- **The federator CD pipelines move both LOEs together.** Through the shipped Azure DevOps pipelines, the primary and second federator (and REST federator) are deployed in one run at one image tag, so their versions normally move in step. To run different versions, deploy the `-02` release directly with Helm.
+- **The REST federator HPA is not duplicated.** The autoscaler targets only the primary REST federator Deployment.
+
+---
+
+## Roles and Responsibilities
+
+A **central DPN team** runs the shared platform. Each **LOE team** looks after what is dedicated to that LOE.
+
+| Area | Central DPN team | LOE team |
+|------|:---------------:|:--------:|
+| Cluster, namespace, networking, firewall and DNS | ✔ | |
+| Shared platform: Keycloak, Kafka, Redis, TLS (`dpn-tls`), storage accounts | ✔ | |
+| Health Monitoring Service and OTEL Collector (upgrades, retention, alerts) | ✔ | Views its own components in the portal |
+| File Scan Service (deployment, upgrades) | ✔ | Supplies files from its data products |
+| Shared Key Vault, managed identity, GHCR pull secret | ✔ | |
+| Registering the LOE as a DSM client and obtaining its client ID | Coordinates | ✔ (LOE owns the registration) |
+| LOE certificate subject (CN/SANs) and certificate lifecycle | | ✔ |
+| LOE Vault: initialisation, bundle load, AppRole creation | Runs the deployment | ✔ Owns the credentials produced |
+| LOE Certificate Manager, Federator, REST Federator: values, deploy, upgrade, rollback | | ✔ |
+| LOE credentials (`VAULT-TOKEN-02`, `VAULT-APPROLE-SECRET-ID-02`, DSM keys) rotation | | ✔ |
+| LOE data products: creation, naming, schedules | | ✔ |
+| Naming plan so no two LOEs use the same service names, secrets or topics | ✔ Approves | ✔ Follows |
+| Adding a further LOE (deployment capacity, pipeline change for `-03`) | ✔ | Requests |
 
 ---
 
