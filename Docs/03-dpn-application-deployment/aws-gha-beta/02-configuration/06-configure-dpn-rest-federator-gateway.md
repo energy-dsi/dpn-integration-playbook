@@ -30,27 +30,17 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
 
 ## Overview
 
-The gateway is a **generic authorising reverse proxy** — it carries no business logic and no knowledge of any particular data product. On the producer (server) side:
-
-1. Terminates mTLS and validates the caller's JWT against the DSM Identity Provider (Keycloak) — client identity comes from the token's `azp`/`client_id` claim.
-2. Verifies the caller is a registered consumer of a REST data product via the Management Node's product configuration.
-3. Verifies the caller's certificate has not been revoked, via an OCSP check against the Management Node.
-4. Checks the request's HTTP method and path against that product's allowed-path configuration.
-5. Forwards the authorised request — method, path, query string, headers and body — verbatim to a configured internal backend (authenticated with a shared API key, since the backend sits outside the DPN trust chain), and returns the backend's response verbatim.
-
-On the consumer (client) side, an organisation imports the `rest-federator-client` library into its own application rather than deploying a separate component. The library bootstraps from the Management Node (`getConsumerConfig`) to discover subscribed products, builds a per-product mTLS-enabled HTTP client with certificate hot-reload, attaches a Bearer token, and exposes `get`/`post`/`put`/`patch`/`delete(ProductKey(organisation, productName), path, ...)`. The client does **not** police allowed paths itself — the gateway enforces that authoritatively.
+The gateway is a generic authorising reverse proxy. It authenticates the caller (mTLS and JWT), checks the caller is a registered consumer with a valid certificate, checks the method and path against the product's allowed paths, then forwards the request to the internal backend.
 
 | Component | Purpose |
 |-----------|---------|
-| REST Federator Server (`dpn-rest-federator`) | The gateway described above. Deployed as a container |
-| Redis (`dpn-redis`, this chart's own release) | Cache used by the gateway; deployed and rolled back independently of the gateway itself |
-| `rest-federator-client` | Importable library jar — not a deployed component. A consumer's own application depends on it |
+| `dpn-rest-federator` | The gateway, deployed as a container |
+| `dpn-redis` | Gateway cache, released and rolled back separately |
 
-Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
+Supported HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 
-> **`cloudProvider: aws`.** As with the gRPC Federator Gateway, every populated `values/aws/<environment>-<cluster>.yaml` file sets `cloudProvider: aws`, alongside the AWS-specific `secretsManager.*` and `serviceAccount.*` blocks covered in [Step3](#step3-environment-configuration).
+> **`cloudProvider: aws`.** Every `values/aws/<environment>-<cluster>.yaml` sets `cloudProvider: aws` plus the AWS `secretsManager.*` and `serviceAccount.*` blocks (see [Step3](#step3-environment-configuration)).
 >
-> **Chart template gap (current `develop`):** the `dpn-rest-federator` chart's templates do not yet read `cloudProvider`, `secretsManager.*` or `serviceAccount.*` — there is no `ServiceAccount` template, the `SecretProviderClass` template is hard-coded to `provider: azure`, and the internal load-balancer Service carries only the Azure `azure-load-balancer-internal` annotation. The AWS values are in place, but confirm the chart templates support them before relying on IRSA, Secrets Manager sync, or an NLB on EKS.
 
 ---
 
@@ -86,7 +76,7 @@ Only the backend API key (and, on AWS, the Vault AppRole secret-id) is provision
 | Vault credentials | **AppRole** on AWS — the `secret-id` is published to `<secretsManager.secretPrefix>/VAULT_APPROLE_SECRET_ID` by the `DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)` workflow and synced into the same CSI secret as the backend API key; the `role-id` is fetched at deploy time and passed via `--set` (see [Step3b](#step3b-configure-vault-authentication) and [Step4](#step4-configure-deployment-parameters))| Reads certificate material and keystore/truststore passwords from Vault |
 | Vault truststore password | On AWS, published to `<secretsManager.secretPrefix>/VAULT_TRUSTSTORE_PASSWORD` and fetched by the CD workflow at deploy time — **must match the real AWS Vault truststore password**; a placeholder starts the pod but fails to open the truststore at runtime | Lets the gateway's outbound HTTPS client to Vault validate Vault's certificate |
 
-> **The Vault truststore password is baked into the rendered ConfigMap at `helm install`/`upgrade` time, not read live at pod start-up.** The ConfigMap's `vault.truststore.password=` line is rendered from `restFederatorServer.vault.truststorePassword`, which the CD workflow sets via `--set` from the `VAULT_TRUSTSTORE_PASSWORD` Secrets Manager entry fetched above (the checked-in values files leave it `""`). If that entry still holds the `REPLACE_ME` placeholder, or is otherwise wrong, the rendered password will not open the truststore and bean construction fails on newer Spring Boot/Java builds that enforce strict PKCS12 MAC verification. The pod additionally reads `VAULT_TOKEN` (optional, token mode only) from `certificate-manager-secrets` and `VAULT_TRUSTSTORE_PASSWORD` from `tls-auth-secret`, so deploy [Certificate Manager](04-configure-dpn-certificate-manager.md) first.
+> **The Vault truststore password is rendered into the ConfigMap at `helm install`/`upgrade` time.** The CD workflow sets `restFederatorServer.vault.truststorePassword` from the `VAULT_TRUSTSTORE_PASSWORD` Secrets Manager entry. If that entry still holds `REPLACE_ME` or is wrong, the truststore cannot be opened and the pod fails to start. The pod also reads `VAULT_TOKEN` (optional) and `VAULT_TRUSTSTORE_PASSWORD` from Certificate Manager's secrets, so deploy [Certificate Manager](04-configure-dpn-certificate-manager.md) first.
 
 ---
 
@@ -109,11 +99,9 @@ dpn-rest-federator-gateway/
             └── setup-approle.sh                        <- Used by the Role ID Creation workflow
 ```
 
-> `dpn-redis`'s own `values.yaml` now honours the chart-wide `imagePullSecret` too (previously only the gateway's own pod did) — no action needed if you already set `imagePullSecret` for the release.
-
 > Each chart has a `values/aws/<environment>-<cluster>.yaml` file for your environment and cluster. Before the first run, set the values that must be confirmed: Secrets Manager prefix, IRSA role ARN, AppRole role-id and IDP URLs.
 >
-> The `dpn-rest-federator` and `dpn-redis` chart directories also still contain legacy flat `values-<environment>-<cluster>.yaml` files at the chart root; the GitHub Actions workflows use only the `values/<cloud>/<environment>-<cluster>.yaml` files.
+
 
 ### Step3a: Configure the Gateway
 
@@ -121,10 +109,11 @@ dpn-rest-federator-gateway/
 |-----------|---------|-----------------------|
 | `restFederatorServer.tls.enabled` | Whether this listener terminates HTTPS itself | `true` |
 | `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate. Off by default so the gateway can sit behind infrastructure that cannot present one (e.g. health probes) | `false` |
-| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `http://<backend-service>:8080` |
-| `restFederatorServer.producerId` | This producer's identifier, as registered with the Management Node | `<producer-id>` |
+| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:8080` |
+| `restFederatorServer.producerId` | This producer's identifier, as registered with the Management Node | `<>` |
 | `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` |
-| `restFederatorServer.idp.clientId` / `jwksUrl` / `tokenUrl` | Identity Provider client ID and endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
+| `restFederatorServer.idp.jwksUrl/tokenUrl` | Identity Provider endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
+| `restFederatorServer.idp.clientId`| Identity Provider client ID |  `<Your Client ID>` |
 | `restFederatorServer.redis.host` / `port` | Points at the Service of the separate `dpn-redis` release (its `redisCache.name`) | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
 
 ### Step3b: Configure Vault Authentication
@@ -140,8 +129,6 @@ Unlike the gRPC Federator Gateway (see [Configure DPN Vault Service, Step 3E](01
 | `restFederatorServer.vault.appRole.secretIdSecretName` / `secretIdSecretKey` | Kubernetes Secret and key holding the `secret-id`. The chart default (`certificate-manager-secrets`) is overridden in the AWS values files to this chart's own CSI-synced Secret | `dpn-rest-federator-server-secrets` / `VAULT_APPROLE_SECRET_ID` |
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
-
-> As with the gRPC Federator, `vault.tlsEnabled: true` is what removes the need for a shared file share — the gateway reads its TLS material straight from Vault. The TLS bundle is written to a short-lived, ephemeral-password file on disk at start-up (a JVM-managed temp location, not a mounted volume) rather than being applied purely in memory, and is rewritten on the same schedule as `vault.tls.reload.interval.seconds` (default 3600s) — hot-swapped with no pod restart. No configuration keys changed for this; it is the same `vault.tls*` settings above, just delivered through a more reliable mechanism.
 
 #### One-time AppRole setup (AWS, before first deploy)
 
@@ -332,4 +319,4 @@ See the `dpn-rest-federator-gateway` source repository's `demo/demo-runner-clien
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
-| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.1.0 |
