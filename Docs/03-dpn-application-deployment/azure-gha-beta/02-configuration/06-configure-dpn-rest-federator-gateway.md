@@ -30,25 +30,16 @@ This section describes how to configure and deploy the **DPN REST Federator Gate
 
 ## Overview
 
-The gateway is a **generic authorising reverse proxy** — it carries no business logic and no knowledge of any particular data product. On the producer (server) side:
-
-1. Terminates mTLS and validates the caller's JWT against the DSM Identity Provider (Keycloak) — client identity comes from the token's `azp`/`client_id` claim.
-2. Verifies the caller is a registered consumer of a REST data product via the Management Node's product configuration.
-3. Verifies the caller's certificate has not been revoked, via an OCSP check against the Management Node.
-4. Checks the request's HTTP method and path against that product's allowed-path configuration.
-5. Forwards the authorised request — method, path, query string, headers and body — verbatim to a configured internal backend (authenticated with a shared API key, since the backend sits outside the DPN trust chain), and returns the backend's response verbatim.
-
-On the consumer (client) side, an organisation imports the `rest-federator-client` library into its own application rather than deploying a separate component. The library bootstraps from the Management Node (`getConsumerConfig`) to discover subscribed products, builds a per-product mTLS-enabled HTTP client with certificate hot-reload, attaches a Bearer token, and exposes `get`/`post`/`put`/`patch`/`delete(ProductKey(organisation, productName), path, ...)`. The client does **not** police allowed paths itself — the gateway enforces that authoritatively.
+The gateway is a generic authorising reverse proxy. It authenticates the caller (mTLS and JWT), checks the caller is a registered consumer with a valid certificate, checks the method and path against the product's allowed paths, then forwards the request to the internal backend.
 
 | Component | Purpose |
 |-----------|---------|
-| REST Federator Server (`dpn-rest-federator`) | The gateway described above. Deployed as a container |
-| Redis (`dpn-redis`, this chart's own release) | Cache used by the gateway; deployed and rolled back independently of the gateway itself |
-| `rest-federator-client` | Importable library jar — not a deployed component. A consumer's own application depends on it |
+| `dpn-rest-federator` | The gateway, deployed as a container |
+| `dpn-redis` | Gateway cache, released and rolled back separately |
 
-Supporting HTTP verbs: GET, POST, PUT, PATCH, DELETE.
+Supported HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 
-> **Azure is the chart's native target.** The `dpn-rest-federator` chart templates are Azure-specific today — the internal load-balancer Service (rendered when `restFederatorServer.service.internalLoadBalancer: true`) carries the `azure-load-balancer-internal` annotation, and the `SecretProviderClass` (rendered when `keyvault.enabled: true`) uses `provider: azure`. The `values/azure/<environment>-<cluster>.yaml` files do not set a `cloudProvider` key, and the HPA template is rendered whenever `hpa.enabled` is true — see [Step3](#step3-environment-configuration).
+> **Azure is the chart's native target.** The internal load-balancer Service carries the `azure-load-balancer-internal` annotation and the `SecretProviderClass` uses `provider: azure`. The `values/azure/<environment>-<cluster>.yaml` files do not set a `cloudProvider` key (see [Step3](#step3-environment-configuration)).
 
 ---
 
@@ -103,7 +94,7 @@ dpn-rest-federator-gateway/
             └── setup-approle.sh                          <- Used by the Role ID Creation workflow
 ```
 
-> Both charts ship populated `values/azure/<environment>-<cluster>.yaml` files for `dev-dpn01`/`dev-dpn02`/`test-dpn01`/`test-dpn02`. The chart directories also still contain legacy flat `values-<environment>-<cluster>.yaml` files at the chart root; the GitHub Actions workflows use only the `values/<cloud>/...` files.
+> Each chart has a `values/azure/<environment>-<cluster>.yaml` file for your environment and cluster. Before the first run, set the values that must be confirmed: Key Vault settings, AppRole role-id and IDP URLs.
 
 ### Step3a: Configure the Gateway
 
@@ -111,10 +102,11 @@ dpn-rest-federator-gateway/
 |-----------|---------|-----------------------|
 | `restFederatorServer.tls.enabled` | Whether this listener terminates HTTPS itself | `true` |
 | `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate. Off by default so the gateway can sit behind infrastructure that cannot present one (e.g. health probes) | `false` |
-| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `http://<backend-service>:8080` |
+| `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:8080` |
 | `restFederatorServer.producerId` | This producer's identifier, as registered with the Management Node | `<producer-id>` |
 | `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` |
-| `restFederatorServer.idp.clientId` / `jwksUrl` / `tokenUrl` | Identity Provider client ID and endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
+| `restFederatorServer.idp.jwksUrl/tokenUrl` | Identity Provider endpoints (as the gRPC Federator) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` |
+| `restFederatorServer.idp.clientId` | Identity Provider client ID | `<Your Client ID>` |
 | `restFederatorServer.redis.host` / `port` | Points at the Service of the separate `dpn-redis` release (its `redisCache.name`) | `dpn-rest-federator-redis-1.<namespace>.svc.cluster.local` / `6379` |
 
 ### Step3b: Configure Vault Authentication
@@ -131,8 +123,6 @@ The REST Federator Gateway has its **own** AppRole automation, via `scripts/vaul
 | `restFederatorServer.vault.tlsBasePath` | KV v2 path holding the certificate material | `node-net/client` |
 | `restFederatorServer.vault.tlsKeystoreAlias` | Alias used for the in-memory keystore entry | `federator` |
 
-> As with the gRPC Federator, `vault.tlsEnabled: true` is what removes the need for a shared file share — the gateway reads its TLS material straight from Vault. The TLS bundle is written to a short-lived, ephemeral-password file on disk at start-up (a JVM-managed temp location, not a mounted volume) rather than being applied purely in memory, and is rewritten on the same schedule as `vault.tls.reload.interval.seconds` (default 3600s) — hot-swapped with no pod restart. No configuration keys changed for this; it is the same `vault.tls*` settings above, just delivered through a more reliable mechanism.
-
 #### One-time AppRole setup (Azure, before first deploy)
 
 Run **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`.github/workflows/dpn-gha-rest-federator-role-id-creation.yaml`) with `cloud: azure`, once per `<environment>-<cluster>` combination, **after** Vault is deployed and initialised and **before** the first `dpn-gha-rest-federator-cd.yaml` run. In one run it:
@@ -144,8 +134,6 @@ Run **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Se
 `workflow_dispatch` inputs: `environment` (`dev`/`test`, default `test`), `cluster` (`dpn01`/`dpn02`, default `dpn01`), `cloud` (default `aws` — select `azure`). The temporary script/policy files are removed from the Vault pod at the end of every run. Re-run the workflow before the Key Vault copy expires to rotate the `secret-id`, then redeploy.
 
 > **Prerequisites:** Vault deployed and unsealed; the admin/root token available in Azure Key Vault as `VAULT-TOKEN`; KV v2 enabled at `pki-client`.
-
-> **Open point:** the workflow writes the `secret-id` to Key Vault, but the chart reads it from the Kubernetes Secret named by `secretIdSecretName` (default `certificate-manager-secrets`/`VAULT_APPROLE_SECRET_ID`). Nothing in this repository syncs `VAULT-APPROLE-SECRET-ID-REST-FEDERATOR` into that Secret — confirm how the value reaches the pod in your environment.
 
 ### Step3c: Configure Autoscaling
 
