@@ -159,4 +159,4 @@ The Health Monitoring service 3rd party platform images are found in GHCR with f
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 |
-| Oct-2026 | DSI Assurance   | Final  | V2.0.0 |
+| Oct-2026 | DSI Assurance   | Final  | V1.1.0 |

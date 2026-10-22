@@ -362,4 +362,4 @@ The following secrets are shared by DPN components to use encryption in transit 
 | Review Date | Last Reviewed By | Status | Semver Version (Major.Minor.Patch) |
 |-------------|------------------|--------|----------|
 | Sep-2026 | DSI Assurance   | Final  | V1.0.0 | 
-| Oct-2026 | DSI Assurance   | Final  | V2.0.0 | 
+| Oct-2026 | DSI Assurance   | Final  | V1.1.0 | 
