@@ -127,12 +127,12 @@ No AWS access key/secret is configured directly — the container relies on the 
 
 ## Step2: AWS Resource Setup (SNS/SQS/GuardDuty)
 
-Create the SNS topic and SQS queue GuardDuty publishes scan results to, and subscribe the queue to the topic:
+Create the SNS topic and SQS queue GuardDuty publishes scan results to, and subscribe the queue to the topic. The names below are the `dev-dpn01` ones; use the same names for `FILESCAN_SNS_TOPIC_NAME` and `FILESCAN_SQS_QUEUE_NAME` in the environment config file `.github/config/aws/<environment>-<cluster>.json` (e.g. `.github/config/aws/dev-dpn01.json` — see [Step3a](#step3a-configure-environment-json-file) for all `FILESCAN_*` keys) and for `env.sqsQueueName` in the Helm values:
 
 ```bash
-TOPIC_ARN=$(aws sns create-topic --name dpn-fileupload-scan-results --query TopicArn --output text)
+TOPIC_ARN=$(aws sns create-topic --name dpn-dev-01-guardduty-findings2 --query TopicArn --output text)
 
-QUEUE_URL=$(aws sqs create-queue --queue-name dpn-fileupload-scan-results --query QueueUrl --output text)
+QUEUE_URL=$(aws sqs create-queue --queue-name dpn-dev-01-file-scan-results2 --query QueueUrl --output text)
 QUEUE_ARN=$(aws sqs get-queue-attributes --queue-url "$QUEUE_URL" --attribute-names QueueArn --query Attributes.QueueArn --output text)
 
 aws sns subscribe --topic-arn "$TOPIC_ARN" --protocol sqs --notification-endpoint "$QUEUE_ARN"
@@ -143,7 +143,38 @@ aws sqs set-queue-attributes --queue-url "$QUEUE_URL" --attributes '{
 }'
 ```
 
-Then configure the GuardDuty Malware Protection for S3 protection plan (console or `aws guardduty create-malware-protection-plan`) to publish its scan-result events to `$TOPIC_ARN`, covering the inbound bucket's upload prefix.
+Then enable GuardDuty Malware Protection for S3 on the inbound bucket (console or `aws guardduty create-malware-protection-plan`). GuardDuty has no SNS setting: it publishes each scan result as an event on the account's default **EventBridge** bus, so an EventBridge rule is required to forward those events to the SNS topic, as follows.
+
+**1. Allow EventBridge to publish to the topic.** Without this the rule's SNS target is silently rejected:
+
+```bash
+aws sns set-topic-attributes --topic-arn "$TOPIC_ARN" --attribute-name Policy --attribute-value '{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Sid": "AllowEventBridgePublish",
+    "Effect": "Allow",
+    "Principal": {"Service": "events.amazonaws.com"},
+    "Action": "sns:Publish",
+    "Resource": "'"$TOPIC_ARN"'",
+    "Condition": {"ArnEquals": {"aws:SourceArn": "arn:aws:events:<region>:<account-id>:rule/dpn-dev-01-guardduty-findings2"}}
+  }]
+}'
+```
+
+**2. Create the EventBridge rule** (named after the topic) that matches this bucket's GuardDuty scan results, and target the topic:
+
+```bash
+aws events put-rule --name dpn-dev-01-guardduty-findings2 --region <region> --event-pattern '{
+  "source": ["aws.guardduty"],
+  "detail-type": ["GuardDuty Malware Protection Object Scan Result"],
+  "detail": {"s3ObjectDetails": {"bucketName": ["<inbound-bucket>"]}}
+}'
+
+aws events put-targets --rule dpn-dev-01-guardduty-findings2 --region <region> \
+  --targets "Id=SendFileScanResultsToSNS,Arn=$TOPIC_ARN"
+```
+
+Scan results then flow GuardDuty → EventBridge rule → SNS topic → SQS queue → File Scan Service. The service reads the event's `detail.scanStatus`, `detail.scanResultDetails.scanResultStatus` and `detail.s3ObjectDetails` (bucket and object key). If a scan result never reaches the queue, check the rule, its SNS target and the topic policy first.
 
 > **Note:** Organisation must set up soft-delete/object retention on the malicious-object handling at the bucket/lifecycle level per your organisation's policy — the service itself does not enable bucket versioning or retention.
 
@@ -174,8 +205,8 @@ dpn-file-scan-service/
 | `IMAGE_REGISTRY` | Base registry URL | `ghcr.io/energy-dsi` |
 | `FILESCAN_SOURCE_BUCKET` | S3 bucket GuardDuty scans (source/raw uploads) | `dp-consumer-raw-dev-01-<account-id>-<region>` |
 | `FILESCAN_DEST_BUCKET` | S3 bucket clean files are copied to | `dpn-dev-01-dp-consumer-stage-<account-id>-<region>` |
-| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings2` |
-| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-dev-01-file-scan-results2` |
+| `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name created in [Step2](#step2-aws-resource-setup-snssqsguardduty) (same value) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings2` |
+| `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name created in [Step2](#step2-aws-resource-setup-snssqsguardduty) (same value) — a **name**, not a URL | `dpn-dev-01-file-scan-results2` |
 
 > The four `FILESCAN_*` keys are used only by `dpn-gha-file-scan-prerequisites-cd.yaml` (its "Validate Required Values (AWS)" step fails if any is empty). The deploy workflow `dpn-gha-file-scan-cd.yaml` uses `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER` and `NAMESPACE`; the bucket and queue names the running service uses come from the Helm values file ([Step4](#step4-configure-helm-chart-files)), so keep the two in sync.
 >
