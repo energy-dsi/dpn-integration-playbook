@@ -165,7 +165,12 @@ The AWS Secrets Manager names the workflows use are not config JSON keys — the
 
 The `vault-https` chart's `SecretProviderClass` reads the Vault TLS certificate/key from AWS Secrets Manager (`secretsManager.secretPrefix`, see [Step 2c](#step-2c-vault-helm-values)) via the pod's own IAM identity. This uses the **same IRSA role** as the KMS auto-unseal role in [Appendix — AWS KMS auto-unseal configuration](#appendix--aws-kms-auto-unseal-configuration) — a ServiceAccount can only be annotated with one role ARN, so create one role (`dpn-vault-kms-unseal-role`) and attach **both** the KMS and Secrets Manager permissions to it rather than creating a second role.
 
-> The Certificate Manager (`dpn-certificate-manager` ServiceAccount) reuses this same role — see [Configure DPN Certificate Manager — IAM role](04-configure-dpn-certificate-manager.md#iam-role-for-the-certificate-manager-serviceaccount) for the extra trust-policy subject and secrets path it needs.
+>The following ServiceAccounts typically use the `dpn-vault-kms-unseal-role` IAM role through IRSA:
+
+| ServiceAccount | Namespace | Purpose |
+|---------------|-----------|---------|
+| `dpn-vault` | `ns-dpn-01` | Vault auto-unseal using AWS KMS and retrieval of Vault TLS secrets from AWS Secrets Manager |
+| `dpn-certificate-manager` | `ns-dpn-01` | Access to Vault bootstrap and AppRole credentials stored in AWS Secrets Manager | — see [Configure DPN Certificate Manager — IAM role](04-configure-dpn-certificate-manager.md#iam-role-for-the-certificate-manager-serviceaccount) for the extra trust-policy subject and secrets path it needs.
 
 1. Create the trust policy (`trust-policy.json`), substituting your account ID, region, OIDC provider ID, namespace and ServiceAccount names:
 
