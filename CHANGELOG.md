@@ -17,6 +17,30 @@ This project follows **Semantic Versioning (SemVer)** ([semver.org](https://semv
 - **PATCH** (`0.0.X`) – Backward-compatible minor corrections, typos , image rectification.
 - **Pre-release versions** – Use suffixes such as `-alpha`, `-beta`, `-rc.1` (e.g., `2.1.0-beta.1`).
 - **Build metadata** – If needed, use `+build` (e.g., `2.1.0+20250314`).
+
+---
+## Release 2.1.1 - Nov 2026
+
+### Added
+
+- Shared DPN guide — [Set Up a Shared DPN](Docs/07-shared-dpn-architecture/01-shared-dpn-setup.md) explains how to deploy one or more additional LOEs (instances `02` to `0N`) onto an existing DPN. Each LOE gets its own Vault, Certificate Manager, federators and REST federator Redis; all other services stay shared.
+- Shared DPN pipelines (`shared-*`) driven by a `totalDpnCount` parameter, with pre-deployment checks and a Vault wiring check. The primary release is never touched.
+- Per-instance `-0N` values-file overlays for the dev and test environments.
+- DPN Portal tiles and Keycloak redirect URI for the shared DPN Vaults and job runners.
+
+### Changed
+
+- Each shared federator now has its own server and client ConfigMaps, so it no longer overwrites the primary's.
+- Shared Vaults renamed to `dpn-vault-https-0N`.
+
+### Fixed
+
+- Federator Gateway: file transfer when a consumer ingests all files from the beginning, topic streaming defects, and critical/high Checkmarx findings.
+
+### Dependencies
+
+- None
+
 ---
 ## Release 2.1.0 - Oct 2026
 
