@@ -193,12 +193,12 @@ Go to **Actions → DPN CD - Self-Service Data Pipelines → Run workflow** (`dp
 In one run it:
 
 1. Verifies the `ns-dpn-dp-01` namespace exists.
-2. Installs `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` from `blueprints/consumer/{file,topic}/extractor/charts`, applying `values/aws/<environment>-<cluster>.yaml` only if the chart ships one (otherwise the chart defaults are used), setting `imageRegistry` to the config JSON's `IMAGE_REGISTRY`, `imageName` to the release name, `imageTag` to the input and `cloudProviderType` to `aws`.
-3. Installs `dpn-self-service` from `service/charts` with `values/aws/<environment>-<cluster>.yaml`. The oauth2-proxy (Keycloak login, HTTPS) is enabled with `oauth2Proxy.externalUrl` set to the config JSON's `OAUTH2_PROXY_EXTERNAL_URL`, or else to the hostname of the existing `dpn-self-service-external` LoadBalancer. On a first deploy with neither, it installs once with the proxy off, waits up to 3 minutes for AWS to assign an NLB hostname, then redeploys with the proxy on — register `<that URL>/oauth2/callback` on `dpn-service-client` afterwards (the workflow prints a warning with the URL).
+2. Installs `dpn-consumer-file-extractor` and `dpn-consumer-topic-extractor` from `blueprints/consumer/{file,topic}/extractor/charts`, applying `values/aws/<environment>-<cluster>.yaml` only if the chart ships one (otherwise the chart defaults are used) and setting only `namespace` and `cloudProviderType` (`aws`). The image registry, name and tag of the consumer charts therefore come from each chart's `values.yaml`; the `imageTag` input is not applied to them.
+3. Installs `dpn-self-service` from `service/charts` with `values/aws/<environment>-<cluster>.yaml`, overriding `imageTag`/`env.DPN_IMAGE_TAG` with the input, `env.DPN_IMAGE_REGISTRY` with the config JSON's `IMAGE_REGISTRY` (when set), `env.DPN_IMAGE_NAME_PREFIX=dpn`, `env.DPN_NAMESPACE`, and `env.DPN_CLOUD_PROVIDER` / `loadBalancer.cloud` with `aws`. The oauth2-proxy (Keycloak login, HTTPS) is enabled with `oauth2Proxy.externalUrl` set to the config JSON's `OAUTH2_PROXY_EXTERNAL_URL`, or else to the hostname of the existing `dpn-self-service-external` LoadBalancer. On a first deploy with neither, it installs once with the proxy off, waits up to 3 minutes for AWS to assign an NLB hostname, then redeploys with the proxy on — register `<that URL>/oauth2/callback` on `dpn-service-client` afterwards (the workflow prints a warning with the URL).
 
 > **Notes:**
 > - Consumer scheduling defaults to `SCHEDULER_BACKEND: interval`. This is preconfigured in the consumer charts' values; keep the default (see the [Configuration Guide overview](../02-configuration/07-configure-dpn-data-pipelines.md#overview)).
-> - The `imageTag` input is applied to the three Helm releases, and is also passed to the Self-Service UI as `env.DPN_IMAGE_TAG`, so UI-created producers run the same tag.
+> - The `imageTag` input is applied to the Self-Service release (`imageTag`) and passed to the UI as `env.DPN_IMAGE_TAG`, so UI-created producers run the same tag. The two consumer releases keep the tag in their chart `values.yaml`.
 > - One other data pipeline CD workflow exists: **DPN CD - Data Pipelines** (`dpn-gha-data-pipelines-cd.yaml`, inputs `environment`, `cluster`, `cloud`, `configType`, `processType`, `productType`, `schemaType`, `imageTag`, optional `imageName`) helm-installs a single reference chart, `blueprints/<configType>/<processType>/<adaptor|extractor>/charts`, as release `dpn-<configType>-<processType>-<adaptor|extractor>-<productType>` into the config JSON's `NAMESPACE`; with `cloud: aws` and `processType: file` it also creates the source/target S3 buckets and the chart's IRSA role. Use `dpn-gha-self-service-cd.yaml` for the standard deployment.
 
 ##### One-time setup for a new environment: create secrets and restart pods
@@ -296,7 +296,7 @@ If pods show `ImagePullBackOff` or `ErrImagePull`:
 
 - Confirm the EKS node group has outbound access to `ghcr.io` to pull the images
 
-- Confirm the image reference (`imageRegistry`/`imageName`/`imageTag`) matches an actual published tag — a typo here produces the same failure as a genuine access issue. The config JSON's `IMAGE_REGISTRY`, when set, overrides `imageRegistry` for all three releases; otherwise the value in each chart's values file is used.
+- Confirm the image reference (`imageRegistry`/`imageName`/`imageTag`) matches an actual published tag — a typo here produces the same failure as a genuine access issue. The config JSON's `IMAGE_REGISTRY`, when set, is passed to the Self-Service release as `env.DPN_IMAGE_REGISTRY` (the registry for UI-created pods); the `imageRegistry` of each chart still comes from its values file.
 
 - For products created from the UI, confirm the Self-Service values set the correct `env.DPN_IMAGE_REGISTRY`, `env.DPN_IMAGE_TAG` and `env.DPN_IMAGE_PULL_SECRET`, since the UI passes these to the producer pods it creates.
 
@@ -407,7 +407,7 @@ Data Pipeline service images are found in GHCR with following name
 | dpn-consumer-topic-extractor | `<IMAGE_REGISTRY>/dpn-consumer-topic-extractor` (e.g. `ghcr.io/energy-dsi/dpn-consumer-topic-extractor`) | `<version>` |
 | dpn-self-service | `ghcr.io/energy-dsi/dpn-self-service` | `<version>` |
 
-The producer registry path comes from the Self-Service AWS values file (`env.DPN_IMAGE_REGISTRY`); the consumer and Self-Service paths come from the config JSON's `IMAGE_REGISTRY` (falling back to `imageRegistry` in the values file when it is not set).
+The producer registry path comes from the Self-Service AWS values file (`env.DPN_IMAGE_REGISTRY`); the consumer and Self-Service image paths come from each chart's `imageRegistry` in its values file. The config JSON's `IMAGE_REGISTRY` only feeds `env.DPN_IMAGE_REGISTRY` for UI-created pods.
 
 Image access setup and the workflow trigger are covered in [Step2](#step2-install-dpn-data-pipeline) above — there is no separate GHCR-specific workflow to run, `dpn-gha-self-service-cd.yaml` already deploys from these GHCR images by default.
 

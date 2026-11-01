@@ -75,7 +75,12 @@ Root-Repository
 |-----|-------|-------------|-----------------------|
 | `IMAGE_REGISTRY` | `env:` block of `.github/workflows/dpn-gha-data-pipelines-cd.yaml` | Base container registry the data pipeline images are pulled from | `ghcr.io/energy-dsi` (or your own, for example `<account-id>.dkr.ecr.<region>.amazonaws.com`) |
 | `imageRegistry` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry the self-service application image is pulled from | `ghcr.io/energy-dsi` |
-| `env.DPN_IMAGE_REGISTRY` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry path (including the `/dsi` namespace) the service uses for the pipeline images it deploys | `ghcr.io/energy-dsi/dsi` |
+| `imageName` / `imageTag` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Self-service application image name and default tag | `dpn-self-service` / `1.0.0` |
+| `env.DPN_IMAGE_REGISTRY` | Not in the values file. `dpn-gha-self-service-cd.yaml` sets it from `IMAGE_REGISTRY` in `.github/config/aws/<environment>-<cluster>.json` | Registry the service uses for the pipeline images it deploys. Keep it consistent with `imageRegistry` above | `ghcr.io/energy-dsi` |
+| `env.DPN_IMAGE_PULL_SECRET` / `imagePullSecretName` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Pull secret used by the UI and by the pods it creates. Must match the secret from [STEP-02](#step-02-secrets-table) | `ghcr-pull-secret` |
+| `env.DPN_PRODUCER_SERVICE_ACCOUNT` | `service/charts/values/aws/<environment>-<cluster>.yaml` | ServiceAccount given to the producer pods the UI creates. It must be covered by the IRSA role trust policy in [STEP-03](#step-03-iam-role-for-s3-access-irsa) | `dpn-self-service` |
+| `awsRegion` / `awsEndpointUrl` | `service/charts/values/aws/<environment>-<cluster>.yaml` | AWS region and S3 endpoint the service uses | `<region>` / `https://s3.<region>.amazonaws.com` |
+| `persistence.storageClassName` | `service/charts/values/aws/<environment>-<cluster>.yaml` | StorageClass for the service PVC | `gp3` |
 | `env.DPN_REGISTRY_BACKUP_CONTAINER` | `service/charts/values/aws/<environment>-<cluster>.yaml` | S3 bucket that `service/registry_backup.py` mirrors the self-service registry to for disaster recovery | `<registry-backup-bucket-name>` |
 | `serviceAccount.irsaRoleArn` | `service/charts/values/aws/<environment>-<cluster>.yaml` | IAM role ARN the self-service `ServiceAccount` assumes through IRSA, with access to the data pipeline S3 buckets | `arn:aws:iam::<account-id>:role/<irsa-role-name>` |
 | `loadBalancer.loadBalancerIP` | `service/charts/values.yaml` | Optional static IP for the internal LoadBalancer in front of the self-service UI. Leave it empty on EKS to let AWS allocate the address | `<static-ip>` |
@@ -98,7 +103,7 @@ The secrets below are required in the data pipeline namespace (`ns-dpn-dp-01`) *
 | `ghcr-pull-secret` | Docker registry credentials for `ghcr.io` | A GitHub PAT with `read:packages` scope. Not needed if the images are mirrored to ECR and the EKS nodes can pull from it | All pipeline containers (image pull) |
 | `aws-access-secret` (optional) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Needed only if you use static access keys for S3 instead of IRSA. The IAM identity needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` and `s3:CreateBucket` on the buckets used by data products | Self-Service UI, producer file products, consumer file extractor |
 
-> **S3 access normally uses IRSA** (an IAM role bound to the pod's ServiceAccount), so no AWS key secret is needed. Skip `aws-access-secret` unless you choose static keys.
+> **S3 access uses IRSA** (an IAM role bound to the pod's ServiceAccount), so no AWS key secret is needed. With `DPN_CLOUD_PROVIDER: aws` the Self-Service UI chart sets its static `DPN_AWS_ACCESS_KEY_ID` / `DPN_AWS_SECRET_ACCESS_KEY` to empty, so static keys are **not** used by the UI on AWS. Create `aws-access-secret` only if the producer or consumer file charts must use static keys instead of IRSA.
 
 **Verify the secrets in `ns-dpn-01`:**
 
