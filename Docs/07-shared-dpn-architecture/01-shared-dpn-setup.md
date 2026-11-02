@@ -193,6 +193,15 @@ Notes:
 - Keep `loadBalancerIP: ""` in the overlay (or set a free IP); otherwise the primary's IP is inherited.
 - Do not set the federator ConfigMap names; `shared-federator-cd` sets them.
 - Change `ns-dpn-01` if your namespace differs.
+- Some values only **reference** objects that a pipeline creates during deployment; write the name as shown and the object exists by the time it is used:
+
+| Overlay value | Object | Created by |
+|---------------|--------|-----------|
+| `vault.uri` / `vaultConfig.uri` | Vault Service `dpn-vault-https-0N` | `shared-vault-https-cd` |
+| `keyvault.tokenSecretName` | Key Vault `VAULT-TOKEN-0N` | `shared-vault-https-cd` (Vault Init) |
+| `keyvault.approleSecretName` | Key Vault `VAULT-APPROLE-SECRET-ID-0N` | `shared-vault-approle-setup-cd` |
+| `existingSecret.name`, `tokenSecretName`, `secretIdSecretName` | Secret `certificate-manager-0N-secrets` | `shared-certificate-manager-cd` |
+| `redis.host` | Redis Service `dpn-rest-federator-redis-N` | `shared-rest-federator-cd` |
 
 **Vault credentials** — you never enter these values; the overlays only reference them by name.
 
