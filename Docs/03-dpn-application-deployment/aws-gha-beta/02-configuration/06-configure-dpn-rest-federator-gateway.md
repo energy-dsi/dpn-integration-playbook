@@ -61,6 +61,7 @@ Supported HTTP verbs: GET, POST, PUT, PATCH, DELETE.
 | 11 | **Config JSON and values file populated for the `<environment>-<cluster>` combination** | See [Step3](#step3-environment-configuration) and [Step4](#step4-configure-deployment-parameters) |
 | 12 | **IAM role for the `ServiceAccount` (IRSA) created** | The `dpn-gha-rest-federator-cd.yaml` workflow's **Provision AWS IRSA Role + Secrets** step creates/updates the `dpn-rest-federator-secrets-role` role automatically on each run (idempotent). Its ARN must still be set as `serviceAccount.irsaRoleArn` in the values file — see [Step3d](#step3d-configure-aws-serviceaccount-irsa) and [Step4](#step4-configure-deployment-parameters) |
 | 13 | **Vault AppRole configured for this component** | Run the **`DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)`** workflow (`dpn-gha-rest-federator-role-id-creation.yaml`) once per environment/cluster **before** the first deploy — see [Step3b](#step3b-configure-vault-authentication) |
+| 14 | **`ghcr-pull-secret` present in the deployment namespace** | The chart attaches it as `imagePullSecrets` on the gateway pod (and on the demo runner pods) to pull images from GHCR. Create it in the config JSON's `NAMESPACE` (for example `ns-dpn-01`) before the first deploy — see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) for the create command. Check: `kubectl get secret ghcr-pull-secret -n <namespace> -o jsonpath='{.type}'` must return `kubernetes.io/dockerconfigjson` |
 
 > **This component has its own AppRole workflow.** [Configure DPN Vault Service, Step 3E](01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-dpn-gha-certificate-manager-role-id-creationyaml) covers AppRole setup for the Certificate Manager. The REST Federator Gateway has its **own**, dedicated AppRole workflow in the `dpn-rest-federator-gateway` repository (prerequisite #13 above), which also publishes the `role_id` so the CD workflow can fetch it automatically.
 
@@ -109,6 +110,7 @@ dpn-rest-federator-gateway/
 |-----------|---------|-----------------------|
 | `restFederatorServer.tls.enabled` | Whether this listener terminates HTTPS itself | `true` |
 | `restFederatorServer.mtls.enabled` | Require inbound connections to present a client certificate. Off by default so the gateway can sit behind infrastructure that cannot present one (e.g. health probes) | `false` |
+| `imagePullSecret` | Name of the image pull Secret the pod references. Leave empty to skip `imagePullSecrets` (for example when images come from ECR via the node role) | `ghcr-pull-secret` |
 | `restFederatorServer.backend.baseUrl` | Internal backend the gateway proxies authorised requests to | `https://<backend-service>:8080` |
 | `restFederatorServer.producerId` | This producer's identifier, as registered with the Management Node | `<>` |
 | `restFederatorServer.managementNode.baseUrl` | DSI DSM Management Node URL | `https://management.dsm01.dsiXXX.neso.energy` |
@@ -123,7 +125,7 @@ Unlike the gRPC Federator Gateway (see [Configure DPN Vault Service, Step 3E](01
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
 | `restFederatorServer.vault.authMethod` | `token` or `approle`; the AWS values files use `approle` | `approle` |
-| `restFederatorServer.vault.appRole.roleId` | Non-sensitive role-id. The value checked into the AWS values file is only a fallback — the CD workflow fetches the real value from AWS Secrets Manager (`<secretsManager.secretPrefix>/VAULT_APPROLE_ROLE_ID`) at deploy time and overrides it via `--set` | `<role-id-uuid>` |
+| `restFederatorServer.vault.appRole.roleId` | Non-sensitive role-id. The value checked into the AWS values file (and the demo runner server/client values files) is only a fallback — the CD workflow fetches the real value from AWS Secrets Manager (`<secretsManager.secretPrefix>/VAULT_APPROLE_ROLE_ID`) at deploy time and overrides it via `--set`. The fallback is a real role-id from a past run and goes stale whenever the AppRole is re-provisioned, so never deploy with `helm` directly or skip the fetch step without updating it | `<role-id-uuid>` |
 | `restFederatorServer.vault.appRole.mountPath` | Vault mount path the `approle` auth method is enabled at | `approle` |
 | `restFederatorServer.vault.appRole.useSecretIdRef` | Source the AppRole `secret-id` from a Kubernetes Secret rather than a plaintext value | `true` |
 | `restFederatorServer.vault.appRole.secretIdSecretName` / `secretIdSecretKey` | Kubernetes Secret and key holding the `secret-id`. The chart default (`certificate-manager-secrets`) is overridden in the AWS values files to this chart's own CSI-synced Secret | `dpn-rest-federator-server-secrets` / `VAULT_APPROLE_SECRET_ID` |
@@ -311,6 +313,16 @@ String body = client.get(orgB, "/api/v1/things?id=42", Map.of());
 ```
 
 See the `dpn-rest-federator-gateway` source repository's `demo/demo-runner-client` for a complete worked example, including the expected `403` behaviour when a path falls outside a product's allowed-path configuration. The demo runner can also be deployed to the cluster from the same repository: its charts are `charts/dpn-demo-runner-server` and `charts/dpn-demo-runner-client` (each with `values/aws/<environment>-<cluster>.yaml`), deployed by the **`DPN CD - Demo Runner`** workflow (`.github/workflows/dpn-gha-demo-runner-cd.yaml`) as the `dpn-demo-runner-server` and `dpn-demo-runner-client` releases. Its `deployServer`/`runClient` inputs select which job runs; the client runs as a one-shot Kubernetes Job (named with the run ID) driven by the `mpan`, `postcode`, `assetId` and `fspId` inputs. On AWS both reuse the REST Federator's AppRole `role_id` (`dpn/<environment>-<cluster>/rest-federator/VAULT_APPROLE_ROLE_ID`), so run the Role ID Creation workflow first, and both seed their own `VAULT_TRUSTSTORE_PASSWORD` entries (`dpn/<environment>-<cluster>/demo-runner-server/` and `.../demo-runner-client/`) from the `DPN_TLS_TRUSTSTORE_PASSWORD` repository secret if missing.
+
+**Demo runner server Vault settings.** `dpn-demo-runner-server` renders its own Vault client configuration (`demo-runner-server-config.yaml`) from `demoRunnerServer.vault.*`, mirroring the gateway. The AWS values file sets:
+
+| Parameter | Purpose | Example (placeholder) |
+|-----------|---------|-----------------------|
+| `demoRunnerServer.vault.uri` | Vault HTTPS endpoint | `https://vault-https.<namespace>.svc.cluster.local:8200` |
+| `demoRunnerServer.vault.truststorePath` | Truststore used to validate Vault's certificate. The password is supplied at deploy time from `dpn/<environment>-<cluster>/demo-runner-server/VAULT_TRUSTSTORE_PASSWORD` | `/vault/truststore/truststore.jks` |
+| `demoRunnerServer.vault.authMethod` / `appRole.mountPath` / `appRole.renewalIntervalSeconds` | AppRole login. `roleId` is overridden at deploy time from the REST Federator's `VAULT_APPROLE_ROLE_ID` (see [Step3b](#step3b-configure-vault-authentication)) | `approle` / `approle` / `3600` |
+| `demoRunnerServer.vault.appRole.secretIdSecretName` / `secretIdSecretKey` | Kubernetes Secret holding the `secret-id`. It points at the REST Federator's CSI-synced Secret, so the **REST Federator release must be deployed first, in the same namespace** | `dpn-rest-federator-server-secrets` / `VAULT_APPROLE_SECRET_ID` |
+| `demoRunnerServer.vault.tlsEnabled` / `tlsBasePath` / `tlsKeystoreAlias` | Read the TLS material from Vault KV, as the gateway does | `true` / `node-net/client` / `federator` |
 
 ---
 
