@@ -215,8 +215,8 @@ Notes:
 
 | Repository | File | Change |
 |------------|------|--------|
-| `dpn-health-monitoring-service` | `charts/dpn-portal/values-dpn01.yaml` | Add `https://dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085/` and `https://dpn-vault-https-0N-lb.ns-dpn-01.svc.cluster.local:8200` to `otherUiUrls`. Add tile components `GRPC Gateway Client N` (under **Gateway**) and `Certification Vault Service N` (under **Security**) with the same URLs. Instances `02` and `03` are already listed |
-| `dpn-authentication-service` | `charts/keycloak/scripts/configure-keycloak.sh` | Instances `02` and `03`: no change. Instance `04` and higher: add `KC_UI_HOST_FEDERATOR_CLIENT_N` in four places — the header comment, its default value, the `--arg` passed to `jq`, and the `dpn-service-client` `redirectUris` and `webOrigins` |
+| `dpn-health-monitoring-service` | `charts/dpn-portal/values-dpn01.yaml` | Add `https://dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085/` and `https://dpn-vault-https-0N-lb.ns-dpn-01.svc.cluster.local:8200` to `otherUiUrls`. Add tile components `GRPC Gateway Client N` (under **Gateway**) and `Certification Vault Service N` (under **Security**) with the same URLs |
+| `dpn-authentication-service` | `charts/keycloak/scripts/configure-keycloak.sh` | Add the job runner host for instance `N` to `dpn-service-client`: define `KC_UI_HOST_FEDERATOR_CLIENT_N` with default `dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085`, pass it to `jq` with `--arg federatorClientN`, and add `"https://"+federatorClientN+"/*"` to `redirectUris` and `"https://"+federatorClientN` to `webOrigins` |
 
 ---
 
@@ -297,7 +297,7 @@ Then check in the browser:
 
 These services are not duplicated per LOE and need no new files. Only two existing files are updated, as described in Step 3 ("Existing files to update"):
 
-- **Keycloak** — `configure-keycloak.sh`: add the instance's job runner URL to the `dpn-service-client` redirect URIs and web origins (instance `04` and higher), then run the Keycloak CD pipeline.
+- **Keycloak** — `configure-keycloak.sh`: add the instance's job runner URL to the `dpn-service-client` redirect URIs and web origins, then run the Keycloak CD pipeline.
 - **DPN Portal** — `values-dpn01.yaml`: add the instance's job runner and Vault URLs and tiles, then run the portal CD pipeline.
 
 | Service | Notes |
