@@ -1,6 +1,6 @@
 # Set Up a Shared DPN
 
-This guide covers everything needed to add one or more LOEs to an existing DPN: prerequisites, configuration and deployment. The same procedure deploys any number of additional LOEs (instances `02` to `0N`) in one run.
+This guide covers the process of setting up Shared DPN.
 
 ---
 
@@ -22,28 +22,21 @@ This guide covers everything needed to add one or more LOEs to an existing DPN: 
 
 ## Approach
 
-Each LOE has its **own** Vault, Certificate Manager, gRPC federator (server and client) and REST federator (with its own Redis). Everything else is shared.
-
-For every dedicated component:
-
-1. Keep the primary values file **unchanged**.
-2. Add a `-0N` overlay containing **only what differs** (instance name, identity, Vault address and credentials).
-3. Deploy it as its **own Helm release**, layering the overlay on the primary file (`-f values-<env>-<cluster>.yaml -f values-<env>-<cluster>-0N.yaml`). Everything not overridden is inherited.
-
-Every `shared-*` pipeline takes a **`totalDpnCount`** parameter: the total number of DPNs **including the primary**. `2` deploys instance `02` only, `3` deploys `02` and `03`, and so on (the Vault bundle pipeline supports up to 20 instances). The primary release is never touched by these pipelines. These are the **Azure DevOps** `shared-dpn` pipelines; there are no GitHub Actions equivalents yet.
-
-Before deploying anything, each pipeline checks that the overlays for **all** instances `02..N` exist, that each instance's names end in its own number, and that no `<PLACEHOLDER-…>` marker remains. A **Vault wiring check** (`.pipelines/scripts/shared-dpn-wiring-check.sh`) then renders each release and fails unless instance `0N` uses only its own Vault, its own AppRole credentials and one consistent client ID and role ID.
+As per the Shared DPN architecture, the following components need additional insatnces based on per LOE :
+- DPN Hashicorp Vault
+- Certificate Manager
+- gRPC federator (server and client)
+- REST federator server
+- REST federator demo runner client (reference only)
 
 ---
 
 ## Prerequisites
 
-- A working **primary DPN** on the target cluster (Vault, Certificate Manager, Federator, Kafka, Redis, Keycloak, Data Pipelines, File Scan and Health Monitoring).
-- Each new LOE **registered in the same DSM**, with its **client ID** and certificate.
-- Each new LOE's **Vault bundle** (private key, certificate, CA chain) uploaded as deployment secure files: `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem`.
+- At least one working **gRPC or REST Federator** on the Kubernetes cluster with these components (Kafka, Zookeeper, Redis, Keycloak and Otel Collector).
+- Each new LOE **registered in the same DSM**, with its **client ID**.
 - Spare **cluster capacity** for the extra pods and an extra Vault PVC per LOE.
 - A free **internal IP** for each additional load balancer, or agreement to let the cloud assign one (the overlays leave `loadBalancerIP` empty).
-- The component repositories at `develop`, which contain the `shared-dpn` pipelines and the `-0N` overlays (`dpn-federator-certificate-manager`, `dpn-federator-gateway`, `dpn-rest-federator-gateway`, `dpn-health-monitoring-service`).
 
 ---
 
