@@ -42,38 +42,26 @@ As per the Shared DPN architecture, the following components need additional ins
 
 ## Step 1: Naming Convention
 
-Names are derived from the instance number `N` (`02`, `03`, … in Vault and Certificate Manager names; `2`, `3`, … in federator and Redis names). **Never reuse a primary name** — a repeated name makes one release overwrite the other's Deployment, ConfigMap or Secret. The pipelines check these names and stop if they are wrong.
+These are the names you set yourself, in the `-0N` overlays (Step 3) or as uploaded files. Helm releases, Services, PVCs, ConfigMaps and Key Vault entries are created by the charts and pipelines from these names and the instance number.
 
-| Item | Primary LOE | Instance `0N` (example: `03`) |
-|------|-------------|-------------------------------|
-| Vault Helm release | `vault-https` | `vault-https-03` |
-| Vault Deployment / Service | `dpn-vault-https` | `dpn-vault-https-03` |
-| Vault load balancer Service | `dpn-vault-https-lb` | `dpn-vault-https-03-lb` |
-| Vault PVC | `dpn-vault-https-data` | `dpn-vault-https-03-data` |
-| Vault SecretProviderClass | `dpn-vault-https-kv-secrets` | `dpn-vault-https-03-kv-secrets` |
-| Vault ConfigMap | `dpn-vault-https-config` | `dpn-vault-https-03-config` |
-| Certificate Manager | `dpn-certificate-manager` | `dpn-certificate-manager-03` |
-| Certificate Manager SecretProviderClass → Secret | `dpn-certificate-manager-kv-secrets` → `certificate-manager-secrets` | `dpn-certificate-manager-03-kv-secrets` → `certificate-manager-03-secrets` |
-| Certificate Manager ConfigMap | `dpn-certificate-manager-config` | `dpn-certificate-manager-03-config` |
-| Certificate Manager OTEL service name | `dpn-certificate-manager` | `dpn-certificate-manager-03` |
-| Federator Helm release | `dpn-platform` | `dpn-platform-03` |
-| Federator server / client | `dpn-federator-server-1` / `dpn-federator-client-1` | `dpn-federator-server-3` / `dpn-federator-client-3` |
-| Federator external Services | `dpn-federator-server-1-external` / `dpn-federator-client-1-external` | `dpn-federator-server-3-external` / `dpn-federator-client-3-external` |
-| Federator server ConfigMaps | `federator-common-config-server`, `federator-server-config` | `dpn-federator-server-3-common-config`, `dpn-federator-server-3-config` |
-| Federator client ConfigMaps | `federator-common-config-client`, `federator-client-config`, `federator-client-connection-config` | `dpn-federator-client-3-common-config`, `dpn-federator-client-3-config`, `dpn-federator-client-3-connection-config` |
-| REST Federator Helm release / server | `dpn-rest-federator` / `dpn-rest-federator-server-1` | `dpn-rest-federator-03` / `dpn-rest-federator-server-3` |
-| REST Federator external Service | `dpn-rest-federator-server-1-external` | `dpn-rest-federator-server-3-external` |
-| REST Federator Redis key prefix | `federator-server-1` | `federator-server-3` |
-| REST Federator OTEL service name | `rest-federator-server` | `rest-federator-server-3` |
-| REST Federator Redis Helm release / name | `dpn-redis` / `dpn-rest-federator-redis-1` | `dpn-redis-03` / `dpn-rest-federator-redis-3` |
-| Demo runner client (optional) | `dpn-demo-runner-client` | `dpn-demo-runner-client-03` (Job `dpn-demo-runner-client-3-<BuildId>`) |
-| Demo runner client ConfigMap | `dpn-rest-federator-client-properties` | `dpn-rest-federator-client-3-properties` |
-| Demo runner client Redis key prefix / sender ID | `federator-client` / `dpn-demo-runner-client` | `federator-client-3` / `dpn-demo-runner-client-3` |
-| Demo runner client OTEL service name | `demo-runner-client` | `demo-runner-client-3` |
-| Key Vault: Vault root token | `VAULT-TOKEN` | `VAULT-TOKEN-03` |
-| Key Vault: AppRole secret-id | `VAULT-APPROLE-SECRET-ID` | `VAULT-APPROLE-SECRET-ID-03` |
-| Secure files (Vault bundle) | `bootstrap.key`, `certificate.pem`, `ca-chain.pem` | `bootstrap-03.key`, `certificate-03.pem`, `ca-chain-03.pem` |
-| Certificate host names (SANs) | `producer…`, `consumer…` | The LOE's own names, for example `producer03…` |
+Names use the instance number `N` (`02`, `03`, … for Vault and Certificate Manager; `2`, `3`, … for federator and Redis). **Never reuse a primary name** — a repeated name makes one release overwrite the other's Deployment, ConfigMap or Secret.
+
+| Item | Primary LOE | Instance `0N` (example: `03`) | Set in |
+|------|-------------|-------------------------------|--------|
+| Vault | `dpn-vault-https` | `dpn-vault-https-03` | Vault `fullnameOverride` |
+| Certificate Manager | `dpn-certificate-manager` | `dpn-certificate-manager-03` | Certificate Manager `fullnameOverride`, `otel.env.OTEL_SERVICE_NAME` |
+| Certificate Manager Secret | `certificate-manager-secrets` | `certificate-manager-03-secrets` | Certificate Manager `existingSecret.name`; federator, REST federator and demo runner client `tokenSecretName` / `secretIdSecretName` |
+| Key Vault secret names | `VAULT-TOKEN` / `VAULT-APPROLE-SECRET-ID` | `VAULT-TOKEN-03` / `VAULT-APPROLE-SECRET-ID-03` | Certificate Manager `keyvault.tokenSecretName` / `keyvault.approleSecretName` |
+| Federator server / client | `dpn-federator-server-1` / `dpn-federator-client-1` | `dpn-federator-server-3` / `dpn-federator-client-3` | `federatorServer.name` / `federatorClient.name` |
+| REST Federator server | `dpn-rest-federator-server-1` | `dpn-rest-federator-server-3` | `restFederatorServer.name` |
+| REST Federator Redis | `dpn-rest-federator-redis-1` | `dpn-rest-federator-redis-3` | Redis `redisCache.name`; REST federator and demo runner client `redis.host` |
+| REST Federator Redis key prefix | `federator-server-1` | `federator-server-3` | `restFederatorServer.redis.prefix` |
+| REST Federator OTEL service name | `rest-federator-server` | `rest-federator-server-3` | `restFederatorServer.otel.serviceName` |
+| Demo runner client (optional) | `dpn-demo-runner-client` | `dpn-demo-runner-client-3` | `job.name`, `job.env.senderFmarId` |
+| Demo runner client ConfigMap | `dpn-rest-federator-client-properties` | `dpn-rest-federator-client-3-properties` | `job.clientProperties.configMapName` |
+| Demo runner client Redis key prefix | `federator-client` | `federator-client-3` | `job.redis.prefix` |
+| Demo runner client OTEL service name | `demo-runner-client` | `demo-runner-client-3` | `job.otel.serviceName` |
+| Secure files (Vault bundle) | `bootstrap.key`, `certificate.pem`, `ca-chain.pem` | `bootstrap-03.key`, `certificate-03.pem`, `ca-chain-03.pem` | Azure DevOps Secure Files |
 
 The Vault overlay also sets `service.aliasEnabled: false`, so the `vault-https` alias Service that belongs to the primary is not created a second time.
 
@@ -81,12 +69,12 @@ The Vault overlay also sets `service.aliasEnabled: false`, so the `vault-https` 
 
 ## Step 2: Gather the LOE Identity
 
-| Item | Source | When it is known | Overlay keys | Placeholder marker |
-|------|--------|------------------|--------------|--------------------|
-| **DSM client ID** | The LOE's client in the same DSM. Must be **unique per LOE** | Before you start | Certificate Manager `oauth2.clientId`; federator `federatorServer.idp.clientId` and `federatorClient.idp.clientId`; REST federator `restFederatorServer.idp.clientId`; demo runner client `job.idp.clientId` | `<PLACEHOLDER-NEW-ORG-DSM-CLIENT-ID>` |
-| **Certificate subject** | Your certificate request. The CN and SANs must be the LOE's own names, for example `producer03…` | Before you start | Certificate Manager `cert.subject.cn` and `cert.subject.altNames` (comma-separated) | `<PLACEHOLDER-NEW-ORG-CERT-CN>`, `<PLACEHOLDER-NEW-ORG-CERT-SANS-comma-separated>` |
-| **Vault bundle** | Private key generated by you; signed certificate and CA chain issued by DSM for the LOE | Before you start | None. Uploaded to Azure DevOps Secure Files as `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` and loaded into `dpn-vault-https-0N` by `shared-vault-load-bundle-cd` | — |
-| **AppRole `roleId`** | Run artifact `shared-dpn-approle-role-ids` of `shared-vault-approle-setup-cd` (Step 4, item 4) | After the AppRole run | Certificate Manager `vault.appRole.roleId`; federator `vaultConfig.appRole.roleId`; REST federator `restFederatorServer.vault.appRole.roleId`; demo runner client `job.vault.appRole.roleId` | `<PLACEHOLDER-ROLE-ID-FROM-shared-vault-approle-setup-cd-ARTIFACT>` |
+| Item | Source | When it is known | Overlay keys |
+|------|--------|------------------|--------------|
+| **DSM client ID** | The LOE's client in the same DSM. Must be **unique per LOE** | Before you start | Certificate Manager `oauth2.clientId`; federator `federatorServer.idp.clientId` and `federatorClient.idp.clientId`; REST federator `restFederatorServer.idp.clientId`; demo runner client `job.idp.clientId` |
+| **Certificate subject** | Your certificate request. The CN and SANs must be the LOE's own names, for example `producer03…` | Before you start | Certificate Manager `cert.subject.cn` and `cert.subject.altNames` (comma-separated) |
+| **Vault bundle** | Private key generated by you; signed certificate and CA chain issued by DSM for the LOE | Before you start | None. Uploaded to Azure DevOps Secure Files as `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` and loaded into `dpn-vault-https-0N` by `shared-vault-load-bundle-cd` |
+| **AppRole `roleId`** | Run artifact `shared-dpn-approle-role-ids` of `shared-vault-approle-setup-cd` (Step 4, item 4) | After the AppRole run | Certificate Manager `vault.appRole.roleId`; federator `vaultConfig.appRole.roleId`; REST federator `restFederatorServer.vault.appRole.roleId`; demo runner client `job.vault.appRole.roleId` |
 
 Within one instance, the DSM client ID and the `roleId` must be the **same** in the Certificate Manager, federator, REST federator and demo runner client overlays. The Certificate Manager is the reference:
 
@@ -240,19 +228,19 @@ Run the steps in order; each one produces something the next needs. Every step d
 
 **Sequence**
 
-| # | Step | Repository / pipeline | Needs | Produces |
+| # | Step | Pipeline / action | Needs | Produces |
 |---|------|-----------------------|-------|----------|
 | 1 | Prepare | Commit the overlays (Step 3) with the `roleId` placeholder still in place. Upload the Vault bundle secure files | Step 2 identity | Overlays, secure files |
-| 2 | Deploy the Vaults | `dpn-federator-certificate-manager` / `shared-vault-https-cd` | Vault overlays | `vault-https-0N`; Key Vault `VAULT-TOKEN-0N`; artifact `shared-vault-init-output` (root token and recovery keys — restrict access) |
-| 3 | Load the Vault bundles | `dpn-federator-certificate-manager` / `shared-vault-load-bundle-cd` | Secure files `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` | Bundle loaded into `dpn-vault-https-0N` |
-| 4 | Create the AppRoles | `dpn-federator-certificate-manager` / `shared-vault-approle-setup-cd` | `VAULT-TOKEN-0N` | Key Vault `VAULT-APPROLE-SECRET-ID-0N`; artifact `shared-dpn-approle-role-ids` |
+| 2 | Deploy the Vaults | `shared-vault-https-cd` | Vault overlays | `vault-https-0N`; Key Vault `VAULT-TOKEN-0N`; artifact `shared-vault-init-output` (root token and recovery keys — restrict access) |
+| 3 | Load the Vault bundles | `shared-vault-load-bundle-cd` | Secure files `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` | Bundle loaded into `dpn-vault-https-0N` |
+| 4 | Create the AppRoles | `shared-vault-approle-setup-cd` | `VAULT-TOKEN-0N` | Key Vault `VAULT-APPROLE-SECRET-ID-0N`; artifact `shared-dpn-approle-role-ids` |
 | 5 | Add the role IDs | Edit and commit the Certificate Manager, federator, REST federator and demo runner client overlays | Artifact from step 4 | Overlays without placeholders |
-| 6 | Deploy the Certificate Managers | `dpn-federator-certificate-manager` / `shared-certificate-manager-cd` | `dpn-vault-https-0N`, `VAULT-APPROLE-SECRET-ID-0N`, `tls-auth-secret` | `dpn-certificate-manager-0N`; Secret `certificate-manager-0N-secrets`; ConfigMap `dpn-certificate-manager-0N-config` |
-| 7 | Deploy the gRPC federators | `dpn-federator-gateway` / `shared-federator-cd` | Primary release `dpn-platform`, step 6 outputs, `tls-auth-secret`, Key Vault `TRUSTSTORE-PASSWORD` | `dpn-platform-0N` |
-| 8 | Deploy the REST federators and their Redis | `dpn-rest-federator-gateway` / `shared-rest-federator-cd` | Step 6 outputs, `tls-auth-secret`, `TRUSTSTORE-PASSWORD` | `dpn-redis-0N`, `dpn-rest-federator-0N` |
-| 9 | Run the demo runner client (optional) | `dpn-rest-federator-gateway` / `shared-demo-runner-client-cd` | Step 6 and 8 outputs, `cert-manager-truststore`, `dpn-keycloak-secrets` | Job `dpn-demo-runner-client-N-<BuildId>` |
-| 10 | Update the Keycloak redirect URIs | `dpn-authentication-service` / Keycloak CD pipeline | `configure-keycloak.sh` updated with the job runner URL (Step 3) | Job runner `N` login works |
-| 11 | Update the health portal | `dpn-health-monitoring-service` / portal CD pipeline | `values-dpn01.yaml` updated (Step 3) | Portal tiles for the instance |
+| 6 | Deploy the Certificate Managers | `shared-certificate-manager-cd` | `dpn-vault-https-0N`, `VAULT-APPROLE-SECRET-ID-0N`, `tls-auth-secret` | `dpn-certificate-manager-0N`; Secret `certificate-manager-0N-secrets`; ConfigMap `dpn-certificate-manager-0N-config` |
+| 7 | Deploy the gRPC federators | `shared-federator-cd` | Primary release `dpn-platform`, step 6 outputs, `tls-auth-secret`, Key Vault `TRUSTSTORE-PASSWORD` | `dpn-platform-0N` |
+| 8 | Deploy the REST federators and their Redis | `shared-rest-federator-cd` | Step 6 outputs, `tls-auth-secret`, `TRUSTSTORE-PASSWORD` | `dpn-redis-0N`, `dpn-rest-federator-0N` |
+| 9 | Run the demo runner client (optional) | `shared-demo-runner-client-cd` | Step 6 and 8 outputs, `cert-manager-truststore`, `dpn-keycloak-secrets` | Job `dpn-demo-runner-client-N-<BuildId>` |
+| 10 | Update the Keycloak redirect URIs | Keycloak CD pipeline | `configure-keycloak.sh` updated with the job runner URL (Step 3) | Job runner `N` login works |
+| 11 | Update the health portal | Portal CD pipeline | `values-dpn01.yaml` updated (Step 3) | Portal tiles for the instance |
 | 12 | Create the LOE's data products | Shared self-service UI | — | Data products |
 
 Before deploying, the Certificate Manager, federator, REST federator and demo runner client pipelines check every instance's overlay (names, placeholders), run `helm lint`, a dry-run and the Vault wiring check, and stop if any instance fails. The Vault bundle and AppRole pipelines only check that the Vault overlay exists.
