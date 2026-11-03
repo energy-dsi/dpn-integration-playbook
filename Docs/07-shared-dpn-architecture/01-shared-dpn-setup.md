@@ -40,9 +40,9 @@ As per the Shared DPN architecture, the following components need additional ins
 
 ---
 
-## Step 1: Naming Convention
+## Step 1: Set Up Container Name for Shared DPN:
 
-These are the names you set yourself, in the `-0N` overlays (Step 3) or as uploaded files. Helm releases, Services, PVCs, ConfigMaps and Key Vault entries are created by the charts and pipelines from these names and the instance number.
+These are the Container names you set yourself, in the `-0N` overlays (Step 3) or as uploaded files. Helm releases, Services, PVCs, ConfigMaps and Key Vault entries are created by the charts and pipelines from these names and the instance number.
 
 Names use the instance number `N` (`02`, `03`, … for Vault and Certificate Manager; `2`, `3`, … for federator and Redis). **Never reuse a primary name** — a repeated name makes one release overwrite the other's Deployment, ConfigMap or Secret.
 
