@@ -8,11 +8,11 @@ This guide covers the process of setting up Shared DPN.
 
 - [Approach](#approach)
 - [Prerequisites](#prerequisites)
-- [Step 1: Naming Convention](#step-1-naming-convention)
-- [Step 2: Gather the LOE Identity](#step-2-gather-the-loe-identity)
-- [Step 3: Create the `-0N` Values Files](#step-3-create-the--0n-values-files)
-- [Step 4: Deploy](#step-4-deploy)
-- [Step 5: Verify](#step-5-verify)
+- [Name Each Component for the New Instance](#name-each-component-for-the-new-instance)
+- [Step 1: Gather the LOE Identity](#step-1-gather-the-loe-identity)
+- [Step 2: Create the New Instance's Values File](#step-2-create-the-new-instances-values-file)
+- [Step 3: Deploy](#step-3-deploy)
+- [Step 4: Verify](#step-4-verify)
 - [Shared Services](#shared-services)
 - [Secrets Summary](#secrets-summary)
 - [Rollback and Removal](#rollback-and-removal)
@@ -40,52 +40,51 @@ As per the Shared DPN architecture, the following components need additional ins
 
 ---
 
-## Step 1: Set Up Container Name for Shared DPN:
+## Name Each Component for the New Instance
 
-These are the Container names you set yourself, in the `-0N` overlays (Step 3) or as uploaded files. Helm releases, Services, PVCs, ConfigMaps and Key Vault entries are created by the charts and pipelines from these names and the instance number.
+These are the names chosen for each new instance's components. They are set in a new **values file** — a small file that sits next to the existing one and lists only what's different for this instance (see [Step 2](#step-2-create-the-new-instances-values-file) for exactly which files to create) — or in the names of uploaded files. The charts and pipelines then use these names, together with the instance number, to automatically create everything else: the Helm releases, the Kubernetes resources (Services, PVCs, ConfigMaps), and the Key Vault entries.
 
 Names use the instance number `N` (`02`, `03`, … for Vault and Certificate Manager; `2`, `3`, … for federator and Redis). **Never reuse a primary name** — a repeated name makes one release overwrite the other's Deployment, ConfigMap or Secret.
 
-| Item | Primary LOE | Instance `0N` (example: `03`) | Set in |
-|------|-------------|-------------------------------|--------|
-| Vault | `dpn-vault-https` | `dpn-vault-https-03` | Vault `fullnameOverride` |
-| Certificate Manager | `dpn-certificate-manager` | `dpn-certificate-manager-03` | Certificate Manager `fullnameOverride`, `otel.env.OTEL_SERVICE_NAME` |
-| Certificate Manager Secret | `certificate-manager-secrets` | `certificate-manager-03-secrets` | Certificate Manager `existingSecret.name`; federator, REST federator and demo runner client `tokenSecretName` / `secretIdSecretName` |
-| Key Vault secret names | `VAULT-TOKEN` / `VAULT-APPROLE-SECRET-ID` | `VAULT-TOKEN-03` / `VAULT-APPROLE-SECRET-ID-03` | Certificate Manager `keyvault.tokenSecretName` / `keyvault.approleSecretName` |
-| Federator server / client | `dpn-federator-server-1` / `dpn-federator-client-1` | `dpn-federator-server-3` / `dpn-federator-client-3` | `federatorServer.name` / `federatorClient.name` |
-| REST Federator server | `dpn-rest-federator-server-1` | `dpn-rest-federator-server-3` | `restFederatorServer.name` |
-| REST Federator Redis | `dpn-rest-federator-redis-1` | `dpn-rest-federator-redis-3` | Redis `redisCache.name`; REST federator and demo runner client `redis.host` |
-| REST Federator Redis key prefix | `federator-server-1` | `federator-server-3` | `restFederatorServer.redis.prefix` |
-| REST Federator OTEL service name | `rest-federator-server` | `rest-federator-server-3` | `restFederatorServer.otel.serviceName` |
-| Demo runner client (optional) | `dpn-demo-runner-client` | `dpn-demo-runner-client-3` | `job.name`, `job.env.senderFmarId` |
-| Demo runner client ConfigMap | `dpn-rest-federator-client-properties` | `dpn-rest-federator-client-3-properties` | `job.clientProperties.configMapName` |
-| Demo runner client Redis key prefix | `federator-client` | `federator-client-3` | `job.redis.prefix` |
-| Demo runner client OTEL service name | `demo-runner-client` | `demo-runner-client-3` | `job.otel.serviceName` |
-| Secure files (Vault bundle) | `bootstrap.key`, `certificate.pem`, `ca-chain.pem` | `bootstrap-03.key`, `certificate-03.pem`, `ca-chain-03.pem` | Azure DevOps Secure Files |
+| Component | Existing Name (Primary) | New Name for This Instance (example: `02`) | Helm Parameter (Chart) |
+|-----------|--------------------------|---------------------------------------------|-------------------------|
+| Vault | `dpn-vault-https` | `dpn-vault-https-02` | Vault `fullnameOverride` |
+| Certificate Manager | `dpn-certificate-manager` | `dpn-certificate-manager-02` | Certificate Manager `fullnameOverride`, `otel.env.OTEL_SERVICE_NAME` |
+| Certificate Manager Secret | `certificate-manager-secrets` | `certificate-manager-02-secrets` | Certificate Manager `existingSecret.name`; federator, REST federator and demo runner client `tokenSecretName` / `secretIdSecretName` |
+| Key Vault secret names | `VAULT-TOKEN` / `VAULT-APPROLE-SECRET-ID` | `VAULT-TOKEN-02` / `VAULT-APPROLE-SECRET-ID-02` | Certificate Manager `keyvault.tokenSecretName` / `keyvault.approleSecretName` |
+| Federator server / client | `dpn-federator-server-1` / `dpn-federator-client-1` | `dpn-federator-server-2` / `dpn-federator-client-2` | `federatorServer.name` / `federatorClient.name` |
+| REST Federator server | `dpn-rest-federator-server-1` | `dpn-rest-federator-server-2` | `restFederatorServer.name` |
+| REST Federator Redis | `dpn-rest-federator-redis-1` | `dpn-rest-federator-redis-2` | Redis `redisCache.name`; REST federator and demo runner client `redis.host` |
+| REST Federator Redis key prefix | `federator-server-1` | `federator-server-2` | `restFederatorServer.redis.prefix` |
+| REST Federator OTEL service name | `rest-federator-server` | `rest-federator-server-2` | `restFederatorServer.otel.serviceName` |
+| Demo runner client (optional) | `dpn-demo-runner-client` | `dpn-demo-runner-client-2` | `job.name`, `job.env.senderFmarId` |
+| Demo runner client ConfigMap | `dpn-rest-federator-client-properties` | `dpn-rest-federator-client-2-properties` | `job.clientProperties.configMapName` |
+| Demo runner client Redis key prefix | `federator-client` | `federator-client-2` | `job.redis.prefix` |
+| Demo runner client OTEL service name | `demo-runner-client` | `demo-runner-client-2` | `job.otel.serviceName` |
+| Secure files (Vault bundle) | `bootstrap.key`, `certificate.pem`, `ca-chain.pem` | `bootstrap-02.key`, `certificate-02.pem`, `ca-chain-02.pem` | Azure DevOps Secure Files |
 
 The Vault overlay also sets `service.aliasEnabled: false`, so the `vault-https` alias Service that belongs to the primary is not created a second time.
 
 ---
 
-## Step 2: Gather the LOE Identity
+## Step 1: Gather the LOE Identity
 
 | Item | Source | When it is known | Overlay keys |
 |------|--------|------------------|--------------|
-| **DSM client ID** | The LOE's client in the same DSM. Must be **unique per LOE** | Before you start | Certificate Manager `oauth2.clientId`; federator `federatorServer.idp.clientId` and `federatorClient.idp.clientId`; REST federator `restFederatorServer.idp.clientId`; demo runner client `job.idp.clientId` |
-| **Certificate subject** | Your certificate request. The CN and SANs must be the LOE's own names, for example `producer03…` | Before you start | Certificate Manager `cert.subject.cn` and `cert.subject.altNames` (comma-separated) |
-| **Vault bundle** | Private key generated by you; signed certificate and CA chain issued by DSM for the LOE | Before you start | None. Uploaded to Azure DevOps Secure Files as `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` and loaded into `dpn-vault-https-0N` by `shared-vault-load-bundle-cd` |
-| **AppRole `roleId`** | Run artifact `shared-dpn-approle-role-ids` of `shared-vault-approle-setup-cd` (Step 4, item 4) | After the AppRole run | Certificate Manager `vault.appRole.roleId`; federator `vaultConfig.appRole.roleId`; REST federator `restFederatorServer.vault.appRole.roleId`; demo runner client `job.vault.appRole.roleId` |
+| **DSM client ID** | The LOE's client in the same DSM. Must be **unique per LOE** | Before setup begins | Certificate Manager `oauth2.clientId`; federator `federatorServer.idp.clientId` and `federatorClient.idp.clientId`; REST federator `restFederatorServer.idp.clientId`; demo runner client `job.idp.clientId` |
+| **Certificate subject** | Decide the Common Name (CN) and Subject Alternative Names (SANs) for this LOE's certificate — they must be names unique to this LOE, following the same pattern as the organisation's other endpoints. Example: CN `producer02.dpn01.myorg.example.com`, SANs `producer02.dpn01.myorg.example.com,consumer02.dpn01.myorg.example.com` | Before setup begins | Certificate Manager `cert.subject.cn` and `cert.subject.altNames` (comma-separated) |
+| **Vault bundle** | `dpn-tls-cd` creates the cluster-wide internal TLS secrets, so the CSR/key it produced for the primary can be reused to bootstrap a new LOE too — there's no need to run `dpn-tls-cd` again just for this. The participant uses that same CSR to bootstrap the new LOE at the DSM portal, which returns a signed certificate and CA chain for this LOE. (If `dpn-tls-cd` is re-run anyway, it recycles those shared secrets cluster-wide, so every existing pod must be restarted afterwards to pick up the new material.) | Before setup begins | None. Uploaded to Azure DevOps Secure Files as `bootstrap-0N.key` (the reused key), `certificate-0N.pem` and `ca-chain-0N.pem` (from this LOE's bootstrap), and loaded into `dpn-vault-https-0N` by `shared-vault-load-bundle-cd` |
+| **AppRole `roleId`** | Run artifact `shared-dpn-approle-role-ids` of `shared-vault-approle-setup-cd` (Step 3, item 4) | After the AppRole run | Certificate Manager `vault.appRole.roleId`; federator `vaultConfig.appRole.roleId`; REST federator `restFederatorServer.vault.appRole.roleId`; demo runner client `job.vault.appRole.roleId` |
 
-Within one instance, the DSM client ID and the `roleId` must be the **same** in the Certificate Manager, federator, REST federator and demo runner client overlays. The Certificate Manager is the reference:
+For each instance, use the **exact same** DSM client ID and `roleId` in all four overlay files — Certificate Manager, federator, REST federator, and demo runner client. Certificate Manager is deployed first, and the other three check their values against it:
 
 - `shared-certificate-manager-cd` checks that its `roleId` matches the role ID reported by the running `dpn-vault-https-0N`.
 - `shared-federator-cd`, `shared-rest-federator-cd` and `shared-demo-runner-client-cd` read the deployed ConfigMap `dpn-certificate-manager-0N-config` and fail if their client ID or role ID differs from it. The Certificate Manager must therefore be deployed before them.
 
-The four deploy pipelines above **fail while any placeholder remains** in their overlay. The Vault, Vault bundle and AppRole pipelines do not check placeholders, so the `roleId` placeholder can stay until the AppRole run. Fill in the client ID and certificate subject before you start, and the `roleId` after `shared-vault-approle-setup-cd` and before `shared-certificate-manager-cd`.
 
 ---
 
-## Step 3: Create the `-0N` Values Files
+## Step 2: Create the New Instance's Values File
 
 Each shared instance is deployed from **two values files**: the primary's existing values file and a small `-0N` overlay next to it. The pipeline layers them in this order, so every key in the overlay replaces the primary's value and everything else is inherited:
 
@@ -99,19 +98,19 @@ To add an instance:
 
 1. Leave the primary values file `values-<env>-<cluster>.yaml` unchanged.
 2. Next to it, create `values-<env>-<cluster>-0N.yaml`, where `0N` is the instance number (`02`, `03`, …).
-3. Put **only** the keys listed below in the overlay, using the names from Step 1 and the identity from Step 2. Do not copy the whole primary file.
+3. Put **only** the keys listed below in the overlay, using the names from the naming convention above and the identity from Step 1. Do not copy the whole primary file.
 4. Commit the overlays to the repository the pipelines run from.
 
 The repositories contain example overlays; use them as a reference for the format.
 
-| Component | Repository | Primary values file | `-0N` overlay | Helm release |
+| Component | Repository | Primary values file | `0N` values file | Helm release |
 |-----------|-----------|--------------------|---------------|--------------|
-| Vault | `dpn-federator-certificate-manager` | `charts/vault-https/values-<env>-<cluster>.yaml` | `…-0N.yaml` | `vault-https-0N` |
-| Certificate Manager | `dpn-federator-certificate-manager` | `charts/certificate-manager/values-<env>-<cluster>.yaml` | `…-0N.yaml` | `dpn-certificate-manager-0N` |
-| Federator server and client | `dpn-federator-gateway` | `charts/dpn-platform/values-<env>-<cluster>.yaml` | `…-0N.yaml` | `dpn-platform-0N` |
-| REST Federator server | `dpn-rest-federator-gateway` | `charts/dpn-rest-federator/values-<env>-<cluster>.yaml` | `…-0N.yaml` | `dpn-rest-federator-0N` |
-| REST Federator Redis | `dpn-rest-federator-gateway` | `charts/dpn-redis/values-<env>-<cluster>.yaml` | `…-0N.yaml` | `dpn-redis-0N` |
-| Demo runner client (optional) | `dpn-rest-federator-gateway` | `charts/dpn-demo-runner-client/values-<env>-<cluster>.yaml` | `…-0N.yaml` | `dpn-demo-runner-client-0N` |
+| Vault | `dpn-federator-certificate-manager` | `charts/vault-https/values-<env>-<cluster>.yaml` | `charts/vault-https/values-<env>-<cluster>-0N.yaml` | `vault-https-0N` |
+| Certificate Manager | `dpn-federator-certificate-manager` | `charts/certificate-manager/values-<env>-<cluster>.yaml` | `charts/certificate-manager/values-<env>-<cluster>-0N.yaml` | `dpn-certificate-manager-0N` |
+| Federator server and client | `dpn-federator-gateway` | `charts/dpn-platform/values-<env>-<cluster>.yaml` | `charts/dpn-platform/values-<env>-<cluster>-0N.yaml` | `dpn-platform-0N` |
+| REST Federator server | `dpn-rest-federator-gateway` | `charts/dpn-rest-federator/values-<env>-<cluster>.yaml` | `charts/dpn-rest-federator/values-<env>-<cluster>-0N.yaml` | `dpn-rest-federator-0N` |
+| REST Federator Redis | `dpn-rest-federator-gateway` | `charts/dpn-redis/values-<env>-<cluster>.yaml` | `charts/dpn-redis/values-<env>-<cluster>-0N.yaml` | `dpn-redis-0N` |
+| Demo runner client (optional) | `dpn-rest-federator-gateway` | `charts/dpn-demo-runner-client/values-<env>-<cluster>.yaml` | `charts/dpn-demo-runner-client/values-<env>-<cluster>-0N.yaml` | `dpn-demo-runner-client-0N` |
 
 Notes:
 
@@ -119,81 +118,80 @@ Notes:
 - The gRPC federator `-0N` shares the primary's Kafka source and target, ZooKeeper, Kafka UI and Redis. Its release installs only the federator server and client Deployments, Services, load balancer Services and ConfigMaps.
 - Each REST federator has **its own Redis**, referenced from `restFederatorServer.redis.host` and `prefix` in its overlay.
 - The REST federator `-0N` chart copy contains only the server Deployment, Service, load balancer Service and ConfigMap. The HPA is not duplicated and keeps targeting the primary.
-- Data pipelines are shared; the LOE only creates its own data products (Step 4, item 12).
+- Data pipelines are shared; the LOE only creates its own data products (Step 3, item 12).
 
-### Overlay contents
+### What Goes in the New Values File
 
-Example values are for instance `03`. Replace `03` / `3` with your instance number. `<client-id>`, `<cn>`, `<sans>` and `<role-id>` come from Step 2.
+Example values are for instance `02`. Replace `02` / `2` with the actual instance number. `<client-id>`, `<cn>`, `<sans>` and `<role-id>` come from Step 1.
 
-**Vault** — `charts/vault-https/…-0N.yaml`
+**Vault** — `charts/vault-https/values-<env>-<cluster>-0N.yaml`
 
 | Key | Value |
 |-----|-------|
-| `fullnameOverride` | `dpn-vault-https-03` |
+| `fullnameOverride` | `dpn-vault-https-02` |
 | `service.aliasEnabled` | `false` |
 
-**Certificate Manager** — `charts/certificate-manager/…-0N.yaml`
+**Certificate Manager** — `charts/certificate-manager/values-<env>-<cluster>-0N.yaml`
 
 | Key | Value |
 |-----|-------|
-| `fullnameOverride` | `dpn-certificate-manager-03` |
-| `vault.uri` | `https://dpn-vault-https-03.ns-dpn-01.svc.cluster.local:8200` |
+| `fullnameOverride` | `dpn-certificate-manager-02` |
+| `vault.uri` | `https://dpn-vault-https-02.ns-dpn-01.svc.cluster.local:8200` |
 | `vault.appRole.roleId` | `<role-id>` |
 | `oauth2.clientId` | `<client-id>` |
 | `cert.subject.cn` / `cert.subject.altNames` | `<cn>` / `<sans>` |
-| `otel.env.OTEL_SERVICE_NAME` | `dpn-certificate-manager-03` |
-| `keyvault.approleSecretName` / `keyvault.tokenSecretName` | `VAULT-APPROLE-SECRET-ID-03` / `VAULT-TOKEN-03` |
-| `existingSecret.name` | `certificate-manager-03-secrets` |
+| `otel.env.OTEL_SERVICE_NAME` | `dpn-certificate-manager-02` |
+| `keyvault.approleSecretName` / `keyvault.tokenSecretName` | `VAULT-APPROLE-SECRET-ID-02` / `VAULT-TOKEN-02` |
+| `existingSecret.name` | `certificate-manager-02-secrets` |
 
-**gRPC federator** — `charts/dpn-platform/…-0N.yaml`
+**gRPC federator** — `charts/dpn-platform/values-<env>-<cluster>-0N.yaml`
 
 | Key | Value |
 |-----|-------|
-| `federatorServer.name` / `federatorClient.name` | `dpn-federator-server-3` / `dpn-federator-client-3` |
+| `federatorServer.name` / `federatorClient.name` | `dpn-federator-server-2` / `dpn-federator-client-2` |
 | `federatorServer.service.loadBalancerIP` / `federatorClient.service.loadBalancerIP` | `""` |
 | `federatorServer.idp.clientId` / `federatorClient.idp.clientId` | `<client-id>` |
-| `vaultConfig.uri` | `https://dpn-vault-https-03.ns-dpn-01.svc.cluster.local:8200` |
-| `vaultConfig.tokenSecretName` / `vaultConfig.appRole.secretIdSecretName` | `certificate-manager-03-secrets` |
+| `vaultConfig.uri` | `https://dpn-vault-https-02.ns-dpn-01.svc.cluster.local:8200` |
+| `vaultConfig.tokenSecretName` / `vaultConfig.appRole.secretIdSecretName` | `certificate-manager-02-secrets` |
 | `vaultConfig.appRole.roleId` | `<role-id>` |
 
-**REST federator** — `charts/dpn-rest-federator/…-0N.yaml` (all keys under `restFederatorServer`)
+**REST federator** — `charts/dpn-rest-federator/values-<env>-<cluster>-0N.yaml` (all keys under `restFederatorServer`)
 
 | Key | Value |
 |-----|-------|
-| `name` | `dpn-rest-federator-server-3` |
+| `name` | `dpn-rest-federator-server-2` |
 | `service.loadBalancerIP` | `""` |
-| `redis.host` / `redis.prefix` | `dpn-rest-federator-redis-3.ns-dpn-01.svc.cluster.local` / `federator-server-3` |
+| `redis.host` / `redis.prefix` | `dpn-rest-federator-redis-2.ns-dpn-01.svc.cluster.local` / `federator-server-2` |
 | `idp.clientId` | `<client-id>` |
-| `vault.uri` | `https://dpn-vault-https-03.ns-dpn-01.svc.cluster.local:8200` |
-| `vault.tokenSecretName` / `vault.appRole.secretIdSecretName` | `certificate-manager-03-secrets` |
+| `vault.uri` | `https://dpn-vault-https-02.ns-dpn-01.svc.cluster.local:8200` |
+| `vault.tokenSecretName` / `vault.appRole.secretIdSecretName` | `certificate-manager-02-secrets` |
 | `vault.appRole.roleId` | `<role-id>` |
-| `otel.serviceName` | `rest-federator-server-3` |
+| `otel.serviceName` | `rest-federator-server-2` |
 
-**REST federator Redis** — `charts/dpn-redis/…-0N.yaml`
+**REST federator Redis** — `charts/dpn-redis/values-<env>-<cluster>-0N.yaml`
 
 | Key | Value |
 |-----|-------|
-| `redisCache.name` | `dpn-rest-federator-redis-3` |
+| `redisCache.name` | `dpn-rest-federator-redis-2` |
 
-**Demo runner client (optional)** — `charts/dpn-demo-runner-client/…-0N.yaml` (all keys under `job`)
+**Demo runner client (optional)** — `charts/dpn-demo-runner-client/values-<env>-<cluster>-0N.yaml` (all keys under `job`)
 
 | Key | Value |
 |-----|-------|
-| `name` / `env.senderFmarId` | `dpn-demo-runner-client-3` |
-| `redis.host` / `redis.prefix` | `dpn-rest-federator-redis-3.ns-dpn-01.svc.cluster.local` / `federator-client-3` |
+| `name` / `env.senderFmarId` | `dpn-demo-runner-client-2` |
+| `redis.host` / `redis.prefix` | `dpn-rest-federator-redis-2.ns-dpn-01.svc.cluster.local` / `federator-client-2` |
 | `idp.clientId` | `<client-id>` |
-| `clientProperties.configMapName` | `dpn-rest-federator-client-3-properties` |
-| `vault.uri` | `https://dpn-vault-https-03.ns-dpn-01.svc.cluster.local:8200` |
-| `vault.tokenSecretName` / `vault.appRole.secretIdSecretName` | `certificate-manager-03-secrets` |
+| `clientProperties.configMapName` | `dpn-rest-federator-client-2-properties` |
+| `vault.uri` | `https://dpn-vault-https-02.ns-dpn-01.svc.cluster.local:8200` |
+| `vault.tokenSecretName` / `vault.appRole.secretIdSecretName` | `certificate-manager-02-secrets` |
 | `vault.appRole.roleId` | `<role-id>` |
-| `otel.serviceName` | `demo-runner-client-3` |
+| `otel.serviceName` | `demo-runner-client-2` |
 
 Notes:
 
 - Keep `loadBalancerIP: ""` in the overlay (or set a free IP); otherwise the primary's IP is inherited.
 - Do not set the federator ConfigMap names; `shared-federator-cd` sets them.
-- Change `ns-dpn-01` if your namespace differs.
-- Some values only **reference** objects that a pipeline creates during deployment; write the name as shown and the object exists by the time it is used:
+- A few of the values in the tables above point to something that doesn't exist yet at the point the file is created — for example, a Vault address or a Key Vault secret name. That's expected: an earlier step in the Step 3 deploy sequence creates it before this component actually needs it. The table below explains what each of these values refers to and which step creates it:
 
 | Overlay value | Object | Created by |
 |---------------|--------|-----------|
@@ -203,24 +201,32 @@ Notes:
 | `existingSecret.name`, `tokenSecretName`, `secretIdSecretName` | Secret `certificate-manager-0N-secrets` | `shared-certificate-manager-cd` |
 | `redis.host` | Redis Service `dpn-rest-federator-redis-N` | `shared-rest-federator-cd` |
 
-**Vault credentials** — you never enter these values; the overlays only reference them by name.
+**Vault credentials** — these values are never entered manually; the overlays only reference them by name.
 
 | Credential | Created by | Stored in | Reaches the components through |
 |------------|-----------|-----------|--------------------------------|
 | Vault root token | `shared-vault-https-cd` (Vault Init, `runVaultInit: true`) | Key Vault `VAULT-TOKEN-0N` | Used by the Vault bundle, AppRole and Certificate Manager pipelines only |
 | AppRole secret-id | `shared-vault-approle-setup-cd` (never printed; expires after 355 days, so re-run the pipeline before then) | Key Vault `VAULT-APPROLE-SECRET-ID-0N` | Certificate Manager SecretProviderClass `dpn-certificate-manager-0N-kv-secrets` syncs it into Secret `certificate-manager-0N-secrets` (key `VAULT_APPROLE_SECRET_ID`). The federator, REST federator and demo runner client read it from that Secret (`secretIdSecretName`) |
-| AppRole role ID | `shared-vault-approle-setup-cd` (artifact `shared-dpn-approle-role-ids`) | The overlays (`<role-id>`) | Entered by you, see Step 2 |
+| AppRole role ID | `shared-vault-approle-setup-cd` (artifact `shared-dpn-approle-role-ids`) | The overlays (`<role-id>`) | Entered manually, see Step 1 |
 
 ### Existing files to update
 
 | Repository | File | Change |
 |------------|------|--------|
-| `dpn-health-monitoring-service` | `charts/dpn-portal/values-dpn01.yaml` | Add `https://dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085/` and `https://dpn-vault-https-0N-lb.ns-dpn-01.svc.cluster.local:8200` to `otherUiUrls`. Add tile components `GRPC Gateway Client N` (under **Gateway**) and `Certification Vault Service N` (under **Security**) with the same URLs |
-| `dpn-authentication-service` | `charts/keycloak/scripts/configure-keycloak.sh` | Add the job runner host for instance `N` to `dpn-service-client`: define `KC_UI_HOST_FEDERATOR_CLIENT_N` with default `dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085`, pass it to `jq` with `--arg federatorClientN`, and add `"https://"+federatorClientN+"/*"` to `redirectUris` and `"https://"+federatorClientN` to `webOrigins` |
+| `dpn-health-monitoring-service` | `charts/dpn-portal/values-dpn01.yaml` | Add the new instance's job runner and Vault web addresses to the portal, so they appear as clickable tiles: a **"GRPC Gateway Client N"** tile (under Gateway) and a **"Certification Vault Service N"** tile (under Security). |
+| `dpn-authentication-service` | `charts/keycloak/scripts/configure-keycloak.sh` | Allow the new instance's job runner to log in through Keycloak, by adding its web address as an approved login redirect for the shared `dpn-service-client` login client. |
+
+**Exact values for the DPN Portal file** (replace `N` with the actual instance number):
+- Add to `otherUiUrls`: `https://dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085/` and `https://dpn-vault-https-0N-lb.ns-dpn-01.svc.cluster.local:8200`
+- Add tiles with those same URLs: `GRPC Gateway Client N` (Gateway section), `Certification Vault Service N` (Security section)
+
+**Exact change for the Keycloak script** (replace `N` with the actual instance number):
+- Define `KC_UI_HOST_FEDERATOR_CLIENT_N`, defaulting to `dpn-federator-client-N-external.ns-dpn-01.svc.cluster.local:8085`
+- Add `"https://" + that host + "/*"` to `redirectUris`, and `"https://" + that host` to `webOrigins`
 
 ---
 
-## Step 4: Deploy
+## Step 3: Deploy
 
 Run the steps in order; each one produces something the next needs. Every step deploys separate `-0N` releases, so the primary is not touched. The `shared-*` pipelines are Azure DevOps pipelines in `.pipelines/azure-pipelines/cd-pipelines/shared-dpn/` of each repository.
 
@@ -228,7 +234,7 @@ Run the steps in order; each one produces something the next needs. Every step d
 
 | Parameter | Pipelines | Value |
 |-----------|-----------|-------|
-| `ServiceConnection` | All | The service connection for your environment (the default is the dev connection) |
+| `ServiceConnection` | All | The service connection for the target environment (the default is the dev connection) |
 | `environment` | All | Your environment. Same in every run |
 | `dpnCluster` / `dpncluster` / `cluster` | `dpn-federator-certificate-manager` / `dpn-federator-gateway` / `dpn-rest-federator-gateway` | Your cluster. The parameter name differs per repository |
 | `totalDpnCount` | All | Total DPNs **including the primary**: `2` deploys `02`, `3` deploys `02` and `03`. Same in every run |
@@ -239,45 +245,45 @@ Run the steps in order; each one produces something the next needs. Every step d
 
 | # | Step | Pipeline / action | Needs | Produces |
 |---|------|-----------------------|-------|----------|
-| 1 | Prepare | Commit the overlays (Step 3) with the `roleId` placeholder still in place. Upload the Vault bundle secure files | Step 2 identity | Overlays, secure files |
-| 2 | Deploy the Vaults | `shared-vault-https-cd` | Vault overlays | `vault-https-0N`; Key Vault `VAULT-TOKEN-0N`; artifact `shared-vault-init-output` (root token and recovery keys — restrict access) |
-| 3 | Load the Vault bundles | `shared-vault-load-bundle-cd` | Secure files `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` | Bundle loaded into `dpn-vault-https-0N` |
+| 1 | Prepare | Commit the overlays (Step 2) with the `roleId` placeholder still in place. Upload the Vault bundle secure files | Step 1 identity | Overlays, secure files |
+| 2 | Deploy the Vaults | `shared-vault-https-cd` | The Vault values file from Step 2 | A running Vault (`vault-https-0N`); its root token saved to Key Vault as `VAULT-TOKEN-0N`; and a downloadable file (`shared-vault-init-output`) containing the root token and recovery keys — restrict who can access this file |
+| 3 | Load the Vault bundles | `shared-vault-load-bundle-cd` | The three files uploaded as Secure Files in step 1 — `bootstrap-0N.key` (reused from the primary's `dpn-tls-cd` pipeline artifact), and `certificate-0N.pem`/`ca-chain-0N.pem` (the signed certificate and CA chain from bootstrapping this LOE at the DSM portal) | The certificate bundle is loaded into the running Vault (`dpn-vault-https-0N`) |
 | 4 | Create the AppRoles | `shared-vault-approle-setup-cd` | `VAULT-TOKEN-0N` | Key Vault `VAULT-APPROLE-SECRET-ID-0N`; artifact `shared-dpn-approle-role-ids` |
-| 5 | Add the role IDs | Edit and commit the Certificate Manager, federator, REST federator and demo runner client overlays | Artifact from step 4 | Overlays without placeholders |
+| 5 | Add the role IDs | Edit and commit the Certificate Manager, federator, REST federator and demo runner client values files, replacing the `<role-id>` placeholder with the real role ID | Artifact from step 4 | Values files without placeholders |
 | 6 | Deploy the Certificate Managers | `shared-certificate-manager-cd` | `dpn-vault-https-0N`, `VAULT-APPROLE-SECRET-ID-0N`, `tls-auth-secret` | `dpn-certificate-manager-0N`; Secret `certificate-manager-0N-secrets`; ConfigMap `dpn-certificate-manager-0N-config` |
 | 7 | Deploy the gRPC federators | `shared-federator-cd` | Primary release `dpn-platform`, step 6 outputs, `tls-auth-secret`, Key Vault `TRUSTSTORE-PASSWORD` | `dpn-platform-0N` |
 | 8 | Deploy the REST federators and their Redis | `shared-rest-federator-cd` | Step 6 outputs, `tls-auth-secret`, `TRUSTSTORE-PASSWORD` | `dpn-redis-0N`, `dpn-rest-federator-0N` |
 | 9 | Run the demo runner client (optional) | `shared-demo-runner-client-cd` | Step 6 and 8 outputs, `cert-manager-truststore`, `dpn-keycloak-secrets` | Job `dpn-demo-runner-client-N-<BuildId>` |
-| 10 | Update the Keycloak redirect URIs | Keycloak CD pipeline | `configure-keycloak.sh` updated with the job runner URL (Step 3) | Job runner `N` login works |
-| 11 | Update the health portal | Portal CD pipeline | `values-dpn01.yaml` updated (Step 3) | Portal tiles for the instance |
+| 10 | Update the Keycloak redirect URIs | Keycloak CD pipeline | `configure-keycloak.sh` updated to add the new job runner's redirect URI and web origin (see Step 2, "Existing files to update") | Job runner `N` login works |
+| 11 | Update the health portal | Portal CD pipeline | `values-dpn01.yaml` updated to add the new instance's portal tile and URLs (see Step 2, "Existing files to update") | Portal tiles for the instance |
 | 12 | Create the LOE's data products | Shared self-service UI | — | Data products |
 
 Before deploying, the Certificate Manager, federator, REST federator and demo runner client pipelines check every instance's overlay (names, placeholders), run `helm lint`, a dry-run and the Vault wiring check, and stop if any instance fails. The Vault bundle and AppRole pipelines only check that the Vault overlay exists.
 
 ---
 
-## Step 5: Verify
+## Step 4: Verify
 
-Replace `03` with the instance number you deployed.
+Replace `02` with the instance number that was deployed.
 
 ```bash
 # Releases exist
 helm list -n ns-dpn-01
-# expect: vault-https-03, dpn-certificate-manager-03, dpn-platform-03, dpn-rest-federator-03, dpn-redis-03 (+ dpn-demo-runner-client-03 if run)
+# expect: vault-https-02, dpn-certificate-manager-02, dpn-platform-02, dpn-rest-federator-02, dpn-redis-02 (+ dpn-demo-runner-client-02 if run)
 
 # Vault is running and unsealed
-kubectl exec deploy/dpn-vault-https-03 -n ns-dpn-01 -- sh -c 'VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault status'   # Sealed: false
-kubectl get pvc dpn-vault-https-03-data -n ns-dpn-01
+kubectl exec deploy/dpn-vault-https-02 -n ns-dpn-01 -- sh -c 'VAULT_ADDR=https://127.0.0.1:8200 VAULT_SKIP_VERIFY=true vault status'   # Sealed: false
+kubectl get pvc dpn-vault-https-02-data -n ns-dpn-01
 
 # Certificate Manager uses its own Vault and the LOE's identity
-kubectl rollout status deploy/dpn-certificate-manager-03 -n ns-dpn-01
-kubectl get cm dpn-certificate-manager-03-config -n ns-dpn-01 -o yaml | grep -E 'VAULT_URI|OAUTH2_CLIENT_ID|VAULT_APPROLE_ROLE_ID'
-kubectl get secret certificate-manager-03-secrets -n ns-dpn-01
+kubectl rollout status deploy/dpn-certificate-manager-02 -n ns-dpn-01
+kubectl get cm dpn-certificate-manager-02-config -n ns-dpn-01 -o yaml | grep -E 'VAULT_URI|OAUTH2_CLIENT_ID|VAULT_APPROLE_ROLE_ID'
+kubectl get secret certificate-manager-02-secrets -n ns-dpn-01
 
 # gRPC federators use the LOE's client ID
-kubectl rollout status deploy/dpn-federator-server-3 -n ns-dpn-01
-kubectl rollout status deploy/dpn-federator-client-3 -n ns-dpn-01
-kubectl get cm dpn-federator-server-3-common-config dpn-federator-client-3-common-config -n ns-dpn-01 -o yaml | grep '^ *idp.client.id'
+kubectl rollout status deploy/dpn-federator-server-2 -n ns-dpn-01
+kubectl rollout status deploy/dpn-federator-client-2 -n ns-dpn-01
+kubectl get cm dpn-federator-server-2-common-config dpn-federator-client-2-common-config -n ns-dpn-01 -o yaml | grep '^ *idp.client.id'
 
 # Shared services are not duplicated
 kubectl get deploy -n ns-dpn-01 | grep -E "dpn-kafka-(src|target)"   # exactly one set
@@ -288,14 +294,14 @@ helm history dpn-platform -n ns-dpn-01   # no new revision
 
 Then check in the browser:
 
-- Log in to the job runner at `https://dpn-federator-client-3-external.ns-dpn-01.svc.cluster.local:8085/`.
-- The `GRPC Gateway Client 3` and `Certification Vault Service 3` tiles show as up in the DPN Portal.
+- Log in to the job runner at `https://dpn-federator-client-2-external.ns-dpn-01.svc.cluster.local:8085/`.
+- The `GRPC Gateway Client 2` and `Certification Vault Service 2` tiles show as up in the DPN Portal.
 
 ---
 
 ## Shared Services
 
-These services are not duplicated per LOE and need no new files. Only two existing files are updated, as described in Step 3 ("Existing files to update"):
+These services are not duplicated per LOE and need no new files. Only two existing files are updated, as described in Step 2 ("Existing files to update"):
 
 - **Keycloak** — `configure-keycloak.sh`: add the instance's job runner URL to the `dpn-service-client` redirect URIs and web origins, then run the Keycloak CD pipeline.
 - **DPN Portal** — `values-dpn01.yaml`: add the instance's job runner and Vault URLs and tiles, then run the portal CD pipeline.
@@ -320,7 +326,7 @@ These services are not duplicated per LOE and need no new files. Only two existi
 | Vault root token | Key Vault `VAULT-TOKEN-0N` | `shared-vault-https-cd` (Vault Init) | Used by the pipelines only |
 | Vault init output | Run artifact `shared-vault-init-output` | `shared-vault-https-cd` (Vault Init) | Contains the root token and recovery keys. Restrict access to the run and store the recovery keys securely |
 | AppRole secret-id | Key Vault `VAULT-APPROLE-SECRET-ID-0N` → Secret `certificate-manager-0N-secrets` (key `VAULT_APPROLE_SECRET_ID`) | `shared-vault-approle-setup-cd` | Expires after 355 days; re-run the pipeline before then |
-| Vault bundle | Secure files `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` → Vault `dpn-vault-https-0N` | Uploaded by you | Private key generated by you; certificate and CA chain issued by DSM. This is the LOE's client certificate for communication with DSM |
+| Vault bundle | Secure files `bootstrap-0N.key`, `certificate-0N.pem`, `ca-chain-0N.pem` → Vault `dpn-vault-https-0N` | Uploaded manually | `bootstrap-0N.key` is the same key reused from the primary's `dpn-tls-cd` pipeline artifact; `certificate-0N.pem`/`ca-chain-0N.pem` come from bootstrapping this LOE at the DSM portal. Together they're this LOE's client certificate for communication with DSM |
 | Reused from the primary | Key Vault `TRUSTSTORE-PASSWORD`; Secrets `tls-auth-secret`, `cert-manager-truststore`, `dpn-keycloak-secrets` | Primary setup | Not created again |
 
 ---
@@ -341,11 +347,11 @@ For the rollback pipelines, leave `revisions` empty to roll every instance back 
 The same actions by hand:
 
 ```bash
-helm history dpn-platform-03 -n ns-dpn-01
+helm history dpn-platform-02 -n ns-dpn-01
 helm rollback <release>-0N <revision> -n ns-dpn-01 --wait     # dpn-platform-0N, dpn-rest-federator-0N, dpn-redis-0N, dpn-certificate-manager-0N, vault-https-0N
 
 # Remove one LOE entirely
-helm uninstall dpn-demo-runner-client-03 dpn-rest-federator-03 dpn-redis-03 dpn-platform-03 dpn-certificate-manager-03 vault-https-03 -n ns-dpn-01
+helm uninstall dpn-demo-runner-client-02 dpn-rest-federator-02 dpn-redis-02 dpn-platform-02 dpn-certificate-manager-02 vault-https-02 -n ns-dpn-01
 ```
 
 Uninstalling `vault-https-0N` also deletes the PVC `dpn-vault-https-0N-data`, which is that Vault's data. A Vault chart rollback does not change data on the PVC. Key Vault entries are **not** removed by the pipelines. After uninstalling, also clean up for the retired LOE only: Key Vault entries `VAULT-TOKEN-0N` and `VAULT-APPROLE-SECRET-ID-0N`, the `-0N` secure files, the `-0N` overlays, the portal `otherUiUrls` and tile entries, the job runner URL in `configure-keycloak.sh`, the DSM registration, and the LOE's data products.
