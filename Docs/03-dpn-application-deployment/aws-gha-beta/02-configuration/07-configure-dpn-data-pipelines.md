@@ -191,20 +191,54 @@ The data pipeline ServiceAccounts reach S3 through one shared IRSA role, `dpn-da
   "Statement": [
     {
       "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::dp-consumer-raw-<env>-<account-id>-<region>",
+        "arn:aws:s3:::dp-consumer-raw-<env>-<account-id>-<region>/*",
+        "arn:aws:s3:::dpn-<env>-dp-consumer-stage-<account-id>-<region>",
+        "arn:aws:s3:::dpn-<env>-dp-consumer-stage-<account-id>-<region>/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:ListBucket"],
+      "Resource": [
+        "arn:aws:s3:::dp-consumer-target-<env>-<account-id>-<region>",
+        "arn:aws:s3:::dp-consumer-target-<env>-<account-id>-<region>/*",
+        "arn:aws:s3:::dp-consumer-trfm-<env>-<account-id>-<region>",
+        "arn:aws:s3:::dp-consumer-trfm-<env>-<account-id>-<region>/*",
+        "arn:aws:s3:::dpn-self-service-dpconfig-<env>-<account-id>-<region>",
+        "arn:aws:s3:::dpn-self-service-dpconfig-<env>-<account-id>-<region>/*"
+      ]
+    },
+    {
+      "Sid": "ProducerDataProductBuckets",
+      "Effect": "Allow",
       "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
         "s3:GetObject",
         "s3:PutObject",
-        "s3:ListBucket",
-        "s3:DeleteObject",
-        "s3:CreateBucket"
+        "s3:DeleteObject"
       ],
-      "Resource": "arn:aws:s3:::*"
+      "Resource": [
+        "arn:aws:s3:::*-stage",
+        "arn:aws:s3:::*-stage/*",
+        "arn:aws:s3:::*-target",
+        "arn:aws:s3:::*-target/*"
+      ]
     }
   ]
 }
 ```
 
-> **Scope.** `arn:aws:s3:::*` is needed because data-product bucket names are chosen by users at run time and `s3:CreateBucket` has no resource to narrow. If your organisation requires tighter scoping, restrict the `Resource` to a bucket-name prefix (for example `arn:aws:s3:::dpn-<env>-*`) and agree that naming convention with data-product owners.
+> **Scope.** The first two statements cover the platform buckets for the environment (`<env>` is for example `dev-02`). The `ProducerDataProductBuckets` statement lets the Self-Service producer pods create and use their own buckets: a producer data product creates `<product>-stage` and `<product>-target` at run time, so the permission is scoped to bucket names ending in `-stage` or `-target`. Without it a new producer pod exits with `AccessDenied … s3:CreateBucket`. If your organisation requires tighter scoping, restrict the `Resource` to a bucket-name prefix and agree that naming convention with data-product owners.
+>
+> **Bucket names are global.** S3 bucket names are unique across all AWS accounts and regions' namespaces. A product name that is already used in another environment or account (for example the same name in dev-01 and dev-02) fails with `BucketAlreadyExists`, so use a distinct product name per environment.
+>
+> **Producer pods and IRSA.** The role's trust policy must include the `dpn-self-service` ServiceAccount, and the producer pods must run as that ServiceAccount (`DPN_PRODUCER_SERVICE_ACCOUNT`), otherwise they use `default` with no AWS credentials. On AWS set only `AWS_ENDPOINT_URL_S3` for a regional S3 endpoint and do not set the global `AWS_ENDPOINT_URL`: the global variable also redirects the STS call used by IRSA to the S3 endpoint and fails with `AssumeRoleWithWebIdentity … Unknown`.
 
 ```bash
 aws iam create-role \
