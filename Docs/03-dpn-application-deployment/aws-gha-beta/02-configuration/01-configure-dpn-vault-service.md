@@ -290,7 +290,7 @@ Trigger **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → 
 | `cloud` | `aws` (default) |
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
-| `targetNamespace` | Namespace for `dpn-tls` + `fed-gateway-tls` — `ns-dpn-01` (default) / `ns-dpn-health-01` |
+| `targetNamespace` | Namespace for `dpn-tls` + `fed-gateway-tls` — `ns-dpn-01` (default) / `ns-dpn-health-01` / `ns-dpn-dp-01`. Run it once per namespace that needs its own copy; `ns-dpn-dp-01` is the data pipeline namespace |
 | `country` | Certificate subject Country (C) — default `GB` |
 | `org` | Certificate subject Organisation (O) — default `DSI` |
 | `storePasswordsInSecretsBackend` | Also store the cert/store passwords in Secrets Manager — default `true` |

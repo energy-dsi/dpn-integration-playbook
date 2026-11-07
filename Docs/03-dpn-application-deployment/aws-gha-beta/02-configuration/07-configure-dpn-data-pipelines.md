@@ -98,7 +98,7 @@ The secrets below are required in the data pipeline namespace (`ns-dpn-dp-01`) *
 
 | Secret | Keys | Value | Used by |
 |--------|------|-------|---------|
-| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka TLS trust) |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01`. Do not change the contents. Alternatively, run `dpn-gha-tls-cd.yaml` with `targetNamespace: ns-dpn-dp-01`, which creates it directly in `ns-dpn-dp-01` | All pipeline containers (Kafka TLS trust) |
 | `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka OAuth) |
 | `ghcr-pull-secret` | Docker registry credentials for `ghcr.io` | A GitHub PAT with `read:packages` scope. Not needed if the images are mirrored to ECR and the EKS nodes can pull from it | All pipeline containers (image pull) |
 | `aws-access-secret` (optional) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Needed only if you use static access keys for S3 instead of IRSA. The IAM identity needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` and `s3:CreateBucket` on the buckets used by data products | Self-Service UI, producer file products, consumer file extractor |
