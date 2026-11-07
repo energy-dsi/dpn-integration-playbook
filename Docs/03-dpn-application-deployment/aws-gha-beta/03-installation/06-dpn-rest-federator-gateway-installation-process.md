@@ -19,7 +19,7 @@ This installation page is a quick-reference summary that points to that guide.
 - [Step2: Execute CI/CD](#step2-execute-cicd)
   - [Step2a. CI (component source repository)](#step2a-ci-component-source-repository)
   - [Step2b. Configure GHCR Image Access](#step2b-configure-ghcr-image-access)
-  - [Step2c. One-Time Vault AppRole Setup](#step2c-one-time-vault-approle-setup)
+  - [Step2c. Provision the Vault AppRole](#step2c-provision-the-vault-approle)
   - [Step2d. Execute CD Workflow](#step2d-execute-cd-workflow)
   - [Step2e. Verify CD Workflow](#step2e-verify-cd-workflow)
 - [Step3: Troubleshooting](#step3-troubleshooting)
@@ -42,20 +42,18 @@ Both workflows, and the charts they deploy:
 dpn-rest-federator-gateway/
 ├── .github/
 │   ├── workflows/
-│   │   ├── dpn-gha-rest-federator-cd.yaml                <- DPN CD - REST Federator Gateway
-│   │   └── dpn-gha-rest-federator-role-id-creation.yaml  <- DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)
+│   │   └── dpn-gha-rest-federator-cd.yaml                <- DPN CD - REST Federator Gateway
 │   ├── actions/
 │   │   └── cloud-login/action.yml
 │   └── config/
 │       └── aws/<environment>-<cluster>.json
-├── charts/
-│   ├── dpn-rest-federator/values/aws/<environment>-<cluster>.yaml
-│   └── dpn-redis/values/aws/<environment>-<cluster>.yaml
-└── scripts/vault/                                         <- setup-approle.sh, rest-federator-policy.hcl
+└── charts/
+    ├── dpn-rest-federator/values/aws/<environment>-<cluster>.yaml
+    └── dpn-redis/values/aws/<environment>-<cluster>.yaml
 ```
 
 Key points, detailed in the configuration guide:
-- Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — set up once per environment/cluster via [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy.
+- Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — provisioned once per environment/cluster in [Step2c](#step2c-provision-the-vault-approle) before the first deploy.
 - Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — the IAM role and the Secrets Manager placeholders are provisioned automatically by the CD workflow (see the configuration guide's note on the current chart template gap for AWS).
 - A **HorizontalPodAutoscaler** is on by default (`hpa.enabled: true`) — no separate opt-in step.
 - The Vault truststore password is rendered into the config at deploy time from `restFederatorServer.vault.truststorePassword`, which the CD workflow sets via `--set` from Secrets Manager (`dpn/<environment>-<cluster>/rest-federator/VAULT_TRUSTSTORE_PASSWORD`) — it is not read live at pod start-up.
@@ -74,7 +72,7 @@ In summary:
 - OAuth2 client ID + Management Node URL + IDP URLs received from DSM
 - Backend service reachable, with a backend API key available
 - Populated config JSON and values file for the `<environment>-<cluster>` combination
-- **Vault AppRole configured for this component** — run the one-time workflow in [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy
+- **Vault AppRole configured for this component** — provision it as described in [Step2c](#step2c-provision-the-vault-approle) before the first deploy
 
 **Note:** Organisations must review the CI/CD workflow code for the following.
 
@@ -113,19 +111,14 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
-### Step2c. One-Time Vault AppRole Setup
+### Step2c. Provision the Vault AppRole
 
-**Run this once per `<environment>-<cluster>` combination, before the first `dpn-gha-rest-federator-cd.yaml` run**, and again whenever the AppRole `secret-id` needs rotating.
+No workflow creates the REST Federator's AppRole. **Before the first `dpn-gha-rest-federator-cd.yaml` run**, create the `rest-federator` AppRole in Vault and store its IDs in AWS Secrets Manager under `dpn/<environment>-<cluster>/rest-federator/`:
 
-Go to **Actions → DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup) → Run workflow** (`dpn-gha-rest-federator-role-id-creation.yaml`), and supply:
+- `VAULT_APPROLE_ROLE_ID` (not sensitive): the CD workflow fetches it at deploy time.
+- `VAULT_APPROLE_SECRET_ID` (sensitive): synced into the pod through the CSI `SecretProviderClass`.
 
-| Input | Value |
-|-----------|-------|
-| `environment` | `dev` / `test` (default `test`) |
-| `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
-| `cloud` | `aws` (default) |
-
-This enables the `approle` Vault auth method, writes the `rest-federator-policy`, creates/updates the `rest-federator` AppRole role, and publishes `VAULT_APPROLE_ROLE_ID`/`VAULT_APPROLE_SECRET_ID` to AWS Secrets Manager under `dpn/<environment>-<cluster>/rest-federator/`. See [Configure DPN REST Federator Gateway, Step3b](../02-configuration/06-configure-dpn-rest-federator-gateway.md#step3b-configure-vault-authentication) for the full detail and prerequisites (Vault must already be deployed and unsealed, with its admin token in Secrets Manager at `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN`).
+See [Configure DPN REST Federator Gateway, Step3b](../02-configuration/06-configure-dpn-rest-federator-gateway.md#provision-the-approle-aws-before-first-deploy) for the policy and role settings. Vault must already be deployed and unsealed. To rotate the `secret-id`, update the Secrets Manager value, re-run the CD workflow and restart the pod.
 
 ### Step2d. Execute CD Workflow
 
