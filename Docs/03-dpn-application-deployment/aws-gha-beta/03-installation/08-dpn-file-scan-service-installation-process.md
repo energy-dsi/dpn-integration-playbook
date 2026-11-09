@@ -36,7 +36,7 @@ This document describes the installation process for the DPN File Scanning Servi
 The following prerequisites must be met.
 
 - Amazon GuardDuty is enabled in the account/region, with a Malware Protection for S3 protection plan available to configure
-- The source (inbound) and destination (outbound) S3 buckets are provisioned
+- The source (inbound) and destination (outbound) S3 buckets are provisioned (no workflow creates them — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty))
 - An EKS cluster reachable via the GitHub Actions OIDC federated credential (see [Prerequisites](../01-prerequisites/01-dpn-prerequisites.md#aws-iam-oidc-role))
 - A GitHub Environment named `<environment>-<cluster>` (e.g. `dev-dpn01`) exists in `dpn-file-scan-service`, and a self-hosted runner with the `[self-hosted, vmss]` labels is registered (both workflows target `runs-on: [self-hosted, vmss]`)
 - Sufficient IAM permissions to create an SNS topic, an SQS queue, and an IRSA role for the service's ServiceAccount

@@ -12,6 +12,7 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 
 - [Overview](#overview)
 - [Step1: Meet the Prerequisites](#step1-meet-the-prerequisites)
+  - [Verify the Prerequisites Before Deploying](#verify-the-prerequisites-before-deploying)
 - [Step2: Configure Secrets](#step2-configure-secrets)
   - [Option A — AWS Secrets Manager (`secretsManager.enabled: true`)](#option-a--aws-secrets-manager-secretsmanagerenabled-true)
   - [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa)
@@ -52,6 +53,58 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 | 5 | **Config JSON and values file populated for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set** | See [Step4: Environment Configuration](#step4-environment-configuration) |
 
 > **One-time setup:** create the target namespace (`kubectl create namespace <namespace>`) and complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) before running the CD workflow — it does not create the namespace for you.
+
+### Verify the Prerequisites Before Deploying
+
+`dpn-gha-keycloak-cd.yaml` does not run a preflight on `cloud: aws`, so confirm each item below before triggering it. Replace `<environment>`, `<cluster>`, `<region>` and `<account-id>` with your values; the namespace is `ns-dpn-01` and the ServiceAccount is `dpn-keycloak` (the Helm release name, when `serviceAccount.name` is empty).
+
+**1. Required Secrets Manager secrets** — all three must exist under `dpn/<environment>-<cluster>/keycloak/`:
+
+```bash
+for s in KC_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD KC_SERVICE_CLIENT_SECRET; do
+  aws secretsmanager describe-secret \
+    --secret-id "dpn/<environment>-<cluster>/keycloak/$s" \
+    --region <region> --query Name --output text
+done
+```
+
+Each call must print the secret name. `ResourceNotFoundException` means the secret is missing — create it as described in [Step2](#step2-configure-secrets).
+
+**2. ServiceAccount and IRSA** — the IAM role exists, and the ServiceAccount carries its ARN once the chart is deployed:
+
+```bash
+# IAM role exists and its trust policy names the Keycloak ServiceAccount
+aws iam get-role --role-name dpn-keycloak-secrets-role \
+  --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition.StringEquals' --output json
+
+# After a deploy: the ServiceAccount is annotated with the role ARN
+kubectl get serviceaccount dpn-keycloak -n ns-dpn-01 \
+  -o jsonpath='{.metadata.annotations.eks\.amazonaws\.com/role-arn}'
+```
+
+The trust policy's `:sub` must be `system:serviceaccount:ns-dpn-01:dpn-keycloak`, and the annotation must be `arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` (the same ARN as `serviceAccount.annotations` in the values file).
+
+**3. `ghcr-pull-secret`** — must exist in the namespace and be a docker-registry secret (`imagePullSecret: ghcr-pull-secret` in the values file):
+
+```bash
+kubectl get secret ghcr-pull-secret -n ns-dpn-01 -o jsonpath='{.type}'
+```
+
+Expected output: `kubernetes.io/dockerconfigjson`. `NotFound` means pods will fail with `ImagePullBackOff` — create it with a GitHub PAT that has `read:packages`:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username-or-bot-account> \
+  --docker-password=<GitHub PAT with read:packages scope> \
+  -n ns-dpn-01
+```
+
+**4. TLS secrets** — `dpn-tls` and `tls-auth-secret` exist (see prerequisite 2 above):
+
+```bash
+kubectl get secret dpn-tls tls-auth-secret -n ns-dpn-01
+```
 
 ---
 
@@ -177,7 +230,7 @@ root/
   └── charts/
         └── keycloak/
           └── values/
-              └── aws/           
+              └── aws/
                 └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
