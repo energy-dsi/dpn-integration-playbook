@@ -75,7 +75,7 @@ dpn-federator-certificate-manager/
         └── dpn-gha-vault-https-cd.yaml
 ```
 
-> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-gha-tls-cd.yaml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
+> **Run the TLS workflow first.** The Vault TLS certificate/key must already be in AWS Secrets Manager (`dpn/<environment>-<cluster>/vault-https/VAULT_TLS_CERT` / `VAULT_TLS_KEY`), published by `dpn-gha-tls-cd.yml` — see [Configure DPN Vault Service, Step 3A](../02-configuration/01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml).
 
 Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 
@@ -86,7 +86,7 @@ Go to **Actions → DPN CD - Vault HTTPS → Run workflow** and supply:
 | `cloud` | `aws` |
 | `vaultImageTag` | Release version or image tag to pull from GHCR — default `1.16` |
 | `vaultImageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`, e.g. `vault`) — leave blank to use the environment's configured repository |
-| `runVaultInit` | Enable KV v2 + audit logging — default `true`, safe to re-run |
+| `runVaultInit` | Wait for Vault, initialise it if needed, wait for auto-unseal, enable KV v2 + audit logging (`file/` device to stdout) — default `true`, safe to re-run |
 | `storeRootTokenInSecretsBackend` | Store the Vault root token in the cloud secrets backend — on AWS, the Secrets Manager secret `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN` (default `false`; set `true` on the first deploy, because the bundle-load and AppRole setup workflows read the token from there). See [Configure DPN Vault Service, Step 3B](../02-configuration/01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml) |
 
 > **Prerequisite:** AWS KMS auto-unseal must already be configured — see [Configure DPN Vault Service, Step 1](../02-configuration/01-configure-dpn-vault-service.md#step-1-prerequisites-before-vault-can-be-deployed) — otherwise this workflow's Vault Init step will fail against a sealed Vault.

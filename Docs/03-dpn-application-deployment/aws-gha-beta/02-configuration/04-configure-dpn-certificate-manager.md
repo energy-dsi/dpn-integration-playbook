@@ -1,5 +1,3 @@
-Release : 2.1.0 - Oct 2026
-
 # DPN Certificate Manager Configuration
 
 This section describes how to configure and deploy the **DPN Federator Certificate Manager (CLM)** in a single target environment. The Certificate Manager is a non-interactive Spring Boot service that automates X.509 certificate lifecycle management for the Federator Gateway — it renews the DSM-signed certificate and builds the keystore/truststore P12 files used for mutual TLS (mTLS).
@@ -55,7 +53,7 @@ Ensure the following are in place **before** deploying the Certificate Manager:
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **DPN Vault deployed, initialised, and loaded** | Vault running over HTTPS, KV v2 enabled at `pki-client`, and the certificate bundle loaded into `pki-client/node-net/client/*`. See [Configure DPN Vault Service](01-configure-dpn-vault-service.md) |
-| 2 | **`cert-manager-truststore` and `tls-auth-secret` Kubernetes secrets present** | `cert-manager-truststore` holds `truststore.jks` used to trust the Vault HTTPS endpoint; `tls-auth-secret` holds its password (`TRUSTSTORE_PASSWORD`). Both are created automatically by the `dpn-gha-tls-cd.yaml` workflow — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml) |
+| 2 | **`cert-manager-truststore` and `tls-auth-secret` Kubernetes secrets present** | `cert-manager-truststore` holds `truststore.jks` used to trust the Vault HTTPS endpoint; `tls-auth-secret` holds its password (`TRUSTSTORE_PASSWORD`). Both are created automatically by the `dpn-gha-tls-cd.yml` workflow — see [Configure DPN Vault Service, Step 3A](01-configure-dpn-vault-service.md#step-3a-configure-vault-tls-dpn-tls-cdyaml) |
 | 3 | **Vault credentials available** | The AppRole `role_id`/`secret_id` from `dpn-gha-certificate-manager-role-id-creation.yaml` (when `vault.authentication: APPROLE`) and `VAULT_TOKEN` (root token) in Secrets Manager — see [Step2: Configure Vault Authentication](#step2-configure-vault-authentication) and [Step3b](#step3b-configure-secrets) |
 | 4 | **EKS cluster** + an IRSA-annotated ServiceAccount | Required when `secretsManager.enabled: true` (native AWS Secrets Manager) |
 | 5 | **OAuth2 client ID and Management Node URL** | Received from DSM during onboarding to establish the DPN connection. The shipped AWS values files use `oauth2.authMode: private_key_jwt` |
@@ -154,7 +152,7 @@ DSI proposes only the selective changes below; other parameters may be customise
 | `cert.subject.country` | CSR subject Country (C) | `UK` |
 | `cert.subject.org` | CSR subject Organisation (O) | `<organisation abbreviation>` |
 | `cert.subject.cn` | CSR subject Common Name (CN) | `dpn-<env>-01` |
-| `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
+| `cert.subject.altNames` | Comma-separated SANs — every producer/consumer endpoint this node exposes, across **both** the gRPC Federator and (if deployed) the REST Federator Gateway, plus the load-balancer DNS name if clients reach the node through it (the shipped `dev-dpn01` file appends its NLB hostname) | `producer.dpn01.dsiXXX.neso.energy,consumer.dpn01.dsiXXX.neso.energy,producer-rest01.dpn01.dsiXXX.neso.energy` |
 | `cert.renewalThresholdDays` | Renew automatically once the certificate's remaining validity drops below this many days | `60` |
 
 > **In-memory keystore — `certDest`/`mtls`/`fileShare` parameters don't exist.** The keystore/truststore are built in memory with an ephemeral password and handed directly to the application — there is nothing to point at a file path or a storage account. EFS is not used by this component.
@@ -180,14 +178,14 @@ DSI proposes only the selective changes below; other parameters may be customise
 
 The `certificate-manager` chart's AWS templates (`serviceaccount.yaml`, `secretproviderclass.yaml`) annotate the `dpn-certificate-manager` ServiceAccount with `serviceAccount.irsaRoleArn` and read `VAULT_APPROLE_SECRET_ID` (or `VAULT_TOKEN`) from `secretsManager.secretPrefix`. The provided AWS values files point this at the **same role as Vault** — `dpn-vault-kms-unseal-role`, created in [Configure DPN Vault Service — Step 2b](01-configure-dpn-vault-service.md#step-2b-add-the-vault-https-secrets-role) — so no second role is created. Extend that role as follows:
 
-1. Add the Certificate Manager ServiceAccount to the trust policy's `sub` condition (a single `StringEquals` value becomes a `StringLike` list):
+1. Add the Certificate Manager ServiceAccount to the trust policy's `sub` condition (a single `StringEquals` value becomes a `ForAnyValue:StringLike` list):
 
    ```json
    "Condition": {
      "StringEquals": {
        "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:aud": "sts.amazonaws.com"
      },
-     "StringLike": {
+     "ForAnyValue:StringLike": {
        "oidc.eks.<region>.amazonaws.com/id/<oidc-provider-id>:sub": [
          "system:serviceaccount:ns-dpn-01:dpn-vault",
          "system:serviceaccount:ns-dpn-01:dpn-certificate-manager"
@@ -196,10 +194,22 @@ The `certificate-manager` chart's AWS templates (`serviceaccount.yaml`, `secretp
    }
    ```
 
-2. Add the Certificate Manager's Secrets Manager path to the role's permission policy (alongside the existing `vault-https/*` entry):
+2. Create a separate inline policy for the Certificate Manager's Secrets Manager path, `dpn-certmanager-secretsmanager-permissions` (`dpn-certmanager-secretsmanager-permissions.json`), so the existing Vault policies are left untouched:
 
    ```json
-   "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/certificate-manager/*"
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Action": [
+           "secretsmanager:GetSecretValue",
+           "secretsmanager:DescribeSecret"
+         ],
+         "Resource": "arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/certificate-manager/*"
+       }
+     ]
+   }
    ```
 
 3. Update the role in place:
@@ -211,11 +221,23 @@ The `certificate-manager` chart's AWS templates (`serviceaccount.yaml`, `secretp
 
    aws iam put-role-policy \
      --role-name dpn-vault-kms-unseal-role \
-     --policy-name dpn-vault-kms-unseal-policy \
-     --policy-document file://dpn-vault-kms-unseal-policy.json
+     --policy-name dpn-certmanager-secretsmanager-permissions \
+     --policy-document file://dpn-certmanager-secretsmanager-permissions.json
    ```
 
-   (`put-role-policy` replaces the inline policy with the same name, so include the existing Vault statements in the file.)
+   `put-role-policy` only replaces an inline policy with the same name, so the Vault policies are not affected.
+
+**Expected end state of `dpn-vault-kms-unseal-role`:**
+
+| Item | Value |
+|---|---|
+| Trusted ServiceAccounts (`ns-dpn-01`) | `dpn-vault`, `dpn-certificate-manager` |
+| Inline policy `dpn-vault-kms-permissions` | KMS auto-unseal key access for Vault |
+| Inline policy `dpn-vault-secretsmanager-permissions` | Vault secrets under `dpn/<environment>-<cluster>/vault-https/*` |
+| Inline policy `dpn-certmanager-secretsmanager-permissions` | Certificate Manager secrets under `dpn/<environment>-<cluster>/certificate-manager/*` |
+| Managed policies attached | None |
+
+> **Shared role.** Because the Certificate Manager reuses the Vault role, its pod also holds the Vault KMS and Vault Secrets Manager permissions. For least privilege, create a dedicated role limited to `certificate-manager/*` and set its ARN as `serviceAccount.irsaRoleArn` instead.
 
 ### Step3b: Configure Secrets
 
@@ -228,11 +250,11 @@ When `cloudProvider: aws` and `secretsManager.enabled: true`, the chart renders 
 | `VAULT_TOKEN` | `VAULT_TOKEN` | Root token of the DPN HashiCorp Vault — always pulled, and used while `vault.authentication: TOKEN`. Kept in sync from `dpn/<environment>-<cluster>/vault-https/VAULT_TOKEN` by `dpn-gha-vault-https-cd.yaml` (see [Configure DPN Vault Service, Step 3B](01-configure-dpn-vault-service.md#step-3b-deploy-and-initialise-vault-dpn-vault-https-cdyml)) |
 | `VAULT_APPROLE_SECRET_ID` *(only when `vault.authentication: APPROLE`)* | `VAULT_APPROLE_SECRET_ID` | AppRole secret-id, from `dpn-gha-certificate-manager-role-id-creation.yaml` (see [Step2](#step2-configure-vault-authentication)) |
 
-> **Not pulled from Secrets Manager.** The Vault truststore password is read directly from the `tls-auth-secret` Kubernetes secret (key `TRUSTSTORE_PASSWORD`, created by `dpn-gha-tls-cd.yaml`) into `VAULT_SSL_TRUST_STORE_PASSWORD` and `OTEL_TRUSTSTORE_PASSWORD`. When `otel.oauth2.enabled` is `true`, `OTEL_OAUTH2_CLIENT_SECRET` comes from `dpn-keycloak-secrets` (key `KC_SERVICE_CLIENT_SECRET`). The `MTLS_KEYSTORE_PASSWORD` / `MTLS_TRUSTSTORE_PASSWORD` entries are no longer read, because the mTLS keystore/truststore use an ephemeral in-memory password. `OAUTH2_CLIENT_SECRET` is not read either, because the shipped values use `oauth2.authMode: private_key_jwt`.
+> **Not pulled from Secrets Manager.** The Vault truststore password is read directly from the `tls-auth-secret` Kubernetes secret (key `TRUSTSTORE_PASSWORD`, created by `dpn-gha-tls-cd.yml`) into `VAULT_SSL_TRUST_STORE_PASSWORD` and `OTEL_TRUSTSTORE_PASSWORD`. When `otel.oauth2.enabled` is `true`, `OTEL_OAUTH2_CLIENT_SECRET` comes from `dpn-keycloak-secrets` (key `KC_SERVICE_CLIENT_SECRET`). The `MTLS_KEYSTORE_PASSWORD` / `MTLS_TRUSTSTORE_PASSWORD` entries are no longer read, because the mTLS keystore/truststore use an ephemeral in-memory password. `OAUTH2_CLIENT_SECRET` is not read either, because the shipped values use `oauth2.authMode: private_key_jwt`.
 
 #### Option B - Through Vault truststore (Kubernetes secret)
 
-The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (set to `cert-manager-truststore` in the shipped AWS values files; the chart default is empty) and mounted at `vaultTruststore.mountPath` (default `/app/truststore`). This secret is **created automatically by the `dpn-gha-tls-cd.yaml` workflow** — no manual `kubectl create secret` is required. This is independent of which secrets backend (Option A or B) supplies the rest of the application secrets.
+The Vault HTTPS truststore (`truststore.jks`) is loaded into the Kubernetes secret named by `vaultTruststore.secretName` (set to `cert-manager-truststore` in the shipped AWS values files; the chart default is empty) and mounted at `vaultTruststore.mountPath` (default `/app/truststore`). This secret is **created automatically by the `dpn-gha-tls-cd.yml` workflow** — no manual `kubectl create secret` is required. This is independent of which secrets backend (Option A or B) supplies the rest of the application secrets.
 
 ---
 
@@ -247,7 +269,7 @@ dpn-federator-certificate-manager/
         └── dpn-gha-certificate-manager-cd.yaml
 ```
 
-Trigger it via **Actions → DPN CD - Certificate Manager → Run workflow**. The workflow runs **Applied Parameters** (rejects `imageTag`/`imageRepository` values with leading/trailing whitespace) → **Read Deployment Config** → **Cloud Login** → **Verify Cluster Access** → **Fetch Vault AppRole Role ID (AWS)** (reads `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` from Secrets Manager and passes it as `--set vault.appRole.roleId`) → `helm lint` + dry-run → `helm upgrade --install dpn-certificate-manager charts/certificate-manager`, followed by a rolling restart (`kubectl rollout restart deployment/dpn-certificate-manager`) and a rollout status check. It then captures the deployed image digest as the `deployed-image-digest` workflow artifact. There is no approval-gate concept built in — configure a required reviewer on the GitHub Environment (`<environment>-<cluster>`) if you want a manual sign-off before deploy.
+Trigger it via **Actions → DPN CD - Certificate Manager → Run workflow**. The workflow runs **Applied Parameters** (rejects `imageTag`/`imageRepository` values with leading/trailing whitespace) → **Checkout Repository** → **Read Deployment Config** → **Cloud Login** → **Verify Cluster Access** → **Fetch Vault AppRole Role ID (AWS)** (reads `dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID` from Secrets Manager and passes it as `--set vault.appRole.roleId`) → **Check tls-auth-secret Exists** (fails fast with "run `dpn-gha-tls-cd` against this environment first" if the `tls-auth-secret` Kubernetes secret is missing from the namespace, instead of a later `CreateContainerConfigError`) → `helm lint` + dry-run → `helm upgrade --install dpn-certificate-manager charts/certificate-manager`, followed by a rolling restart (`kubectl rollout restart deployment/dpn-certificate-manager`) and a rollout status check. It then captures the deployed image digest as the `deployed-image-digest` workflow artifact. There is no approval-gate concept built in — configure a required reviewer on the GitHub Environment (`<environment>-<cluster>`) if you want a manual sign-off before deploy.
 
 > **No `--wait`/`--timeout` on `helm upgrade` for this path.** Long-lived watches against the EKS API from the self-hosted runner were unreliable and timed out even when the rollout had actually completed on the cluster. The Helm Deploy and rolling-restart steps instead fire the command without waiting, then poll `kubectl rollout status --timeout=60s` up to five times with a short pause between attempts — a deploy that reports failure after all five attempts prints diagnostic `kubectl describe`/PVC/`SecretProviderClass`/events output before failing the job.
 

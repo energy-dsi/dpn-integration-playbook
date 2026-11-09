@@ -1,5 +1,3 @@
-Release : 2.1.0 - Oct 2026
-
 # DPN Federator Gateway Configuration
 
 This section describes how to configure and deploy the **DPN Federator Gateway** (Server and Client, plus their supporting services) into a single target environment and a single DPN cluster on Amazon Elastic Kubernetes Service (EKS). The Federator Gateway handles all secure communication between DPN node and other DPN nodes or the DSI DSM — sending and receiving data only to and from trusted parties over mutual TLS (mTLS).
@@ -63,7 +61,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 
 Federator Server and Client use **separate S3 buckets**. The Federator Client uses the **File Scan Service *source* bucket** (where scanned inbound files are deposited). Configure the Client's storage endpoint/credentials to point at the File Scan Service source bucket — not the Server's bucket.
 
-The Server's bucket is used to keep the data product files created by the organisation per data product pipeline.
+The Server's bucket is used to keep the data product files created by the organisation per data product pipeline. Create both buckets before deploying: the Client's is the File Scan inbound bucket, created with the commands in [Configure DPN File Scan Service, Step2](08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty). For the Server's bucket use the same `create_bucket` helper shown there.
 
 ---
 
@@ -135,6 +133,8 @@ dpn-federator-gateway/
 | `federatorServer.idp.clientId` | Client ID received from DSM for this DPN node | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | `federatorServer.idp.jwksUrl` | JWKS endpoint for verifying identity tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/certs` |
 | `federatorServer.idp.tokenUrl` | Token endpoint for access tokens | `https://auth-mtls.dsm01.dsiXXX.neso.energy/realms/management-node/protocol/openid-connect/token` |
+| `federatorServer.idp.authMode` / `.jwtAlgorithm` / `.jwtKeyAlias` | How the Server authenticates to the Management Node IdP. AWS values use `private_key_jwt`, signed with the `federator` key held in Vault (`vaultConfig.tlsBasePath` / `tlsKeystoreAlias`) | `private_key_jwt` / `RS256` / `federator` |
+| `federatorServer.redis.tlsEnabled` / `.truststorePath` | The chart's Redis only serves TLS (`--port 0 --tls-port 6379`), so the Server must connect over TLS. Point the truststore at the `dpn-tls` truststore mounted at `/etc/secrets` — the chart default `/tls/truststore.p12` does not exist when `vaultConfig.mountCertFileShare` is `false` | `true` / `/etc/secrets/truststore.jks` |
 | `federatorServer.service.internalLoadBalancer` | Whether the Server's NLB is internal-only. The Server's is commonly set to `"false"` (**internet-facing**) so external DPN nodes can reach it — unlike the Client, which stays internal | `"false"` |
 | `federatorServer.service.eipAllocationId` | Elastic IP allocation(s) to pin to the Server's external NLB, **comma-separated** — an NLB takes one EIP per subnet/AZ, not one shared EIP, so a two-AZ deployment needs two allocation IDs here | `eipalloc-xxxxxxxx,eipalloc-yyyyyyyy` (leave unset for dynamically-assigned addresses) |
 
@@ -150,8 +150,12 @@ dpn-federator-gateway/
 | `federatorClient.config.targetTopic` | Target topic for received data | `dp-consumer-topic-stage` |
 | `federatorClient.idp.clientId` | Client ID received from DSM | `xxxxxxxx-xxxx-xxxx-xxxx-000000000000` |
 | `federatorClient.idp.jwksUrl` / `tokenUrl` | IDP endpoints and grant mode (as Server) | `https://auth-mtls.dsm01.dsiXXX.neso.energy/...` / |
+| `federatorClient.idp.authMode` / `.jwtKeyAlias` | Same `private_key_jwt` / `federator` settings as the Server. `idp.clientId` must be the same value on Server and Client | `private_key_jwt` / `federator` |
+| `federatorClient.redis.tlsEnabled` / `.truststorePath` | As for the Server — Redis is TLS-only, and the truststore is the `dpn-tls` truststore at `/etc/secrets` | `true` / `/etc/secrets/truststore.jks` |
+| `federatorClient.config.topicPrefix` | Prefix for the topics the Client creates for received data | `federated-client1` |
+| `federatorClient.nginxSidecar.enabled` | Run the nginx sidecar in front of the JobRunr dashboard. Requires `federatorClient.auth.enabled: true` | `true` |
 | `federatorClient.storage.provider` | `S3` on this path | `S3` — important to set based on cloud provider; this parameter decides which storage provider is invoked |
-| `federatorClient.storage.aws.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) — note the key is `storage.aws.bucket`, **not** `storage.s3.bucket` | `dp-consumer-raw` |
+| `federatorClient.storage.aws.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) — note the key is `storage.aws.bucket`, **not** `storage.s3.bucket` | `dp-consumer-raw-<environment>-<cluster-no>-<account-id>-<region>` (the bucket must already exist; create it as in [Configure DPN File Scan Service, Step2](08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty)) |
 | `federatorClient.storage.aws.region` | Region of the Client's S3 bucket | `<AWS_REGION>` |
 
 **JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
@@ -175,13 +179,15 @@ dpn-federator-gateway/
 | `kafkaUI.oauth.clientId` | OIDC client ID Kafka UI itself authenticates with (separate from `kafkaUI.oidcRbac`, below) | as received from DSM/Keycloak |
 | `kafkaUI.tls.enabled` | Terminate HTTPS on Kafka UI's own listener, reusing the same `dpn-tls` keystore Kafka brokers and Redis already use. **Off by default** — only enable it in an environment where nothing else (e.g. an `oauth2-proxy`) depends on this listener staying plain HTTP, since Kafka UI drops its HTTP listener entirely once TLS is on | `false` |
 
+> **No separate Kafka OAuth secret is created.** With `sasl_ssl`, the brokers read the OAuth client secret from `dpn-keycloak-secrets`, key `KC_SERVICE_CLIENT_SECRET` (injected as `KAFKA_OAUTH_CLIENT_SECRET`) — the Kubernetes secret created by the DPN Authentication Service deployment, so that deployment must run first. The brokers' `OAUTHBEARER` settings (`KAFKA_SASL_OAUTHBEARER_*` token/JWKS/issuer/audience variables) appear in the pod environment only when `kafka.authMode` is `sasl_ssl`; the chart default is `plaintext`, so confirm the AWS values file sets it.
+
 > Switching `kafka.authMode` is a single value that reconfigures all broker listeners simultaneously — there is no need to change Kafka Source and Kafka Target separately. See [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md) to deploy the Keycloak instance and realm this depends on.
 
 > **OpenTelemetry export.** `otel.tls.enabled` (default `true`) drives both the Federator Server/Client's OTLP exporter endpoint scheme and whether the OTel Collector truststore env vars are set at all — see [Configure DPN Health Monitoring Service](03-configure-dpn-health-monitoring-service.md) if your Collector's OTLP receiver terminates TLS (the default). `otel.collector.host` / `otel.collector.port` point at the Collector Service.
 
 ### Step3e: Configure AWS ServiceAccount (IRSA)
 
-A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Target, the Federator Server, and the Federator Client, provides IAM Roles for Service Accounts (IRSA) credentials to the AWS Secrets Store CSI driver.
+A single `ServiceAccount`, shared by Kafka Source/Target, Zookeeper Source/Target, the Federator Server, and the Federator Client, provides IAM Roles for Service Accounts (IRSA) credentials — to the AWS Secrets Store CSI driver and, for the Federator Client, to the AWS SDK for S3 access (the Client's S3 credentials come from this role, not from a stored secret).
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
@@ -259,7 +265,7 @@ Create this role manually, once per account/cluster. Reference policy files are 
    }
    ```
 
-   `<application-bucket>` is the Server's bucket and `<data-bucket>` is `federatorClient.storage.aws.bucket`. The final `arn:aws:s3:::*` statement lets the Client write to whichever data-product buckets the consumer chooses; narrow it to the specific bucket ARNs if your organisation's policy requires.
+   `<application-bucket>` is the Server's application bucket and `<data-bucket>` is the bucket named in `federatorClient.storage.aws.bucket` (for example `dp-consumer-raw-<environment>-<cluster-no>-<account-id>-<region>`; if your `-data` bucket is a different bucket, the final statement is what covers the Client's configured bucket). Both buckets must exist before the first deployment. The final `arn:aws:s3:::*` statement lets the Client write to whichever data-product buckets the consumer chooses; narrow it to the specific bucket ARNs if your organisation's policy requires. The role grants only `GetObject`, `PutObject` and `ListBucket` — there is deliberately no `DeleteObject`, so the Client cannot delete objects.
 
 3. Create the role and attach the policy, then set the role ARN as `serviceAccount.irsaRoleArn`:
 

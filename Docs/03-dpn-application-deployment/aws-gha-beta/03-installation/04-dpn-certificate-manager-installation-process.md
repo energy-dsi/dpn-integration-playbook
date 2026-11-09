@@ -53,7 +53,7 @@ Confirm the prerequisites before starting — see [Configure DPN Certificate Man
 In summary the following prerequisites must be met.
 
 - Vault deployed/initialised/loaded with bootstrap certificate
-- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yaml`)
+- `cert-manager-truststore` and `tls-auth-secret` secrets present (both created by `dpn-gha-tls-cd.yml`)
 - Vault credentials ready — an AppRole identity from `dpn-gha-certificate-manager-role-id-creation.yaml` (`component: certificate-manager`), whose `role_id`/`secret_id` are in Secrets Manager under `dpn/<environment>-<cluster>/certificate-manager/`, plus `VAULT_TOKEN` under the same prefix. On AWS the CD workflow fails if `VAULT_APPROLE_ROLE_ID` is missing
 - Health monitoring service is running state and OTEL Collector healthy
 - IDP client ID received from DSM
@@ -107,7 +107,7 @@ Go to **Actions → DPN CD - Certificate Manager → Run workflow**, and supply:
 | `imageTag` | The image tag pushed in Step2a |
 | `imageRepository` | Optional — overrides `image.repository` for this run only (path after `ghcr.io/energy-dsi/`) — leave blank to use the environment's configured repository |
 
-Before deploying, the workflow reads the Certificate Manager's AppRole `role_id` from Secrets Manager (`dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID`) and passes it to Helm as `--set vault.appRole.roleId`. On success, the deployed image digest is captured as the `deployed-image-digest` workflow artifact.
+Before deploying, the workflow reads the Certificate Manager's AppRole `role_id` from Secrets Manager (`dpn/<environment>-<cluster>/certificate-manager/VAULT_APPROLE_ROLE_ID`) and passes it to Helm as `--set vault.appRole.roleId`. It then checks that the `tls-auth-secret` Kubernetes secret exists in the namespace and stops with a clear error if it does not (run `dpn-gha-tls-cd.yml` first). On success, the deployed image digest is captured as the `deployed-image-digest` workflow artifact.
 
 > **No `--wait`/`--timeout` on `helm upgrade` for this path.** Long-lived watches against the EKS API from the self-hosted runner were unreliable and timed out even when the rollout had actually completed. The Deploy and rolling-restart steps instead fire the Helm/kubectl command without waiting, then poll `kubectl rollout status --timeout=60s` up to five times with a short pause between attempts, printing `kubectl describe`/PVC/`SecretProviderClass`/namespace-events diagnostics if all five attempts fail.
 
@@ -159,7 +159,7 @@ Sometimes the certificate entries in the management-node could get out of sync w
 
 ### Pod Fails to Trust Vault's HTTPS Endpoint (`VAULT_SSL_TRUST_STORE_PASSWORD` missing)
 
-The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yaml` creates. It no longer comes from the `SecretProviderClass`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
+The app reads the truststore password as `VAULT_SSL_TRUST_STORE_PASSWORD` — not `SPRING_CLOUD_VAULT_SSL_TRUST_STORE_PASSWORD`. The Deployment sets it (and `OTEL_TRUSTSTORE_PASSWORD`) directly from the `tls-auth-secret` Kubernetes secret, key `TRUSTSTORE_PASSWORD`, which `dpn-gha-tls-cd.yml` creates. It no longer comes from the `SecretProviderClass`. If Vault TLS handshakes fail at startup, confirm `tls-auth-secret` exists in the namespace and that its password matches the `cert-manager-truststore` it was created with:
 
 ```bash
 kubectl get secret tls-auth-secret -n <namespace> -o jsonpath='{.data.TRUSTSTORE_PASSWORD}' | base64 -d

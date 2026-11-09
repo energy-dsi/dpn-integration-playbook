@@ -165,7 +165,12 @@ The AWS Secrets Manager names the workflows use are not config JSON keys — the
 
 The `vault-https` chart's `SecretProviderClass` reads the Vault TLS certificate/key from AWS Secrets Manager (`secretsManager.secretPrefix`, see [Step 2c](#step-2c-vault-helm-values)) via the pod's own IAM identity. This uses the **same IRSA role** as the KMS auto-unseal role in [Appendix — AWS KMS auto-unseal configuration](#appendix--aws-kms-auto-unseal-configuration) — a ServiceAccount can only be annotated with one role ARN, so create one role (`dpn-vault-kms-unseal-role`) and attach **both** the KMS and Secrets Manager permissions to it rather than creating a second role.
 
-> The Certificate Manager (`dpn-certificate-manager` ServiceAccount) reuses this same role — see [Configure DPN Certificate Manager — IAM role](04-configure-dpn-certificate-manager.md#iam-role-for-the-certificate-manager-serviceaccount) for the extra trust-policy subject and secrets path it needs.
+>The following ServiceAccounts typically use the `dpn-vault-kms-unseal-role` IAM role through IRSA:
+
+| ServiceAccount | Namespace | Purpose |
+|---------------|-----------|---------|
+| `dpn-vault` | `ns-dpn-01` | Vault auto-unseal using AWS KMS and retrieval of Vault TLS secrets from AWS Secrets Manager |
+| `dpn-certificate-manager` | `ns-dpn-01` | Access to Vault bootstrap and AppRole credentials stored in AWS Secrets Manager | — see [Configure DPN Certificate Manager — IAM role](04-configure-dpn-certificate-manager.md#iam-role-for-the-certificate-manager-serviceaccount) for the extra trust-policy subject and secrets path it needs.
 
 1. Create the trust policy (`trust-policy.json`), substituting your account ID, region, OIDC provider ID, namespace and ServiceAccount names:
 
@@ -237,9 +242,9 @@ Set the values below in your environment/cluster's values file. DSI proposes onl
 ```text
 root/
   └── charts/
-        └── vault-https/  
+        └── vault-https/
           └── values/
-              └── aws/          
+              └── aws/
                  └──<environment>-<cluster>.yaml <- Your environment overrides
 ```
 
@@ -283,7 +288,7 @@ Trigger **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → 
 | `cloud` | `aws` (default) |
 | `environment` | `dev` / `test` |
 | `cluster` | `dpn01` / `dpn02` |
-| `targetNamespace` | Namespace for `dpn-tls` + `fed-gateway-tls` — `ns-dpn-01` (default) / `ns-dpn-health-01` |
+| `targetNamespace` | Namespace for `dpn-tls` + `fed-gateway-tls` — `ns-dpn-01` (default) / `ns-dpn-health-01` / `ns-dpn-dp-01`. Run it once per namespace that needs its own copy; `ns-dpn-dp-01` is the data pipeline namespace |
 | `country` | Certificate subject Country (C) — default `GB` |
 | `org` | Certificate subject Organisation (O) — default `DSI` |
 | `storePasswordsInSecretsBackend` | Also store the cert/store passwords in Secrets Manager — default `true` |
@@ -364,7 +369,7 @@ The workflow runs: **Validate Bundle Secrets** → **Cloud Login** → **EKS Con
 
 The Vault root token is a single, all-privileges credential — every component that needs it (Certificate Manager, Federator Gateway) ends up holding full access to Vault. **AppRole** is the recommended alternative: each component authenticates with its own scoped identity (a `role_id` plus a `secret_id`) and receives a short-lived, auto-renewed token restricted to that component's own policy.
 
-> **One workflow per component repository.** `dpn-gha-certificate-manager-role-id-creation.yaml` (**DPN CD - Certificate Manager Role ID Creation (Vault AppRole Setup)**) in the `dpn-federator-certificate-manager` repository provisions a scoped AppRole identity for the Certificate Manager only — its `component` input has a single option, `certificate-manager` (see [Configure DPN Certificate Manager, Step2](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication) for the Certificate Manager's values). The REST Federator has its own `dpn-gha-rest-federator-role-id-creation.yaml` (**DPN CD - REST Federator Role ID Creation (AWS Vault AppRole Setup)**) in the `dpn-rest-federator-gateway` repository. The `dpn-federator-gateway` repository carries its own copy of `dpn-gha-certificate-manager-role-id-creation.yaml` whose only `component` option is `federator-gateway` (stored under `.../federator/...`) — see [Configure DPN Federator Gateway](05-configure-dpn-federator-gateway.md).
+> **One workflow per component repository.** `dpn-gha-certificate-manager-role-id-creation.yaml` (**DPN CD - Certificate Manager Role ID Creation (Vault AppRole Setup)**) in the `dpn-federator-certificate-manager` repository provisions a scoped AppRole identity for the Certificate Manager only — its `component` input has a single option, `certificate-manager` (see [Configure DPN Certificate Manager, Step2](04-configure-dpn-certificate-manager.md#step2-configure-vault-authentication) for the Certificate Manager's values). The REST Federator has no AppRole workflow: its `rest-federator` AppRole is provisioned separately (see [Configure DPN REST Federator Gateway, Step3b](06-configure-dpn-rest-federator-gateway.md#provision-the-approle-aws-before-first-deploy)). The `dpn-federator-gateway` repository carries its own copy of `dpn-gha-certificate-manager-role-id-creation.yaml` whose only `component` option is `federator-gateway` (stored under `.../federator/...`) — see [Configure DPN Federator Gateway](05-configure-dpn-federator-gateway.md).
 >
 > That said, Vault token authentication is **not** the only option available today: the Federator Gateway's real AWS environment already runs on AppRole by **pointing `vaultConfig.appRole.roleId` directly at the Certificate Manager's own `role_id`** and reusing its `secret_id` — no dedicated provisioning workflow needed, since the identity already exists. This shares one component's scoped credential with another rather than giving the Federator Gateway its own least-privilege policy, so treat it as a pragmatic stopgap rather than the end-state design below — but it works, and is what's actually deployed. See [Configure DPN Federator Gateway, Step1](05-configure-dpn-federator-gateway.md#step1-meet-prerequisites).
 

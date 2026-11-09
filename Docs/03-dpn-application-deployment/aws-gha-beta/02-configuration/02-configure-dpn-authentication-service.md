@@ -12,6 +12,7 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 
 - [Overview](#overview)
 - [Step1: Meet the Prerequisites](#step1-meet-the-prerequisites)
+  - [Verify the Prerequisites Before Deploying](#verify-the-prerequisites-before-deploying)
 - [Step2: Configure Secrets](#step2-configure-secrets)
   - [Option A — AWS Secrets Manager (`secretsManager.enabled: true`)](#option-a--aws-secrets-manager-secretsmanagerenabled-true)
   - [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa)
@@ -25,17 +26,17 @@ This section describes how to configure and deploy the **DPN Authentication Serv
 
 ## Overview
 
-Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false` — there is no plaintext listener), reachable in-cluster and through a `LoadBalancer` Service intended to be an internal AWS Network Load Balancer (NLB) — but see the Service caution below: the chart does not yet render the AWS internal-LB annotation. It runs as a **StatefulSet** (each replica gets its own PersistentVolumeClaim, see [Step4a](#step4a-horizontal-pod-autoscaling-optional)) and is bundled with its own PostgreSQL instance on a persistent volume.
+Keycloak is deployed into `ns-dpn-01` over **standard one-way HTTPS** (`KC_HTTPS_CLIENT_AUTH=none`, `KC_HTTP_ENABLED=false` — there is no plaintext listener), reachable in-cluster and through a `LoadBalancer` Service an internal AWS Network Load Balancer (NLB) — when `cloudProvider: aws`, the chart renders the AWS internal-NLB annotations on that Service (see the note below). It runs as a **StatefulSet** (each replica gets its own PersistentVolumeClaim, see [Step4a](#step4a-horizontal-pod-autoscaling-optional)) and is bundled with its own PostgreSQL instance on a persistent volume.
 
 | | |
 |---|---|
 | In-cluster URL | `https://dpn-keycloak.<namespace>.svc.cluster.local:8443` |
-| External access | `dpn-keycloak-service-lb` (`LoadBalancer` Service). **Not guaranteed internal on EKS** — the chart only renders the Azure internal-LB annotation (see the caution below) |
+| External access | `dpn-keycloak-service-lb` (`LoadBalancer` Service). With `cloudProvider: aws` the chart renders `aws-load-balancer-type: "external"`, `aws-load-balancer-nlb-target-type: "ip"` and `aws-load-balancer-scheme: "internal"`, giving an internal NLB (needs the AWS Load Balancer Controller) |
 | Database | Bundled PostgreSQL (`dpn-keycloak-postgres`) — can be pointed at a managed database instead (see [Step4](#step4-environment-configuration)) |
 | Secrets | **native AWS Secrets Manager** via the Secrets Store CSI driver (DB/admin passwords and the service-client secret), plus the shared `tls-auth-secret` Kubernetes secret (keystore/truststore passwords). Selected by `cloudProvider` in the values file; see [Step2](#step2-configure-secrets) |
 | Cloud provider | `cloudProvider: aws` **must be set explicitly** in the environment values file (every provided `charts/keycloak/values/aws/*.yaml` file sets it) |
 
-> **The secrets path is cloud-aware; the Service is not.** In the current `dpn-authentication-service` source, `templates/secretproviderclass.yaml` branches on `cloudProvider`: `aws` renders a `provider: aws` `SecretProviderClass` reading the Secrets Manager entries under `secretsManager.secretPrefix`; anything else (the chart default is `azure`) renders the Key Vault one. `templates/keycloak-service.yaml` does **not** read `cloudProvider`: while `service.loadBalancer.enabled` is `true` (the chart default, and set in the provided AWS values files) it always renders the Azure-only `service.beta.kubernetes.io/azure-load-balancer-internal: "true"` annotation on `dpn-keycloak-service-lb`. AWS ignores that annotation, and no value lets you add AWS ones, so the load balancer may not be internal. Run `helm template` against your values file and check the rendered Service before the first EKS deploy. If it carries no AWS internal-LB annotation, either set `service.loadBalancer.enabled: false` (in-cluster consumers use the `ClusterIP` Service `dpn-keycloak`) or annotate the Service yourself — see [Internal Load Balancer Is Not Actually Internal](../03-installation/02-dpn-authentication-service-installation-process.md#internal-load-balancer-is-not-actually-internal).
+> **Both the secrets path and the Service are cloud-aware.** In the current `dpn-authentication-service` source, `templates/secretproviderclass.yaml` branches on `cloudProvider`: `aws` renders a `provider: aws` `SecretProviderClass` reading the Secrets Manager entries under `secretsManager.secretPrefix`; anything else (the chart default is `azure`) renders the Key Vault one. `templates/keycloak-service.yaml` also reads `cloudProvider`: while `service.loadBalancer.enabled` is `true` (the chart default, and set in the provided AWS values files) and `cloudProvider: aws`, it renders `service.beta.kubernetes.io/aws-load-balancer-type: "external"`, `aws-load-balancer-nlb-target-type: "ip"` and `aws-load-balancer-scheme: "internal"` on `dpn-keycloak-service-lb`; any other value renders the Azure `azure-load-balancer-internal` annotation instead. These annotations need the AWS Load Balancer Controller in the cluster. If you do not want a load balancer, set `service.loadBalancer.enabled: false` (in-cluster consumers use the `ClusterIP` Service `dpn-keycloak`). To check the result, run `helm template` against your values file or inspect the deployed Service — see [Internal Load Balancer Is Not Actually Internal](../03-installation/02-dpn-authentication-service-installation-process.md#internal-load-balancer-is-not-actually-internal).
 
 Consuming components resolve tokens against a realm on this Keycloak instance, for example the Federator Gateway's Kafka brokers when `kafka.authMode: sasl_ssl` (see [Configure DPN Federator Gateway, Step3c](05-configure-dpn-federator-gateway.md#step3c-configure-kafka-security)).
 
@@ -46,12 +47,64 @@ Consuming components resolve tokens against a realm on this Keycloak instance, f
 | # | Prerequisite | Notes |
 |---|--------------|-------|
 | 1 | **EKS cluster** and an IRSA-annotated ServiceAccount for AWS Secrets Manager | Needed for the Secrets Store CSI driver to pull the secrets in [Step2](#step2-configure-secrets). The IAM role (`dpn-keycloak-secrets-role` in the provided values files) is **not** created by `dpn-gha-keycloak-cd.yaml` — it must already exist and be able to read the entries under `secretsManager.secretPrefix`. See [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa) for the permission and trust policies |
-| 2 | **`dpn-tls` and `tls-auth-secret` Kubernetes secrets present in the namespace** | `dpn-tls` is an `Opaque` secret holding `ca.crt`/`keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret); `tls-auth-secret` holds the matching `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`. Both are created by the **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** workflow (`dpn-gha-tls-cd.yaml`, in `dpn-federator-certificate-manager`) before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
+| 2 | **`dpn-tls` and `tls-auth-secret` Kubernetes secrets present in the namespace** | `dpn-tls` is an `Opaque` secret holding `ca.crt`/`keystore.jks`/`truststore.jks` (Java keystores, **not** a `kubernetes.io/tls` secret); `tls-auth-secret` holds the matching `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`. Both are created by the **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** workflow (`dpn-gha-tls-cd.yml`, in `dpn-federator-certificate-manager`) before Keycloak is deployed. See [Step3: Configure TLS](#step3-configure-tls) |
 | 3 | **Three secrets populated in AWS Secrets Manager** | See [Step2: Configure Secrets](#step2-configure-secrets) |
 | 4 | **Container image available** | Stock upstream Keycloak/PostgreSQL pulled via GHCR (`ghcr.io/energy-dsi/keycloak`, `ghcr.io/energy-dsi/postgres`); repository pinned in the environment values file, tag defaulting to the chart's `values.yaml`. The CD workflow's optional `keycloakImageRepository`/`keycloakImageTag`/`postgresImageRepository`/`postgresImageTag` inputs override these per run |
 | 5 | **Config JSON and values file populated for the `<environment>-<cluster>` combination, with `cloudProvider: aws` set** | See [Step4: Environment Configuration](#step4-environment-configuration) |
 
 > **One-time setup:** create the target namespace (`kubectl create namespace <namespace>`) and complete [GitHub Actions Configuration](00-common-dpn-configuration.md#step2-github-actions-configuration) before running the CD workflow — it does not create the namespace for you.
+
+### Verify the Prerequisites Before Deploying
+
+`dpn-gha-keycloak-cd.yaml` does not run a preflight on `cloud: aws`, so confirm each item below before triggering it. Replace `<environment>`, `<cluster>`, `<region>` and `<account-id>` with your values; the namespace is `ns-dpn-01` and the ServiceAccount is `dpn-keycloak` (the Helm release name, when `serviceAccount.name` is empty).
+
+**1. Required Secrets Manager secrets** — all three must exist under `dpn/<environment>-<cluster>/keycloak/`:
+
+```bash
+for s in KC_DB_PASSWORD KEYCLOAK_ADMIN_PASSWORD KC_SERVICE_CLIENT_SECRET; do
+  aws secretsmanager describe-secret \
+    --secret-id "dpn/<environment>-<cluster>/keycloak/$s" \
+    --region <region> --query Name --output text
+done
+```
+
+Each call must print the secret name. `ResourceNotFoundException` means the secret is missing — create it as described in [Step2](#step2-configure-secrets).
+
+**2. ServiceAccount and IRSA** — the IAM role exists, and the ServiceAccount carries its ARN once the chart is deployed:
+
+```bash
+# IAM role exists and its trust policy names the Keycloak ServiceAccount
+aws iam get-role --role-name dpn-keycloak-secrets-role \
+  --query 'Role.AssumeRolePolicyDocument.Statement[0].Condition.StringEquals' --output json
+
+# After a deploy: the ServiceAccount is annotated with the role ARN
+kubectl get serviceaccount dpn-keycloak -n ns-dpn-01 \
+  -o jsonpath='{.metadata.annotations.eks\.amazonaws\.com/role-arn}'
+```
+
+The trust policy's `:sub` must be `system:serviceaccount:ns-dpn-01:dpn-keycloak`, and the annotation must be `arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` (the same ARN as `serviceAccount.annotations` in the values file).
+
+**3. `ghcr-pull-secret`** — must exist in the namespace and be a docker-registry secret (`imagePullSecret: ghcr-pull-secret` in the values file):
+
+```bash
+kubectl get secret ghcr-pull-secret -n ns-dpn-01 -o jsonpath='{.type}'
+```
+
+Expected output: `kubernetes.io/dockerconfigjson`. `NotFound` means pods will fail with `ImagePullBackOff` — create it with a GitHub PAT that has `read:packages`:
+
+```bash
+kubectl create secret docker-registry ghcr-pull-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<github-username-or-bot-account> \
+  --docker-password=<GitHub PAT with read:packages scope> \
+  -n ns-dpn-01
+```
+
+**4. TLS secrets** — `dpn-tls` and `tls-auth-secret` exist (see prerequisite 2 above):
+
+```bash
+kubectl get secret dpn-tls tls-auth-secret -n ns-dpn-01
+```
 
 ---
 
@@ -71,7 +124,7 @@ Native AWS backend — no cross-cloud Key Vault dependency. Requires `serviceAcc
 
 Example `secretPrefix`: `dpn/<environment>-<cluster>/keycloak`. None of these three is created by a workflow — set them manually.
 
-> **Keystore/truststore passwords no longer come from the SecretProviderClass.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read from the shared `tls-auth-secret` Kubernetes secret (keys `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) created by `dpn-gha-tls-cd.yaml`. That workflow also publishes `keycloak/KC_HTTPS_KEY_STORE_PASSWORD`, `keycloak/KC_HTTPS_TRUST_STORE_PASSWORD` and `keycloak/KC_SPI_TRUSTSTORE_FILE_PASSWORD` under `dpn/<environment>-<cluster>/` in Secrets Manager (when `storePasswordsInSecretsBackend: true`), but the Keycloak chart does not mount them.
+> **Keystore/truststore passwords no longer come from the SecretProviderClass.** `KC_HTTPS_KEY_STORE_PASSWORD`/`KC_HTTPS_TRUST_STORE_PASSWORD` are read from the shared `tls-auth-secret` Kubernetes secret (keys `KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) created by `dpn-gha-tls-cd.yml`. That workflow also publishes `keycloak/KC_HTTPS_KEY_STORE_PASSWORD`, `keycloak/KC_HTTPS_TRUST_STORE_PASSWORD` and `keycloak/KC_SPI_TRUSTSTORE_FILE_PASSWORD` under `dpn/<environment>-<cluster>/` in Secrets Manager (when `storePasswordsInSecretsBackend: true`), but the Keycloak chart does not mount them.
 
 > **PostgreSQL first-install ordering.** The superuser password is read from the CSI-mounted file (`POSTGRES_PASSWORD_FILE`) rather than the synced Kubernetes secret directly, because the CSI driver only creates that secret once a pod has actually mounted the `SecretProviderClass` — reading the file avoids a chicken-and-egg failure on the very first deploy. This applies to either secrets backend.
 
@@ -148,8 +201,8 @@ serviceAccount:
 
 Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted read-only at `/cert`) rather than from Vault or the Certificate Manager — this is a platform/ingress-style certificate, not the DPN's DSM-signed federation certificate.
 
-1. Create `dpn-tls` (and `tls-auth-secret`) in the target namespace by running **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → Run workflow** (`dpn-gha-tls-cd.yaml`) with `cloud: aws`, your `environment`/`cluster`, and `targetNamespace: ns-dpn-01`. It generates one DPN root CA and a common server certificate (`.github/config/scripts/create-dpn-tls.sh`) and creates `dpn-tls` as an `Opaque` secret with `ca.crt`, `keystore.jks` and `truststore.jks`. The keystore/truststore/client-p12 passwords come from the `DPN_TLS_KEYSTORE_PASSWORD`, `DPN_TLS_TRUSTSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` GitHub secrets.
-2. Find the alias of the server key inside `keystore.jks` (for a keystore generated by `dpn-gha-tls-cd.yaml` it is `dpn-server`):
+1. Create `dpn-tls` (and `tls-auth-secret`) in the target namespace by running **Actions → DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1 → Run workflow** (`dpn-gha-tls-cd.yml`) with `cloud: aws`, your `environment`/`cluster`, and `targetNamespace: ns-dpn-01`. It generates one DPN root CA and a common server certificate (`.github/config/scripts/create-dpn-tls.sh`) and creates `dpn-tls` as an `Opaque` secret with `ca.crt`, `keystore.jks` and `truststore.jks`. The keystore/truststore/client-p12 passwords come from the `DPN_TLS_KEYSTORE_PASSWORD`, `DPN_TLS_TRUSTSTORE_PASSWORD` and `DPN_TLS_CLIENT_P12_PASSWORD` GitHub secrets.
+2. Find the alias of the server key inside `keystore.jks` (for a keystore generated by `dpn-gha-tls-cd.yml` it is `dpn-server`):
 
    ```sh
    kubectl get secret dpn-tls -n <namespace> \
@@ -161,7 +214,7 @@ Keycloak reads its certificate from the pre-existing `dpn-tls` secret (mounted r
    ```
 
 3. Set `config.KC_HTTPS_KEY_ALIAS` to that alias in the environment values file — Keycloak aborts at startup if the alias does not exist.
-4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. The certificate generated by `dpn-gha-tls-cd.yaml` carries wildcard SANs `*.ns-dpn-01.svc.cluster.local`, `*.ns-dpn-health-01.svc.cluster.local` and `*.ns-dpn-dp-01.svc.cluster.local`, so the in-cluster Service name is covered. The chart default is `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443`; the provided AWS values files pin `dpn-keycloak.<namespace>.svc.cluster.local`.
+4. Set `config.KC_HOSTNAME` to a DNS name the certificate's SANs actually cover. The certificate generated by `dpn-gha-tls-cd.yml` carries wildcard SANs `*.ns-dpn-01.svc.cluster.local`, `*.ns-dpn-health-01.svc.cluster.local` and `*.ns-dpn-dp-01.svc.cluster.local`, so the in-cluster Service name is covered. The chart default is `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443`; the provided AWS values files pin `dpn-keycloak.<namespace>.svc.cluster.local`.
 
    > **Pin `KC_HOSTNAME` rather than leaving it empty when a browser-facing consumer is involved.** With `KC_HOSTNAME` left dynamic, Keycloak derives its OIDC issuer/redirect URLs from whichever `Host` header the request arrived on — including internal server-to-server calls, which arrive on the in-cluster `svc.cluster.local` name. That hostname can then leak into a browser-facing authorize redirect (seen as `DNS_PROBE_FINISHED_NXDOMAIN` for browser-facing consumers). The provided AWS values files pin `KC_HOSTNAME` to Keycloak's stable internal Service DNS name (`dpn-keycloak.<namespace>.svc.cluster.local`) rather than the raw NLB hostname, which changes on every redeploy, and keep `KC_HOSTNAME_STRICT: "false"` so in-cluster callers still work. Browsers must therefore be able to resolve `*.svc.cluster.local` from outside the cluster (Route 53 Resolver / VPC DNS forwarding).
 
@@ -177,17 +230,17 @@ root/
   └── charts/
         └── keycloak/
           └── values/
-              └── aws/           
+              └── aws/
                 └── <environment>-<cluster>.yaml <- Your environment + cluster overrides
 ```
 
 | Parameter | Purpose | Example (placeholder) |
 |-----------|---------|-----------------------|
-| `cloudProvider` | **Set to `aws`.** Set in every provided AWS values file; the chart's base `values.yaml` defaults it to `azure`, so it must be overridden. `templates/secretproviderclass.yaml` reads it, `templates/keycloak-service.yaml` does not (see the note in [Overview](#overview)) | `aws` |
+| `cloudProvider` | **Set to `aws`.** Set in every provided AWS values file; the chart's base `values.yaml` defaults it to `azure`, so it must be overridden. `templates/secretproviderclass.yaml` and `templates/keycloak-service.yaml` both read it (see the note in [Overview](#overview)) | `aws` |
 | `config.KC_HOSTNAME` | Hostname Keycloak advertises — must match the certificate SANs | `dpn-keycloak.<namespace>.svc.cluster.local` |
 | `config.KC_HOSTNAME_STRICT` | Whether Keycloak rejects requests whose `Host` header doesn't match `KC_HOSTNAME` (chart default `"true"`). The provided AWS values files set `"false"` so in-cluster callers on other addresses still work | `"false"` |
 | `config.KC_HTTPS_KEY_ALIAS` | Alias of the server key inside `keystore.jks` | *(from Step3)* |
-| `service.loadBalancer.loadBalancerIP` | Static IP for Keycloak's LoadBalancer Service, rendered as the Azure `azure-load-balancer-ipv4` annotation plus `spec.loadBalancerIP`. The provided AWS values files leave it unset — leave it empty on EKS | `""` |
+| `service.loadBalancer.loadBalancerIP` | Static IP for Keycloak's LoadBalancer Service, rendered as the Azure `azure-load-balancer-ipv4` annotation plus `spec.loadBalancerIP`. Ignored when `cloudProvider: aws` (neither is rendered). The provided AWS values files set it to `""` — leave it empty on EKS | `""` |
 | `keyvault.name` / `keyvault.clientID` / `keyvault.tenantId` | AKV name, identity client ID, tenant ID read by `templates/secretproviderclass.yaml`. Not set in the provided AWS values files | `kv-dpn-<env>-<region>-<seq>` / `<client-id>` / `<tenant-id>` |
 | `secretsManager.secretPrefix` (and `secretsManager.enabled`) | Prefix of the Secrets Manager entries. The backend is chosen by `cloudProvider: aws`; the Keycloak templates read only `secretPrefix`, and the provided AWS values files also set `enabled: true` (see [Step2, Option A](#option-a--aws-secrets-manager-secretsmanagerenabled-true)) | `true` / `dpn/<env>-<cluster>/keycloak` |
 | `serviceAccount.create` / `serviceAccount.automountServiceAccountToken` / `serviceAccount.annotations` | IRSA ServiceAccount — required for the Secrets Manager path (`cloudProvider: aws`). The role is described in [Create the IAM role `dpn-keycloak-secrets-role` (IRSA)](#create-the-iam-role-dpn-keycloak-secrets-role-irsa) | `true` / `true` / `eks.amazonaws.com/role-arn: arn:aws:iam::<account-id>:role/dpn-keycloak-secrets-role` |
@@ -259,7 +312,7 @@ The job runs under the GitHub Environment `<environment>-<cluster>`, uses Helm r
 
 > **Realm configuration is automatic, not manual.** After the Helm deploy, the workflow's "Configure Realm, Client, Roles and Audit Logging" step port-forwards to the internal Service and runs `charts/keycloak/scripts/configure-keycloak.sh`, which creates/updates the `dpn-realm` realm, the `DPN-Client` machine client, the shared `dpn-service-client` UI client (with every observability UI's redirect URI/web origin), realm roles (`dpnreader`, `dpnadmin`, and now **`dpnoperator`** — trigger/enable/disable DAGs and manage task state without edit/delete rights), matching groups, and session/audit settings — idempotently, on every deploy. When `cloud: aws`, `KC_ADMIN_PASSWORD` and `KC_SERVICE_CLIENT_SECRET` are read with `aws secretsmanager get-secret-value --secret-id dpn/<environment>-<cluster>/keycloak/KEYCLOAK_ADMIN_PASSWORD` and `.../keycloak/KC_SERVICE_CLIENT_SECRET`.
 >
-> **UI redirect hosts use stable internal hostnames.** The workflow no longer looks up each UI's LoadBalancer hostname — it leaves the `KC_UI_HOST_*` variables at `configure-keycloak.sh`'s own defaults, which point at each UI's stable internal Service DNS name (for example `KC_UI_HOST_PORTAL` defaults to `dpn-observability.ns-dpn-health-01.svc.cluster.local:8443`) rather than the raw AWS NLB hostname, which changes on every redeploy. Browsers must be able to resolve `*.svc.cluster.local` from outside the cluster (Route 53 Resolver / VPC DNS forwarding). The defaults also cover the Federator Gateway's Kafka UI (`KC_UI_HOST_KAFKA_UI_2`), its Job Runner dashboards (`KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2`) and the Self-Service UI (`KC_UI_HOST_DPN_PIPELINES_SELF_SERVICE`).
+> **UI redirect hosts use stable internal hostnames.** The workflow no longer looks up each UI's LoadBalancer hostname — it leaves the `KC_UI_HOST_*` variables at `configure-keycloak.sh`'s own defaults, which point at each UI's stable internal Service DNS name (for example `KC_UI_HOST_PORTAL` defaults to `dpn-observability.ns-dpn-health-01.svc.cluster.local:8443`) rather than the raw AWS NLB hostname, which changes on every redeploy. Browsers must be able to resolve `*.svc.cluster.local` from outside the cluster (Route 53 Resolver / VPC DNS forwarding). The defaults also cover the Federator Gateway's Kafka UI (`KC_UI_HOST_KAFKA_UI_2`), its Job Runner dashboards (`KC_UI_HOST_FEDERATOR_CLIENT_1`/`KC_UI_HOST_FEDERATOR_CLIENT_2`) and the Self-Service UI (`KC_UI_HOST_DPN_PIPELINES_SELF_SERVICE`). It also registers redirect URIs and web origins on `dpn-service-client` for the observability `oauth2-proxy` gateways, from `KC_UI_HOST_JAEGER_PROXY` (default `dpn-oauth2-proxy-jaeger.ns-dpn-health-01.svc.cluster.local:16686`), `KC_UI_HOST_PERSES_PROXY` (`dpn-oauth2-proxy-perses.ns-dpn-health-01.svc.cluster.local:8083`) and `KC_UI_HOST_OPENSEARCH_DASHBOARDS_PROXY` (`dpn-oauth2-proxy-osd.ns-dpn-health-01.svc.cluster.local:5601`).
 >
 > **Branding.** The realm now sets a custom login theme (`KC_LOGIN_THEME`, default `dpn-portal`, packaged from `charts/keycloak/themes/dpn-portal` by `templates/theme-configmap.yaml`) and header markup (`KC_DISPLAY_NAME_HTML`). Override either as an environment variable on the `configure-keycloak.sh` step if you need different branding per environment.
 >

@@ -1,5 +1,3 @@
-Release : 2.1.0 - Oct 2026
-
 # DPN Deployment Configuration Guide
 
 ---
@@ -203,7 +201,7 @@ kubectl create secret docker-registry ghcr-pull-secret \
 
 #### Step2.4: GitHub Actions Secrets and Environments
 
-Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`).
+Every CD workflow runs in a **GitHub Environment** named `<environment>-<cluster>` (`environment: ${{ inputs.environment }}-${{ inputs.cluster }}`). The exceptions are `dpn-gha-tls-cd.yml` and `dpn-gha-vault-load-bundle-cd.yaml`, which with `cloud: aws` run in the cloud-prefixed Environment `aws-<environment>-<cluster>`, so the `DPN_TLS_*`, `BOOTSTRAP_KEY`, `CERTIFICATE_PEM` and `CA_CHAIN_PEM` secrets must be defined under that name (or at repository level).
 
 The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The following Actions secrets are required (repository or environment level).
 
@@ -211,10 +209,10 @@ The AWS path uses OIDC, so no AWS access keys are stored in GitHub. The followin
 
 | GitHub Actions Secret | Used by | Purpose |
 |-----------------------|---------|---------|
-| `DPN_TLS_KEYSTORE_PASSWORD` | `dpn-gha-tls-cd.yaml` (dpn-federator-certificate-manager) | `keystore.jks` password (= `KC_HTTPS_KEY_STORE_PASSWORD` = `UNIVERSAL_DPN_CERT_PASSWORD`) |
-| `DPN_TLS_TRUSTSTORE_PASSWORD` | `dpn-gha-tls-cd.yaml`, `dpn-gha-vault-tls-bootstrap-cd.yaml` (dpn-federator-certificate-manager), `dpn-gha-demo-runner-cd.yaml` (dpn-rest-federator-gateway) | `truststore.jks` password (= `KC_HTTPS_TRUST_STORE_PASSWORD` = `VAULT_TRUSTSTORE_PASSWORD`) |
-| `DPN_TLS_CLIENT_P12_PASSWORD` | `dpn-gha-tls-cd.yaml` (dpn-federator-certificate-manager) | `dsm-client.p12` password |
-| `VAULT_KEY` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of `vault.key` (private key for the DSM-signed bundle) |
+| `DPN_TLS_KEYSTORE_PASSWORD` | `dpn-gha-tls-cd.yml` (dpn-federator-certificate-manager) | `keystore.jks` password (= `KC_HTTPS_KEY_STORE_PASSWORD` = `UNIVERSAL_DPN_CERT_PASSWORD`) |
+| `DPN_TLS_TRUSTSTORE_PASSWORD` | `dpn-gha-tls-cd.yml`, `dpn-gha-vault-tls-bootstrap-cd.yaml` (dpn-federator-certificate-manager), `dpn-gha-demo-runner-cd.yaml` (dpn-rest-federator-gateway) | `truststore.jks` password (= `KC_HTTPS_TRUST_STORE_PASSWORD` = `VAULT_TRUSTSTORE_PASSWORD`) |
+| `DPN_TLS_CLIENT_P12_PASSWORD` | `dpn-gha-tls-cd.yml` (dpn-federator-certificate-manager) | `dpn-client.p12` password |
+| `BOOTSTRAP_KEY` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of `bootstrap.key` (private key for the DSM-signed bundle) |
 | `CERTIFICATE_PEM` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of the DSM-signed `certificate.pem` |
 | `CA_CHAIN_PEM` | `dpn-gha-vault-load-bundle-cd.yaml` (dpn-federator-certificate-manager) | Contents of the DSM `ca-chain.pem` |
 
@@ -222,7 +220,7 @@ Secrets are scoped per repository (or per environment within a repository), so s
 
 ```bash
 # e.g. set an environment-scoped secret from a file
-gh secret set VAULT_KEY --env <environment>-<cluster> < vault.key
+gh secret set BOOTSTRAP_KEY --env aws-<environment>-<cluster> < bootstrap.key
 ```
 
 > **Note:** `workflow_dispatch` has no secret-typed input, so these values are never passed as plain-text workflow inputs — they must be pre-configured as secrets before running the workflows that use them.
@@ -345,12 +343,12 @@ The following secrets are shared by DPN components to use encryption in transit 
 |---|---|---|---|---|---|
 | `certificate-manager-secrets` | `VAULT_TOKEN`, `VAULT_APPROLE_SECRET_ID` (when `vault.authentication: APPROLE`) | `<prefix>/certificate-manager/VAULT_TOKEN`, `<prefix>/certificate-manager/VAULT_APPROLE_SECRET_ID` (synced by the `dpn-certificate-manager-kv-secrets` SecretProviderClass). The AppRole role ID is stored separately at `<prefix>/certificate-manager/VAULT_APPROLE_ROLE_ID` by `dpn-gha-certificate-manager-role-id-creation.yaml` and injected by `dpn-gha-certificate-manager-cd.yaml` at deploy time | Vault credentials for PKI bootstrap. The Vault truststore password is no longer synced here — it is read from `tls-auth-secret` (`TRUSTSTORE_PASSWORD`) | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
 | `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET`, `KEYCLOAK_ADMIN_PASSWORD`, `KC_DB_PASSWORD` | `<prefix>/keycloak/KC_SERVICE_CLIENT_SECRET` (set manually before first deploy — see note below), `.../KEYCLOAK_ADMIN_PASSWORD`, `.../KC_DB_PASSWORD` (synced by the chart's `SecretProviderClass` from `secretsManager.secretPrefix`; the Key Vault-style names `KC-SERVICE-CLIENT-SECRET` etc. are only the mounted file aliases) | `dpn-service-client` OIDC client secret and Keycloak's own admin/database passwords. Keycloak's keystore/truststore passwords are **not** in this secret — the Keycloak pod reads them from `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`) | ns-dpn-01 | Authentication Service (Keycloak), Data Pipelines (Kafka OAUTHBEARER), Federator Gateway (Kafka OAUTHBEARER, Kafka UI, Federator Client/Server) |
-| *(no dedicated Kafka secret)* | — | `<prefix>/kafka/UNIVERSAL_DPN_CERT_PASSWORD` is still published by `dpn-gha-tls-cd.yaml` but is not mounted by the `dpn-platform` chart | The Kafka brokers (Federator Gateway's `dpn-platform` chart) no longer have their own `kafka-secrets`. They read the keystore/truststore passwords from `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`), and `KEYCLOAK_ADMIN_PASSWORD` and the OAuth client secret (`KC_SERVICE_CLIENT_SECRET`) from `dpn-keycloak-secrets` | ns-dpn-01 | Kafka brokers, Federator Gateway Client/Server, Kafka UI |
-| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | n/a — created directly via `kubectl create secret generic`, not sourced from AWS Secrets Manager | Shared passwords for keystore/truststore access and mTLS client cert; written once by `dpn-gha-tls-cd.yaml` into the target namespace, `ns-dpn-health-01` and `ns-dpn-dp-01` (skipped if that namespace does not exist) | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Certificate Manager, Federator Gateway (Server/Client, Kafka Source/Target, Kafka UI, Redis), REST Federator Gateway, File Scan Service, Data Pipelines |
-| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a secrets-manager entry | Universal DPN server TLS identity, written once by `dpn-gha-tls-cd.yaml` (*DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1*) into the target namespace, `ns-dpn-health-01` and `ns-dpn-dp-01` (skipped if absent) | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis |
-| `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by `dpn-gha-tls-cd.yaml` (when `createHealthTls` is `true`) | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
-| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by `dpn-gha-tls-cd.yaml` | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
-| `fed-gateway-tls` | `tls.crt`, `tls.key` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the Federator Gateway, written once by `dpn-gha-tls-cd.yaml` | ns-dpn-01 (target namespace) | Federator Gateway |
+| *(no dedicated Kafka secret)* | — | `<prefix>/kafka/UNIVERSAL_DPN_CERT_PASSWORD` is still published by `dpn-gha-tls-cd.yml` but is not mounted by the `dpn-platform` chart | The Kafka brokers (Federator Gateway's `dpn-platform` chart) no longer have their own `kafka-secrets`. They read the keystore/truststore passwords from `tls-auth-secret` (`KEYSTORE_PASSWORD`/`TRUSTSTORE_PASSWORD`), and `KEYCLOAK_ADMIN_PASSWORD` and the OAuth client secret (`KC_SERVICE_CLIENT_SECRET`) from `dpn-keycloak-secrets` | ns-dpn-01 | Kafka brokers, Federator Gateway Client/Server, Kafka UI |
+| `tls-auth-secret` | `KEYSTORE_PASSWORD`, `TRUSTSTORE_PASSWORD`, `DPN_CLIENT_P12_PASSWORD` | n/a — created directly via `kubectl create secret generic`, not sourced from AWS Secrets Manager | Shared passwords for keystore/truststore access and mTLS client cert; written once by `dpn-gha-tls-cd.yml` into the target namespace, `ns-dpn-health-01` and `ns-dpn-dp-01` (skipped if that namespace does not exist) | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Certificate Manager, Federator Gateway (Server/Client, Kafka Source/Target, Kafka UI, Redis), REST Federator Gateway, File Scan Service, Data Pipelines |
+| `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` (files) | n/a — certificate material, not a secrets-manager entry | Universal DPN server TLS identity, written once by `dpn-gha-tls-cd.yml` (*DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1*) into the target namespace, `ns-dpn-health-01` and `ns-dpn-dp-01` (skipped if absent) | ns-dpn-01, ns-dpn-health-01, ns-dpn-dp-01 | Keycloak, Kafka brokers, Federator Gateway, REST Federator Gateway, File Scan Service, Redis |
+| `dpn-health-tls` | `tls.crt`, `tls.key`, `ca.crt` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the health-monitoring UIs, written once by `dpn-gha-tls-cd.yml` (when `createHealthTls` is `true`) | ns-dpn-01, ns-dpn-health-01 | Health Monitoring Service (`oauth2-proxy` gateways, Kafka UI TLS) |
+| `cert-manager-truststore` | `truststore.jks` (file) | n/a | Trust of the Vault-issued root CA, written once by `dpn-gha-tls-cd.yml` | ns-dpn-01 | Certificate Manager, Federator Gateway, REST Federator Gateway |
+| `fed-gateway-tls` | `tls.crt`, `tls.key` (`kubernetes.io/tls`) | n/a — certificate material, not a secrets-manager entry | Browser-facing HTTPS certificate for the Federator Gateway, written once by `dpn-gha-tls-cd.yml` | ns-dpn-01 (target namespace) | Federator Gateway |
 
 > **Note on `KC_SERVICE_CLIENT_SECRET`:** unlike the other keys in this table, this value is not auto-generated — it must be created in AWS Secrets Manager at `<prefix>/keycloak/KC_SERVICE_CLIENT_SECRET` before the first Keycloak deploy (`<prefix>` is `dpn/<environment>-<cluster>`, so the Keycloak values file's `secretsManager.secretPrefix` is `<prefix>/keycloak`; the Key Vault-style `KC-SERVICE-CLIENT-SECRET` is only the mounted file alias on AWS). The Keycloak CD workflow's realm-configuration step asserts the `dpn-service-client` client's secret matches this stored value on every run, rather than generating a random one, so the client secret never silently drifts.
 

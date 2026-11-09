@@ -1,5 +1,3 @@
-Release : 2.1.0 - Oct 2026
-
 # DPN Health Monitoring Service Configuration Guide
 
 ---
@@ -47,11 +45,52 @@ root/
 
 The Helm charts live under `charts/<chart>`. Each component workflow deploys `charts/<chart>` with the per-cluster values file `charts/<chart>/values/aws/<environment>-<cluster>.yaml`. On AWS, the OpenSearch and Prometheus per-cluster files are complete, self-contained values files (the shared `*-community-values.yaml` files are used only on Azure); Thanos layers its per-cluster file over the chart's own `values.yaml`; and `oauth2-proxy` layers it over the per-UI `values-<component>.yaml`.
 
+> **Prerequisites**
+>
+> Before running the DPN Health Monitoring deployment workflow, ensure:
+>
+> - The required GHCR `imagePullSecret` already exists in the `ns-dpn-health-01` namespace.
+> - The following OpenSearch Secrets Manager secrets have been created in AWS Secrets Manager:
+>   - `dpn/<environment>-<cluster>/opensearch/ADMIN_PASSWORD`
+>   - `dpn/<environment>-<cluster>/opensearch/KIBANASERVER_PASSWORD`
+>   - `dpn/<environment>-<cluster>/opensearch/DATAWRITER_PASSWORD`
+>
+> Example commands:
+>
+> ```bash
+> aws secretsmanager create-secret \
+>   --region eu-west-2 \
+>   --name dpn/<environment>-<cluster>/opensearch/ADMIN_PASSWORD \
+>   --secret-string "<REPLACE_WITH_SECURE_ADMIN_PASSWORD>"
+>
+> aws secretsmanager create-secret \
+>   --region eu-west-2 \
+>   --name dpn/<environment>-<cluster>/opensearch/KIBANASERVER_PASSWORD \
+>   --secret-string "<REPLACE_WITH_SECURE_KIBANASERVER_PASSWORD>"
+>
+> aws secretsmanager create-secret \
+>   --region eu-west-2 \
+>   --name dpn/<environment>-<cluster>/opensearch/DATAWRITER_PASSWORD \
+>   --secret-string "<REPLACE_WITH_SECURE_DATAWRITER_PASSWORD>"
+> ```
+>
+> These secrets are consumed by the OpenSearch deployment and must exist before the Health Monitoring CD pipeline is executed.
+
+| secret-name | Secret value | Secret-Creation-Step |
+|-----------|--------------|----------------------|
+| dpn-mon-storage-connection-string | Thanos long-term object storage config (`objstore.yml` key) | Kubernetes Secret, created manually — see Step 1 |
+| dpn-health-tls | `kubernetes.io/tls` cert/key/CA used by `oauth2-proxy` and the OTel Collector's TLS OTLP receivers | Kubernetes Secret, created manually (not created by this pipeline) |
+| dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET | The `dpn-service-client` Keycloak client credential | AWS Secrets Manager secret, created manually |
+| dpn/<environment>-<cluster>/opensearch/ADMIN_PASSWORD | OpenSearch admin user password | AWS Secrets Manager secret, created manually before deployment |
+| dpn/<environment>-<cluster>/opensearch/KIBANASERVER_PASSWORD | OpenSearch Kibana server user password | AWS Secrets Manager secret, created manually before deployment |
+| dpn/<environment>-<cluster>/opensearch/DATAWRITER_PASSWORD | OpenSearch data writer user password | AWS Secrets Manager secret, created manually before deployment |
+
 Trigger it via **Actions → DPN Health Monitoring → Run workflow**, supplying `environment` (dev/test), `cluster` (dpn01/dpn02), `cloud` (`aws`), `imageTag` (OTel Collector image tag, default `0.95.0`), and **`portalImageTag`** (the DPN Portal container image tag — required, no default; a short git-SHA printed by the DPN Portal application's own CI build) — the orchestrator's `init` job (**Resolve Deployment Config**) reads the rest of the component config from `.github/config/aws/<environment>-<cluster>.json` itself and passes it to every job. `otelImageRepository` (the OTel Collector image path after `ghcr.io/energy-dsi/`) is optional — leave it blank to use the environment's configured repository. `portalImageRepository` (the GHCR path after `ghcr.io/energy-dsi/`) defaults to `dpn-portal` if left blank.
 
 > **Prometheus and Thanos no longer sit behind an `oauth2-proxy` gateway.** Neither UI is meant for direct browser access — both are consumed through Perses instead. Their own component jobs still deploy the Prometheus/Thanos Query Services directly onto an internal AWS Network Load Balancer (no login of any kind in front), at the same ports (`9081`/`9091`) their retired `oauth2-proxy` gateways used to publish on. Restrict network access to these ports at the VPC/security-group level accordingly.
 
 **What the pipeline does automate:** `dpn-gha-oauth2-proxy-cd.yaml` (**DPN CD - OAuth2 Proxy (Keycloak Gateway)**) provisions its own AWS IAM role (IRSA, `dpn-oauth2-proxy-secrets-role`, trusted by the `dpn-oauth2-proxy` ServiceAccount) and its own Secrets Manager copy of the Keycloak client secret (`dpn/<environment>-<cluster>/oauth2-proxy/KC-SERVICE-CLIENT-SECRET`, copied from the Keycloak secret below if missing) on every run, and installs/updates the shared `dpn-redis-ui-health` session store (`charts/oauth2-proxy-redis`) — this is idempotent and requires no manual AWS IAM setup. The role ARN and secret prefix the chart consumes are pinned per cluster in `charts/oauth2-proxy/values/aws/<environment>-<cluster>.yaml` (`serviceAccount.irsaRoleArn`, `secretsManager.secretPrefix`) — update them if you deploy to a different AWS account.
+
 
 **What the pipeline does *not* automate:**
 - The Keycloak `dpn-service-client` credential must already exist in AWS Secrets Manager, at `dpn/<environment>-<cluster>/keycloak/KC_SERVICE_CLIENT_SECRET` — the same secret `dpn-gha-keycloak-cd.yaml` (DPN Authentication Service) reads on its AWS deploy path; neither workflow creates it, so load it before deploying Keycloak (see [Configure DPN Authentication Service](02-configure-dpn-authentication-service.md)).
