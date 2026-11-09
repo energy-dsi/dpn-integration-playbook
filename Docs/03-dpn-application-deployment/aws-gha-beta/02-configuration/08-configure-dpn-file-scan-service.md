@@ -127,6 +127,32 @@ No AWS access key/secret is configured directly — the container relies on the 
 
 ## Step2: AWS Resource Setup (SNS/SQS/GuardDuty)
 
+**Create the inbound and outbound S3 buckets first.** Neither `dpn-gha-file-scan-prerequisites-cd.yaml` nor `dpn-gha-file-scan-cd.yaml` creates them; the prerequisites workflow assumes both already exist. The inbound bucket is the one GuardDuty scans (`FILESCAN_SOURCE_BUCKET`), and the outbound bucket receives the clean copy (`FILESCAN_DEST_BUCKET`). The outbound bucket is also the data pipeline's consumer *stage* bucket, so create it here and the data pipeline reuses it. Bucket names are global across AWS, so use the `<account-id>`/`<region>` suffix:
+
+```bash
+AWS_REGION=<region>        # must not be us-east-1 (it rejects LocationConstraint)
+ACCOUNT_ID=<account-id>
+ENV=<environment>          # dev / test
+NN=<cluster-no>            # 01 / 02
+
+create_bucket() {
+  aws s3api create-bucket --bucket "$1" --region "$AWS_REGION" \
+    --create-bucket-configuration LocationConstraint="$AWS_REGION"
+  aws s3api put-public-access-block --bucket "$1" \
+    --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  aws s3api put-bucket-encryption --bucket "$1" \
+    --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+}
+
+# Inbound (raw/quarantine): GuardDuty scans it, the Federator Client writes to it
+create_bucket "dp-consumer-raw-${ENV}-${NN}-${ACCOUNT_ID}-${AWS_REGION}"
+
+# Outbound (stage): clean files are copied here, the data pipeline consumer reads from it
+create_bucket "dpn-${ENV}-${NN}-dp-consumer-stage-${ACCOUNT_ID}-${AWS_REGION}"
+```
+
+Put the two names in `FILESCAN_SOURCE_BUCKET` and `FILESCAN_DEST_BUCKET` in the config JSON ([Step3a](#step3a-configure-environment-json-file)), and in the `<inbound-bucket>` / `<outbound-bucket>` placeholders of the Step1 policy. Check: `aws s3api head-bucket --bucket <bucket-name>` returns no error.
+
 Create the SNS topic and SQS queue GuardDuty publishes scan results to, and subscribe the queue to the topic. The names below are the `dev-dpn01` ones; use the same names for `FILESCAN_SNS_TOPIC_NAME` and `FILESCAN_SQS_QUEUE_NAME` in the environment config file `.github/config/aws/<environment>-<cluster>.json` (e.g. `.github/config/aws/dev-dpn01.json` — see [Step3a](#step3a-configure-environment-json-file) for all `FILESCAN_*` keys) and for `env.sqsQueueName` in the Helm values:
 
 ```bash

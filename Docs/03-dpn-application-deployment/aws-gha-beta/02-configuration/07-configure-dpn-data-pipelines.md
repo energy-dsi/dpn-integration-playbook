@@ -26,7 +26,7 @@ This guide lists **only what a participant organisation must set** to run the DP
 > **Informational (no action required):**
 > - Pipeline images, registry and tag are set by the CI/CD workflows.
 > - Kafka connection and security (`SASL_SSL` with `OAUTHBEARER`), scheduling (`interval`) and autoscaling (off) are preconfigured; keep the defaults.
-> - S3 buckets and Kafka topics are created automatically by the pipeline. Their names must not already exist.
+> - Kafka topics, and the buckets for producer data products created in the Self-Service UI, are created automatically. Their names must not already exist. The consumer file extractor's **stage and target buckets are not created by `dpn-gha-self-service-cd.yaml`**: create them first as described in [S3 buckets for the file pathway](#s3-buckets-for-the-file-pathway).
 > - Files keep their original name in the target bucket.
 
 ---
@@ -152,6 +152,39 @@ kubectl get secret dpn-tls dpn-keycloak-secrets ghcr-pull-secret -n ns-dpn-dp-01
 ---
 
 ## STEP-03: IAM Role for S3 Access (IRSA)
+
+### S3 buckets for the file pathway
+
+Create these buckets **before** you deploy the consumer file extractor (`dpn-gha-self-service-cd.yaml`) and before you rely on the role below:
+
+| Bucket | Name | Created by |
+|---|---|---|
+| Consumer source (stage) | `dpn-<environment>-<cluster-no>-dp-consumer-stage-<account-id>-<region>` | You. It is the File Scan Service outbound bucket, so it is created in [Configure DPN File Scan Service, Step2](08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) |
+| Consumer target | `dp-consumer-target-<environment>-<cluster-no>-<account-id>-<region>` | You, with the command below. `dpn-gha-data-pipelines-cd.yaml` creates it only when it deploys a single reference chart |
+| Producer data product buckets | The names you confirm in the Self-Service UI | The Self-Service UI, through the role below (`s3:CreateBucket`) |
+| Registry backup (`env.DPN_REGISTRY_BACKUP_CONTAINER`) | `dpn-self-service-dpconfig-<environment>-<cluster-no>-<account-id>-<region>` | The Self-Service service creates it at startup if it is missing (needs `s3:CreateBucket`) |
+
+Create the consumer target bucket, using the same helper as in the File Scan guide:
+
+```bash
+AWS_REGION=<region>        # must not be us-east-1 (it rejects LocationConstraint)
+ACCOUNT_ID=<account-id>
+ENV=<environment>          # dev / test
+NN=<cluster-no>            # 01 / 02
+
+create_bucket() {
+  aws s3api create-bucket --bucket "$1" --region "$AWS_REGION" \
+    --create-bucket-configuration LocationConstraint="$AWS_REGION"
+  aws s3api put-public-access-block --bucket "$1" \
+    --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+  aws s3api put-bucket-encryption --bucket "$1" \
+    --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'
+}
+
+create_bucket "dp-consumer-target-${ENV}-${NN}-${ACCOUNT_ID}-${AWS_REGION}"
+```
+
+Set the same two names as `srcContainerName` and `targetContainerName` in `blueprints/consumer/file/extractor/charts/values.yaml`.
 
 The data pipeline ServiceAccounts reach S3 through one shared IRSA role, `dpn-data-pipeline-s3-role`. Create it manually, once per account/cluster, and set its ARN as `serviceAccount.irsaRoleArn` (see [STEP-01](#step-01-configuration-table)). Reference policy files are kept in the `dpn-iam` export under `template/roles/dpn-data-pipeline-s3-role/`.
 

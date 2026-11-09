@@ -148,7 +148,7 @@ An **IAM role or user** used for managing **Amazon Elastic Kubernetes Service (E
 
 #### Data Pipeline Access
 
-- An **S3 bucket** with **read and write permissions** for file passthrough used by the data pipeline.
+- **S3 buckets** with **read and write permissions** for file passthrough used by the data pipeline: the File Scan inbound and outbound (stage) buckets and the consumer target bucket. They are not created by the CD workflows, so create them first — see [Configure DPN File Scan Service, Step2](../02-configuration/08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty) and [Configure DPN Data Pipelines, S3 buckets](../02-configuration/07-configure-dpn-data-pipelines.md#s3-buckets-for-the-file-pathway).
 
 ---
 ## Security Prerequisites

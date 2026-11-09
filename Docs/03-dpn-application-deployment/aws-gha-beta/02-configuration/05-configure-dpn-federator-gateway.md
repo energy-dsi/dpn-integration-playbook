@@ -63,7 +63,7 @@ The Federator Gateway is deployed as a **single Helm release (`dpn-platform`)** 
 
 Federator Server and Client use **separate S3 buckets**. The Federator Client uses the **File Scan Service *source* bucket** (where scanned inbound files are deposited). Configure the Client's storage endpoint/credentials to point at the File Scan Service source bucket — not the Server's bucket.
 
-The Server's bucket is used to keep the data product files created by the organisation per data product pipeline.
+The Server's bucket is used to keep the data product files created by the organisation per data product pipeline. Create both buckets before deploying: the Client's is the File Scan inbound bucket, created with the commands in [Configure DPN File Scan Service, Step2](08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty). For the Server's bucket use the same `create_bucket` helper shown there.
 
 ---
 
@@ -157,7 +157,7 @@ dpn-federator-gateway/
 | `federatorClient.config.topicPrefix` | Prefix for the topics the Client creates for received data | `federated-client1` |
 | `federatorClient.nginxSidecar.enabled` | Run the nginx sidecar in front of the JobRunr dashboard. Requires `federatorClient.auth.enabled: true` | `true` |
 | `federatorClient.storage.provider` | `S3` on this path | `S3` — important to set based on cloud provider; this parameter decides which storage provider is invoked |
-| `federatorClient.storage.aws.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) — note the key is `storage.aws.bucket`, **not** `storage.s3.bucket` | `dp-consumer-raw-<environment>-<cluster-no>-<account-id>-<region>` (the bucket must already exist) |
+| `federatorClient.storage.aws.bucket` | **The File Scan Service source bucket**, if available, else a separate bucket (not the Server's) — note the key is `storage.aws.bucket`, **not** `storage.s3.bucket` | `dp-consumer-raw-<environment>-<cluster-no>-<account-id>-<region>` (the bucket must already exist; create it as in [Configure DPN File Scan Service, Step2](08-configure-dpn-file-scan-service.md#step2-aws-resource-setup-snssqsguardduty)) |
 | `federatorClient.storage.aws.region` | Region of the Client's S3 bucket | `<AWS_REGION>` |
 
 **JobRunr dashboard authentication** (optional — off by default; see [Federator Client — JobRunr Dashboard User Guide](../../../05-dpn-user-interfaces/03-federator-client-job-runner-ui-operations.md) for the end-user access flow)
