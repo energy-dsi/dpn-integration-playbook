@@ -60,6 +60,15 @@ Root-Repository
                     └── values.yaml   <- No change needed
 ```
 
+Each blueprint chart also ships AWS environment overlays under `charts/values/aws/<environment>-<cluster>.yaml` (for example `dev-dpn01.yaml`, `dev-dpn02.yaml`). The CD workflows apply `values.yaml` first and the overlay last, so the overlay wins. The overlays set `namespace: ns-dpn-dp-01`, `imagePullSecret: ghcr-pull-secret`, `imageRegistry`, and (file charts and the consumer topic extractor) `cloudProviderType: aws` and `serviceAccount.create: true` with `serviceAccount.irsaRoleArn`. Overlays shipped today:
+
+| Blueprint chart | Overlays in `charts/values/aws/` |
+|-----------------|----------------------------------|
+| `consumer/file/extractor`, `consumer/topic/extractor`, `producer/file/adaptor` | `dev-dpn01.yaml`, `dev-dpn02.yaml` |
+| `producer/topic/adaptor` | `dev-dpn02.yaml` (registry and pull secret only) |
+
+> **For any other environment/cluster (for example `test-dpn01`), add the overlay files to your copy of the repository**, copying a `dev-*` file and changing the account ID, IRSA role ARN and bucket names. Without an overlay, the chart defaults apply: no image pull secret and no IRSA ServiceAccount (`serviceAccount.create` and `imagePullSecret` default to empty), so the consumer pods cannot pull the images or reach S3.
+
 | Parameter | Purpose | Required value |
 |-----------|---------|----------------|
 | `orgName` | Your organisation name abbreviation, with no space in between. **Required: the default `example-org` must be changed** | `<your-org-abbreviation>` |
@@ -73,11 +82,20 @@ Root-Repository
 
 | Key | Where | Description | Example (placeholder) |
 |-----|-------|-------------|-----------------------|
-| `IMAGE_REGISTRY` | `env:` block of `.github/workflows/dpn-gha-data-pipelines-cd.yaml` | Base container registry the data pipeline images are pulled from | `ghcr.io/energy-dsi` (or your own, for example `<account-id>.dkr.ecr.<region>.amazonaws.com`) |
-| `imageRegistry` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry the self-service application image is pulled from | `ghcr.io/energy-dsi` |
-| `env.DPN_IMAGE_REGISTRY` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry path (including the `/dsi` namespace) the service uses for the pipeline images it deploys | `ghcr.io/energy-dsi/dsi` |
+| `IMAGE_REGISTRY` | `.github/config/aws/<environment>-<cluster>.json` | Base container registry for `dpn-gha-data-pipelines-cd.yaml` only (no longer an `env:` entry in the workflow). `dpn-gha-self-service-cd.yaml` does not read it | `ghcr.io/energy-dsi/1.0.1` (or your own, for example `<account-id>.dkr.ecr.<region>.amazonaws.com`) |
+| `OAUTH2_PROXY_EXTERNAL_URL` | `.github/config/aws/<environment>-<cluster>.json` | Optional external URL of the Self-Service UI, used for the oauth2-proxy login. If empty, the workflow discovers the LoadBalancer address | `https://<self-service-address>` |
+| `imageRegistry` | `service/charts/values/aws/<environment>-<cluster>.yaml`, and each blueprint overlay `charts/values/aws/<environment>-<cluster>.yaml` | Registry the self-service and consumer images are pulled from. This is the only source for `dpn-gha-self-service-cd.yaml` | `ghcr.io/energy-dsi/1.0.1` |
+| `imagePullSecretName` (service) / `imagePullSecret` (blueprint charts) | same files as `imageRegistry` | Name of the image pull secret created in STEP-02. The self-service chart also passes it to the producer pods the UI creates | `ghcr-pull-secret` |
+| `env.DPN_IMAGE_REGISTRY` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Registry path the service uses for the producer images it deploys. On AWS the workflow does not set it, so this value is used | `ghcr.io/energy-dsi` |
+| `env.DPN_IMAGE_TAG` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Image tag of the producer images the service deploys. On AWS the `imageTag` workflow input is **not** passed to it, so this value is used | `latest` (set it to the tag you deploy) |
+| `env.DPN_PRODUCER_SERVICE_ACCOUNT` | `service/charts/values/aws/<environment>-<cluster>.yaml` | ServiceAccount set on the producer pods the UI creates, so they inherit the IRSA role | `dpn-self-service` |
 | `env.DPN_REGISTRY_BACKUP_CONTAINER` | `service/charts/values/aws/<environment>-<cluster>.yaml` | S3 bucket that `service/registry_backup.py` mirrors the self-service registry to for disaster recovery | `<registry-backup-bucket-name>` |
-| `serviceAccount.irsaRoleArn` | `service/charts/values/aws/<environment>-<cluster>.yaml` | IAM role ARN the self-service `ServiceAccount` assumes through IRSA, with access to the data pipeline S3 buckets | `arn:aws:iam::<account-id>:role/<irsa-role-name>` |
+| `serviceAccount.irsaRoleArn` | `service/charts/values/aws/<environment>-<cluster>.yaml` | IAM role ARN the self-service `ServiceAccount` assumes through IRSA, with access to the data pipeline S3 buckets. Rendered as the `eks.amazonaws.com/role-arn` annotation when `env.DPN_CLOUD_PROVIDER` is `aws` | `arn:aws:iam::<account-id>:role/<irsa-role-name>` |
+| `serviceAccount.create`, `serviceAccount.name`, `serviceAccount.irsaRoleArn` | blueprint overlays `charts/values/aws/<environment>-<cluster>.yaml` (file extractor, topic extractor, file adaptor) | Creates a ServiceAccount with the IRSA annotation and runs the pod under it (only when `cloudProviderType` is `aws`) | `true`, `dpn-consumer-file-extractor` (per chart), `arn:aws:iam::<account-id>:role/<irsa-role-name>` |
+| `awsRegion`, `awsEndpointUrl` | blueprint file chart overlays and `service/charts/values/aws/<environment>-<cluster>.yaml` | S3 region and endpoint. In the blueprint charts, leave `awsEndpointUrl` empty on AWS: it then defaults to `https://s3.<awsRegion>.amazonaws.com` and is passed to the pods as `AWS_ENDPOINT_URL_S3`. No MinIO endpoint or default keys are used any more | `eu-west-2`, `""` |
+| `srcContainerName`, `targetContainerName` | blueprint file chart overlays (consumer and producer file charts) | Source and target S3 buckets of that chart. Replace the shipped bucket names with your own | `<bucket-name>` |
+| `persistence.storageClassName` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Storage class of the self-service volume. The chart default `default` does not exist on EKS; the AWS overlays use `gp3` | `gp3` |
+| `oauth2Proxy.keycloak.publicUrl`, `oauth2Proxy.keycloak.internalUrl` | `service/charts/values/aws/<environment>-<cluster>.yaml` | Keycloak URLs the oauth2-proxy uses for the UI login | `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443` |
 | `loadBalancer.loadBalancerIP` | `service/charts/values.yaml` | Optional static IP for the internal LoadBalancer in front of the self-service UI. Leave it empty on EKS to let AWS allocate the address | `<static-ip>` |
 
 ---
@@ -94,9 +112,9 @@ The secrets below are required in the data pipeline namespace (`ns-dpn-dp-01`) *
 | Secret | Keys | Value | Used by |
 |--------|------|-------|---------|
 | `dpn-tls` | `ca.crt`, `keystore.jks`, `truststore.jks` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka TLS trust) |
-| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01`. Do not change the contents | All pipeline containers (Kafka OAuth) |
+| `dpn-keycloak-secrets` | `KC_SERVICE_CLIENT_SECRET` | Copy from `ns-dpn-01`. Do not change the contents. Both CD workflows check for it (non-empty key) before the Helm deploy and fail with `[MISSING]` if it is absent | All pipeline containers (Kafka OAuth) |
 | `ghcr-pull-secret` | Docker registry credentials for `ghcr.io` | A GitHub PAT with `read:packages` scope. Not needed if the images are mirrored to ECR and the EKS nodes can pull from it | All pipeline containers (image pull) |
-| `aws-access-secret` (optional) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Needed only if you use static access keys for S3 instead of IRSA. The IAM identity needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` and `s3:CreateBucket` on the buckets used by data products | Self-Service UI, producer file products, consumer file extractor |
+| `aws-access-secret` (optional) | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Needed only if you use static access keys for S3 instead of IRSA. The IAM identity needs `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`, `s3:ListBucket` and `s3:CreateBucket` on the buckets used by data products | Producer file products, consumer file extractor (not the Self-Service UI on AWS, where its static key variables are empty and IRSA is used) |
 
 > **S3 access normally uses IRSA** (an IAM role bound to the pod's ServiceAccount), so no AWS key secret is needed. Skip `aws-access-secret` unless you choose static keys.
 
@@ -148,9 +166,9 @@ kubectl get secret dpn-tls dpn-keycloak-secrets ghcr-pull-secret -n ns-dpn-dp-01
 
 ## STEP-03: IAM Role for S3 Access (IRSA)
 
-The data pipeline ServiceAccounts reach S3 through one shared IRSA role, `dpn-data-pipeline-s3-role`. Create it manually, once per account/cluster, and set its ARN as `serviceAccount.irsaRoleArn` (see [STEP-01](#step-01-configuration-table)). Reference policy files are kept in the `dpn-iam` export under `template/roles/dpn-data-pipeline-s3-role/`.
+The data pipeline ServiceAccounts reach S3 through one shared IRSA role, `dpn-data-pipeline-s3-role`. Create it manually, once per account/cluster, and set its ARN as `serviceAccount.irsaRoleArn` (see [STEP-01](#step-01-configuration-table)). The same role is referenced by the Self-Service `serviceAccount.irsaRoleArn` and by the blueprint overlays. Reference policy files are kept in the `dpn-iam` export under `template/roles/dpn-data-pipeline-s3-role/`.
 
-**Trust policy** (`trust-policy.json`). Every ServiceAccount in `ns-dpn-dp-01` is trusted (the Self-Service UI creates pipeline ServiceAccounts dynamically), plus the consumer file extractor in `ns-dpn-01`:
+**Trust policy** (`trust-policy.json`). Every ServiceAccount in `ns-dpn-dp-01` is trusted. This covers `dpn-self-service`, the consumer/producer ServiceAccounts created by the charts, and any created dynamically. The `ns-dpn-01` entry for the consumer file extractor is only needed if you deploy that chart there with `dpn-gha-data-pipelines-cd.yaml` using this role:
 
 ```json
 {
