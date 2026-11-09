@@ -1,5 +1,3 @@
-Release : 2.1.0 - Oct 2026
-
 # DPN Authentication Service (Keycloak) Configuration
 
 This section describes how to configure and deploy the **DPN Authentication Service** — the platform's OAuth2/OIDC identity provider, **Keycloak** — into a single target environment and DPN cluster on Amazon Elastic Kubernetes Service (EKS).
