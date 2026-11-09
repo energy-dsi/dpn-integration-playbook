@@ -56,7 +56,7 @@ dpn-rest-federator-gateway/
 
 Key points, detailed in the configuration guide:
 - Unlike the gRPC Federator Gateway, this component authenticates to Vault with **AppRole** on AWS, not the root token — set up once per environment/cluster via [Step2c](#step2c-one-time-vault-approle-setup) before the first deploy.
-- Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — the IAM role and the Secrets Manager placeholders are provisioned automatically by the CD workflow (see the configuration guide's note on the current chart template gap for AWS).
+- Backend API key and Vault credentials come from **AWS Secrets Manager** under `secretsManager.secretPrefix`, synced via a dedicated `ServiceAccount`/IRSA role and `SecretProviderClass` — the IAM role and the Secrets Manager placeholders are provisioned automatically by the CD workflow.
 - A **HorizontalPodAutoscaler** is on by default (`hpa.enabled: true`) — no separate opt-in step.
 - The Vault truststore password is rendered into the config at deploy time from `restFederatorServer.vault.truststorePassword`, which the CD workflow sets via `--set` from Secrets Manager (`dpn/<environment>-<cluster>/rest-federator/VAULT_TRUSTSTORE_PASSWORD`) — it is not read live at pod start-up.
 
@@ -137,7 +137,7 @@ Go to **Actions → DPN CD - REST Federator Gateway → Run workflow** (`dpn-gha
 | `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
 | `cloud` | `aws` (default) |
 | `imageTag` | The image tag pushed in Step2a |
-| `imageRepository` | Optional. Image path after `ghcr.io/energy-dsi/` (e.g. `dpn-rest-federator-server`). Leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server` from the config JSON |
+| `imageRepository` | Optional. Image path after `<IMAGE_REGISTRY>/` (e.g. `dpn-rest-federator-server`). Leave blank to use `<IMAGE_REGISTRY>/dpn-rest-federator-server` from the config JSON |
 
 The workflow runs **deploy-redis** (Helm release `dpn-redis`) then **deploy-rest-federator** (Helm release `dpn-rest-federator`), both into the config JSON's `NAMESPACE`. On AWS, **deploy-rest-federator** additionally provisions the `dpn-rest-federator-secrets-role` IAM role and seeds the `BACKEND_API_KEY`/`VAULT_TRUSTSTORE_PASSWORD` placeholders (idempotent — safe to re-run), then fetches the Vault truststore password and the AppRole `role-id` from Secrets Manager before running **Helm Lint + Dry Run** and **Helm Deploy**.
 

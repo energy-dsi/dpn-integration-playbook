@@ -32,7 +32,7 @@ Both workflows, and the service's Helm chart:
 | Main deploy | **DPN CD - File Scan Service** | `.github/workflows/dpn-gha-file-scan-cd.yaml` | Builds nothing itself — deploys the already-built container image via Helm (release `dpn-file-scan-service`, chart `charts/file-scan-service`) |
 | Prerequisites | **DPN CD - File Scan Prerequisites** | `.github/workflows/dpn-gha-file-scan-prerequisites-cd.yaml` | On `cloud: aws`, creates the IRSA role and seeds the Secrets Manager entries above, and verifies (but does not create) the SNS/SQS/GuardDuty wiring |
 
-Both take the `environment` (`dev`/`test`, default `test`), `cluster` (`dpn01`/`dpn02`, default `dpn01`) and `cloud` (default `aws`) inputs, run under the GitHub Environment `<environment>-<cluster>` on a self-hosted runner labelled `[self-hosted, vmss]`, and log in through the `.github/actions/cloud-login` composite action (OIDC into the shared hub role `oidc_github_runner_hub`, then role-chaining into the target account's `oidc_github_runner_admin` role — no AWS secret is needed, but that role and its trust must exist). The prerequisites workflow's remaining inputs (`containerName`, `serviceBusNamespace`, `serviceBusResourceGroup`, `serviceBusTopicName`, `eventGridResourceGroup`, `eventGridTopicResourceGroup`, `eventGridCustomTopicName`) are Azure-only — leave them at their defaults (and `serviceBusNamespace` blank) for `cloud: aws`.
+Both take the `environment` (`dev`/`test`, default `test`), `cluster` (`dpn01`/`dpn02`, default `dpn01`) and `cloud` (default `aws`) inputs, run under the GitHub Environment `<environment>-<cluster>` on a self-hosted runner labelled `[self-hosted, vmss]`, and log in through the `.github/actions/cloud-login` composite action (OIDC into the shared hub role `oidc_github_runner_hub`, then role-chaining into the target account's `oidc_github_runner_admin` role — no AWS secret is needed, but that role and its trust must exist). The prerequisites workflow's remaining inputs (`containerName`, `serviceBusNamespace`, `serviceBusResourceGroup`, `serviceBusTopicName`, `eventGridResourceGroup`, `eventGridTopicResourceGroup`, `eventGridCustomTopicName`) are Azure-only and optional — they are ignored on `cloud: aws`, so leave them blank (or at their defaults).
 
 ---
 
@@ -45,7 +45,7 @@ The File Scan Service requires an IAM role (via IRSA — IAM Roles for Service A
 | `s3:GetObject`, `s3:GetObjectTagging`, `s3:DeleteObject`, `s3:ListBucket` | `<inbound-bucket>` and `<inbound-bucket>/*` | Read the scanned object (and its GuardDuty scan-result tag) to copy it out, then remove it from inbound once handled |
 | `s3:GetObject`, `s3:PutObject`, `s3:PutObjectTagging`, `s3:ListBucket` | `<outbound-bucket>` and `<outbound-bucket>/*` | Write the clean copy |
 | `sqs:GetQueueUrl`, `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` | the scan-results SQS queue | Resolve the queue URL, long-poll and acknowledge scan-result events |
-| `secretsmanager:GetSecretValue`, `secretsmanager:DescribeSecret` | `arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/file-scan-service/*` | Lets the AWS Secrets Store CSI driver read `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` (and `KC_SERVICE_CLIENT_SECRET`, see [Step5](#step5-configure-secrets)) for this ServiceAccount |
+| `secretsmanager:GetSecretValue`, `secretsmanager:DescribeSecret` | `arn:aws:secretsmanager:<region>:<account-id>:secret:dpn/<environment>-<cluster>/file-scan-service/*` | Lets the AWS Secrets Store CSI driver read `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` for this ServiceAccount |
 
 The role's trust policy must allow `sts:AssumeRoleWithWebIdentity` from the EKS cluster's OIDC provider, scoped to `system:serviceaccount:<namespace>:dpn-file-scan-service`.
 
@@ -177,9 +177,9 @@ dpn-file-scan-service/
 | `FILESCAN_SNS_TOPIC_NAME` | The SNS topic name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not an ARN; the chart derives the ARN itself | `dpn-dev-01-guardduty-findings2` |
 | `FILESCAN_SQS_QUEUE_NAME` | The SQS queue name from [Step2](#step2-aws-resource-setup-snssqsguardduty) — a **name**, not a URL | `dpn-dev-01-file-scan-results2` |
 
-> The four `FILESCAN_*` keys are used only by `dpn-gha-file-scan-prerequisites-cd.yaml` (its "Validate Required Values (AWS)" step fails if any is empty). The deploy workflow `dpn-gha-file-scan-cd.yaml` uses `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER` and `NAMESPACE`; the bucket and queue names the running service uses come from the Helm values file ([Step4](#step4-configure-helm-chart-files)), so keep the two in sync.
+> The four `FILESCAN_*` keys are used only by `dpn-gha-file-scan-prerequisites-cd.yaml` (its "Validate Required Values (AWS)" step fails if any is empty). The deploy workflow `dpn-gha-file-scan-cd.yaml` uses `AWS_REGION`, `AWS_ACCOUNT_ID`, `EKS_CLUSTER`, `NAMESPACE` and `IMAGE_REGISTRY` (the last only when its `imageRepository` input is set); the bucket and queue names the running service uses come from the Helm values file ([Step4](#step4-configure-helm-chart-files)), so keep the two in sync. The prerequisites workflow also fails if **any** value in the JSON file still starts with `<` (an unreplaced placeholder such as `<account-id>`).
 >
-> The same JSON file is shared with other components, so it also carries keys this service does not read (e.g. `OAUTH2_PROXY_EXTERNAL_URL`) — leave those as they are.
+> The same JSON file is shared with other components, so it also carries keys this service does not read (e.g. `OAUTH2_PROXY_EXTERNAL_URL`, `EFS_FILESYSTEM_ID`) — leave those as they are.
 
 > **No `KEY_VAULT_NAME` or IRSA-role-ARN key in this JSON file.** The IAM permissions come entirely from the IRSA role already attached to the ServiceAccount ([Step1](#step1-prepare-iam-role-for-the-service)), which this config file does not need to reference — there is no `FILESCAN_IRSA_ROLE_ARN`-style key. This component's real AWS config file also carries no `KEY_VAULT_NAME` entry at all: nothing in its GitHub Actions workflow reads one.
 
@@ -205,9 +205,11 @@ The following values to be modified in that file
 |---|---|
 | cloudProvider | Must be `aws` (the chart default is `azure`) — selects the AWS SecretProviderClass and the AWS-only environment variables below |
 | image:repository | `ghcr.io/energy-dsi/dpn-file-scan-service` |
-| image:tag | Leave `""` — the workflow sets it from its required `imageTag` input (`--set image.tag=<imageTag>`); the workflow also sets `namespace` from `NAMESPACE` in the config JSON || serviceAccount.create | Whether to create the IRSA ServiceAccount — set `true` on AWS | `true` |
-| serviceAccount.name | ServiceAccount name, also set as the Deployment's `serviceAccountName` | `dpn-file-scan-service` |
-| serviceAccount.irsaRoleArn | ARN of the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) |
+| image:tag | Leave `""` — the workflow sets it from its required `imageTag` input (`--set image.tag=<imageTag>`); the workflow also sets `namespace` from `NAMESPACE` in the config JSON |
+| imagePullSecret | `ghcr-pull-secret` — the Deployment adds it as `imagePullSecrets` when set (see the installation guide, Step3b) |
+| serviceAccount.create | Chart default `false`; set `true` on AWS. Renders the IRSA-annotated ServiceAccount (`serviceaccount.yaml`) and sets the Deployment's `serviceAccountName` (AWS only) |
+| serviceAccount.name | ServiceAccount name (chart default `dpn-file-scan-service`); the IRSA trust policy must be scoped to `system:serviceaccount:<namespace>:<name>` |
+| serviceAccount.irsaRoleArn | ARN of the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) — set as the `eks.amazonaws.com/role-arn` annotation |
 | env.awsRegion | AWS region the S3/SQS resources live in |
 | env.sourceBucket | S3 bucket GuardDuty scans (inbound). Passed to the container as `S3_BUCKET_INBOUND` |
 | env.destBucket | S3 bucket clean files are copied to (outbound). Passed to the container as `S3_BUCKET_OUTBOUND` |
@@ -215,9 +217,9 @@ The following values to be modified in that file
 | env.cloudprovidertype | `AWS`. Passed to the container as `CLOUD_PROVIDER_TYPE` |
 | env.otelEndpoint | OTel collector's OTLP endpoint (passed as `OTEL_EXPORTER_OTLP_ENDPOINT`), e.g. `https://dpn-otel-collector.ns-dpn-health-01.svc.cluster.local:4318` |
 | env.otelOauthTokenEndpointUrl | Keycloak token endpoint used to authenticate OTLP exports as `dpn-service-client`, e.g. `https://dpn-keycloak.ns-dpn-01.svc.cluster.local:8443/realms/dpn-realm/protocol/openid-connect/token` |
-| keyvault.otelOauthClientSecretName | Set to `KC_SERVICE_CLIENT_SECRET` (as in the provided AWS values files) to mount `dpn-service-client`'s secret from `secretsManager.secretPrefix/KC_SERVICE_CLIENT_SECRET`; leave empty to disable OTLP OAuth |
+| keyvault.otelOauthClientSecretName | Set to `KC_SERVICE_CLIENT_SECRET` (as in the provided AWS values files) to inject `OTEL_OAUTH_CLIENT_SECRET`; on AWS the value is read from the existing `dpn-keycloak-secrets` Kubernetes secret (key `KC_SERVICE_CLIENT_SECRET`) in the namespace, not from Secrets Manager. Leave empty to disable OTLP OAuth |
 
-> Optionally, `env.truststorePath` gates whether the chart mounts the `dpn-tls` OTLP truststore volume at all — leave it unset for an environment with no `dpn-tls` secret provisioned. The provided AWS values files set it (and `env.otelExporterCertificate`) to `/etc/secrets/truststore.jks`. Independently of this, the Deployment always reads `TRUSTSTORE_PASSWORD` from the shared `tls-auth-secret` (key `TRUSTSTORE_PASSWORD`), created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yaml`), so that secret must exist in the namespace.
+> Optionally, `env.truststorePath` gates whether the chart mounts the `dpn-tls` OTLP truststore volume at all — leave it unset for an environment with no `dpn-tls` secret provisioned. The provided AWS values files set it (and `env.otelExporterCertificate`) to `/etc/secrets/truststore.jks`. Independently of this, the Deployment always reads `TRUSTSTORE_PASSWORD` from the shared `tls-auth-secret` (key `TRUSTSTORE_PASSWORD`), created by **DPN CD - Prerequisite Pipeline (AWS Universal TLS) #1** (`dpn-gha-tls-cd.yml`), so that secret must exist in the namespace. The CD workflow's "Check tls-auth-secret Exists" step fails the run early (before the Helm deploy) if the secret or key is missing — re-run the TLS workflow against the environment in that case.
 
 ---
 
@@ -230,10 +232,9 @@ The service's OAuth client credentials can now be sourced from **AWS Secrets Man
 | secretsManager.enabled | Use the AWS Secrets Store CSI driver instead of Key Vault | `true` |
 | secretsManager.secretPrefix | Secrets Manager path prefix holding `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` | `dpn/<environment>-<cluster>/file-scan-service` |
 
-When `secretsManager.enabled: true`, both `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` must already exist under `secretsManager.secretPrefix` before the first deploy, and the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) must additionally grant `secretsmanager:GetSecretValue` on that prefix. When `keyvault.otelOauthClientSecretName` is set, `KC_SERVICE_CLIENT_SECRET` (the same `dpn-service-client` value held under `dpn/<environment>-<cluster>/keycloak/`) must also exist under this prefix; the CSI driver syncs it into the `dpn-file-scan-service-otel-truststore` secret (key `oauth-client-secret`) for `OTEL_OAUTH_CLIENT_SECRET`. All provided AWS values files set `secretsManager.enabled: true`; the Deployment always mounts the `dpn-file-scan-service-kv-secrets` SecretProviderClass, which on `cloudProvider: aws` is only rendered when `secretsManager.enabled: true`, so do not leave it at the chart default `false` on AWS.
+When `secretsManager.enabled: true`, both `FILESCAN_CLIENT_ID` and `FILESCAN_CLIENT_SECRET` must already exist under `secretsManager.secretPrefix` before the first deploy, and the IRSA role from [Step1](#step1-prepare-iam-role-for-the-service) must additionally grant `secretsmanager:GetSecretValue` on that prefix. The AWS SecretProviderClass only mounts these two objects (aliased `FILESCAN-CLIENT-ID` and `FILESCAN-CLIENT-SECRET`). When `keyvault.otelOauthClientSecretName` is set, `OTEL_OAUTH_CLIENT_SECRET` is read directly from the `dpn-keycloak-secrets` Kubernetes secret (key `KC_SERVICE_CLIENT_SECRET`) in the namespace, so nothing needs to be created for it under this prefix. All provided AWS values files set `secretsManager.enabled: true`; the Deployment always mounts the `dpn-file-scan-service-kv-secrets` SecretProviderClass, which on `cloudProvider: aws` is only rendered when `secretsManager.enabled: true`, so do not leave it at the chart default `false` on AWS.
 
-> **Note:** `dpn-gha-file-scan-prerequisites-cd.yaml` (run with `cloud: aws`) can create both `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` entries under `dpn/<environment>-<cluster>/file-scan-service/` for you if they don't already exist — it seeds each with a `REPLACE_ME` placeholder value, which must be updated with the real credential before the service relies on it. It leaves an existing secret's value untouched. It does **not** create `KC_SERVICE_CLIENT_SECRET` under that prefix — create that one manually.
-
+> **Note:** `dpn-gha-file-scan-prerequisites-cd.yaml` (run with `cloud: aws`) can create both `FILESCAN_CLIENT_ID`/`FILESCAN_CLIENT_SECRET` entries under `dpn/<environment>-<cluster>/file-scan-service/` for you if they don't already exist — it seeds each with a `REPLACE_ME` placeholder value, which must be updated with the real credential before the service relies on it. It leaves an existing secret's value untouched.
 ---
 
 ## Review Notes

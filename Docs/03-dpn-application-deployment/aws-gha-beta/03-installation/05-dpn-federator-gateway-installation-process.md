@@ -76,7 +76,7 @@ In summary:
 - Vault and Certificate Manager deployed and in running state
 - Health monitoring service is running state and OTEL Collector healthy
 - `cert-manager-truststore`, `certificate-manager-secrets`, and `tls-auth-secret` secrets present; Vault authentication configured (AppRole shared with the Certificate Manager in the checked-in AWS values files — see [Configure DPN Vault Service, Step 3E](../02-configuration/01-configure-dpn-vault-service.md#step-3e-configure-approle-authentication-dpn-gha-certificate-manager-role-id-creationyaml) for the AppRole caveat)
-- S3 access credential secrets are prepared
+- IAM role for S3 access (IRSA) prepared — no S3 credential secrets are used on AWS
 - Server and File Scan source S3 buckets provisioned
 - Internal load Balancer IPs are determined
 - IDP client ID is received from DSM
@@ -122,6 +122,8 @@ kubectl create secret docker-registry ghcr-pull-secret \
      -n <namespace>
 ```
 
+The chart attaches this secret to every pod through `imagePullSecret` (empty by default; the checked-in AWS values files set `ghcr-pull-secret`), so keep that value in step with the secret name created here.
+
 ### Step2c. Execute CD Workflow
 
 Go to **Actions → DPN CD - Federator Gateway → Run workflow**, and supply:
@@ -132,10 +134,10 @@ Go to **Actions → DPN CD - Federator Gateway → Run workflow**, and supply:
 | `cluster` | `dpn01` / `dpn02` (default `dpn01`) |
 | `cloud` | `aws` (default; the workflow also offers `azure` and `gcp`) |
 | `imageTag` | The image tag pushed in Step2a — **required**, no default; applied to both the Federator Server and Client |
-| `serverImageRepository` | Optional — Server image path after `ghcr.io/energy-dsi/` (e.g. `dpn-federator-server`); leave blank to use the values file's repository |
-| `clientImageRepository` | Optional — Client image path after `ghcr.io/energy-dsi/` (e.g. `dpn-federator-client`); leave blank to use the values file's repository |
+| `serverImageRepository` | Optional — Server image path after the config JSON's `IMAGE_REGISTRY` (e.g. `ghcr.io/energy-dsi`; e.g. `dpn-federator-server`); leave blank to use the values file's repository |
+| `clientImageRepository` | Optional — Client image path after `IMAGE_REGISTRY` (e.g. `dpn-federator-client`); leave blank to use the values file's repository |
 
-The job runs on a `[self-hosted, vmss]` runner against the GitHub Environment `<environment>-<cluster>`, reads `.github/config/aws/<environment>-<cluster>.json`, logs in to AWS/EKS through the `.github/actions/cloud-login` composite action (GitHub OIDC into the `oidc_github_runner_hub` role, then chained into `oidc_github_runner_admin` in the target account), checks cluster access with `helm ls` / `kubectl get all` in `ns-dpn-01` (this check is hard-coded to `ns-dpn-01`, independent of `NAMESPACE`), then runs `helm lint`, a `helm upgrade --install --dry-run`, and the real `helm upgrade --install` of release `dpn-platform`. It then waits for the rollout of `dpn-redis`, `dpn-zookeeper-src`, `dpn-zookeeper-target`, `dpn-kafka-src`, `dpn-kafka-target`, `dpn-kafka-ui`, and `dpn-federator-server-<N>` / `dpn-federator-client-<N>` (`<N>` is `1` for `dpn01`, `2` for `dpn02`). On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
+The job runs on a `[self-hosted, vmss]` runner against the GitHub Environment `<environment>-<cluster>`, reads `.github/config/aws/<environment>-<cluster>.json`, logs in to AWS/EKS through the `.github/actions/cloud-login` composite action (GitHub OIDC into the `oidc_github_runner_hub` role, then chained into `oidc_github_runner_admin` in the target account), checks cluster access with `helm ls` / `kubectl get all` in `ns-dpn-01` (this check is hard-coded to `ns-dpn-01`, independent of `NAMESPACE`), verifies that `tls-auth-secret` exists in `NAMESPACE` with non-empty `KEYSTORE_PASSWORD` and `TRUSTSTORE_PASSWORD` keys (failing early if the TLS workflow has not been run), then runs `helm lint`, a `helm upgrade --install --dry-run`, and the real `helm upgrade --install` of release `dpn-platform`. It then waits for the rollout of `dpn-redis`, `dpn-zookeeper-src`, `dpn-zookeeper-target`, `dpn-kafka-src`, `dpn-kafka-target`, `dpn-kafka-ui`, and `dpn-federator-server-<N>` / `dpn-federator-client-<N>` (`<N>` is `1` for `dpn01`, `2` for `dpn02`). On success, the deployed image digests are captured as the `deployed-image-digest` workflow artifact.
 
 To roll back, re-run this CD workflow with an older `imageTag`, or use `dpn-gha-federator-gateway-rollback.yaml` (**DPN Rollback - Federator Gateway**) or `helm rollback dpn-platform <revision> -n <namespace>`; to remove the release, use `dpn-gha-federator-gateway-uninstall.yaml` (**DPN Uninstall - Federator Gateway**) or `helm uninstall dpn-platform -n <namespace>`. See [Rollback Procedures](../04-rollback/04-rollback-procedures.md) and [Uninstall and Decommissioning](../05-uninstall/05-uninstall-decommissioning.md).
 
@@ -232,9 +234,6 @@ In case Kafka is failing , please restart using rollout restart command in seque
 ```text
 kubectl rollout restart deployment/<deployment-name> -n <namespace>
 ```
-
-If Kafka Source/Target or Zookeeper Source/Target crash-loop immediately on start with a Python `urllib3` import error, check that the pod's `instrumentation.opentelemetry.io/inject-python` annotation is `"false"` — the cluster's OTel Python auto-instrumentation webhook injects a `urllib3` build incompatible with these images' Python 3.9 startup tooling otherwise. This is set automatically on AWS (`cloudProvider: aws`); if it is missing, re-deploy so the annotation is applied — a live `kubectl patch` alone is reverted by the next `helm upgrade`.
-
 ---
 
 ## Reference: Container Images Used
